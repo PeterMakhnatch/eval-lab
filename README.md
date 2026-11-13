@@ -14,7 +14,7 @@ are the centre of the lab.
 |---|---|---|
 | **Run** | `evallab run`, `evallab process-job`, `evallab view` | Execute a named task. Keep the raw job, provenance, rewards, errors, and reports. |
 | **Gold** | `evallab.gold.load_rows`, `evallab.gold.load_trajectory` | Read the existing IssueBank registry and hash-bound action coordinates through one loader. |
-| **Detect** | `evallab line`, `evallab review` | Judge a finished run with L0 rules and readers, including AutoReview. Keep keep/review/drop decisions distinct. |
+| **Detect** | `evallab line` | Judge a finished run with L0 rules and readers, including AutoReview. Keep keep/review/drop decisions distinct. |
 | **Watch** | `evallab watch` | Observe a running job through live watch, automatic attachment, and the causal monitor. Keep dispatch protection. |
 | **Certify** | `evallab certify-gold`, `evallab harden` | Require strict G1–G7 evidence and @10 hardening. A package-check packet is not a Gold certificate. |
 | **Score** | `evallab score` | Measure frozen cached DEV outputs. Keep detection, live monitoring, task QA, and grader QA contracts separate. |
@@ -30,7 +30,7 @@ Use Python 3.12+, [uv](https://docs.astral.sh/uv/), and the locked native depend
 profile:
 
 ```bash
-uv sync --locked --no-group observability --group benchmarks --group lance --group inspect --extra laminar
+uv sync --locked --no-group observability --group benchmarks --group inspect --extra laminar
 uv run python -c "import evallab.cli"
 uv run evallab --help
 ```
@@ -83,8 +83,8 @@ A null or attempted label never becomes a binary control. The 156-row binary
 action seed does not replace the 690-row Line policy pool. Preserve exposure
 records, confinement, quarantines, frozen receipts, and commit-pinned provenance.
 
-Use `evallab line --help` for finished-run processing and `evallab review --help`
-for review. [The Line contract](docs/line.md) owns decisions, frozen prompts,
+Use `evallab line --help` for finished-run processing and `evallab judge --help`
+for human review. [The Line contract](docs/line.md) owns decisions, frozen prompts,
 thresholds, labels, and gate limits. This guide changes none of them. Keep
 finished-run Line scheduling separate from online watch. Do not report a raw
 verifier pass as an honest pass without its review evidence.

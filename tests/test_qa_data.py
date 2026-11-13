@@ -99,8 +99,6 @@ def test_budget_takes_whole_items_and_counts_what_it_omits() -> None:
     assert not budget.take("y" * 40)  # 10 tokens, only 5 left
     assert budget.take("z" * 20)
     assert (budget.used, budget.omitted, budget.remaining) == (10, 1, 0)
-    text, cut = Budget(2).take_text("abcdefghijkl")
-    assert (text, cut) == ("abcdefgh", True)
 
 
 def test_run_search_returns_blind_triage_records_most_suspicious_first(store: CloudTraceDatabase) -> None:

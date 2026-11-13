@@ -44,8 +44,6 @@ from evallab.trajectory_error_taxonomy import (
 PhaseType = Literal["setup", "prompt", "work", "verifier", "unknown"]
 AvailabilityStatus = Literal["featured", "accounted_unavailable"]
 
-CONTROL_AGENTS = frozenset({"oracle", "nop"})
-
 #: Re-exported from :mod:`evallab.edit_signals` (single source of truth);
 #: kept here so existing ``evallab.traj.EDIT_*`` references keep working.
 
@@ -914,13 +912,21 @@ _PATH_TOKEN_PATTERN = re.compile(
 )
 
 
+def _collect_path_tokens(steps: Sequence[StepOutline]) -> list[str]:
+    tokens: list[str] = []
+    for s in steps:
+        if s.tool_command:
+            tokens.extend(_PATH_TOKEN_PATTERN.findall(s.tool_command))
+    return tokens
+
+
 def _extract_state_journal_metrics(
     trial_dir: Path | None,
     steps: Sequence[StepOutline],
     citations: Sequence[SourceCitation] = (),
 ) -> dict[str, Any]:
     """Extract mechanical state diff and state journal metrics from trial artifacts."""
-    not_observed = {
+    not_observed: dict[str, Any] = {
         "state_diff_observed": False,
         "state_journal_status": "not_observed",
         "state_journal_reason": "state-diff.json not present in trial directory",
@@ -937,23 +943,29 @@ def _extract_state_journal_metrics(
     if trial_dir is None or not trial_dir.is_dir():
         return not_observed
 
-    candidate_diff_paths = [
-        trial_dir / "state-diff.json",
-        trial_dir / "agent" / "state-diff.json",
-        trial_dir / "journal" / "state-diff.json",
-        trial_dir / "state_journal" / "state-diff.json",
-    ]
-    diff_path: Path | None = None
-    for p in candidate_diff_paths:
-        if p.is_file():
-            diff_path = p
-            break
-
+    diff_path = next(
+        (
+            trial_dir / rel
+            for rel in (
+                "state-diff.json",
+                "agent/state-diff.json",
+                "journal/state-diff.json",
+                "state_journal/state-diff.json",
+            )
+            if (trial_dir / rel).is_file()
+        ),
+        None,
+    )
     if diff_path is None:
-        events_path = trial_dir / "state-events.jsonl"
-        if not events_path.is_file():
-            events_path = trial_dir / "agent" / "state-events.jsonl"
-        if events_path.is_file():
+        events_path = next(
+            (
+                trial_dir / rel
+                for rel in ("state-events.jsonl", "agent/state-events.jsonl")
+                if (trial_dir / rel).is_file()
+            ),
+            None,
+        )
+        if events_path is not None:
             return {
                 **not_observed,
                 "state_journal_status": "incomplete_stream",
@@ -970,7 +982,6 @@ def _extract_state_journal_metrics(
             "state_journal_status": "malformed",
             "state_journal_reason": f"unparseable_state_diff: {type(exc).__name__}: {exc}",
         }
-
     if not isinstance(raw_diff, dict):
         return {
             **not_observed,
@@ -979,19 +990,11 @@ def _extract_state_journal_metrics(
             "state_journal_reason": "state_diff_not_dict",
         }
 
-    status = str(raw_diff.get("status") or "available")
-    reason = raw_diff.get("reason")
-    event_count = int(raw_diff.get("event_count") or 0)
     changes = raw_diff.get("changes")
     if not isinstance(changes, list):
         changes = []
-
-    created = 0
-    modified = 0
-    deleted = 0
-    bytes_delta = 0
+    created = modified = deleted = bytes_delta = 0
     mutated_paths: set[str] = set()
-
     for ch in changes:
         if not isinstance(ch, dict):
             continue
@@ -1005,33 +1008,28 @@ def _extract_state_journal_metrics(
             modified += 1
         elif ctype == "deleted":
             deleted += 1
-
         before = ch.get("before") if isinstance(ch.get("before"), dict) else None
         after = ch.get("after") if isinstance(ch.get("after"), dict) else None
-        size_before = int(before.get("size_bytes") or 0) if before else 0
-        size_after = int(after.get("size_bytes") or 0) if after else 0
-        bytes_delta += size_after - size_before
+        bytes_delta += (int(after.get("size_bytes") or 0) if after else 0) - (
+            int(before.get("size_bytes") or 0) if before else 0
+        )
 
-    step_referenced_paths: set[str] = set()
-    for s in steps:
-        if s.tool_command:
-            for token in _PATH_TOKEN_PATTERN.findall(s.tool_command):
-                step_referenced_paths.add(Path(token).name)
-                step_referenced_paths.add(token)
+    referenced: set[str] = set()
+    for token in _collect_path_tokens(steps):
+        referenced.add(Path(token).name)
+        referenced.add(token)
     for c in citations:
-        step_referenced_paths.add(Path(c.path).name)
-        step_referenced_paths.add(c.path)
-    unobserved_mutations = 0
-    for p in mutated_paths:
-        p_name = Path(p).name
-        if p not in step_referenced_paths and p_name not in step_referenced_paths:
-            unobserved_mutations += 1
-
+        referenced.add(Path(c.path).name)
+        referenced.add(c.path)
+    unobserved_mutations = sum(
+        1 for p in mutated_paths if p not in referenced and Path(p).name not in referenced
+    )
+    reason = raw_diff.get("reason")
     return {
         "state_diff_observed": True,
-        "state_journal_status": status,
+        "state_journal_status": str(raw_diff.get("status") or "available"),
         "state_journal_reason": str(reason) if reason is not None else None,
-        "state_events_count": event_count,
+        "state_events_count": int(raw_diff.get("event_count") or 0),
         "state_mutations_count": len(changes),
         "state_files_created_count": created,
         "state_files_modified_count": modified,
@@ -1052,42 +1050,25 @@ def _extract_reference_and_citation_metrics(
     citations: Sequence[SourceCitation],
 ) -> dict[str, Any]:
     """Extract mechanical path reference and citation validity counts."""
-    path_refs: list[str] = []
-    for s in steps:
-        if s.tool_command:
-            for token in _PATH_TOKEN_PATTERN.findall(s.tool_command):
-                path_refs.append(token)
-
-    valid_paths = 0
-    invalid_paths = 0
-    for p in path_refs:
-        if "\x00" in p or ".." in p.split("/"):
-            invalid_paths += 1
-        else:
-            valid_paths += 1
-
-    total_paths = len(path_refs)
+    path_refs = _collect_path_tokens(steps)
+    invalid_paths = sum(1 for p in path_refs if "\x00" in p or ".." in p.split("/"))
+    valid_paths = len(path_refs) - invalid_paths
 
     valid_cites = 0
-    invalid_cites = 0
     for c in citations:
         sha = c.sha256.strip()
         sha_hex = sha[7:] if sha.startswith("sha256:") else sha
         if len(sha_hex) == 64 and all(ch in "0123456789abcdefABCDEF" for ch in sha_hex) and c.path:
             valid_cites += 1
-        else:
-            invalid_cites += 1
 
-    total_cites = len(citations)
     return {
-        "path_reference_count": total_paths,
+        "path_reference_count": len(path_refs),
         "valid_path_reference_count": valid_paths,
         "invalid_path_reference_count": invalid_paths,
-        "citation_reference_count": total_cites,
+        "citation_reference_count": len(citations),
         "valid_citation_reference_count": valid_cites,
-        "invalid_citation_reference_count": invalid_cites,
+        "invalid_citation_reference_count": len(citations) - valid_cites,
     }
-
 
 def _build_phases(steps: Sequence[StepOutline]) -> tuple[PhaseOutline, ...]:
     """Group ordered steps into semantic phases."""
@@ -1189,6 +1170,7 @@ def _unavailable_outline(
     primary_reward: float | None,
     exception_class: str | None,
     citations: Sequence[SourceCitation],
+    include_citation_and_journal: bool = True,
 ) -> TrajectoryOutline:
     return TrajectoryOutline(
         trial_id=trial_id,
@@ -1225,39 +1207,28 @@ def _unavailable_outline(
         phases=(),
         steps=(),
         citations=tuple(citations),
-        tool_mix={},
-        is_expected_negative=False,
-        expected_probe_count=0,
-        step_to_first_error=None,
-        time_to_first_error_seconds=None,
-        recovery_latency_steps=None,
-        recovery_latency_seconds=None,
-        unrecovered_at_terminal=False,
-        intervention_category="autonomous",
-        intervention_provenance_notes="",
-        autonomous_step_count=0,
-        assisted_step_count=0,
-        intervention_count=0,
-        state_diff_observed=False,
-        state_journal_status="not_observed",
-        state_journal_reason=reason,
-        state_events_count=0,
-        state_mutations_count=0,
-        state_files_created_count=0,
-        state_files_modified_count=0,
-        state_files_deleted_count=0,
-        state_diff_path_count=0,
-        state_diff_bytes_delta=0,
-        unobserved_state_mutations_count=0,
-        path_reference_count=0,
-        valid_path_reference_count=0,
-        invalid_path_reference_count=0,
-        citation_reference_count=len(citations),
-        valid_citation_reference_count=len(citations),
-        invalid_citation_reference_count=0,
-        edit_call_count=0,
-        state_coverage_extra={},
+        state_journal_reason=reason if include_citation_and_journal else None,
+        citation_reference_count=len(citations) if include_citation_and_journal else 0,
+        valid_citation_reference_count=len(citations) if include_citation_and_journal else 0,
     )
+
+
+def _trial_paths_tuple(trial_dir: Path) -> tuple[Path, Path | None, Path | None]:
+    res_cand = trial_dir / "result.json"
+    return trial_dir, trial_trajectory_path(trial_dir), res_cand if res_cand.is_file() else None
+
+
+def _matches_trial_identifier(cand_trial: Path, target_str: str) -> bool:
+    if cand_trial.name == target_str:
+        return True
+    r_file = cand_trial / "result.json"
+    if not r_file.is_file():
+        return False
+    try:
+        r_data = json.loads(r_file.read_text(encoding="utf-8"))
+        return bool(r_data.get("id") == target_str or r_data.get("trial_name") == target_str)
+    except Exception:
+        return False
 
 
 def resolve_trial_target(
@@ -1286,82 +1257,281 @@ def resolve_trial_target(
         _check_path_jail(resolved, [root, *candidate_roots])
         if resolved.is_file():
             if resolved.name == "trajectory.json":
-                trial_dir = resolved.parent
-                if trial_dir.name == "agent":
-                    trial_dir = trial_dir.parent
+                trial_dir = resolved.parent.parent if resolved.parent.name == "agent" else resolved.parent
                 res_path = trial_dir / "result.json"
                 return trial_dir, resolved, res_path if res_path.is_file() else None
             if resolved.name == "result.json":
                 trial_dir = resolved.parent
-                traj_cand = trial_trajectory_path(trial_dir)
-                return trial_dir, traj_cand, resolved
-            trial_dir = resolved.parent
-            traj_cand = trial_trajectory_path(trial_dir)
-            res_cand = trial_dir / "result.json"
-            return (
-                trial_dir,
-                traj_cand,
-                res_cand if res_cand.is_file() else None,
-            )
-        elif resolved.is_dir():
-            traj_cand = trial_trajectory_path(resolved)
-            res_cand = resolved / "result.json"
-            return (
-                resolved,
-                traj_cand,
-                res_cand if res_cand.is_file() else None,
-            )
+                return trial_dir, trial_trajectory_path(trial_dir), resolved
+            return _trial_paths_tuple(resolved.parent)
+        if resolved.is_dir():
+            return _trial_paths_tuple(resolved)
         raise TrajectoryNotFoundError(f"Path target {target!r} ({resolved}) does not exist")
 
-    # 2. Identifier search across runs roots
     for c_root in candidate_roots:
         if not c_root.exists():
             continue
         cand_dir = c_root / target_str
         if cand_dir.is_dir():
             _check_path_jail(cand_dir, [root, *candidate_roots])
-            traj_cand = trial_trajectory_path(cand_dir)
-            res_cand = cand_dir / "result.json"
-            return (
-                cand_dir,
-                traj_cand,
-                res_cand if res_cand.is_file() else None,
-            )
+            return _trial_paths_tuple(cand_dir)
         for job_dir in c_root.iterdir():
             if not job_dir.is_dir():
                 continue
             for cand_trial in job_dir.iterdir():
-                if not cand_trial.is_dir():
-                    continue
-                matched = False
-                if cand_trial.name == target_str:
-                    matched = True
-                else:
-                    r_file = cand_trial / "result.json"
-                    if r_file.is_file():
-                        try:
-                            r_data = json.loads(r_file.read_text(encoding="utf-8"))
-                            if (
-                                r_data.get("id") == target_str
-                                or r_data.get("trial_name") == target_str
-                            ):
-                                matched = True
-                        except Exception:
-                            pass
-                if matched:
+                if cand_trial.is_dir() and _matches_trial_identifier(cand_trial, target_str):
                     _check_path_jail(cand_trial, [root, *candidate_roots])
-                    traj_cand = trial_trajectory_path(cand_trial)
-                    res_cand = cand_trial / "result.json"
-                    return (
-                        cand_trial,
-                        traj_cand,
-                        res_cand if res_cand.is_file() else None,
-                    )
+                    return _trial_paths_tuple(cand_trial)
 
     root_list = [str(r) for r in candidate_roots]
     raise TrajectoryNotFoundError(
         f"Trial target {target!r} not found in candidate runs roots: {root_list}"
     )
+
+
+def _as_dict(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _extract_trial_metadata(
+    trial_dir: Path, result_path: Path | None
+) -> tuple[dict[str, Any], dict[str, Any], list[SourceCitation]]:
+    result_data: dict[str, Any] = {}
+    citations: list[SourceCitation] = []
+    if result_path and result_path.is_file():
+        citations.append(
+            SourceCitation(path=str(result_path), sha256=sha256_file(result_path), kind="result")
+        )
+        try:
+            loaded = json.loads(result_path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                result_data = loaded
+        except Exception:
+            pass
+
+    cfg = _as_dict(result_data.get("config"))
+    parent_dir = trial_dir.parent
+    if parent_dir.name.startswith("trials") and parent_dir.parent.name not in ("runs", "evidence"):
+        parent_dir = parent_dir.parent
+    agent_info = _as_dict(result_data.get("agent_info"))
+    agent_cfg = _as_dict(cfg.get("agent"))
+    verifier_result = _as_dict(result_data.get("verifier_result"))
+    rewards = _as_dict(verifier_result.get("rewards"))
+    primary_reward = (
+        float(rewards["reward"])
+        if "reward" in rewards and isinstance(rewards["reward"], int | float)
+        else None
+    )
+    exception_info = result_data.get("exception_info")
+    exception_class = (
+        exception_info.get("exception_type") or exception_info.get("type")
+        if isinstance(exception_info, dict)
+        else None
+    )
+    meta: dict[str, Any] = {
+        "trial_id": _safe_str(result_data.get("id") or trial_dir.name),
+        "job_id": _safe_str(cfg.get("job_id") or parent_dir.name),
+        "trial_name": _safe_str(result_data.get("trial_name") or trial_dir.name),
+        "job_name": _safe_str(parent_dir.name),
+        "task_name": _safe_str(result_data.get("task_name") or "unknown"),
+        "agent_name": _safe_str(agent_info.get("name") or agent_cfg.get("name") or "unknown"),
+        "agent_version": agent_info.get("version") or agent_cfg.get("version"),
+        "model_name": _safe_str(agent_info.get("model_name") or agent_cfg.get("model") or "unknown"),
+        "duration_seconds": _parse_iso_seconds(
+            result_data.get("started_at"), result_data.get("finished_at")
+        ),
+        "primary_reward": primary_reward,
+        "exception_class": exception_class,
+    }
+    return meta, agent_cfg, citations
+
+
+def _cas_blob_ref(store_root: Path | None, value: Any) -> str | None:
+    if store_root is None or not isinstance(value, list):
+        return None
+    from evallab.evidence_store import store_blob
+
+    return store_blob(store_root, json.dumps(value).encode("utf-8"))
+
+
+def _summarize_outline_steps(
+    positioned_steps: Sequence[tuple[int, dict[str, Any]]],
+    chain_segments: Sequence[ChainSegment],
+    model_name: str,
+    agent_cfg: dict[str, Any],
+    store_root: Path | None,
+) -> tuple[list[StepOutline], dict[str, Any]]:
+    from evallab.trajectory_ir import _extract_reasoning_tokens, _extract_sampling_params
+
+    steps_out: list[StepOutline] = []
+    tool_mix_counter: Counter[str] = Counter()
+    total_prompt_tokens = total_completion_tokens = total_cached_tokens = 0
+    total_cost_usd = 0.0
+    has_cost_usd = False
+
+    step_to_first_tool: int | None = None
+    step_to_first_edit: int | None = None
+    step_to_first_error: int | None = None
+    first_step_ts: str | None = None
+    first_tool_ts: str | None = None
+    first_edit_ts: str | None = None
+    first_error_ts: str | None = None
+    first_recovery_ts: str | None = None
+    first_recovery_step: int | None = None
+
+    last_was_error = False
+    recovery_count = total_errors = inferred_errors = expected_probe_count = 0
+
+    for step_id, (segment_position, raw_step) in enumerate(positioned_steps, start=1):
+        native_path, _, native_sha = chain_segments[segment_position]
+        source = _safe_str(raw_step.get("source") or "agent")
+        native_step_value = raw_step.get("step_id")
+        native_step_id = native_step_value if isinstance(native_step_value, int) else None
+        timestamp = raw_step.get("timestamp")
+        if first_step_ts is None and timestamp:
+            first_step_ts = str(timestamp)
+
+        m_name = raw_step.get("model_name") or model_name
+        msg = str(raw_step.get("message") or "")
+        redact_match = _REDACTION_PATTERN.search(msg)
+        is_redacted = redact_match is not None
+        redaction_digest = redact_match.group("digest") if redact_match else None
+
+        tool_calls = effective_tool_calls(raw_step)
+        if tool_calls and isinstance(tool_calls[0], dict):
+            for tc in tool_calls:
+                if not isinstance(tc, dict):
+                    continue
+                tname = _safe_str(tc.get("function_name"))
+                if tname:
+                    tool_mix_counter[tname] += 1
+
+        loop, error_msg, error_classification = extract_loop_step(raw_step)
+        if loop.tool_name and step_to_first_tool is None:
+            step_to_first_tool, first_tool_ts = step_id, timestamp
+        if _is_edit_action(loop.tool_name, loop.tool_command) and step_to_first_edit is None:
+            step_to_first_edit, first_edit_ts = step_id, timestamp
+        is_probe = error_classification.is_expected_probe
+        if is_probe:
+            expected_probe_count += 1
+
+        if loop.is_error:
+            total_errors += 1
+            if loop.is_inferred_error:
+                inferred_errors += 1
+            if step_to_first_error is None:
+                step_to_first_error, first_error_ts = step_id, timestamp
+            last_was_error = True
+        elif last_was_error and (loop.tool_name or source == "agent"):
+            recovery_count += 1
+            if first_recovery_step is None:
+                first_recovery_step, first_recovery_ts = step_id, timestamp
+            last_was_error = False
+
+        metrics = _as_dict(raw_step.get("metrics"))
+        p_tok = metrics.get("prompt_tokens")
+        c_tok = metrics.get("completion_tokens")
+        ca_tok = metrics.get("cached_tokens")
+        c_usd = metrics.get("cost_usd")
+        if isinstance(p_tok, int):
+            total_prompt_tokens += p_tok
+        if isinstance(c_tok, int):
+            total_completion_tokens += c_tok
+        if isinstance(ca_tok, int):
+            total_cached_tokens += ca_tok
+        if isinstance(c_usd, int | float):
+            total_cost_usd += float(c_usd)
+            has_cost_usd = True
+
+        raw_reasoning = raw_step.get("reasoning_content") or raw_step.get("thought")
+        reasoning_content = str(raw_reasoning) if raw_reasoning is not None else None
+        reasoning_content_ref = None
+        if reasoning_content:
+            if store_root is not None:
+                from evallab.evidence_store import store_blob
+
+                reasoning_content_ref = store_blob(store_root, reasoning_content)
+            else:
+                d_hex = hashlib.sha256(reasoning_content.encode("utf-8")).hexdigest()
+                reasoning_content_ref = f"cas://sha256/{d_hex}"
+
+        sampling_params_obj = _extract_sampling_params(raw_step, agent_cfg)
+        sample_index = (
+            raw_step.get("sample_index") if isinstance(raw_step.get("sample_index"), int) else None
+        )
+        thought_snippet = None
+        if reasoning_content:
+            thought_snippet = reasoning_content[:120].replace("\n", " ").strip()
+        elif msg and not is_redacted:
+            thought_snippet = msg[:120].replace("\n", " ").strip()
+
+        steps_out.append(
+            StepOutline(
+                step_id=step_id,
+                source=source,
+                timestamp=timestamp,
+                model_name=m_name,
+                tool_name=loop.tool_name,
+                tool_command=loop.tool_command,
+                exit_code=loop.exit_code,
+                is_error=loop.is_error,
+                error_message=error_msg,
+                prompt_tokens=p_tok if isinstance(p_tok, int) else None,
+                completion_tokens=c_tok if isinstance(c_tok, int) else None,
+                cached_tokens=ca_tok if isinstance(ca_tok, int) else None,
+                cost_usd=float(c_usd) if isinstance(c_usd, int | float) else None,
+                thought_snippet=thought_snippet,
+                is_redacted=is_redacted,
+                redaction_digest=redaction_digest,
+                reasoning_content=reasoning_content,
+                reasoning_content_ref=reasoning_content_ref,
+                reasoning_tokens=_extract_reasoning_tokens(raw_step, metrics),
+                prompt_token_ids_ref=_cas_blob_ref(store_root, metrics.get("prompt_token_ids")),
+                completion_token_ids_ref=_cas_blob_ref(
+                    store_root, metrics.get("completion_token_ids")
+                ),
+                logprobs_ref=_cas_blob_ref(store_root, metrics.get("logprobs")),
+                sample_index=sample_index,
+                sampling_params=asdict(sampling_params_obj) if sampling_params_obj else None,
+                is_expected_probe=is_probe,
+                error_category=error_classification.category.value,
+                is_copied_context=bool(raw_step.get("is_copied_context", False)),
+                source_path=str(native_path),
+                source_sha256=native_sha,
+                source_step_id=native_step_id,
+                is_inferred_error=loop.is_inferred_error,
+            )
+        )
+
+    return steps_out, {
+        "tool_mix_counter": tool_mix_counter,
+        "total_prompt_tokens": total_prompt_tokens,
+        "total_completion_tokens": total_completion_tokens,
+        "total_cached_tokens": total_cached_tokens,
+        "total_cost_usd": total_cost_usd,
+        "has_cost_usd": has_cost_usd,
+        "step_to_first_tool": step_to_first_tool,
+        "step_to_first_edit": step_to_first_edit,
+        "step_to_first_error": step_to_first_error,
+        "time_to_first_tool_seconds": _parse_iso_seconds(first_step_ts, first_tool_ts),
+        "time_to_first_edit_seconds": _parse_iso_seconds(first_step_ts, first_edit_ts),
+        "time_to_first_error_seconds": _parse_iso_seconds(first_step_ts, first_error_ts),
+        "recovery_latency_steps": (
+            first_recovery_step - step_to_first_error
+            if first_recovery_step is not None and step_to_first_error is not None
+            else None
+        ),
+        "recovery_latency_seconds": (
+            _parse_iso_seconds(first_error_ts, first_recovery_ts)
+            if first_recovery_ts and first_error_ts
+            else None
+        ),
+        "unrecovered_at_terminal": bool(last_was_error),
+        "recovery_count": recovery_count,
+        "total_errors": total_errors,
+        "inferred_errors": inferred_errors,
+        "expected_probe_count": expected_probe_count,
+    }
 
 
 def outline_trajectory(
@@ -1377,8 +1547,7 @@ def outline_trajectory(
             target, repo_root=root, explicit_runs_root=explicit_runs_root
         )
     except PathJailError as exc:
-        # Explicit accounted unavailable state for path violations
-        return TrajectoryOutline(
+        return _unavailable_outline(
             trial_id=str(target),
             job_id="unknown",
             trial_name=str(target),
@@ -1387,169 +1556,37 @@ def outline_trajectory(
             agent_name="unknown",
             agent_version=None,
             model_name="unknown",
-            status="accounted_unavailable",
-            unavailable_reason=f"path_escapes_jail: {exc}",
+            reason=f"path_escapes_jail: {exc}",
             source_path=str(target),
             source_sha256="",
             duration_seconds=None,
             primary_reward=None,
             exception_class=None,
-            total_steps=0,
-            agent_steps=0,
-            system_steps=0,
-            user_steps=0,
-            total_tool_calls=0,
-            total_errors=0,
-            recovery_count=0,
-            step_to_first_tool=None,
-            step_to_first_edit=None,
-            time_to_first_tool_seconds=None,
-            time_to_first_edit_seconds=None,
-            total_prompt_tokens=0,
-            total_completion_tokens=0,
-            total_cached_tokens=0,
-            total_cost_usd=None,
-            loop_suspicion=LoopSuspicion(0.0, False, (), 0, 0, 0),
-            phases=(),
-            steps=(),
             citations=(),
-            tool_mix={},
+            include_citation_and_journal=False,
         )
 
-    result_data: dict[str, Any] = {}
-    if result_path and result_path.is_file():
-        try:
-            loaded_result = json.loads(result_path.read_text(encoding="utf-8"))
-            if isinstance(loaded_result, dict):
-                result_data = loaded_result
-        except Exception:
-            result_data = {}
-
-    cfg_value = result_data.get("config")
-    cfg = cfg_value if isinstance(cfg_value, dict) else {}
-    trial_id = _safe_str(result_data.get("id") or trial_dir.name)
-    trial_name = _safe_str(result_data.get("trial_name") or trial_dir.name)
-    task_name = _safe_str(result_data.get("task_name") or "unknown")
-    parent_dir = trial_dir.parent
-    if parent_dir.name.startswith("trials") and parent_dir.parent.name not in ("runs", "evidence"):
-        parent_dir = parent_dir.parent
-    job_id = _safe_str(cfg.get("job_id") or parent_dir.name)
-    job_name = _safe_str(parent_dir.name)
-
-    agent_info_value = result_data.get("agent_info")
-    agent_info = agent_info_value if isinstance(agent_info_value, dict) else {}
-    agent_cfg_value = cfg.get("agent")
-    agent_cfg = agent_cfg_value if isinstance(agent_cfg_value, dict) else {}
-    agent_name = _safe_str(agent_info.get("name") or agent_cfg.get("name") or "unknown")
-    agent_version = agent_info.get("version") or agent_cfg.get("version")
-    model_name = _safe_str(agent_info.get("model_name") or agent_cfg.get("model") or "unknown")
-    verifier_value = result_data.get("verifier_result")
-    verifier_result = verifier_value if isinstance(verifier_value, dict) else {}
-    rewards_value = verifier_result.get("rewards")
-    rewards = rewards_value if isinstance(rewards_value, dict) else {}
-    primary_reward = None
-    if "reward" in rewards and isinstance(rewards["reward"], int | float):
-        primary_reward = float(rewards["reward"])
-
-    exception_info = result_data.get("exception_info")
-    exception_class = None
-    if isinstance(exception_info, dict):
-        exception_class = exception_info.get("exception_type") or exception_info.get("type")
-
-    started_at = result_data.get("started_at")
-    finished_at = result_data.get("finished_at")
-    duration_seconds = _parse_iso_seconds(started_at, finished_at)
-
-    citations: list[SourceCitation] = []
-    if result_path and result_path.is_file():
-        citations.append(
-            SourceCitation(
-                path=str(result_path),
-                sha256=sha256_file(result_path),
-                kind="result",
-            )
-        )
-
-    # Missing trajectory handling -> Accounted Unavailable
+    meta, agent_cfg, citations = _extract_trial_metadata(trial_dir, result_path)
     if traj_path is None or not traj_path.is_file():
-        return TrajectoryOutline(
-            trial_id=trial_id,
-            job_id=job_id,
-            trial_name=trial_name,
-            job_name=job_name,
-            task_name=task_name,
-            agent_name=agent_name,
-            agent_version=str(agent_version) if agent_version else None,
-            model_name=model_name,
-            status="accounted_unavailable",
-            unavailable_reason="missing_trajectory_file",
+        return _unavailable_outline(
+            **meta,
+            reason="missing_trajectory_file",
             source_path=str(trial_dir / "agent/trajectory.json"),
             source_sha256="",
-            duration_seconds=duration_seconds,
-            primary_reward=primary_reward,
-            exception_class=exception_class,
-            total_steps=0,
-            agent_steps=0,
-            system_steps=0,
-            user_steps=0,
-            total_tool_calls=0,
-            total_errors=0,
-            recovery_count=0,
-            step_to_first_tool=None,
-            step_to_first_edit=None,
-            time_to_first_tool_seconds=None,
-            time_to_first_edit_seconds=None,
-            total_prompt_tokens=0,
-            total_completion_tokens=0,
-            total_cached_tokens=0,
-            total_cost_usd=None,
-            loop_suspicion=LoopSuspicion(0.0, False, (), 0, 0, 0),
-            phases=(),
-            steps=(),
-            citations=tuple(citations),
-            tool_mix={},
+            citations=citations,
+            include_citation_and_journal=False,
         )
 
     try:
-        traj_text = traj_path.read_text(encoding="utf-8")
-        traj_data = json.loads(traj_text)
+        traj_data = json.loads(traj_path.read_text(encoding="utf-8"))
     except Exception as exc:
-        return TrajectoryOutline(
-            trial_id=trial_id,
-            job_id=job_id,
-            trial_name=trial_name,
-            job_name=job_name,
-            task_name=task_name,
-            agent_name=agent_name,
-            agent_version=str(agent_version) if agent_version else None,
-            model_name=model_name,
-            status="accounted_unavailable",
-            unavailable_reason=f"unparseable_trajectory_json: {type(exc).__name__}: {exc}",
+        return _unavailable_outline(
+            **meta,
+            reason=f"unparseable_trajectory_json: {type(exc).__name__}: {exc}",
             source_path=str(traj_path),
             source_sha256=sha256_file(traj_path),
-            duration_seconds=duration_seconds,
-            primary_reward=primary_reward,
-            exception_class=exception_class,
-            total_steps=0,
-            agent_steps=0,
-            system_steps=0,
-            user_steps=0,
-            total_tool_calls=0,
-            total_errors=0,
-            recovery_count=0,
-            step_to_first_tool=None,
-            step_to_first_edit=None,
-            time_to_first_tool_seconds=None,
-            time_to_first_edit_seconds=None,
-            total_prompt_tokens=0,
-            total_completion_tokens=0,
-            total_cached_tokens=0,
-            total_cost_usd=None,
-            loop_suspicion=LoopSuspicion(0.0, False, (), 0, 0, 0),
-            phases=(),
-            steps=(),
-            citations=tuple(citations),
-            tool_mix={},
+            citations=citations,
+            include_citation_and_journal=False,
         )
 
     chain_segments: tuple[ChainSegment, ...] = ()
@@ -1562,465 +1599,172 @@ def outline_trajectory(
         chain_complete = resolution.complete
         chain_stopped_ref = resolution.stopped_ref
         chain_stop_cause = resolution.stop_cause
-        traj_path = chain_segments[-1][0]
-        traj_data = chain_segments[-1][1]
-        traj_sha256 = chain_segments[-1][2]
+        traj_path, traj_data, traj_sha256 = chain_segments[-1]
+        for segment_path, _, segment_sha in chain_segments:
+            citations.append(
+                SourceCitation(path=str(segment_path), sha256=segment_sha, kind="trajectory")
+            )
     else:
         traj_sha256 = sha256_file(traj_path)
         citations.append(
-            SourceCitation(
-                path=str(traj_path),
-                sha256=traj_sha256,
-                kind="trajectory",
-            )
+            SourceCitation(path=str(traj_path), sha256=traj_sha256, kind="trajectory")
         )
-    for segment_path, _, segment_sha in chain_segments:
-        citations.append(
-            SourceCitation(
-                path=str(segment_path),
-                sha256=segment_sha,
-                kind="trajectory",
-            )
-        )
+
     if not chain_complete:
-        # An unfollowed continuation reference means the loaded tail is a stale
-        # partial: report it as unavailable, never as a featured complete run.
         return _unavailable_outline(
-            trial_id=trial_id,
-            job_id=job_id,
-            trial_name=trial_name,
-            job_name=job_name,
-            task_name=task_name,
-            agent_name=agent_name,
-            agent_version=agent_version,
-            model_name=model_name,
+            **meta,
             reason=(
                 f"incomplete_continuation_chain: continued ref "
                 f"{chain_stopped_ref!r} is {chain_stop_cause}"
             ),
             source_path=str(traj_path),
             source_sha256=traj_sha256,
-            duration_seconds=duration_seconds,
-            primary_reward=primary_reward,
-            exception_class=exception_class,
             citations=citations,
         )
     if not isinstance(traj_data, dict):
         return _unavailable_outline(
-            trial_id=trial_id,
-            job_id=job_id,
-            trial_name=trial_name,
-            job_name=job_name,
-            task_name=task_name,
-            agent_name=agent_name,
-            agent_version=agent_version,
-            model_name=model_name,
+            **meta,
             reason="invalid_trajectory_shape: top-level JSON must be an object",
             source_path=str(traj_path),
             source_sha256=traj_sha256,
-            duration_seconds=duration_seconds,
-            primary_reward=primary_reward,
-            exception_class=exception_class,
             citations=citations,
         )
 
-    # Root agent identity comes from the canonical segment; the terminal segment
-    # only fills gaps. Both describe the same run in practice.
-    root_section_value = chain_segments[0][1].get("agent") if chain_segments else None
-    root_section = root_section_value if isinstance(root_section_value, dict) else {}
-    agent_section_value = traj_data.get("agent")
-    agent_section = agent_section_value if isinstance(agent_section_value, dict) else {}
-    if not agent_name or agent_name == "unknown":
-        agent_name = _safe_str(root_section.get("name") or agent_section.get("name") or "unknown")
-    if not model_name or model_name == "unknown":
-        model_name = _safe_str(
+    root_section = _as_dict(chain_segments[0][1].get("agent")) if chain_segments else {}
+    agent_section = _as_dict(traj_data.get("agent"))
+    if not meta["agent_name"] or meta["agent_name"] == "unknown":
+        meta["agent_name"] = _safe_str(
+            root_section.get("name") or agent_section.get("name") or "unknown"
+        )
+    if not meta["model_name"] or meta["model_name"] == "unknown":
+        meta["model_name"] = _safe_str(
             root_section.get("model_name") or agent_section.get("model_name") or "unknown"
         )
-    if agent_version is None:
-        agent_version = root_section.get("version") or agent_section.get("version")
+    if meta["agent_version"] is None:
+        meta["agent_version"] = root_section.get("version") or agent_section.get("version")
 
-    # Every followed segment must carry a usable steps array; a corrupt segment
-    # fails the whole chain closed instead of silently dropping its history.
     for segment_path, segment_data, segment_sha in chain_segments:
         segment_steps = segment_data.get("steps")
         if not isinstance(segment_steps, list) or not segment_steps:
             return _unavailable_outline(
-                trial_id=trial_id,
-                job_id=job_id,
-                trial_name=trial_name,
-                job_name=job_name,
-                task_name=task_name,
-                agent_name=agent_name,
-                agent_version=agent_version,
-                model_name=model_name,
+                **meta,
                 reason="missing_trajectory_steps",
                 source_path=str(segment_path),
                 source_sha256=segment_sha,
-                duration_seconds=duration_seconds,
-                primary_reward=primary_reward,
-                exception_class=exception_class,
                 citations=citations,
             )
-    positioned_steps, _stitch_stats = stitched_chain_action_steps(chain_segments)
-    raw_steps = [raw_step for _, raw_step in positioned_steps]
-    if any(not isinstance(step, dict) for step in raw_steps):
+
+    positioned_steps, _ = stitched_chain_action_steps(chain_segments)
+    if any(not isinstance(raw_step, dict) for _, raw_step in positioned_steps):
         return _unavailable_outline(
-            trial_id=trial_id,
-            job_id=job_id,
-            trial_name=trial_name,
-            job_name=job_name,
-            task_name=task_name,
-            agent_name=agent_name,
-            agent_version=agent_version,
-            model_name=model_name,
+            **meta,
             reason="invalid_trajectory_shape: steps must contain objects",
             source_path=str(traj_path),
             source_sha256=traj_sha256,
-            duration_seconds=duration_seconds,
-            primary_reward=primary_reward,
-            exception_class=exception_class,
             citations=citations,
         )
-    steps_out: list[StepOutline] = []
-    tool_mix_counter: Counter[str] = Counter()
 
-    total_prompt_tokens = 0
-    total_completion_tokens = 0
-    total_cached_tokens = 0
-    total_cost_usd = 0.0
-    has_cost_usd = False
-
-    step_to_first_tool: int | None = None
-    step_to_first_edit: int | None = None
-    step_to_first_error: int | None = None
-    first_step_timestamp: str | None = None
-    first_tool_timestamp: str | None = None
-    first_edit_timestamp: str | None = None
-    first_error_timestamp: str | None = None
-    first_recovery_timestamp: str | None = None
-    first_recovery_step: int | None = None
-
-    last_was_error = False
-    recovery_count = 0
-    total_errors = 0
-    inferred_errors = 0
-    expected_probe_count = 0
-    for idx, (segment_position, raw_step) in enumerate(positioned_steps, start=1):
-        native_path, _, native_sha = chain_segments[segment_position]
-        # Chain-ordinal id: per-segment step_ids restart in every continuation
-        # segment, so the stitched view numbers actions in canonical order while
-        # each step keeps its native document, hash, and original step id.
-        step_id = idx
-        source = _safe_str(raw_step.get("source") or "agent")
-        native_step_value = raw_step.get("step_id")
-        native_step_id = native_step_value if isinstance(native_step_value, int) else None
-        timestamp = raw_step.get("timestamp")
-        if first_step_timestamp is None and timestamp:
-            first_step_timestamp = str(timestamp)
-
-        m_name = raw_step.get("model_name") or model_name
-        msg = str(raw_step.get("message") or "")
-
-        is_redacted = False
-        redaction_digest = None
-        redact_match = _REDACTION_PATTERN.search(msg)
-        if redact_match:
-            is_redacted = True
-            redaction_digest = redact_match.group("digest")
-
-        tool_calls = effective_tool_calls(raw_step)
-        if tool_calls and isinstance(tool_calls[0], dict):
-            for tc in tool_calls:
-                if not isinstance(tc, dict):
-                    continue
-                tname = _safe_str(tc.get("function_name"))
-                if tname:
-                    tool_mix_counter[tname] += 1
-        # Primary-tool, exit, and error facts come from the shared extractor so
-        # the outline and the run report read one identical source.
-        loop, error_msg, error_classification = extract_loop_step(raw_step)
-        primary_tool_name = loop.tool_name
-        primary_tool_cmd = loop.tool_command
-        exit_code = loop.exit_code
-        is_error = loop.is_error
-
-        if primary_tool_name and step_to_first_tool is None:
-            step_to_first_tool = step_id
-            first_tool_timestamp = timestamp
-
-        if _is_edit_action(primary_tool_name, primary_tool_cmd) and step_to_first_edit is None:
-            step_to_first_edit = step_id
-            first_edit_timestamp = timestamp
-
-        is_probe = error_classification.is_expected_probe
-        if is_probe:
-            expected_probe_count += 1
-
-        if is_error:
-            total_errors += 1
-            if loop.is_inferred_error:
-                inferred_errors += 1
-            if step_to_first_error is None:
-                step_to_first_error = step_id
-                first_error_timestamp = timestamp
-            last_was_error = True
-        else:
-            if last_was_error and (primary_tool_name or source == "agent"):
-                recovery_count += 1
-                if first_recovery_step is None:
-                    first_recovery_step = step_id
-                    first_recovery_timestamp = timestamp
-                last_was_error = False
-        metrics_value = raw_step.get("metrics")
-        metrics = metrics_value if isinstance(metrics_value, dict) else {}
-        p_tok = metrics.get("prompt_tokens")
-        c_tok = metrics.get("completion_tokens")
-        ca_tok = metrics.get("cached_tokens")
-        c_usd = metrics.get("cost_usd")
-
-        if isinstance(p_tok, int):
-            total_prompt_tokens += p_tok
-        if isinstance(c_tok, int):
-            total_completion_tokens += c_tok
-        if isinstance(ca_tok, int):
-            total_cached_tokens += ca_tok
-        if isinstance(c_usd, int | float):
-            total_cost_usd += float(c_usd)
-            has_cost_usd = True
-
-        # Reasoning content & CAS storage
-        raw_reasoning = raw_step.get("reasoning_content") or raw_step.get("thought")
-        reasoning_content = str(raw_reasoning) if raw_reasoning is not None else None
-        reasoning_content_ref = None
-        if reasoning_content:
-            if store_root is not None:
-                from evallab.evidence_store import store_blob
-
-                reasoning_content_ref = store_blob(store_root, reasoning_content)
-            else:
-                d_hex = hashlib.sha256(reasoning_content.encode("utf-8")).hexdigest()
-                reasoning_content_ref = f"cas://sha256/{d_hex}"
-
-        # Reasoning tokens
-        from evallab.trajectory_ir import _extract_reasoning_tokens, _extract_sampling_params
-
-        reasoning_tokens = _extract_reasoning_tokens(raw_step, metrics)
-
-        # Sampling params & sample index
-        sampling_params_obj = _extract_sampling_params(raw_step, agent_cfg)
-        sampling_params_dict = asdict(sampling_params_obj) if sampling_params_obj else None
-        sample_index = (
-            raw_step.get("sample_index") if isinstance(raw_step.get("sample_index"), int) else None
-        )
-
-        # CAS refs for token arrays if present
-        p_ids_ref = None
-        c_ids_ref = None
-        logprobs_ref = None
-        if store_root is not None:
-            from evallab.evidence_store import store_blob
-
-            if isinstance(metrics.get("prompt_token_ids"), list):
-                p_ids_ref = store_blob(
-                    store_root, json.dumps(metrics["prompt_token_ids"]).encode("utf-8")
-                )
-            if isinstance(metrics.get("completion_token_ids"), list):
-                c_ids_ref = store_blob(
-                    store_root, json.dumps(metrics["completion_token_ids"]).encode("utf-8")
-                )
-            if isinstance(metrics.get("logprobs"), list):
-                logprobs_ref = store_blob(
-                    store_root, json.dumps(metrics["logprobs"]).encode("utf-8")
-                )
-
-        thought_snippet = None
-        if reasoning_content:
-            thought_snippet = reasoning_content[:120].replace("\n", " ").strip()
-        elif msg and not is_redacted:
-            thought_snippet = msg[:120].replace("\n", " ").strip()
-
-        steps_out.append(
-            StepOutline(
-                step_id=step_id,
-                source=source,
-                timestamp=timestamp,
-                model_name=m_name,
-                tool_name=primary_tool_name,
-                tool_command=primary_tool_cmd,
-                exit_code=exit_code,
-                is_error=is_error,
-                error_message=error_msg,
-                prompt_tokens=p_tok if isinstance(p_tok, int) else None,
-                completion_tokens=c_tok if isinstance(c_tok, int) else None,
-                cached_tokens=ca_tok if isinstance(ca_tok, int) else None,
-                cost_usd=float(c_usd) if isinstance(c_usd, int | float) else None,
-                thought_snippet=thought_snippet,
-                is_redacted=is_redacted,
-                redaction_digest=redaction_digest,
-                reasoning_content=reasoning_content,
-                reasoning_content_ref=reasoning_content_ref,
-                reasoning_tokens=reasoning_tokens,
-                prompt_token_ids_ref=p_ids_ref,
-                completion_token_ids_ref=c_ids_ref,
-                logprobs_ref=logprobs_ref,
-                sample_index=sample_index,
-                sampling_params=sampling_params_dict,
-                is_expected_probe=is_probe,
-                error_category=error_classification.category.value,
-                is_copied_context=bool(raw_step.get("is_copied_context", False)),
-                source_path=str(native_path),
-                source_sha256=native_sha,
-                source_step_id=native_step_id,
-                is_inferred_error=loop.is_inferred_error,
-            )
-        )
-
-    # Time & error latency calculations
-    time_to_first_tool_sec = _parse_iso_seconds(first_step_timestamp, first_tool_timestamp)
-    time_to_first_edit_sec = _parse_iso_seconds(first_step_timestamp, first_edit_timestamp)
-    time_to_first_error_sec = _parse_iso_seconds(first_step_timestamp, first_error_timestamp)
-    recovery_latency_steps: int | None = None
-    recovery_latency_sec: float | None = None
-    if first_recovery_step is not None and step_to_first_error is not None:
-        recovery_latency_steps = first_recovery_step - step_to_first_error
-    if first_recovery_timestamp and first_error_timestamp:
-        recovery_latency_sec = _parse_iso_seconds(first_error_timestamp, first_recovery_timestamp)
-
-    unrecovered_at_terminal = bool(last_was_error)
-
-    # Expected negative trial detection (e.g. AgentAbstain control or probe-heavy trials)
-    is_expected_neg = "abstain" in task_name.lower() or (
-        expected_probe_count > 0 and total_errors == expected_probe_count
+    steps_out, acc = _summarize_outline_steps(
+        positioned_steps, chain_segments, meta["model_name"], agent_cfg, store_root
     )
-
+    is_expected_neg = "abstain" in meta["task_name"].lower() or (
+        acc["expected_probe_count"] > 0 and acc["total_errors"] == acc["expected_probe_count"]
+    )
     user_step_indices = [
         sidx for sidx, s in enumerate(steps_out, 1) if s.source.lower() in {"user", "human"}
     ]
     user_steps = len(user_step_indices)
     agent_steps = sum(1 for s in steps_out if s.source.lower() in {"agent", "assistant"})
     system_steps = sum(1 for s in steps_out if s.source.lower() == "system")
-
+    first_err_step = acc["step_to_first_error"]
     intervention_cat, intervention_notes = classify_intervention_provenance(
         user_steps=user_steps,
         agent_steps=agent_steps,
         system_steps=system_steps,
         user_step_indices=user_step_indices,
-        first_error_step=step_to_first_error,
+        first_error_step=first_err_step,
     )
-    autonomous_steps = agent_steps
-    assisted_steps = user_steps
-    intervention_cnt = sum(
-        1
-        for sidx in user_step_indices
-        if step_to_first_error is None or sidx >= step_to_first_error
-    )
-    loop_suspicion = _analyze_loop_suspicion(steps_out)
-    phases = _build_phases(steps_out)
-    # Aggregate authority: the declared native final_metrics (terminal segment) is
-    # authoritative for the NATIVE ledger trial totals. Per-step metrics only
-    # attribute the calls mapped 1:1 to steps, so natively folded usage outside
-    # that mapping (for example summarizer/subagent usage) would otherwise
-    # understate the outline. This stays the native ledger only: upstream may
-    # raise on length-truncated calls before usage is recorded, so such physical
-    # calls can be absent from both step metrics and native totals. The proxy
-    # retains physical-call accounting at uncached rates, not a provider invoice.
+
     final_metrics_value = traj_data.get("final_metrics")
     declared_metrics = final_metrics_value if isinstance(final_metrics_value, dict) else {}
-    final_metrics_present = isinstance(final_metrics_value, dict)
     declared_prompt = _authoritative_int(declared_metrics.get("total_prompt_tokens"))
     declared_completion = _authoritative_int(declared_metrics.get("total_completion_tokens"))
     declared_cached = _authoritative_int(declared_metrics.get("total_cached_tokens"))
     declared_cost = _authoritative_float(declared_metrics.get("total_cost_usd"))
-    outline_prompt_tokens = declared_prompt if declared_prompt is not None else total_prompt_tokens
-    outline_completion_tokens = (
-        declared_completion if declared_completion is not None else total_completion_tokens
+    outline_cost_usd = (
+        declared_cost
+        if declared_cost is not None
+        else (acc["total_cost_usd"] if acc["has_cost_usd"] else None)
     )
-    outline_cached_tokens = declared_cached if declared_cached is not None else total_cached_tokens
-    outline_cost_usd: float | None
-    if declared_cost is not None:
-        outline_cost_usd = declared_cost
-    elif has_cost_usd:
-        outline_cost_usd = total_cost_usd
-    else:
-        # Neither a declared total nor any per-step cost exists: spend is
-        # unknown, never zero.
-        outline_cost_usd = None
     state_metrics = _extract_state_journal_metrics(trial_dir, steps_out, citations)
     ref_metrics = _extract_reference_and_citation_metrics(trial_dir, steps_out, citations)
     edit_call_count = sum(
         1 for step in steps_out if _is_edit_action(step.tool_name, step.tool_command)
     )
     return TrajectoryOutline(
-        trial_id=trial_id,
-        job_id=job_id,
-        trial_name=trial_name,
-        job_name=job_name,
-        task_name=task_name,
-        agent_name=agent_name,
-        agent_version=str(agent_version) if agent_version else None,
-        model_name=model_name,
+        trial_id=meta["trial_id"],
+        job_id=meta["job_id"],
+        trial_name=meta["trial_name"],
+        job_name=meta["job_name"],
+        task_name=meta["task_name"],
+        agent_name=meta["agent_name"],
+        agent_version=str(meta["agent_version"]) if meta["agent_version"] else None,
+        model_name=meta["model_name"],
         status="featured",
         unavailable_reason=None,
         source_path=str(traj_path),
         source_sha256=traj_sha256,
-        duration_seconds=duration_seconds,
-        primary_reward=primary_reward,
-        exception_class=exception_class,
+        duration_seconds=meta["duration_seconds"],
+        primary_reward=meta["primary_reward"],
+        exception_class=meta["exception_class"],
         total_steps=len(steps_out),
         agent_steps=agent_steps,
         system_steps=system_steps,
         user_steps=user_steps,
-        total_tool_calls=sum(tool_mix_counter.values()),
-        total_errors=total_errors,
-        recovery_count=recovery_count,
-        step_to_first_tool=step_to_first_tool,
-        step_to_first_edit=step_to_first_edit,
-        time_to_first_tool_seconds=time_to_first_tool_sec,
-        time_to_first_edit_seconds=time_to_first_edit_sec,
-        total_prompt_tokens=outline_prompt_tokens,
-        total_completion_tokens=outline_completion_tokens,
-        total_cached_tokens=outline_cached_tokens,
+        total_tool_calls=sum(acc["tool_mix_counter"].values()),
+        total_errors=acc["total_errors"],
+        recovery_count=acc["recovery_count"],
+        step_to_first_tool=acc["step_to_first_tool"],
+        step_to_first_edit=acc["step_to_first_edit"],
+        time_to_first_tool_seconds=acc["time_to_first_tool_seconds"],
+        time_to_first_edit_seconds=acc["time_to_first_edit_seconds"],
+        total_prompt_tokens=(
+            declared_prompt if declared_prompt is not None else acc["total_prompt_tokens"]
+        ),
+        total_completion_tokens=(
+            declared_completion
+            if declared_completion is not None
+            else acc["total_completion_tokens"]
+        ),
+        total_cached_tokens=(
+            declared_cached if declared_cached is not None else acc["total_cached_tokens"]
+        ),
         total_cost_usd=round(outline_cost_usd, 6) if outline_cost_usd is not None else None,
-        loop_suspicion=loop_suspicion,
-        phases=phases,
+        loop_suspicion=_analyze_loop_suspicion(steps_out),
+        phases=_build_phases(steps_out),
         steps=tuple(steps_out),
         citations=tuple(citations),
-        tool_mix=dict(sorted(tool_mix_counter.items())),
+        tool_mix=dict(sorted(acc["tool_mix_counter"].items())),
         is_expected_negative=is_expected_neg,
-        expected_probe_count=expected_probe_count,
-        step_to_first_error=step_to_first_error,
-        time_to_first_error_seconds=time_to_first_error_sec,
-        recovery_latency_steps=recovery_latency_steps,
-        recovery_latency_seconds=recovery_latency_sec,
-        unrecovered_at_terminal=unrecovered_at_terminal,
+        expected_probe_count=acc["expected_probe_count"],
+        step_to_first_error=first_err_step,
+        time_to_first_error_seconds=acc["time_to_first_error_seconds"],
+        recovery_latency_steps=acc["recovery_latency_steps"],
+        recovery_latency_seconds=acc["recovery_latency_seconds"],
+        unrecovered_at_terminal=acc["unrecovered_at_terminal"],
         intervention_category=intervention_cat.value,
         intervention_provenance_notes=intervention_notes,
-        autonomous_step_count=autonomous_steps,
-        assisted_step_count=assisted_steps,
-        intervention_count=intervention_cnt,
-        state_diff_observed=state_metrics["state_diff_observed"],
-        state_journal_status=state_metrics["state_journal_status"],
-        state_journal_reason=state_metrics["state_journal_reason"],
-        state_events_count=state_metrics["state_events_count"],
-        state_mutations_count=state_metrics["state_mutations_count"],
-        state_files_created_count=state_metrics["state_files_created_count"],
-        state_files_modified_count=state_metrics["state_files_modified_count"],
-        state_files_deleted_count=state_metrics["state_files_deleted_count"],
-        state_diff_path_count=state_metrics["state_diff_path_count"],
-        state_diff_bytes_delta=state_metrics["state_diff_bytes_delta"],
-        unobserved_state_mutations_count=state_metrics["unobserved_state_mutations_count"],
-        path_reference_count=ref_metrics["path_reference_count"],
-        valid_path_reference_count=ref_metrics["valid_path_reference_count"],
-        invalid_path_reference_count=ref_metrics["invalid_path_reference_count"],
-        citation_reference_count=ref_metrics["citation_reference_count"],
-        valid_citation_reference_count=ref_metrics["valid_citation_reference_count"],
-        invalid_citation_reference_count=ref_metrics["invalid_citation_reference_count"],
+        autonomous_step_count=agent_steps,
+        assisted_step_count=user_steps,
+        intervention_count=sum(
+            1 for sidx in user_step_indices if first_err_step is None or sidx >= first_err_step
+        ),
+        **state_metrics,
+        **ref_metrics,
         edit_call_count=edit_call_count,
-        state_coverage_extra=state_metrics["state_coverage_extra"],
-        final_metrics_present=final_metrics_present,
-        inferred_errors=inferred_errors,
+        final_metrics_present=isinstance(final_metrics_value, dict),
+        inferred_errors=acc["inferred_errors"],
     )
-
 
 def extract_features(outline: TrajectoryOutline) -> TrajectoryFeatures:
     """Extract flat mechanical feature record from a typed outline."""
@@ -2150,7 +1894,6 @@ VERIFIED_ON_DISK_TRAJECTORY_HASHES: tuple[str, ...] = (
     "e429ff733b4a27142fda77a6e65ef34ceef3c4678a3806ee7fb61d9a146e7f7f",
 )
 
-
 def get_versioned_traj_features_sql(source_relation: str = "traj_features") -> str:
     """Return SQL for the versioned trajectory store read view (v_traj_features_v1).
 
@@ -2162,264 +1905,16 @@ def get_versioned_traj_features_sql(source_relation: str = "traj_features") -> s
       3. Documented known-absent accounting: includes on-disk trials that were omitted from historical
          parquet projections due to nested 'trials*/' subdirectory layouts.
     """
+    sql_path = Path(__file__).resolve().parents[2] / "sql" / "traj_versioned_features.sql"
+    template = sql_path.read_text(encoding="utf-8")
     verified_hashes_quoted = ", ".join(f"'{h}'" for h in VERIFIED_ON_DISK_TRAJECTORY_HASHES)
-    return f"""
-    WITH raw_featured AS (
-        SELECT *
-        FROM {source_relation}
-        WHERE status = 'featured'
-    ),
-    ranked_featured AS (
-        SELECT *,
-            ROW_NUMBER() OVER (
-                PARTITION BY COALESCE(NULLIF(trial_name, ''), trial_id), COALESCE(NULLIF(job_name, ''), job_id)
-                ORDER BY
-                    CASE
-                        WHEN source_sha256 IN ({verified_hashes_quoted}) THEN 2
-                        WHEN source_sha256 != '' THEN 1
-                        ELSE 0
-                    END DESC,
-                    created_at DESC
-            ) AS __dedupe_rank
-        FROM raw_featured
-    ),
-    deduped_featured AS (
-        SELECT * EXCLUDE (__dedupe_rank)
-        FROM ranked_featured
-        WHERE __dedupe_rank = 1
-    ),
-    known_absent AS (
-        SELECT
-            'adapted-task__PmTen2E' AS trial_id,
-            'funcdag-codex-canary' AS job_id,
-            'adapted-task__PmTen2E' AS trial_name,
-            'funcdag-codex-canary' AS job_name,
-            'adapted-task' AS task_name,
-            'codex' AS agent_name,
-            '0.1.0' AS agent_version,
-            'gpt-5.6' AS model_name,
-            'featured' AS status,
-            CAST(NULL AS VARCHAR) AS unavailable_reason,
-            'runs/funcdag-codex-canary/trials/adapted-task__PmTen2E/agent/trajectory.json' AS source_path,
-            '07154b27db3145add1aff02bbedd0c14978b035d00e151942d88dd2533fbe2f5' AS source_sha256,
-            4 AS step_count,
-            4 AS agent_step_count,
-            0 AS system_step_count,
-            0 AS user_step_count,
-            4 AS tool_call_count,
-            1 AS unique_tools_count,
-            '{{\"bash\": 4}}' AS tool_mix_json,
-            0 AS error_count,
-            0 AS recovery_count,
-            0.0 AS loop_suspicion_score,
-            false AS loop_suspicion_detected,
-            '[]' AS loop_reasons_json,
-            0 AS repeated_command_count,
-            1 AS step_to_first_tool,
-            CAST(NULL AS BIGINT) AS step_to_first_edit,
-            1.0 AS time_to_first_tool_seconds,
-            CAST(NULL AS DOUBLE) AS time_to_first_edit_seconds,
-            46935 AS prompt_tokens,
-            1118 AS completion_tokens,
-            0 AS cached_tokens,
-            0.028304 AS cost_usd,
-            0.0 AS primary_reward,
-            CAST(NULL AS VARCHAR) AS exception_class,
-            64.0 AS duration_seconds,
-            '2026-08-20T00:00:00Z' AS created_at,
-            CAST(NULL AS DOUBLE) AS context_burn_velocity_screening,
-            0 AS max_exit_code_cascade_screening,
-            false AS is_expected_negative,
-            0 AS expected_probe_count,
-            CAST(NULL AS BIGINT) AS step_to_first_error,
-            CAST(NULL AS DOUBLE) AS time_to_first_error_seconds,
-            CAST(NULL AS BIGINT) AS recovery_latency_steps,
-            CAST(NULL AS DOUBLE) AS recovery_latency_seconds,
-            false AS unrecovered_at_terminal,
-            'autonomous' AS intervention_category,
-            4 AS autonomous_step_count,
-            0 AS assisted_step_count,
-            0 AS intervention_count,
-            false AS state_diff_observed,
-            'not_observed' AS state_journal_status,
-            CAST(NULL AS VARCHAR) AS state_journal_reason,
-            0 AS state_events_count,
-            0 AS state_mutations_count,
-            0 AS state_files_created_count,
-            0 AS state_files_modified_count,
-            0 AS state_files_deleted_count,
-            0 AS state_diff_path_count,
-            0 AS state_diff_bytes_delta,
-            0 AS unobserved_state_mutations_count,
-            0 AS path_reference_count,
-            0 AS valid_path_reference_count,
-            0 AS invalid_path_reference_count,
-            0 AS citation_reference_count,
-            0 AS valid_citation_reference_count,
-            0 AS invalid_citation_reference_count,
-            0 AS edit_call_count,
-            CAST(NULL AS DOUBLE) AS edit_efficiency_screening,
-            CAST(NULL AS DOUBLE) AS path_reference_validity_rate_screening,
-            CAST(NULL AS DOUBLE) AS citation_reference_validity_rate_screening,
-            '2026-09-06T00:00:00Z' AS projected_at
-        UNION ALL
-        SELECT
-            'adapted-syn-funcdag-hard__kziNARo' AS trial_id,
-            'funcdag-codex-canary' AS job_id,
-            'adapted-syn-funcdag-hard__kziNARo' AS trial_name,
-            'funcdag-codex-canary' AS job_name,
-            'adapted-syn-funcdag-hard' AS task_name,
-            'codex' AS agent_name,
-            '0.1.0' AS agent_version,
-            'gpt-5.6' AS model_name,
-            'featured' AS status,
-            CAST(NULL AS VARCHAR) AS unavailable_reason,
-            'runs/funcdag-codex-canary/trials-hard/adapted-syn-funcdag-hard__kziNARo/agent/trajectory.json' AS source_path,
-            'fcb9ae38d7893f42c8af9e03d2de236cab6b5ebc06dc92eba9e9454c952145a8' AS source_sha256,
-            7 AS step_count,
-            7 AS agent_step_count,
-            0 AS system_step_count,
-            0 AS user_step_count,
-            7 AS tool_call_count,
-            1 AS unique_tools_count,
-            '{{\"bash\": 7}}' AS tool_mix_json,
-            0 AS error_count,
-            0 AS recovery_count,
-            0.0 AS loop_suspicion_score,
-            false AS loop_suspicion_detected,
-            '[]' AS loop_reasons_json,
-            0 AS repeated_command_count,
-            1 AS step_to_first_tool,
-            CAST(NULL AS BIGINT) AS step_to_first_edit,
-            1.0 AS time_to_first_tool_seconds,
-            CAST(NULL AS DOUBLE) AS time_to_first_edit_seconds,
-            97160 AS prompt_tokens,
-            2477 AS completion_tokens,
-            0 AS cached_tokens,
-            0.063069 AS cost_usd,
-            0.0 AS primary_reward,
-            CAST(NULL AS VARCHAR) AS exception_class,
-            140.0 AS duration_seconds,
-            '2026-08-20T00:00:00Z' AS created_at,
-            CAST(NULL AS DOUBLE) AS context_burn_velocity_screening,
-            0 AS max_exit_code_cascade_screening,
-            false AS is_expected_negative,
-            0 AS expected_probe_count,
-            CAST(NULL AS BIGINT) AS step_to_first_error,
-            CAST(NULL AS DOUBLE) AS time_to_first_error_seconds,
-            CAST(NULL AS BIGINT) AS recovery_latency_steps,
-            CAST(NULL AS DOUBLE) AS recovery_latency_seconds,
-            false AS unrecovered_at_terminal,
-            'autonomous' AS intervention_category,
-            7 AS autonomous_step_count,
-            0 AS assisted_step_count,
-            0 AS intervention_count,
-            false AS state_diff_observed,
-            'not_observed' AS state_journal_status,
-            CAST(NULL AS VARCHAR) AS state_journal_reason,
-            0 AS state_events_count,
-            0 AS state_mutations_count,
-            0 AS state_files_created_count,
-            0 AS state_files_modified_count,
-            0 AS state_files_deleted_count,
-            0 AS state_diff_path_count,
-            0 AS state_diff_bytes_delta,
-            0 AS unobserved_state_mutations_count,
-            0 AS path_reference_count,
-            0 AS valid_path_reference_count,
-            0 AS invalid_path_reference_count,
-            0 AS citation_reference_count,
-            0 AS valid_citation_reference_count,
-            0 AS invalid_citation_reference_count,
-            0 AS edit_call_count,
-            CAST(NULL AS DOUBLE) AS edit_efficiency_screening,
-            CAST(NULL AS DOUBLE) AS path_reference_validity_rate_screening,
-            CAST(NULL AS DOUBLE) AS citation_reference_validity_rate_screening,
-            '2026-09-06T00:00:00Z' AS projected_at
-        UNION ALL
-        SELECT
-            'adapted-syn-funcdag-medium__NoqKuag' AS trial_id,
-            'funcdag-codex-canary' AS job_id,
-            'adapted-syn-funcdag-medium__NoqKuag' AS trial_name,
-            'funcdag-codex-canary' AS job_name,
-            'adapted-syn-funcdag-medium' AS task_name,
-            'codex' AS agent_name,
-            '0.1.0' AS agent_version,
-            'gpt-5.6' AS model_name,
-            'featured' AS status,
-            CAST(NULL AS VARCHAR) AS unavailable_reason,
-            'runs/funcdag-codex-canary/trials-medium/adapted-syn-funcdag-medium__NoqKuag/agent/trajectory.json' AS source_path,
-            '0688c4b4dc1c2fc7315eb3681ed053dd39060fa55058a308bd45898709f99501' AS source_sha256,
-            6 AS step_count,
-            6 AS agent_step_count,
-            0 AS system_step_count,
-            0 AS user_step_count,
-            6 AS tool_call_count,
-            1 AS unique_tools_count,
-            '{{\"bash\": 6}}' AS tool_mix_json,
-            0 AS error_count,
-            0 AS recovery_count,
-            0.0 AS loop_suspicion_score,
-            false AS loop_suspicion_detected,
-            '[]' AS loop_reasons_json,
-            0 AS repeated_command_count,
-            1 AS step_to_first_tool,
-            CAST(NULL AS BIGINT) AS step_to_first_edit,
-            1.0 AS time_to_first_tool_seconds,
-            CAST(NULL AS DOUBLE) AS time_to_first_edit_seconds,
-            89665 AS prompt_tokens,
-            1774 AS completion_tokens,
-            0 AS cached_tokens,
-            0.045429 AS cost_usd,
-            0.0 AS primary_reward,
-            CAST(NULL AS VARCHAR) AS exception_class,
-            96.0 AS duration_seconds,
-            '2026-08-20T00:00:00Z' AS created_at,
-            CAST(NULL AS DOUBLE) AS context_burn_velocity_screening,
-            0 AS max_exit_code_cascade_screening,
-            false AS is_expected_negative,
-            0 AS expected_probe_count,
-            CAST(NULL AS BIGINT) AS step_to_first_error,
-            CAST(NULL AS DOUBLE) AS time_to_first_error_seconds,
-            CAST(NULL AS BIGINT) AS recovery_latency_steps,
-            CAST(NULL AS DOUBLE) AS recovery_latency_seconds,
-            false AS unrecovered_at_terminal,
-            'autonomous' AS intervention_category,
-            6 AS autonomous_step_count,
-            0 AS assisted_step_count,
-            0 AS intervention_count,
-            false AS state_diff_observed,
-            'not_observed' AS state_journal_status,
-            CAST(NULL AS VARCHAR) AS state_journal_reason,
-            0 AS state_events_count,
-            0 AS state_mutations_count,
-            0 AS state_files_created_count,
-            0 AS state_files_modified_count,
-            0 AS state_files_deleted_count,
-            0 AS state_diff_path_count,
-            0 AS state_diff_bytes_delta,
-            0 AS unobserved_state_mutations_count,
-            0 AS path_reference_count,
-            0 AS valid_path_reference_count,
-            0 AS invalid_path_reference_count,
-            0 AS citation_reference_count,
-            0 AS valid_citation_reference_count,
-            0 AS invalid_citation_reference_count,
-            0 AS edit_call_count,
-            CAST(NULL AS DOUBLE) AS edit_efficiency_screening,
-            CAST(NULL AS DOUBLE) AS path_reference_validity_rate_screening,
-            CAST(NULL AS DOUBLE) AS citation_reference_validity_rate_screening,
-            '2026-09-06T00:00:00Z' AS projected_at
+    replacements = {
+        "{source_relation}": source_relation,
+        "{verified_hashes_quoted}": verified_hashes_quoted,
+    }
+    rendered = re.sub(
+        r"\{source_relation\}|\{verified_hashes_quoted\}",
+        lambda match: replacements[match.group(0)],
+        template,
     )
-    SELECT * FROM deduped_featured
-    UNION ALL
-    SELECT * FROM known_absent ka
-    WHERE EXISTS (
-        SELECT 1 FROM raw_featured rf
-        WHERE rf.job_name = ka.job_name
-    )
-    AND NOT EXISTS (
-        SELECT 1 FROM deduped_featured df
-        WHERE df.trial_name = ka.trial_name AND df.job_name = ka.job_name
-    )
-    """
+    return "\n" + "\n".join(f"    {line}" if line else "" for line in rendered.splitlines()) + "\n    "

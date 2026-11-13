@@ -23,7 +23,6 @@ dependencies; run with a Python 3.13 env that has them plus this repo
 
 from __future__ import annotations
 
-import argparse
 import asyncio
 import json
 from datetime import UTC, datetime
@@ -406,31 +405,3 @@ async def scan_rows(
         "at": datetime.now(UTC).isoformat(),
     }
     return verdicts, spend
-
-
-def main(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--evalset", required=True)
-    parser.add_argument("--verdict-dir", required=True)
-    parser.add_argument("--workdir", required=True)
-    parser.add_argument("--spend", required=True)
-    parser.add_argument("--limit", type=int, default=None)
-    args = parser.parse_args(argv)
-
-    rows = [
-        json.loads(line) for line in Path(args.evalset).read_text().splitlines() if line.strip()
-    ]
-    if args.limit is not None:
-        rows = rows[: args.limit]
-    verdict_dir = Path(args.verdict_dir)
-    verdict_dir.mkdir(parents=True, exist_ok=True)
-    verdicts, spend = asyncio.run(
-        scan_rows(rows, workdir=Path(args.workdir), verdict_dir=verdict_dir)
-    )
-    with open(args.spend, "a") as handle:
-        handle.write(json.dumps(spend) + "\n")
-    print(json.dumps({"verdicts": len(verdicts), "spend": spend}, indent=1))
-
-
-if __name__ == "__main__":
-    main()

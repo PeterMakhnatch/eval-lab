@@ -88,9 +88,9 @@ Rules that fall out of the buckets:
 - `library/` content is version-pinned and immutable once registered; changing
   a task means a new version, never an edit in place.
 - `research/` content states its provenance (which runs, which corpus digest).
-- Most documentation in `docs/` is hand-authored design and policy; the
-  status snapshot `docs/STATUS.md` is generated via `evallab status --update`.
-  Nothing in `queue/`, `runs/`, `derived/`, or `backups/` is hand-edited.
+- Most documentation in `docs/` is hand-authored design and policy; `docs/STATUS.md`
+  is a retired generated status snapshot. Nothing in `queue/`, `runs/`,
+  `derived/`, or `backups/` is hand-edited.
 - The task defines write scopes. Ownership follows each path's subject.
 - Folder-doc convention: declared top-level directories carry a bounded README.
   Source subpackages inherit `src/evallab/AGENTS.md`; add a local `AGENTS.md`

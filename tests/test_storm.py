@@ -12,7 +12,6 @@ from evallab.storm import (
     digest_storm_section,
     get_recommended_action_and_level,
     load_events_from_source,
-    render_storm_banner,
 )
 
 BASE_TIME = datetime(2026, 8, 16, 12, 0, 0, tzinfo=UTC)
@@ -213,9 +212,8 @@ def test_loading_events_from_file_and_resilience(tmp_path: Path) -> None:
     assert alarms[0].alarm_level == "critical"
 
 
-def test_render_storm_banner_and_digest_section() -> None:
+def test_digest_storm_section() -> None:
     # When empty
-    assert render_storm_banner([]) == ""
     quiet_digest = digest_storm_section([])
     assert "quiet" in "".join(quiet_digest)
 
@@ -234,12 +232,6 @@ def test_render_storm_banner_and_digest_section() -> None:
         job_names=["job-1"],
         spec_ids=["spec-1"],
     )
-    banner = render_storm_banner([alarm])
-    assert "STORM ALARM ACTIVE" in banner
-    assert "CRITICAL" in banner
-    assert "subscription_quota_exhausted" in banner
-    assert "8" in banner
-
     digest_lines = digest_storm_section([alarm])
     digest_text = "\n".join(digest_lines)
     assert "## Storm alarms" in digest_text

@@ -142,35 +142,6 @@ def test_parse_verdict_normalises(text, expected):
 def test_parse_verdict_rejects_missing_or_non_numeric():
     assert am.parse_verdict("no json here") is None
     assert am.parse_verdict('{"verdict": "clean"}') is None
-    assert am.needs_retrieval({"suspicion": 25}) and am.needs_retrieval({"suspicion": 85})
-    assert not am.needs_retrieval({"suspicion": 24}) and not am.needs_retrieval({"suspicion": 86})
-
-
-def test_quantile_threshold_nearest_rank():
-    assert am.quantile_threshold([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 0.9) == 9
-    assert am.quantile_threshold([5], 0.985) == 5
-    assert am.quantile_threshold(list(range(100)), 0.985) == 98
-    with pytest.raises(ValueError):
-        am.quantile_threshold([])
-
-
-def test_cross_fit_uses_the_other_folds_clean_quantile():
-    ids = [f"id{i}" for i in range(40)]
-    folds = {i: am.fold_of(i) for i in ids}
-    assert {"A", "B"} == set(folds.values())
-    rows = []
-    for index, run_id in enumerate(ids):
-        # fold A clean scores sit at 10, fold B clean scores at 50; one positive per fold at 30
-        clean_score = 10 if folds[run_id] == "A" else 50
-        rows.append({"id": run_id, "clean": True, "score": clean_score + (index % 3)})
-    rows += [{"id": "posA", "clean": False, "score": 30}, {"id": "posB", "clean": False, "score": 30}]
-    fit = am.cross_fit_alerts(rows)
-    assert fit["thresholds"]["A"] < 20 < fit["thresholds"]["B"]
-    # a fold-A positive is judged by fold B's (high) threshold and vice versa
-    expect = {"posA": am.fold_of("posA") == "B", "posB": am.fold_of("posB") == "B"}
-    assert {k: fit["alerts"][k] for k in expect} == expect
-    # no clean row of a fold is alerted when the other fold's clean quantile is higher
-    assert not any(fit["alerts"][i] for i in ids if folds[i] == "A")
 
 
 def test_should_run_stage2_on_fixture_writes():

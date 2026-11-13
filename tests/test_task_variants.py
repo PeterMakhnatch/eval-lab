@@ -27,7 +27,6 @@ from evallab.task_variants import (
     lineage_chain,
     load_records,
     materialize,
-    render_lineage,
     verify,
 )
 
@@ -263,17 +262,11 @@ def test_second_generation_chain_missing_parent_and_cycle(tmp_path: Path) -> Non
         second.variant_digest,
         first.variant_digest,
     ]
-    rendered = render_lineage(steps)
-    assert "instruction-candidate@1" in rendered
-    assert "manual-fix@1" in rendered
-    assert "components_changed: verifier" in rendered
-    assert "chain terminates at the original" in rendered
     # Deleting the parent's record leaves the chain walkable with an error step.
     _record_path(records, first).unlink()
     steps = lineage_chain(second, repo_root=repo)
     assert steps[-1].parent_error is not None
     assert "missing parent lineage record" in steps[-1].parent_error
-    assert any("ERROR" in line for line in render_lineage(steps).splitlines())
     # A self-referential record is reported as a cycle, not walked forever.
     cyclic_relpath = f"library/task-variants/{second.task_slug}/cyclic.json"
     payload = second.model_dump(mode="json", by_alias=True)

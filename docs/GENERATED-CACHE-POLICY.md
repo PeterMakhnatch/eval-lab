@@ -22,7 +22,7 @@ current cleanup instructions. Module-location rules live in `src/evallab/AGENTS.
 | `research/lessons.md` | Python API `evallab.lessons.generate_lessons_file` | `python -m evallab.lessons` checks statistical evidence and freshness |
 | `research/registration/inventory.json` | Registration workflow | `evallab registry audit --json`; cleanup does not register or recertify tasks |
 
-`research/experiments/STATUS.md` is an August 15 historical report, not another
+`research/experiments/STATUS.md` is an August 15 historical report, not a current status snapshot.
 
 
 ## Authority and retention
@@ -39,9 +39,9 @@ current cleanup instructions. Module-location rules live in `src/evallab/AGENTS.
 | `.venv/` | Rebuildable dependency environment, not transferable worktree state. Preserve any nonstandard local source before replacing it. |
 | Untracked Markdown, Python, JSON, SQL | Drafts until classified. Preserve unique bytes and provenance before any move or deletion. |
 
-See the tidy contract below for the existing dry-run/apply behavior. Retention notices
-are report-only; they do not authorize evidence deletion. A scratch-looking name
-is not sufficient evidence that a file is disposable.
+Retention notices are report-only; they do not authorize evidence deletion. A scratch-looking name is not sufficient evidence that a file is disposable.
+Never run a broad filesystem purge, service change, queue reset, or database deletion as cleanup.
+Retain the source and verify surviving evidence before retiring an owned worktree.
 
 ## Worktree retirement
 
@@ -56,26 +56,11 @@ Before removal, record all of:
    Branch-name reuse and squash merges must not be mistaken for closure.
 4. No unique ignored evidence. Rebuildable caches may go; duplicated ignored
    evidence must have a verified surviving copy.
-5. Recoverable commits and a per-path disposition manifest. Keep branch refs unless
-   their separate deletion criteria are met.
+5. Recoverable commits. Keep branch refs unless their separate deletion criteria are met.
 
 Then use native `git worktree remove`, without force, and measure the result.
 Protect dirty, detached-but-unproven, nested-copy, and unknown trees. Do not run a
 blanket prune or delete `.worktrees/`, `runs/`, `derived/`, or `backups/` wholesale.
-
-The disposition manifest in item 5 is produced by `uv run evallab worktrees
---markdown-out <path> --json-out <path>` (`src/evallab/worktree_disposition.py`). It
-lists every registration from `git worktree list --porcelain` with branch,
-ahead/behind against `origin/main`, PR state from one batched `gh pr list`, and a
-mechanical verdict: `delivered` (every commit is on the base by ancestry, patch-id,
-or the head of a merged PR into the base branch), `unique-unmerged` (a branch-attached
-HEAD carries commits the base lacks), or `blocked` (missing or prunable tree, Git
-cannot report state, a detached HEAD with unaccounted commits, or a delivered HEAD
-with uncommitted work or a merge/rebase in progress). Locked registrations, open PRs,
-and ignored `runs/`/`derived/`/`queue/` entries (presence only) are per-row retirement
-blockers, never verdict changes. The command only reads; a dated report is evidence of
-state at generation time, not approval to retire any tree. The first report is
-`docs/checkpoints/2026-10-29-worktree-disposition.md`.
 
 ## Active and historical assets
 
@@ -92,25 +77,3 @@ Keep registered task versions and verifier fixtures immutable.
 Create new versions and lineage for changes.
 Generated status remains a snapshot, never a current service-health claim.
 
-## Tidy contract
-
-`evallab tidy` reports working-tree debt. Dry-run is the default.
-Exit 1 means at least 1 finding is actionable under its apply contract.
-Exit 0 also covers inventories containing only preserved or report-only findings.
-An inventory failure never authorizes deletion.
-`--apply` is an explicit cleanup action, not a routine verification step.
-
-- Git registration owns the worktree inventory, including worktrees outside `.worktrees/`.
-- The invocation worktree and primary checkout are not stale-worktree candidates.
-- Dirty, active, locked, missing-branch, and unproven worktrees remain protected.
-- Native worktree removal must succeed before a removal is reported.
-- Prunable registration metadata is not permission to delete a surviving directory.
-- Branch cleanup requires merged commits, no open PR, and no active worktree.
-- Failed GitHub inspection preserves the branch.
-- Unrecognized untracked files remain possible drafts.
-- A scratch-looking filename never overrides known evidence or ownership.
-- Retention findings remain report-only. Tidy does not remove execution evidence.
-
-Its default is planning only. It does not become authorized because tidy reports old files.
-Never run a broad filesystem purge, service change, queue reset, or database deletion as cleanup.
-Retain the source and verify surviving evidence before retiring the owned worktree.

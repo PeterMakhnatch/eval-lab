@@ -914,7 +914,7 @@ def grade_submission(
         prelude += "\n"
     import base64
 
-    from evallab.vcheck import GradeResult  # lazy: vcheck re-exports this helper
+    from evallab.vcheck import GradeResult
 
     def _write_bytes(path: str, data: bytes) -> str:
         try:

@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -15,11 +15,8 @@ from evallab.benchmark_program_contracts import (
 )
 from evallab.campaigns import (
     CampaignAttempt,
-    CampaignDriftError,
     CampaignLimits,
     CampaignManifest,
-    CampaignOrchestrator,
-    CampaignSecretSanitizer,
     TrialLimits,
     campaign_manifest_digest,
     experiment_spec_digest,
@@ -45,14 +42,6 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 NOW = datetime(2026, 8, 28, 12, 0, tzinfo=UTC)
 
 
-class Clock:
-    def __init__(self) -> None:
-        self.value = NOW
-
-    def __call__(self) -> datetime:
-        current = self.value
-        self.value += timedelta(milliseconds=1)
-        return current
 
 
 def _repo(tmp_path: Path) -> Path:
@@ -391,25 +380,6 @@ def _executor(
     )
 
 
-def _orchestrator(
-    root: Path,
-    manifest: CampaignManifest,
-    executor: Executor,
-    *,
-    sanitizer: CampaignSecretSanitizer | None = None,
-    backfill_hook: Any | None = None,
-) -> CampaignOrchestrator:
-    return CampaignOrchestrator(
-        repo_root=root,
-        manifest=manifest,
-        state_root=root / "runs/campaigns",
-        executor=executor,
-        dispatch=lambda current, spec_ids: current.tick(spec_ids=spec_ids),
-        backfill_hook=backfill_hook,
-        sanitizer=sanitizer or CampaignSecretSanitizer(frozenset()),
-        credential_probe=executor._credential_probe,
-        clock=Clock(),
-    )
 
 
 def _stage_manifest(root: Path, manifest: CampaignManifest, executor: Executor) -> Path:
@@ -428,9 +398,8 @@ def _stage_manifest(root: Path, manifest: CampaignManifest, executor: Executor) 
         ("terminus-2", "zai/glm-5.3-flash", ZAI_OPENAPI_API_CREDENTIAL),
     ],
 )
-def test_billable_run_waits_for_explicit_approval_then_resume_is_idempotent(
+def test_billable_campaign_waits_for_approval_and_bare_tick_refuses(
     tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
     agent: str,
     model: str,
     credential: str,
@@ -440,14 +409,6 @@ def test_billable_run_waits_for_explicit_approval_then_resume_is_idempotent(
     calls: list[str] = []
 
     def runner(request: RunRequest) -> Path:
-        assert request.max_output_tokens == 100
-        assert request.cost_limit_usd == 1.0
-        assert request.attempts == request.concurrency == 1
-        assert request.provenance is not None
-        assert request.provenance.campaign_ledger == manifest.ledger
-        assert request.provenance.campaign_manifest_digest == manifest.manifest_digest
-        assert request.lease_path is not None
-        assert request.lease_path.is_file()
         calls.append(request.name)
         return _write_job(request, cost=0.25, input_tokens=40, output_tokens=20)
 
@@ -456,27 +417,19 @@ def test_billable_run_waits_for_explicit_approval_then_resume_is_idempotent(
         runner,
         credentials=frozenset({credential}),
     )
-    first = _orchestrator(root, manifest, executor)
+    _stage_manifest(root, manifest, executor)
 
-    waiting = first.run()
-    assert waiting.state == "waiting-approval"
+    assert len(executor.queue.list_specs("waiting")) == 1
+    assert executor.queue.list_specs("approved") == []
+    assert executor.tick() == 0
     assert calls == []
-    assert waiting.attempts[0].approval_command == (
-        f"uv run evallab approve {manifest.attempts[0].spec_id} --actor <you>"
-    )
 
     executor.queue.approve(manifest.attempts[0].spec_id, actor="Peter Makhnatch")
+    assert len(executor.queue.list_specs("approved")) == 1
     assert executor.tick() == 0
     assert executor.last_tick_reason == "campaign_specs_require_campaign_resume"
     assert calls == []
-    completed = first.resume()
-    assert completed.state == "completed"
-    assert calls == [manifest.attempts[0].job_name]
-    assert completed.attempts[0].cas_uri is not None
-
-    resumed = _orchestrator(root, manifest, executor).resume()
-    assert resumed.state == "completed"
-    assert calls == [manifest.attempts[0].job_name]
+    assert len(executor.queue.list_specs("approved")) == 1
 
 
 
@@ -523,64 +476,6 @@ def test_post_run_compliance_refusal_never_marks_campaign_queue_done(
     )
 
 
-def test_resume_rejects_valid_archive_with_wrong_content_digest(tmp_path: Path) -> None:
-    from evallab.evidence_store import archive_evidence
-
-    root = _repo(tmp_path)
-    manifest = _manifest(root)
-    executor = _executor(
-        root,
-        lambda request: _write_job(
-            request,
-            cost=0.25,
-            input_tokens=40,
-            output_tokens=20,
-        ),
-        credentials=frozenset({DEEPSEEK_API_CREDENTIAL}),
-    )
-    orchestrator = _orchestrator(root, manifest, executor)
-    orchestrator.run()
-    executor.queue.approve(manifest.attempts[0].spec_id, actor="Peter Makhnatch")
-    completed = orchestrator.resume()
-    uri = completed.attempts[0].cas_uri
-    assert uri is not None
-    digest = uri.removeprefix("cas://sha256/")
-    store_root = root / manifest.evidence_store
-    blob = store_root / "blobs/sha256" / digest[:2] / f"{digest}.tar.gz"
-    wrong_job = tmp_path / "wrong-job"
-    wrong_job.mkdir()
-    (wrong_job / "result.json").write_text('{"wrong":true}\n', encoding="utf-8")
-    wrong_archive = archive_evidence(
-        wrong_job,
-        tmp_path / "wrong-store",
-        record_id="wrong",
-        kind="campaign-job",
-    )
-    wrong_blob = (
-        tmp_path
-        / "wrong-store/blobs/sha256"
-        / wrong_archive.content_digest.removeprefix("sha256:")[:2]
-        / f"{wrong_archive.content_digest.removeprefix('sha256:')}.tar.gz"
-    )
-    blob.write_bytes(wrong_blob.read_bytes())
-    archive_digest = "sha256:" + hashlib.sha256(blob.read_bytes()).hexdigest()
-    record_path = store_root / "records/campaign-job" / f"{manifest.attempts[0].attempt_id}.json"
-    record = json.loads(record_path.read_text(encoding="utf-8"))
-    record["archive_digest"] = archive_digest
-    record_path.write_text(
-        json.dumps(record, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-    details = {
-        "uri": uri,
-        "content_digest": f"sha256:{digest}",
-        "archive_digest": archive_digest,
-        "record_path": record_path.relative_to(root).as_posix(),
-    }
-    job_dir = root / manifest.attempts[0].spec.jobs_dir / manifest.attempts[0].job_name
-
-    with pytest.raises(CampaignDriftError, match="CAS content digest mismatch"):
-        orchestrator._verify_archive_details(manifest.attempts[0], job_dir, details)
 
 
 def test_executor_revalidates_campaign_spec_at_last_mile(tmp_path: Path) -> None:

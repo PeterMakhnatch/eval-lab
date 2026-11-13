@@ -71,15 +71,6 @@ class Budget:
         self.used += cost
         return True
 
-    def take_text(self, text: str) -> tuple[str, bool]:
-        """Charge as much of ``text`` as fits (cut on a character boundary); flag a cut."""
-        room = self.remaining * 4
-        if len(text) <= room:
-            self.used += estimate_tokens(text)
-            return text, False
-        self.used += self.remaining
-        return text[:room], True
-
 
 def bare_task_name(task_id: str) -> str:
     """The name cohort and ledger files use: the last path segment without a version pin, case-folded."""

@@ -18,12 +18,12 @@ import threading
 import time
 import tomllib
 import urllib.parse
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager, suppress
 from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from pydantic import ValidationError
 
@@ -35,7 +35,6 @@ from evallab.execution_contracts import (
     BREAKER_SELFHOSTED_PROXY_CAPABILITY_ENV,
     BREAKER_SELFHOSTED_PROXY_PROVIDER,
     BREAKER_SELFHOSTED_SECRET_FILE_ENV,
-    BREAKER_SELFHOSTED_UPSTREAM_ENV,
     CAPTURE_DIR_ENV,
     CAPTURE_ENABLED_ENV,
     CAPTURE_ROUTE_TOKEN_ENV,
@@ -51,15 +50,11 @@ from evallab.execution_contracts import (
     DEEPSEEK_ALLOWED_MODEL_ENV,
     DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS,
     DEEPSEEK_MODEL_SELECTOR,
-    DEEPSEEK_PROXY_ATTEMPT_ID_ENV,
     DEEPSEEK_PROXY_CAPABILITY_ENV,
     DEEPSEEK_PROXY_GID_ENV,
     DEEPSEEK_PROXY_HOST,
     DEEPSEEK_PROXY_SCRIPT,
-    DEEPSEEK_PROXY_SCRIPT_ENV,
     DEEPSEEK_PROXY_UID_ENV,
-    DEEPSEEK_PROXY_USAGE_DIR_ENV,
-    DEEPSEEK_PROXY_USAGE_FILE_ENV,
     DEEPSEEK_SECRET_FILE_ENV,
     DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
     DEFAULT_TRIAL_TIMEOUT_SECONDS,
@@ -72,25 +67,17 @@ from evallab.execution_contracts import (
     MIMO_AGENT,
     MIMO_AGENT_IMPORT_PATH,
     MIMO_SAMPLING_PROFILE_ENV,
-    MIMO_SELFHOSTED_CAPABILITY_EXPIRES_AT_ENV,
     MIMO_SELFHOSTED_CONTEXT_TOKENS,
     MIMO_SELFHOSTED_MODEL_PRICES_MICROS,
     MIMO_SELFHOSTED_NATIVE_MODELS,
-    MIMO_SELFHOSTED_PROXY_ATTEMPT_ID_ENV,
     MIMO_SELFHOSTED_PROXY_CAPABILITY_ENV,
     MIMO_SELFHOSTED_PROXY_PROVIDER,
-    MIMO_SELFHOSTED_PROXY_USAGE_FILE_ENV,
     MIMO_SELFHOSTED_SECRET_FILE_ENV,
-    MIMO_SELFHOSTED_SECRET_PATH_ENV,
     MIMO_SELFHOSTED_UPSTREAM_ENV,
-    OPENROUTER_CAPABILITY_EXPIRES_AT_ENV,
     OPENROUTER_EXPECTED_MODEL_ENV,
-    OPENROUTER_PROXY_ATTEMPT_ID_ENV,
     OPENROUTER_PROXY_CAPABILITY_ENV,
     OPENROUTER_PROXY_PROVIDER,
-    OPENROUTER_PROXY_USAGE_FILE_ENV,
     OPENROUTER_SECRET_FILE_ENV,
-    OPENROUTER_SECRET_PATH_ENV,
     OPENROUTER_UPSTREAM_ENV,
     PROXY_LIVE_DIR_ENV,
     PROXY_LIVE_DIR_NAME,
@@ -101,38 +88,23 @@ from evallab.execution_contracts import (
     TERMINUS_AGENT_IMPORT_PATH,
     TERMINUS_PROXY_URL_ENV,
     WATCHDOG_POLL_SECONDS,
-    ZAI_CAPABILITY_EXPIRES_AT_ENV,
     ZAI_INPUT_COST_MICROS_PER_MILLION,
     ZAI_MINISWE_AGENT_IMPORT_PATH,
     ZAI_OPENAPI_ALLOWED_MODEL,
     ZAI_OPENAPI_ALLOWED_MODEL_ENV,
-    ZAI_OPENAPI_CAPABILITY_EXPIRES_AT_ENV,
     ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION,
     ZAI_OPENAPI_MODEL_SELECTOR,
     ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION,
-    ZAI_OPENAPI_PROXY_ATTEMPT_ID_ENV,
     ZAI_OPENAPI_PROXY_CAPABILITY_ENV,
-    ZAI_OPENAPI_PROXY_GID_ENV,
     ZAI_OPENAPI_PROXY_HOST,
     ZAI_OPENAPI_PROXY_SCRIPT,
-    ZAI_OPENAPI_PROXY_SCRIPT_ENV,
-    ZAI_OPENAPI_PROXY_UID_ENV,
-    ZAI_OPENAPI_PROXY_USAGE_DIR_ENV,
-    ZAI_OPENAPI_PROXY_USAGE_FILE_ENV,
     ZAI_OPENAPI_SECRET_FILE_ENV,
-    ZAI_OPENAPI_SECRET_PATH_ENV,
     ZAI_OPENAPI_UPSTREAM_ENV,
     ZAI_OPENCODE_AGENT,
     ZAI_OUTPUT_COST_MICROS_PER_MILLION,
-    ZAI_PROXY_ATTEMPT_ID_ENV,
     ZAI_PROXY_CAPABILITY_ENV,
-    ZAI_PROXY_GID_ENV,
     ZAI_PROXY_HOST,
     ZAI_PROXY_SCRIPT,
-    ZAI_PROXY_SCRIPT_ENV,
-    ZAI_PROXY_UID_ENV,
-    ZAI_PROXY_USAGE_DIR_ENV,
-    ZAI_PROXY_USAGE_FILE_ENV,
     ZAI_SECRET_FILE_ENV,
     ExecutionFailure,
     HarborProcessResult,
@@ -230,10 +202,7 @@ __all__ = [
     "validate_request",
     "TRIAL_NATIVE_TRAJECTORY_PATH",
     "TRIAL_ATIF_TRAJECTORY_PATH",
-    "TRIAL_RESULT_PATH",
-    "TRIAL_VERIFIER_DIR",
     "JOB_METADATA_PATH",
-    "JOB_RESULT_PATH",
 ]
 HARBOR_COMPOSE_CONFIG_LABEL = "com.docker.compose.project.config_files"
 HARBOR_COMPOSE_PROJECT_LABEL = "com.docker.compose.project"
@@ -283,10 +252,7 @@ _RUNTIME_ROOT = Path(__file__).resolve().parents[2]
 
 TRIAL_NATIVE_TRAJECTORY_PATH = Path("agent/trajectory.json")
 TRIAL_ATIF_TRAJECTORY_PATH = Path("trajectory.json")
-TRIAL_RESULT_PATH = Path("result.json")
-TRIAL_VERIFIER_DIR = Path("verifier")
 JOB_METADATA_PATH = Path("lab-metadata.json")
-JOB_RESULT_PATH = Path("result.json")
 
 
 def _run_text_command(
@@ -973,6 +939,108 @@ def _proxy_503_wait_passthrough(env: dict[str, str]) -> dict[str, str]:
     return env
 
 
+@dataclass(frozen=True)
+class _ProxyLaneConfig:
+    slug: str
+    label: str
+    env_prefix: str
+    secret_file_env: str
+    capability_env: str
+    api_key_envs: tuple[str, ...]
+    materializer: str
+    allow_existing_secret: bool = True
+    proxy_script: Path | None = None
+    allowed_model: tuple[str, str] | None = None
+    default_pricing: tuple[int, int] | None = None
+    pricing_mode: str | None = None  # "raw_env" | "fixed" | "int_env" | None (host_proxy)
+
+
+_COMPOSE_PROXY_LANES: dict[str, _ProxyLaneConfig] = {
+    "deepseek": _ProxyLaneConfig(
+        slug="deepseek",
+        label="DeepSeek",
+        env_prefix="EVALLAB_DEEPSEEK",
+        secret_file_env=DEEPSEEK_SECRET_FILE_ENV,
+        capability_env=DEEPSEEK_PROXY_CAPABILITY_ENV,
+        api_key_envs=("DEEPSEEK_API_KEY", "MSWEA_API_KEY"),
+        materializer=materialize_deepseek_secret_file.__name__,
+        proxy_script=DEEPSEEK_PROXY_SCRIPT,
+        allowed_model=(DEEPSEEK_ALLOWED_MODEL_ENV, DEEPSEEK_ALLOWED_MODEL),
+        default_pricing=(280_000, 420_000),
+        pricing_mode="raw_env",
+    ),
+    "zai": _ProxyLaneConfig(
+        slug="zai",
+        label="Z.ai",
+        env_prefix="EVALLAB_ZAI",
+        secret_file_env=ZAI_SECRET_FILE_ENV,
+        capability_env=ZAI_PROXY_CAPABILITY_ENV,
+        api_key_envs=("ZAI_CODING_PLAN_API_KEY", "ZAI_API_KEY"),
+        materializer=materialize_zai_secret_file.__name__,
+        allow_existing_secret=False,
+        proxy_script=ZAI_PROXY_SCRIPT,
+        default_pricing=(ZAI_INPUT_COST_MICROS_PER_MILLION, ZAI_OUTPUT_COST_MICROS_PER_MILLION),
+        pricing_mode="fixed",
+    ),
+    "zai_openapi": _ProxyLaneConfig(
+        slug="zai-openapi",
+        label="Z.ai OpenAPI",
+        env_prefix="EVALLAB_ZAI_OPENAPI",
+        secret_file_env=ZAI_OPENAPI_SECRET_FILE_ENV,
+        capability_env=ZAI_OPENAPI_PROXY_CAPABILITY_ENV,
+        api_key_envs=("ZAI_OPENAPI_API_KEY", "MSWEA_API_KEY"),
+        materializer=materialize_zai_openapi_secret_file.__name__,
+        proxy_script=ZAI_OPENAPI_PROXY_SCRIPT,
+        allowed_model=(ZAI_OPENAPI_ALLOWED_MODEL_ENV, ZAI_OPENAPI_ALLOWED_MODEL),
+        default_pricing=(
+            ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION,
+            ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION,
+        ),
+        pricing_mode="int_env",
+    ),
+}
+
+
+_TERMINUS_PROXY_LANES: dict[str, _ProxyLaneConfig] = {
+    BREAKER_SELFHOSTED_PROXY_PROVIDER: _ProxyLaneConfig(
+        slug="terminus",
+        label="Terminus",
+        env_prefix="EVALLAB_BREAKER_SELFHOSTED",
+        secret_file_env=BREAKER_SELFHOSTED_SECRET_FILE_ENV,
+        capability_env=BREAKER_SELFHOSTED_PROXY_CAPABILITY_ENV,
+        api_key_envs=("OPENAI_API_KEY",),
+        materializer=materialize_breaker_selfhosted_secret_file.__name__,
+    ),
+    MIMO_SELFHOSTED_PROXY_PROVIDER: _ProxyLaneConfig(
+        slug="terminus",
+        label="Terminus",
+        env_prefix="EVALLAB_MIMO_SELFHOSTED",
+        secret_file_env=MIMO_SELFHOSTED_SECRET_FILE_ENV,
+        capability_env=MIMO_SELFHOSTED_PROXY_CAPABILITY_ENV,
+        api_key_envs=("OPENAI_API_KEY",),
+        materializer=materialize_mimo_selfhosted_secret_file.__name__,
+    ),
+    OPENROUTER_PROXY_PROVIDER: _ProxyLaneConfig(
+        slug="terminus",
+        label="Terminus",
+        env_prefix="EVALLAB_OPENROUTER",
+        secret_file_env=OPENROUTER_SECRET_FILE_ENV,
+        capability_env=OPENROUTER_PROXY_CAPABILITY_ENV,
+        api_key_envs=("OPENAI_API_KEY",),
+        materializer=materialize_openrouter_secret_file.__name__,
+    ),
+    "zai_openapi": _ProxyLaneConfig(
+        slug="terminus",
+        label="Terminus",
+        env_prefix="EVALLAB_ZAI_OPENAPI",
+        secret_file_env=ZAI_OPENAPI_SECRET_FILE_ENV,
+        capability_env=ZAI_OPENAPI_PROXY_CAPABILITY_ENV,
+        api_key_envs=("ZAI_OPENAPI_API_KEY", "MSWEA_API_KEY"),
+        materializer=materialize_zai_openapi_secret_file.__name__,
+    ),
+}
+
+
 def _terminus_proxy_env(
     *,
     provider: str,
@@ -1002,98 +1070,140 @@ def _terminus_proxy_env(
     env["EVALLAB_PROXY_PROVIDER"] = provider
     if live_dir is not None:
         env[PROXY_LIVE_DIR_ENV] = str(live_dir)
+    config = _TERMINUS_PROXY_LANES.get(provider, _TERMINUS_PROXY_LANES["zai_openapi"])
+    prefix = config.env_prefix
+    is_zai_fallback = False
     if provider == BREAKER_SELFHOSTED_PROXY_PROVIDER:
         if breaker_native not in BREAKER_SELFHOSTED_NATIVE_MODELS:
             raise ValueError("breaker proxy env requires an exact parsed native model")
-        prefix = "EVALLAB_BREAKER_SELFHOSTED"
-        env[f"{prefix}_SECRET_PATH"] = str(secret_path)
         env[f"{prefix}_EXPECTED_MODEL"] = breaker_native
-        upstream = os.environ.get(BREAKER_SELFHOSTED_UPSTREAM_ENV)
-        if upstream:
-            env[BREAKER_SELFHOSTED_UPSTREAM_ENV] = upstream
-        env.update(_capture_route_token(upstream, attempt_id))
-        env[BREAKER_SELFHOSTED_PROXY_CAPABILITY_ENV] = capability
-        env[f"{prefix}_ATTEMPT_ID"] = attempt_id
-        env[f"{prefix}_USAGE_FILE"] = str(usage_path)
-        for suffix, value in (
-            ("MAX_REQUESTS", limits.max_requests),
-            ("MAX_INPUT_TOKENS", limits.max_input_tokens),
-            ("MAX_OUTPUT_TOKENS", limits.max_output_tokens),
-            ("MAX_TOTAL_TOKENS", limits.max_total_tokens),
-            ("MAX_COST_MICROS", limits.max_cost_micros),
-        ):
-            env[f"{prefix}_{suffix}"] = str(value)
-        env[f"{prefix}_CAPABILITY_EXPIRES_AT"] = str(time.time() + float(timeout_seconds) + 60.0)
-        return _proxy_503_wait_passthrough(env)
-    if provider == MIMO_SELFHOSTED_PROXY_PROVIDER:
+    elif provider == MIMO_SELFHOSTED_PROXY_PROVIDER:
         if mimo_native not in MIMO_SELFHOSTED_NATIVE_MODELS:
             raise ValueError("mimo_selfhosted proxy env requires the parsed native model")
         if mimo_sampling_profile not in {"generation-config", "xiaomi-rl"}:
             raise ValueError("unknown MiMo sampling profile")
         env[MIMO_SAMPLING_PROFILE_ENV] = mimo_sampling_profile
-        env[MIMO_SELFHOSTED_SECRET_PATH_ENV] = str(secret_path)
         env["EVALLAB_MIMO_SELFHOSTED_CONTEXT_TOKENS"] = str(MIMO_SELFHOSTED_CONTEXT_TOKENS)
-        upstream = os.environ.get(MIMO_SELFHOSTED_UPSTREAM_ENV)
-        if upstream:
-            env[MIMO_SELFHOSTED_UPSTREAM_ENV] = upstream
-        env.update(_capture_route_token(upstream, attempt_id))
-        env[MIMO_SELFHOSTED_PROXY_CAPABILITY_ENV] = capability
-        env[MIMO_SELFHOSTED_PROXY_ATTEMPT_ID_ENV] = attempt_id
-        env[MIMO_SELFHOSTED_PROXY_USAGE_FILE_ENV] = str(usage_path)
-        env["EVALLAB_MIMO_SELFHOSTED_MAX_REQUESTS"] = str(limits.max_requests)
-        env["EVALLAB_MIMO_SELFHOSTED_MAX_INPUT_TOKENS"] = str(limits.max_input_tokens)
-        env["EVALLAB_MIMO_SELFHOSTED_MAX_OUTPUT_TOKENS"] = str(limits.max_output_tokens)
-        env["EVALLAB_MIMO_SELFHOSTED_MAX_TOTAL_TOKENS"] = str(limits.max_total_tokens)
-        env["EVALLAB_MIMO_SELFHOSTED_MAX_COST_MICROS"] = str(limits.max_cost_micros)
-        env[MIMO_SELFHOSTED_CAPABILITY_EXPIRES_AT_ENV] = str(
-            time.time() + float(timeout_seconds) + 60.0
-        )
-        return _proxy_503_wait_passthrough(env)
-    if provider == OPENROUTER_PROXY_PROVIDER:
+    elif provider == OPENROUTER_PROXY_PROVIDER:
         if openrouter_spec is None:
             raise ValueError("openrouter proxy env requires the resolved route")
-        env[OPENROUTER_SECRET_PATH_ENV] = str(secret_path)
         env[OPENROUTER_EXPECTED_MODEL_ENV] = openrouter_spec.native_model
-        upstream = os.environ.get(OPENROUTER_UPSTREAM_ENV)
-        if upstream:
-            env[OPENROUTER_UPSTREAM_ENV] = upstream
-        env.update(_capture_route_token(upstream, attempt_id))
-        env[OPENROUTER_PROXY_CAPABILITY_ENV] = capability
-        env[OPENROUTER_PROXY_ATTEMPT_ID_ENV] = attempt_id
-        env[OPENROUTER_PROXY_USAGE_FILE_ENV] = str(usage_path)
-        env["EVALLAB_OPENROUTER_MAX_REQUESTS"] = str(limits.max_requests)
-        env["EVALLAB_OPENROUTER_MAX_INPUT_TOKENS"] = str(limits.max_input_tokens)
-        env["EVALLAB_OPENROUTER_MAX_OUTPUT_TOKENS"] = str(limits.max_output_tokens)
-        env["EVALLAB_OPENROUTER_MAX_TOTAL_TOKENS"] = str(limits.max_total_tokens)
-        env["EVALLAB_OPENROUTER_MAX_COST_MICROS"] = str(limits.max_cost_micros)
-        env[OPENROUTER_CAPABILITY_EXPIRES_AT_ENV] = str(time.time() + float(timeout_seconds) + 60.0)
-        return _proxy_503_wait_passthrough(env)
-    env[ZAI_OPENAPI_SECRET_PATH_ENV] = str(secret_path)
-    upstream = os.environ.get(ZAI_OPENAPI_UPSTREAM_ENV)
+    else:
+        is_zai_fallback = True
+    env[f"{prefix}_SECRET_PATH"] = str(secret_path)
+    upstream = os.environ.get(f"{prefix}_UPSTREAM")
     if upstream:
-        env[ZAI_OPENAPI_UPSTREAM_ENV] = upstream
+        env[f"{prefix}_UPSTREAM"] = upstream
     env.update(_capture_route_token(upstream, attempt_id))
-    env[ZAI_OPENAPI_PROXY_CAPABILITY_ENV] = capability
-    env[ZAI_OPENAPI_PROXY_ATTEMPT_ID_ENV] = attempt_id
-    env[ZAI_OPENAPI_PROXY_USAGE_FILE_ENV] = str(usage_path)
-    env[ZAI_OPENAPI_ALLOWED_MODEL_ENV] = os.environ.get(
-        ZAI_OPENAPI_ALLOWED_MODEL_ENV, ZAI_OPENAPI_ALLOWED_MODEL
-    )
-    env["EVALLAB_ZAI_OPENAPI_MAX_REQUESTS"] = str(limits.max_requests)
-    env["EVALLAB_ZAI_OPENAPI_MAX_INPUT_TOKENS"] = str(limits.max_input_tokens)
-    env["EVALLAB_ZAI_OPENAPI_MAX_OUTPUT_TOKENS"] = str(limits.max_output_tokens)
-    env["EVALLAB_ZAI_OPENAPI_MAX_TOTAL_TOKENS"] = str(limits.max_total_tokens)
-    env["EVALLAB_ZAI_OPENAPI_MAX_COST_MICROS"] = str(limits.max_cost_micros)
-    env["EVALLAB_ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION"] = os.environ.get(
-        "EVALLAB_ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION",
-        str(ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION),
-    )
-    env["EVALLAB_ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION"] = os.environ.get(
-        "EVALLAB_ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION",
-        str(ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION),
-    )
-    env[ZAI_OPENAPI_CAPABILITY_EXPIRES_AT_ENV] = str(time.time() + float(timeout_seconds) + 60.0)
+    env[config.capability_env] = capability
+    env[f"{prefix}_ATTEMPT_ID"] = attempt_id
+    env[f"{prefix}_USAGE_FILE"] = str(usage_path)
+    if is_zai_fallback:
+        env[ZAI_OPENAPI_ALLOWED_MODEL_ENV] = os.environ.get(
+            ZAI_OPENAPI_ALLOWED_MODEL_ENV, ZAI_OPENAPI_ALLOWED_MODEL
+        )
+    for suffix, value in (
+        ("MAX_REQUESTS", limits.max_requests),
+        ("MAX_INPUT_TOKENS", limits.max_input_tokens),
+        ("MAX_OUTPUT_TOKENS", limits.max_output_tokens),
+        ("MAX_TOTAL_TOKENS", limits.max_total_tokens),
+        ("MAX_COST_MICROS", limits.max_cost_micros),
+    ):
+        env[f"{prefix}_{suffix}"] = str(value)
+    if is_zai_fallback:
+        env[f"{prefix}_INPUT_COST_MICROS_PER_MILLION"] = os.environ.get(
+            f"{prefix}_INPUT_COST_MICROS_PER_MILLION",
+            str(ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION),
+        )
+        env[f"{prefix}_OUTPUT_COST_MICROS_PER_MILLION"] = os.environ.get(
+            f"{prefix}_OUTPUT_COST_MICROS_PER_MILLION",
+            str(ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION),
+        )
+    env[f"{prefix}_CAPABILITY_EXPIRES_AT"] = str(time.time() + float(timeout_seconds) + 60.0)
     return _proxy_503_wait_passthrough(env)
+
+
+def _start_ready_process(
+    cmd: list[str],
+    *,
+    env: dict[str, str],
+    ready_path: Path,
+    stderr_path: Path,
+    expected_host: str,
+    ready_timeout_seconds: float,
+    label: str,
+    stderr_tail: Callable[[Path], str],
+    stop_process: Callable[[subprocess.Popen[bytes] | None], None],
+) -> tuple[subprocess.Popen[bytes], int]:
+    """Launch a child process with a private stderr log and poll until ready."""
+    with open(stderr_path, "wb") as stderr_handle:
+        os.chmod(stderr_path, 0o600)
+        process = subprocess.Popen(
+            cmd,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=stderr_handle,
+            env=env,
+            start_new_session=True,
+        )
+    try:
+        deadline = time.monotonic() + ready_timeout_seconds
+        while True:
+            if process.poll() is not None:
+                reason = "exited before becoming ready"
+                break
+            if ready_path.is_file():
+                try:
+                    ready = json.loads(ready_path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+                    raise RuntimeError(
+                        f"{label} ready file is invalid: {ready_path}"
+                    ) from exc
+                host = ready.get("host") if isinstance(ready, dict) else None
+                port = ready.get("port") if isinstance(ready, dict) else None
+                if (
+                    host != expected_host
+                    or isinstance(port, bool)
+                    or not isinstance(port, int)
+                    or not 1 <= port <= 65535
+                ):
+                    raise RuntimeError(
+                        f"{label} reported an unexpected endpoint; "
+                        f"inspect {stderr_path}"
+                    )
+                return process, port
+            if time.monotonic() >= deadline:
+                reason = "did not become ready"
+                break
+            time.sleep(0.05)
+        raise RuntimeError(
+            f"{label} {reason}; inspect {stderr_path}"
+            + (
+                f": {stderr_tail(stderr_path)}"
+                if stderr_tail(stderr_path)
+                else ""
+            )
+        )
+    except BaseException:
+        stop_process(process)
+        raise
+
+
+def _stop_managed_process(
+    process: subprocess.Popen[bytes] | None,
+    *,
+    stop_timeout_seconds: float,
+) -> None:
+    """Terminate a supervised child process; safe to call repeatedly."""
+    if process is None or process.poll() is not None:
+        return
+    process.terminate()
+    try:
+        process.wait(timeout=stop_timeout_seconds)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        with suppress(subprocess.TimeoutExpired):
+            process.wait(timeout=5)
 
 
 def _terminus_proxy_stderr_tail(stderr_path: Path) -> str:
@@ -1161,76 +1271,23 @@ def _start_terminus_proxy(
     ]
     if live_dir is not None:
         cmd.extend(["--live-dir", str(live_dir)])
-    with open(stderr_path, "wb") as stderr_handle:
-        os.chmod(stderr_path, 0o600)
-        process = subprocess.Popen(
-            cmd,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=stderr_handle,
-            env=env,
-            start_new_session=True,
-        )
-    try:
-        deadline = time.monotonic() + _TERMINUS_PROXY_READY_TIMEOUT_SECONDS
-        while True:
-            if process.poll() is not None:
-                raise RuntimeError(
-                    "terminus loopback proxy exited before becoming ready; "
-                    f"inspect {stderr_path}"
-                    + (
-                        f": {_terminus_proxy_stderr_tail(stderr_path)}"
-                        if _terminus_proxy_stderr_tail(stderr_path)
-                        else ""
-                    )
-                )
-            if ready_path.is_file():
-                try:
-                    ready = json.loads(ready_path.read_text(encoding="utf-8"))
-                except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
-                    raise RuntimeError(
-                        f"terminus loopback proxy ready file is invalid: {ready_path}"
-                    ) from exc
-                host = ready.get("host") if isinstance(ready, dict) else None
-                port = ready.get("port") if isinstance(ready, dict) else None
-                if (
-                    host != _TERMINUS_PROXY_HOST
-                    or isinstance(port, bool)
-                    or not isinstance(port, int)
-                    or not 1 <= port <= 65535
-                ):
-                    raise RuntimeError(
-                        "terminus loopback proxy reported an unexpected endpoint; "
-                        f"inspect {stderr_path}"
-                    )
-                return process, f"http://{_TERMINUS_PROXY_HOST}:{port}"
-            if time.monotonic() >= deadline:
-                raise RuntimeError(
-                    "terminus loopback proxy did not become ready; "
-                    f"inspect {stderr_path}"
-                    + (
-                        f": {_terminus_proxy_stderr_tail(stderr_path)}"
-                        if _terminus_proxy_stderr_tail(stderr_path)
-                        else ""
-                    )
-                )
-            time.sleep(0.05)
-    except BaseException:
-        _stop_terminus_proxy(process)
-        raise
+    process, port = _start_ready_process(
+        cmd,
+        env=env,
+        ready_path=ready_path,
+        stderr_path=stderr_path,
+        expected_host=_TERMINUS_PROXY_HOST,
+        ready_timeout_seconds=_TERMINUS_PROXY_READY_TIMEOUT_SECONDS,
+        label="terminus loopback proxy",
+        stderr_tail=_terminus_proxy_stderr_tail,
+        stop_process=_stop_terminus_proxy,
+    )
+    return process, f"http://{_TERMINUS_PROXY_HOST}:{port}"
 
 
 def _stop_terminus_proxy(process: subprocess.Popen[bytes] | None) -> None:
     """Terminate a supervised loopback proxy; safe to call repeatedly."""
-    if process is None or process.poll() is not None:
-        return
-    process.terminate()
-    try:
-        process.wait(timeout=_TERMINUS_PROXY_STOP_TIMEOUT_SECONDS)
-    except subprocess.TimeoutExpired:
-        process.kill()
-        with suppress(subprocess.TimeoutExpired):
-            process.wait(timeout=5)
+    _stop_managed_process(process, stop_timeout_seconds=_TERMINUS_PROXY_STOP_TIMEOUT_SECONDS)
 
 
 #: Host the bridge binds; the sandbox reaches the same port as
@@ -1305,76 +1362,22 @@ def _start_claude_gateway_bridge(
         # Tests only: point the bridge at a stub stdio child. Production
         # callers omit this and the bridge spawns the real gateway.
         cmd.extend(["--stdio-command", stdio_command])
-    with open(stderr_path, "wb") as stderr_handle:
-        os.chmod(stderr_path, 0o600)
-        process = subprocess.Popen(
-            cmd,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=stderr_handle,
-            env=env,
-            start_new_session=True,
-        )
-    try:
-        deadline = time.monotonic() + _CLAUDE_GATEWAY_READY_TIMEOUT_SECONDS
-        while True:
-            if process.poll() is not None:
-                raise RuntimeError(
-                    "Claude gateway bridge exited before becoming ready; "
-                    f"inspect {stderr_path}"
-                    + (
-                        f": {_claude_gateway_stderr_tail(stderr_path)}"
-                        if _claude_gateway_stderr_tail(stderr_path)
-                        else ""
-                    )
-                )
-            if ready_path.is_file():
-                try:
-                    ready = json.loads(ready_path.read_text(encoding="utf-8"))
-                except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
-                    raise RuntimeError(
-                        f"Claude gateway bridge ready file is invalid: {ready_path}"
-                    ) from exc
-                host = ready.get("host") if isinstance(ready, dict) else None
-                port = ready.get("port") if isinstance(ready, dict) else None
-                if (
-                    host != _CLAUDE_GATEWAY_PROXY_HOST
-                    or isinstance(port, bool)
-                    or not isinstance(port, int)
-                    or not 1 <= port <= 65535
-                ):
-                    raise RuntimeError(
-                        "Claude gateway bridge reported an unexpected endpoint; "
-                        f"inspect {stderr_path}"
-                    )
-                return process, port
-            if time.monotonic() >= deadline:
-                raise RuntimeError(
-                    "Claude gateway bridge did not become ready; "
-                    f"inspect {stderr_path}"
-                    + (
-                        f": {_claude_gateway_stderr_tail(stderr_path)}"
-                        if _claude_gateway_stderr_tail(stderr_path)
-                        else ""
-                    )
-                )
-            time.sleep(0.05)
-    except BaseException:
-        _stop_claude_gateway_bridge(process)
-        raise
+    return _start_ready_process(
+        cmd,
+        env=env,
+        ready_path=ready_path,
+        stderr_path=stderr_path,
+        expected_host=_CLAUDE_GATEWAY_PROXY_HOST,
+        ready_timeout_seconds=_CLAUDE_GATEWAY_READY_TIMEOUT_SECONDS,
+        label="Claude gateway bridge",
+        stderr_tail=_claude_gateway_stderr_tail,
+        stop_process=_stop_claude_gateway_bridge,
+    )
 
 
 def _stop_claude_gateway_bridge(process: subprocess.Popen[bytes] | None) -> None:
     """Terminate a supervised gateway bridge; safe to call repeatedly."""
-    if process is None or process.poll() is not None:
-        return
-    process.terminate()
-    try:
-        process.wait(timeout=_CLAUDE_GATEWAY_STOP_TIMEOUT_SECONDS)
-    except subprocess.TimeoutExpired:
-        process.kill()
-        with suppress(subprocess.TimeoutExpired):
-            process.wait(timeout=5)
+    _stop_managed_process(process, stop_timeout_seconds=_CLAUDE_GATEWAY_STOP_TIMEOUT_SECONDS)
 
 
 def _claude_gateway_runtime_env(*, port: int, capability: str) -> dict[str, str]:
@@ -1476,57 +1479,13 @@ def run_harbor_process(
     claude_gateway_bridge: subprocess.Popen[bytes] | None = None
     claude_gateway_usage_dir: Path | None = None
     claude_gateway_usage_path: Path | None = None
-    try:
-        if job_dir is not None:
-            runtime_environment[PROXY_LIVE_DIR_ENV] = str(job_dir / PROXY_LIVE_DIR_NAME)
-        if deepseek_lane:
-            if proxy_attempt_id is None or proxy_limits is None:
-                raise ValueError("DeepSeek execution requires a bound trial capability")
-            capability = secrets.token_urlsafe(32)
-            capability_id = "sha256:" + hashlib.sha256(capability.encode()).hexdigest()
-            owned_usage_dir = Path(
-                tempfile.mkdtemp(
-                    prefix="evallab-deepseek-usage.",
-                    dir=os.environ.get("TMPDIR") or None,
-                )
-            )
-            os.chmod(owned_usage_dir, 0o700)
-            owned_usage_path = owned_usage_dir / "deepseek-proxy-usage.json"
-            runtime_environment[DEEPSEEK_PROXY_CAPABILITY_ENV] = capability
-            runtime_environment[DEEPSEEK_PROXY_ATTEMPT_ID_ENV] = proxy_attempt_id
-            runtime_environment[DEEPSEEK_PROXY_USAGE_DIR_ENV] = str(owned_usage_dir)
-            runtime_environment[DEEPSEEK_PROXY_USAGE_FILE_ENV] = str(owned_usage_path)
-            runtime_environment["DEEPSEEK_API_KEY"] = capability
-            runtime_environment["MSWEA_API_KEY"] = capability
-            runtime_environment[DEEPSEEK_ALLOWED_MODEL_ENV] = os.environ.get(
-                DEEPSEEK_ALLOWED_MODEL_ENV, DEEPSEEK_ALLOWED_MODEL
-            )
-            runtime_environment["EVALLAB_DEEPSEEK_MAX_REQUESTS"] = str(proxy_limits.max_requests)
-            runtime_environment["EVALLAB_DEEPSEEK_MAX_INPUT_TOKENS"] = str(
-                proxy_limits.max_input_tokens
-            )
-            runtime_environment["EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS"] = str(
-                proxy_limits.max_output_tokens
-            )
-            runtime_environment["EVALLAB_DEEPSEEK_MAX_TOTAL_TOKENS"] = str(
-                proxy_limits.max_total_tokens
-            )
-            runtime_environment["EVALLAB_DEEPSEEK_MAX_COST_MICROS"] = str(
-                proxy_limits.max_cost_micros
-            )
-            runtime_environment["EVALLAB_DEEPSEEK_INPUT_COST_MICROS_PER_MILLION"] = os.environ.get(
-                "EVALLAB_DEEPSEEK_INPUT_COST_MICROS_PER_MILLION",
-                "280000",
-            )
-            runtime_environment["EVALLAB_DEEPSEEK_OUTPUT_COST_MICROS_PER_MILLION"] = os.environ.get(
-                "EVALLAB_DEEPSEEK_OUTPUT_COST_MICROS_PER_MILLION",
-                "420000",
-            )
-            runtime_environment["EVALLAB_DEEPSEEK_CAPABILITY_EXPIRES_AT"] = str(
-                time.time() + float(timeout_seconds) + 60.0
-            )
-            existing_secret = runtime_environment.get(DEEPSEEK_SECRET_FILE_ENV) or os.environ.get(
-                DEEPSEEK_SECRET_FILE_ENV
+
+    def _resolve_or_materialize_secret(config: _ProxyLaneConfig) -> tuple[Path, str]:
+        nonlocal owned_secret_dir, owned_secret_path
+        existing_secret: str | None = None
+        if config.allow_existing_secret:
+            existing_secret = runtime_environment.get(config.secret_file_env) or os.environ.get(
+                config.secret_file_env
             )
             log_root = log_path.resolve()
             if existing_secret:
@@ -1540,180 +1499,33 @@ def run_harbor_process(
                         job_dir is not None and job_dir.resolve() in existing_path.parents
                     ):
                         existing_secret = None
-            if existing_secret:
-                runtime_environment[DEEPSEEK_SECRET_FILE_ENV] = existing_secret
-            else:
-                owned_secret_dir = Path(
-                    tempfile.mkdtemp(
-                        prefix="evallab-deepseek-secret.",
-                        dir=os.environ.get("TMPDIR") or None,
-                    )
-                )
-                os.chmod(owned_secret_dir, 0o700)
-                owned_secret_path = owned_secret_dir / "key"
-                materialize_deepseek_secret_file(owned_secret_path)
-                runtime_environment[DEEPSEEK_SECRET_FILE_ENV] = str(owned_secret_path)
-            runtime_environment[DEEPSEEK_PROXY_SCRIPT_ENV] = str(
-                (_RUNTIME_ROOT / DEEPSEEK_PROXY_SCRIPT).resolve()
+        if existing_secret:
+            return Path(existing_secret), existing_secret
+        owned_secret_dir = Path(
+            tempfile.mkdtemp(
+                prefix=f"evallab-{config.slug}-secret.",
+                dir=os.environ.get("TMPDIR") or None,
             )
-            proxy_uid, proxy_gid = proxy_runtime_identity(
-                Path(runtime_environment[DEEPSEEK_SECRET_FILE_ENV])
-            )
-            runtime_environment[DEEPSEEK_PROXY_UID_ENV] = str(proxy_uid)
-            runtime_environment[DEEPSEEK_PROXY_GID_ENV] = str(proxy_gid)
-            secret_values = collected_secret_values({**os.environ, **runtime_environment})
-        if zai_lane:
-            if proxy_attempt_id is None or proxy_limits is None:
-                raise ValueError("Z.ai execution requires a bound trial capability")
-            capability = secrets.token_urlsafe(32)
-            capability_id = "sha256:" + hashlib.sha256(capability.encode()).hexdigest()
-            owned_usage_dir = Path(
-                tempfile.mkdtemp(
-                    prefix="evallab-zai-usage.",
-                    dir=os.environ.get("TMPDIR") or None,
-                )
-            )
-            os.chmod(owned_usage_dir, 0o700)
-            owned_usage_path = owned_usage_dir / "zai-proxy-usage.json"
-            runtime_environment[ZAI_PROXY_ATTEMPT_ID_ENV] = proxy_attempt_id
-            runtime_environment[ZAI_PROXY_USAGE_DIR_ENV] = str(owned_usage_dir)
-            runtime_environment[ZAI_PROXY_USAGE_FILE_ENV] = str(owned_usage_path)
-            runtime_environment["EVALLAB_ZAI_MAX_REQUESTS"] = str(proxy_limits.max_requests)
-            runtime_environment["EVALLAB_ZAI_MAX_INPUT_TOKENS"] = str(proxy_limits.max_input_tokens)
-            runtime_environment["EVALLAB_ZAI_MAX_OUTPUT_TOKENS"] = str(
-                proxy_limits.max_output_tokens
-            )
-            runtime_environment["EVALLAB_ZAI_MAX_TOTAL_TOKENS"] = str(proxy_limits.max_total_tokens)
-            runtime_environment["EVALLAB_ZAI_MAX_COST_MICROS"] = str(proxy_limits.max_cost_micros)
-            proxy_pricing = {
-                "input_cost_micros_per_million": ZAI_INPUT_COST_MICROS_PER_MILLION,
-                "output_cost_micros_per_million": ZAI_OUTPUT_COST_MICROS_PER_MILLION,
-            }
-            runtime_environment["EVALLAB_ZAI_INPUT_COST_MICROS_PER_MILLION"] = str(
-                ZAI_INPUT_COST_MICROS_PER_MILLION
-            )
-            runtime_environment["EVALLAB_ZAI_OUTPUT_COST_MICROS_PER_MILLION"] = str(
-                ZAI_OUTPUT_COST_MICROS_PER_MILLION
-            )
-            owned_secret_dir = Path(
-                tempfile.mkdtemp(
-                    prefix="evallab-zai-secret.",
-                    dir=os.environ.get("TMPDIR") or None,
-                )
-            )
-            os.chmod(owned_secret_dir, 0o700)
-            owned_secret_path = owned_secret_dir / "key"
-            materialize_zai_secret_file(owned_secret_path)
-            runtime_environment[ZAI_SECRET_FILE_ENV] = str(owned_secret_path)
-            runtime_environment[ZAI_PROXY_SCRIPT_ENV] = str(
-                (_RUNTIME_ROOT / ZAI_PROXY_SCRIPT).resolve()
-            )
-            proxy_uid, proxy_gid = proxy_runtime_identity(owned_secret_path)
-            runtime_environment[ZAI_PROXY_UID_ENV] = str(proxy_uid)
-            runtime_environment[ZAI_PROXY_GID_ENV] = str(proxy_gid)
-            runtime_environment[ZAI_PROXY_CAPABILITY_ENV] = capability
-            runtime_environment[ZAI_CAPABILITY_EXPIRES_AT_ENV] = str(
-                time.time() + float(timeout_seconds) + 60.0
-            )
-            runtime_environment["ZAI_CODING_PLAN_API_KEY"] = capability
-            runtime_environment["ZAI_API_KEY"] = capability
-            secret_values = collected_secret_values({**os.environ, **runtime_environment})
-        if zai_openapi_lane:
-            if proxy_attempt_id is None or proxy_limits is None:
-                raise ValueError("Z.ai OpenAPI execution requires a bound trial capability")
-            capability = secrets.token_urlsafe(32)
-            capability_id = "sha256:" + hashlib.sha256(capability.encode()).hexdigest()
-            owned_usage_dir = Path(
-                tempfile.mkdtemp(
-                    prefix="evallab-zai-openapi-usage.",
-                    dir=os.environ.get("TMPDIR") or None,
-                )
-            )
-            os.chmod(owned_usage_dir, 0o700)
-            owned_usage_path = owned_usage_dir / "zai-openapi-proxy-usage.json"
-            runtime_environment[ZAI_OPENAPI_PROXY_CAPABILITY_ENV] = capability
-            runtime_environment[ZAI_OPENAPI_PROXY_ATTEMPT_ID_ENV] = proxy_attempt_id
-            runtime_environment[ZAI_OPENAPI_PROXY_USAGE_DIR_ENV] = str(owned_usage_dir)
-            runtime_environment[ZAI_OPENAPI_PROXY_USAGE_FILE_ENV] = str(owned_usage_path)
-            runtime_environment["ZAI_OPENAPI_API_KEY"] = capability
-            runtime_environment["MSWEA_API_KEY"] = capability
-            runtime_environment[ZAI_OPENAPI_ALLOWED_MODEL_ENV] = os.environ.get(
-                ZAI_OPENAPI_ALLOWED_MODEL_ENV, ZAI_OPENAPI_ALLOWED_MODEL
-            )
-            runtime_environment["EVALLAB_ZAI_OPENAPI_MAX_REQUESTS"] = str(proxy_limits.max_requests)
-            runtime_environment["EVALLAB_ZAI_OPENAPI_MAX_INPUT_TOKENS"] = str(
-                proxy_limits.max_input_tokens
-            )
-            runtime_environment["EVALLAB_ZAI_OPENAPI_MAX_OUTPUT_TOKENS"] = str(
-                proxy_limits.max_output_tokens
-            )
-            runtime_environment["EVALLAB_ZAI_OPENAPI_MAX_TOTAL_TOKENS"] = str(
-                proxy_limits.max_total_tokens
-            )
-            runtime_environment["EVALLAB_ZAI_OPENAPI_MAX_COST_MICROS"] = str(
-                proxy_limits.max_cost_micros
-            )
-            proxy_pricing = {
-                "input_cost_micros_per_million": int(
-                    os.environ.get(
-                        "EVALLAB_ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION",
-                        str(ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION),
-                    )
-                ),
-                "output_cost_micros_per_million": int(
-                    os.environ.get(
-                        "EVALLAB_ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION",
-                        str(ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION),
-                    )
-                ),
-            }
-            runtime_environment["EVALLAB_ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION"] = str(
-                proxy_pricing["input_cost_micros_per_million"]
-            )
-            runtime_environment["EVALLAB_ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION"] = str(
-                proxy_pricing["output_cost_micros_per_million"]
-            )
-            runtime_environment[ZAI_OPENAPI_CAPABILITY_EXPIRES_AT_ENV] = str(
-                time.time() + float(timeout_seconds) + 60.0
-            )
-            existing_secret = runtime_environment.get(
-                ZAI_OPENAPI_SECRET_FILE_ENV
-            ) or os.environ.get(ZAI_OPENAPI_SECRET_FILE_ENV)
-            log_root = log_path.resolve()
-            if existing_secret:
-                try:
-                    read_owner_secret_file(Path(existing_secret))
-                    existing_path = Path(existing_secret).resolve()
-                except OSError:
-                    existing_secret = None
-                else:
-                    if log_root.parent in existing_path.parents or (
-                        job_dir is not None and job_dir.resolve() in existing_path.parents
-                    ):
-                        existing_secret = None
-            if existing_secret:
-                runtime_environment[ZAI_OPENAPI_SECRET_FILE_ENV] = existing_secret
-            else:
-                owned_secret_dir = Path(
-                    tempfile.mkdtemp(
-                        prefix="evallab-zai-openapi-secret.",
-                        dir=os.environ.get("TMPDIR") or None,
-                    )
-                )
-                os.chmod(owned_secret_dir, 0o700)
-                owned_secret_path = owned_secret_dir / "key"
-                materialize_zai_openapi_secret_file(owned_secret_path)
-                runtime_environment[ZAI_OPENAPI_SECRET_FILE_ENV] = str(owned_secret_path)
-            runtime_environment[ZAI_OPENAPI_PROXY_SCRIPT_ENV] = str(
-                (_RUNTIME_ROOT / ZAI_OPENAPI_PROXY_SCRIPT).resolve()
-            )
-            proxy_uid, proxy_gid = proxy_runtime_identity(
-                Path(runtime_environment[ZAI_OPENAPI_SECRET_FILE_ENV])
-            )
-            runtime_environment[ZAI_OPENAPI_PROXY_UID_ENV] = str(proxy_uid)
-            runtime_environment[ZAI_OPENAPI_PROXY_GID_ENV] = str(proxy_gid)
-            secret_values = collected_secret_values({**os.environ, **runtime_environment})
-        if terminus_lane:
+        )
+        os.chmod(owned_secret_dir, 0o700)
+        owned_secret_path = owned_secret_dir / "key"
+        materialize = cast(Callable[[Path], Path], globals()[config.materializer])
+        materialize(owned_secret_path)
+        return owned_secret_path, str(owned_secret_path)
+
+    def _arm_proxy_lane(
+        config: _ProxyLaneConfig | None = None,
+        *,
+        host_proxy: bool = False,
+    ) -> None:
+        nonlocal owned_usage_dir, owned_usage_path, capability_id, proxy_pricing
+        nonlocal terminus_proxy, secret_values
+        provider = ""
+        model_value: str | None = None
+        breaker_native: str | None = None
+        mimo_native: str | None = None
+        openrouter_spec: OpenRouterRoute | None = None
+        if host_proxy:
             if proxy_attempt_id is None or proxy_limits is None:
                 raise ValueError("Terminus execution requires a bound trial capability")
             # The command's --model value selects the provider profile: a
@@ -1733,30 +1545,34 @@ def run_harbor_process(
             ]
             model_value = model_args[-1] if model_args else None
             breaker_client = is_breaker_selfhosted_model(model_value)
-            breaker_native = parse_breaker_selfhosted_model(model_value) if breaker_client else None
+            breaker_native = (
+                parse_breaker_selfhosted_model(model_value) if breaker_client else None
+            )
             mimo_native = parse_mimo_selfhosted_model(model_value) if mimo_client else None
             openrouter_spec = openrouter_route(model_value) if openrouter_client else None
             provider = (
                 MIMO_SELFHOSTED_PROXY_PROVIDER
                 if mimo_client
-                else (
-                    OPENROUTER_PROXY_PROVIDER
-                    if openrouter_client
-                    else "zai_openapi"
-                )
+                else (OPENROUTER_PROXY_PROVIDER if openrouter_client else "zai_openapi")
             )
             if breaker_client:
                 provider = BREAKER_SELFHOSTED_PROXY_PROVIDER
-            capability = secrets.token_urlsafe(32)
-            capability_id = "sha256:" + hashlib.sha256(capability.encode()).hexdigest()
-            owned_usage_dir = Path(
-                tempfile.mkdtemp(
-                    prefix="evallab-terminus-usage.",
-                    dir=os.environ.get("TMPDIR") or None,
-                )
+            config = _TERMINUS_PROXY_LANES[provider]
+        else:
+            assert config is not None
+            if proxy_attempt_id is None or proxy_limits is None:
+                raise ValueError(f"{config.label} execution requires a bound trial capability")
+        capability = secrets.token_urlsafe(32)
+        capability_id = "sha256:" + hashlib.sha256(capability.encode()).hexdigest()
+        owned_usage_dir = Path(
+            tempfile.mkdtemp(
+                prefix=f"evallab-{config.slug}-usage.",
+                dir=os.environ.get("TMPDIR") or None,
             )
-            os.chmod(owned_usage_dir, 0o700)
-            owned_usage_path = owned_usage_dir / "terminus-proxy-usage.json"
+        )
+        os.chmod(owned_usage_dir, 0o700)
+        owned_usage_path = owned_usage_dir / f"{config.slug}-proxy-usage.json"
+        if host_proxy:
             if breaker_native is not None:
                 proxy_pricing = {
                     "input_cost_micros_per_million": 0,
@@ -1804,52 +1620,54 @@ def run_harbor_process(
                         )
                     ),
                 }
-            secret_file_env = (
-                MIMO_SELFHOSTED_SECRET_FILE_ENV
-                if mimo_client
-                else (
-                    OPENROUTER_SECRET_FILE_ENV
-                    if openrouter_client
-                    else ZAI_OPENAPI_SECRET_FILE_ENV
+        else:
+            prefix = config.env_prefix
+            if config.allow_existing_secret:
+                runtime_environment[config.capability_env] = capability
+            runtime_environment[f"{prefix}_ATTEMPT_ID"] = proxy_attempt_id
+            runtime_environment[f"{prefix}_USAGE_DIR"] = str(owned_usage_dir)
+            runtime_environment[f"{prefix}_USAGE_FILE"] = str(owned_usage_path)
+            if config.allow_existing_secret:
+                for key in config.api_key_envs:
+                    runtime_environment[key] = capability
+                if config.allowed_model is not None:
+                    allowed_env, allowed_default = config.allowed_model
+                    runtime_environment[allowed_env] = os.environ.get(allowed_env, allowed_default)
+            for suffix, value in (
+                ("MAX_REQUESTS", proxy_limits.max_requests),
+                ("MAX_INPUT_TOKENS", proxy_limits.max_input_tokens),
+                ("MAX_OUTPUT_TOKENS", proxy_limits.max_output_tokens),
+                ("MAX_TOTAL_TOKENS", proxy_limits.max_total_tokens),
+                ("MAX_COST_MICROS", proxy_limits.max_cost_micros),
+            ):
+                runtime_environment[f"{prefix}_{suffix}"] = str(value)
+            assert config.default_pricing is not None
+            in_rate, out_rate = config.default_pricing
+            in_key = f"{prefix}_INPUT_COST_MICROS_PER_MILLION"
+            out_key = f"{prefix}_OUTPUT_COST_MICROS_PER_MILLION"
+            if config.pricing_mode == "raw_env":
+                runtime_environment[in_key] = os.environ.get(in_key, str(in_rate))
+                runtime_environment[out_key] = os.environ.get(out_key, str(out_rate))
+            elif config.pricing_mode == "fixed":
+                proxy_pricing = {
+                    "input_cost_micros_per_million": in_rate,
+                    "output_cost_micros_per_million": out_rate,
+                }
+                runtime_environment[in_key] = str(in_rate)
+                runtime_environment[out_key] = str(out_rate)
+            elif config.pricing_mode == "int_env":
+                proxy_pricing = {
+                    "input_cost_micros_per_million": int(os.environ.get(in_key, str(in_rate))),
+                    "output_cost_micros_per_million": int(os.environ.get(out_key, str(out_rate))),
+                }
+                runtime_environment[in_key] = str(proxy_pricing["input_cost_micros_per_million"])
+                runtime_environment[out_key] = str(proxy_pricing["output_cost_micros_per_million"])
+            if config.allow_existing_secret:
+                runtime_environment[f"{prefix}_CAPABILITY_EXPIRES_AT"] = str(
+                    time.time() + float(timeout_seconds) + 60.0
                 )
-            )
-            if breaker_client:
-                secret_file_env = BREAKER_SELFHOSTED_SECRET_FILE_ENV
-            existing_secret = runtime_environment.get(secret_file_env) or os.environ.get(
-                secret_file_env
-            )
-            log_root = log_path.resolve()
-            if existing_secret:
-                try:
-                    read_owner_secret_file(Path(existing_secret))
-                    existing_path = Path(existing_secret).resolve()
-                except OSError:
-                    existing_secret = None
-                else:
-                    if log_root.parent in existing_path.parents or (
-                        job_dir is not None and job_dir.resolve() in existing_path.parents
-                    ):
-                        existing_secret = None
-            if existing_secret:
-                secret_path = Path(existing_secret)
-            else:
-                owned_secret_dir = Path(
-                    tempfile.mkdtemp(
-                        prefix="evallab-terminus-secret.",
-                        dir=os.environ.get("TMPDIR") or None,
-                    )
-                )
-                os.chmod(owned_secret_dir, 0o700)
-                owned_secret_path = owned_secret_dir / "key"
-                if breaker_client:
-                    materialize_breaker_selfhosted_secret_file(owned_secret_path)
-                elif mimo_client:
-                    materialize_mimo_selfhosted_secret_file(owned_secret_path)
-                elif openrouter_client:
-                    materialize_openrouter_secret_file(owned_secret_path)
-                else:
-                    materialize_zai_openapi_secret_file(owned_secret_path)
-                secret_path = owned_secret_path
+        secret_path, secret_env_value = _resolve_or_materialize_secret(config)
+        if host_proxy:
             # Host-side model route: the proxy runs as a loopback supervisor
             # child, not a task-container compose sidecar. The Harbor child
             # receives only the loopback URL plus the trial capability; the
@@ -1871,27 +1689,41 @@ def run_harbor_process(
                 ),
                 live_dir=(job_dir / PROXY_LIVE_DIR_NAME) if job_dir is not None else None,
             )
-            if breaker_client:
-                runtime_environment["OPENAI_API_KEY"] = capability
-                runtime_environment[BREAKER_SELFHOSTED_PROXY_CAPABILITY_ENV] = capability
-            elif mimo_client:
-                # litellm's openai-compatible lookup reads this in the
-                # controller process; the adapter overwrites it with the
-                # capability before any call. Never a task-container value.
-                runtime_environment["OPENAI_API_KEY"] = capability
-                runtime_environment[MIMO_SELFHOSTED_PROXY_CAPABILITY_ENV] = capability
-            elif openrouter_client:
-                runtime_environment[OPENROUTER_PROXY_CAPABILITY_ENV] = capability
-                # litellm's openai-compatible lookup reads this in the
-                # controller process; the adapter overwrites it with the
-                # capability before any call. Never a task-container value.
-                runtime_environment["OPENAI_API_KEY"] = capability
-            else:
-                runtime_environment[ZAI_OPENAPI_PROXY_CAPABILITY_ENV] = capability
-                runtime_environment["ZAI_OPENAPI_API_KEY"] = capability
-                runtime_environment["MSWEA_API_KEY"] = capability
+            runtime_environment[config.capability_env] = capability
+            for key in config.api_key_envs:
+                runtime_environment[key] = capability
             runtime_environment[TERMINUS_PROXY_URL_ENV] = terminus_proxy_url
-            secret_values = collected_secret_values({**os.environ, **runtime_environment})
+        else:
+            assert config.proxy_script is not None
+            runtime_environment[config.secret_file_env] = secret_env_value
+            runtime_environment[f"{config.env_prefix}_PROXY_SCRIPT"] = str(
+                (_RUNTIME_ROOT / config.proxy_script).resolve()
+            )
+            proxy_uid, proxy_gid = proxy_runtime_identity(
+                Path(runtime_environment[config.secret_file_env])
+            )
+            runtime_environment[DEEPSEEK_PROXY_UID_ENV] = str(proxy_uid)
+            runtime_environment[DEEPSEEK_PROXY_GID_ENV] = str(proxy_gid)
+            if not config.allow_existing_secret:
+                runtime_environment[config.capability_env] = capability
+                runtime_environment[f"{config.env_prefix}_CAPABILITY_EXPIRES_AT"] = str(
+                    time.time() + float(timeout_seconds) + 60.0
+                )
+                for key in config.api_key_envs:
+                    runtime_environment[key] = capability
+        secret_values = collected_secret_values({**os.environ, **runtime_environment})
+
+    try:
+        if job_dir is not None:
+            runtime_environment[PROXY_LIVE_DIR_ENV] = str(job_dir / PROXY_LIVE_DIR_NAME)
+        if deepseek_lane:
+            _arm_proxy_lane(_COMPOSE_PROXY_LANES["deepseek"])
+        if zai_lane:
+            _arm_proxy_lane(_COMPOSE_PROXY_LANES["zai"])
+        if zai_openapi_lane:
+            _arm_proxy_lane(_COMPOSE_PROXY_LANES["zai_openapi"])
+        if terminus_lane:
+            _arm_proxy_lane(host_proxy=True)
 
         if claude_gateway_model is not None:
             # Subscription lane via OMP's auth-gateway: the lab-owned
@@ -1992,7 +1824,7 @@ def run_harbor_process(
                         if (zai_openapi_lane or terminus_lane)
                         else ("Z.ai" if zai_lane else "DeepSeek")
                     ),
-                    expected_pricing=proxy_pricing,
+                    expected_pricing=cast(dict[str, int | None] | None, proxy_pricing),
                 )
             return HarborProcessResult(
                 returncode=returncode,

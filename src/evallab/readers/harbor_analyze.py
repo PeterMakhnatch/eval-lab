@@ -7,8 +7,6 @@ https://docs.z.ai/guides/overview/pricing (2026-10-06).
 
 from __future__ import annotations
 
-import argparse
-import asyncio
 import json
 import os
 import re
@@ -230,35 +228,6 @@ async def run_analyze(
     return report, job_dir
 
 
-async def run_check(
-    task: Path,
-    *,
-    root: Path = DEFAULT_ROOT,
-    model: str = DEFAULT_MODEL,
-    agent: str = DEFAULT_AGENT,
-    job_name: str | None = None,
-    cost_limit: float = 0.06,
-) -> tuple[Any, Path]:
-    """Use Harbor 0.24's own default task-quality rubric once per task."""
-    os.environ[HARBOR_TELEMETRY_ENV] = HARBOR_TELEMETRY_OFF
-    from harbor.analyze.checker import run_checks  # ty: ignore[unresolved-import]
-    from harbor.models.environment_type import EnvironmentType  # ty: ignore[unresolved-import]
-
-    configure_evaluator(agent, model)
-    return await run_checks(
-        path=Path(task),
-        agent=agent,
-        model=model,
-        environment=EnvironmentType.DOCKER,
-        n_concurrent=1,
-        n_attempts=1,
-        jobs_dir=root / "jobs",
-        job_name=job_name,
-        agent_kwargs=_agent_kwargs(cost_limit),
-        quiet=True,
-    )
-
-
 def parse_checks(data: dict[str, Any], expected: tuple[str, ...] = ()) -> tuple[dict, dict]:
     """Parse real Harbor artifact/report outcomes. True means a problem found."""
     outcomes = {"pass": False, "fail": True, "not_applicable": None}
@@ -309,38 +278,6 @@ def _check_criteria() -> tuple[str, ...]:
     from harbor.analyze.models import load_rubric  # ty: ignore[unresolved-import]
 
     return tuple(criterion.name for criterion in load_rubric().criteria)
-
-
-def write_budget_verdict(
-    *,
-    task_name: str,
-    source_name: str,
-    source_job: str = "",
-    root: Path = DEFAULT_ROOT,
-) -> Path:
-    """Emit explicit abstentions when no task reader is admitted by its budget."""
-    raw = root / "raw" / "harbor_check" / source_job / source_name / "admission.json"
-    raw.parent.mkdir(parents=True, exist_ok=True)
-    raw.write_text(json.dumps({"admitted": False, "error": "budget cap"}))
-    criteria = _check_criteria()
-    verdict = {
-        "schema": "evallab.reader_verdict/v1",
-        "reader": "harbor_check",
-        "trial": "",
-        "job": source_job,
-        "checks": {name: None for name in criteria},
-        "explanations": {name: "budget cap" for name in criteria},
-        "model": DEFAULT_MODEL,
-        "tokens": {"input": 0, "output": 0},
-        "cost_usd": 0.0,
-        "at": datetime.now(UTC).isoformat(),
-        "raw": str(raw.relative_to(root)),
-        "error": "budget cap",
-    }
-    dest = root / "readers" / "_tasks" / task_name / "harbor_check.json"
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_text(json.dumps(verdict, indent=2))
-    return dest
 
 
 def write_verdict(
@@ -418,69 +355,3 @@ def write_verdict(
     }
     (raw_dest.parent / "usage.json").write_text(json.dumps(receipt, indent=2))
     return dest, receipt
-
-
-def score_binary(
-    verdicts: list[dict], labels: dict[str, bool], check: str = "reward_hacking"
-) -> dict:
-    """Report missing/abstained cells separately; do not score them as negatives."""
-    predictions = {v["trial"]: v.get("checks", {}).get(check) for v in verdicts}
-    counts = dict(tp=0, fn=0, fp=0, tn=0, abstained=0, missing=0)
-    for trial, label in labels.items():
-        if trial not in predictions:
-            counts["missing"] += 1
-        elif predictions[trial] is None:
-            counts["abstained"] += 1
-        else:
-            counts[
-                ("tp" if predictions[trial] else "fn")
-                if label
-                else ("fp" if predictions[trial] else "tn")
-            ] += 1
-    positives, negatives = counts["tp"] + counts["fn"], counts["fp"] + counts["tn"]
-    return {
-        "check": check,
-        "n_labels": len(labels),
-        **counts,
-        "recall": counts["tp"] / positives if positives else None,
-        "fpr": counts["fp"] / negatives if negatives else None,
-    }
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("reader", choices=("analyze", "check"))
-    parser.add_argument("source", type=Path)
-    parser.add_argument("--root", type=Path, default=DEFAULT_ROOT)
-    parser.add_argument("--task", type=Path)
-    parser.add_argument("--task-name")
-    parser.add_argument("--job-name")
-    parser.add_argument("--model", default=DEFAULT_MODEL)
-    parser.add_argument("--agent", default=DEFAULT_AGENT)
-    parser.add_argument("--cost-limit", type=float)
-    args = parser.parse_args()
-    limit = (
-        args.cost_limit
-        if args.cost_limit is not None
-        else (0.06 if args.reader == "check" else 0.03)
-    )
-    common: dict[str, Any] = dict(
-        root=args.root, job_name=args.job_name, model=args.model, agent=args.agent, cost_limit=limit
-    )
-    if args.reader == "check":
-        _, job_dir = asyncio.run(run_check(args.source, **common))
-    else:
-        _, job_dir = asyncio.run(run_analyze(args.source, task=args.task, **common))
-    _, receipt = write_verdict(
-        job_dir,
-        source_name=args.source.name,
-        source_job=args.source.parent.name,
-        task_name=(args.task_name or args.source.name) if args.reader == "check" else None,
-        root=args.root,
-        model=args.model,
-    )
-    print(json.dumps(receipt))
-
-
-if __name__ == "__main__":
-    main()

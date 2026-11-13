@@ -34,8 +34,7 @@ permissions to another:
   were executed and that have no open supported finding. "Clean" means those
   controls on those bytes, not semantic certification or training admission.
 
-Build the v6 packages with `uv run python research/experiments/mimo-v6-full-fleet/build_fleet.py`
-or the underlying `evallab mimo-clean build --clean-version mimo-clean-v6`.
+Build the v6 packages with `uv run python research/experiments/mimo-v6-full-fleet/build_fleet.py`.
 The 2,698-task `mimo-clean-v6` manifest (`research/experiments/mimo-clean-v6/manifest.csv`:
 2,666 built, 32 skipped) and the v5 manifest remain
 available for historical comparisons. The v5 #848 snapshot-hook update changed
@@ -70,7 +69,7 @@ Historical guides remain at the `pre-deslop-2026-11-10` tag.
 | V4 | Agent parses pack files itself when git is blocked | closed by V2 (objects are gone) | same |
 | V5 | Build/module caches hold the fixed tree | `purge-build-caches@4`; `@5` for 20 node build-output tasks | [node-build-leak.md](node-build-leak.md) |
 | V6 | Download the fixed release / upstream over the network | `agent-network-none@1` (agent phase only; graders keep network) | Historical guide |
-| V7 | Prompt wording | opt-in `instruction-explicit-rules@1`, **not** in the chain (changes the task) | Historical guide |
+| V7 | Prompt wording | opt-in `EVALLAB_MIMO_EXPLICIT_RULES`, **not** in the chain (changes the task) | Historical guide |
 | E1 | Installed/build/venv/stray copies of the fixed project | `purge-installed-copies@2` (all Python tasks; copies reset to base bytes) | `research/experiments/purge-installed-copies-v2/` |
 | E2 | Grader tampering (tracked conftest, sitecustomize, PATH shims, reward writers, in-source exit, pytest patching, module-level skips, Go `TestMain`/`os.Exit`, JS `process.exit`) | `separate-verifier@8` | [separate-verifier.md](separate-verifier.md) |
 | E3 | Grader in the agent's container, agent is root | `separate-verifier@8`: fresh verifier, own checkout and base, takes only the agent's file changes | same |
@@ -90,7 +89,7 @@ and the reason for each step are in [separate-verifier.md](separate-verifier.md)
   dependency the environment needs (001478, 001671, 001945, 001971, 002414).
 - `fail:open-leak:node-build-pnpm` (1): 000928.
 - `fail:vacuous-grader:compile-only` (1): 001694; `fail:unfair-task:*` (5):
-  001833, 000865, 002661, 000803, 000838 (2026-10-14 triage below).
+  001833, 000865, 002661, 000803, 000838.
 - `env-broken` (11) and the 32 ledger discards.
 
 ## How "clean" is verified
@@ -164,25 +163,3 @@ packages, with the opt-in antihack guard and explicit-rules addendum recorded
 per trial. Default runs keep both off; the task-level fixes above are what
 make the tasks clean.
 
-## Vacuous / unfair triage (2026-10-14)
-
-The fleet grader scan (`vacuous.json`: 35 rows, 28 unique tasks) and the
-unfair-task list in the own-runs scan were triaged task-by-task against
-the raw `test.patch` commands and `separate-verifier@8` (which grades
-silent/custom families, including `tsd`/`tsc`, by exit-code fallback, and
-compares fail-to-pass across the whole `base && new` command). Result:
-6 tasks excluded in the v5 manifest — `001694`
-(`fail:vacuous-grader:compile-only`: the test binary is compiled and
-never run), `001833` (`fail:unfair-task:non-idempotent-test`), and
-`000865`/`002661`/`000803`/`000838`
-(`fail:unfair-task:prompt-misaligned`) — and 27 retained with a note:
-type-check tasks whose `tsd`/`tsc` assertions are the real test,
-compile-check steps that sit alongside real unit tests, syntax checks
-alongside real runners, and `base && new` tasks whose vacuous base phase
-only costs regression coverage while the new phase runs real
-fail-to-pass tests. Two terminal candidates (`candidate-1789`,
-`candidate-1702`) are env-broken with never-combined single-transform
-fixes and are not in this manifest. Full per-task table, evidence, and
-`qa.finding/v1` records: `research/experiments/mimo-clean-v5-census/README.md`
-(section “Vacuous / unfair triage”) and
-`research/experiments/mimo-clean-v5-census/findings/`.

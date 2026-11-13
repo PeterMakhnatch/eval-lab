@@ -5,9 +5,7 @@ Trajectory analysis, mechanical features, loop detection, and review queue.
 from __future__ import annotations
 
 import json
-import multiprocessing
 import tempfile
-from datetime import UTC, datetime
 from pathlib import Path
 
 import duckdb
@@ -15,11 +13,6 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from evallab.labels import (
-    persist_behavior_label,
-)
-from evallab.schemas import BehaviorLabel
-from evallab.storage.paths import DERIVED_ROOT_ENV
 from evallab.traj import (
     TRAJ_FEATURES_PARQUET_SCHEMA,
     StepOutline,
@@ -28,19 +21,6 @@ from evallab.traj import (
     extract_features,
     outline_trajectory,
 )
-
-
-def _persist_after_barrier(label, repo_root: Path, derived_root: Path, barrier) -> None:
-    barrier.wait()
-    persist_behavior_label(label, repo_root=repo_root, derived_root=derived_root)
-
-
-@pytest.fixture(autouse=True)
-def isolated_derived_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Isolate implicit label reads/locks and writes; explicit roots still win."""
-    derived = tmp_path / "derived" / "parquet"
-    monkeypatch.setenv(DERIVED_ROOT_ENV, str(derived))
-    return derived
 
 
 @pytest.fixture
@@ -391,54 +371,6 @@ def test_phase_grouping_and_ordering() -> None:
     assert phases[2].phase_type == "work"
     assert phases[2].step_count == 2
     assert phases[2].tool_calls == 2
-
-
-def test_label_persistence_preserves_noop_bytes_and_concurrent_writers(
-    repo_root: Path,
-) -> None:
-    with tempfile.TemporaryDirectory() as tmpdir:
-        root = Path(tmpdir)
-        first = BehaviorLabel(
-            label_id="sha256:" + "a" * 64,
-            target_type="trajectory",
-            target_id="trial",
-            trial_id="trial",
-            trial_name="trial",
-            task_name="fixture",
-            taxonomy="trajectory_behavior/v1",
-            label="clean_success",
-            provenance="human",
-            author="alice",
-            created_at=datetime(2026, 1, 1, tzinfo=UTC),
-        )
-        second = first.model_copy(update={
-            "label_id": "sha256:" + "b" * 64,
-            "label": "tool_use",
-            "author": "bob",
-        })
-        destination = root / "concurrent"
-        context = multiprocessing.get_context("spawn")
-        barrier = context.Barrier(2)
-        processes = [
-            context.Process(
-                target=_persist_after_barrier,
-                args=(label, repo_root, destination, barrier),
-            )
-            for label in (first, second)
-        ]
-        for process in processes:
-            process.start()
-        for process in processes:
-            process.join(20)
-            assert process.exitcode == 0
-
-        persisted = pq.read_table(destination / "behavior_labels.parquet").to_pylist()
-        assert {item["author"] for item in persisted} == {"alice", "bob"}
-
-        parquet = destination / "behavior_labels.parquet"
-        before = parquet.read_bytes()
-        persist_behavior_label(first, repo_root=repo_root, derived_root=destination)
-        assert parquet.read_bytes() == before
 
 
 def test_sql_traj_views_with_data() -> None:

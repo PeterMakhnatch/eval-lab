@@ -29,7 +29,6 @@ from __future__ import annotations
 
 import fnmatch
 import hashlib
-import json
 import posixpath
 import re
 import shlex
@@ -43,11 +42,9 @@ __all__ = [
     "KNOWN_SCORE_RULES",
     "UPSTREAM_FETCH_ZERO",
     "Finding",
-    "commands_from_trial",
     "detect_upstream_fetch",
     "assess_upstream_fetch",
     "confirmed_fetch",
-    "format_fetch_notice",
 ]
 
 #: Campaign score rule id: force the GEPA objective score to 0.0 when
@@ -1006,60 +1003,3 @@ def assess_upstream_fetch(
     return flags
 
 
-def format_fetch_notice(findings: Sequence[Finding], *, limit: int = 5) -> str:
-    """One-paragraph GEPA feedback notice for upstream-fetch findings."""
-    shown = "; ".join(
-        f"[step {finding.step_index} {finding.kind}] {finding.excerpt[:160]}"
-        for finding in findings[:limit]
-    )
-    extra = f" (+{len(findings) - limit} more)" if len(findings) > limit else ""
-    strong = sum(1 for finding in findings if finding.names_task_repo)
-    scope = f", {strong} naming the task's own repo/package" if strong else ""
-    return (
-        f"upstream fetch detected ({len(findings)} command(s){scope}): "
-        f"{shown}{extra}; scored 0"
-    )
-
-
-def commands_from_trial(trial_dir: str | Path) -> list[tuple[int, str]]:
-    """Extract ``(step_id, keystrokes)`` shell commands from a Harbor trial.
-
-    Reads ``agent/trajectory*.json`` (ATIF steps with
-    ``tool_calls[].arguments.keystrokes``), deduplicating repeated files
-    (summarization mirrors) and sorting by step id. Missing or unreadable
-    files yield no commands rather than an error.
-    """
-    agent_dir = Path(trial_dir) / "agent"
-    seen: set[tuple[int, str]] = set()
-    ordered: list[tuple[int, str]] = []
-    try:
-        files = sorted(agent_dir.glob("trajectory*.json"))
-    except OSError:
-        return []
-    for path in files:
-        if path.is_symlink():
-            continue
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            continue
-        steps = payload.get("steps") if isinstance(payload, dict) else None
-        if not isinstance(steps, list):
-            continue
-        for step in steps:
-            if not isinstance(step, dict):
-                continue
-            step_id = step.get("step_id")
-            calls = step.get("tool_calls")
-            if not isinstance(calls, list):
-                continue
-            for call in calls:
-                if not isinstance(call, dict):
-                    continue
-                for command in tool_bash_commands(call):
-                    key = (int(step_id) if isinstance(step_id, int) else -1, command)
-                    if key not in seen:
-                        seen.add(key)
-                        ordered.append(key)
-    ordered.sort(key=lambda item: (item[0] < 0, item[0]))
-    return ordered

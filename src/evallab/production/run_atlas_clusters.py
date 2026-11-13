@@ -26,7 +26,6 @@ latest build without re-embedding.
 from __future__ import annotations
 
 import argparse
-import dataclasses
 import hashlib
 import json
 import math
@@ -34,8 +33,6 @@ import os
 import random
 import re
 import time
-import urllib.error
-import urllib.request
 from collections import Counter
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
@@ -91,91 +88,6 @@ class HashingEmbedder:
                 v[h] += 1
             norm = math.sqrt(sum(x * x for x in v)) or 1.0
             vectors.append([x / norm for x in v])
-        return vectors
-
-
-@dataclass(frozen=True)
-class OpenAICompatibleEmbedder:
-    """Pinned neural embedding backend for local or remote OpenAI-compatible servers."""
-
-    endpoint: str
-    model: str
-    model_revision: str
-    tokenizer_id: str
-    tokenizer_revision: str
-    dim: int
-    normalization: str = "l2"
-    timeout_seconds: float = 60.0
-    api_key: str | None = dataclasses.field(default=None, repr=False, compare=False)
-    identity: str = "openai-compatible"
-
-    @property
-    def version(self) -> str:
-        return self.model_revision
-
-    @property
-    def digest(self) -> str:
-        body = {
-            "identity": self.identity,
-            "endpoint": self.endpoint,
-            "model": self.model,
-            "model_revision": self.model_revision,
-            "tokenizer_id": self.tokenizer_id,
-            "tokenizer_revision": self.tokenizer_revision,
-            "dim": self.dim,
-            "normalization": self.normalization,
-        }
-        return hashlib.sha256(
-            json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
-        ).hexdigest()
-
-    def embed(self, texts: Sequence[str]) -> list[list[float]]:
-        if not self.endpoint.startswith(("http://", "https://")):
-            raise ValueError("embedding endpoint must use http:// or https://")
-        if self.dim <= 0:
-            raise ValueError("embedding dimension must be positive")
-        payload = json.dumps(
-            {
-                "model": self.model,
-                "input": list(texts),
-                "encoding_format": "float",
-            },
-            separators=(",", ":"),
-        ).encode()
-        headers = {"Content-Type": "application/json"}
-        if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
-        request = urllib.request.Request(
-            self.endpoint.rstrip("/") + "/v1/embeddings",
-            data=payload,
-            headers=headers,
-            method="POST",
-        )
-        try:
-            with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
-                response_body = json.loads(response.read().decode("utf-8"))
-        except urllib.error.URLError as exc:
-            raise RuntimeError(f"embedding backend request failed: {exc}") from exc
-        records = response_body.get("data") if isinstance(response_body, dict) else None
-        if not isinstance(records, list) or len(records) != len(texts):
-            raise ValueError("embedding backend returned a mismatched data array")
-        ordered = sorted(records, key=lambda row: int(row.get("index", 0)))
-        vectors: list[list[float]] = []
-        for record in ordered:
-            raw_vector = record.get("embedding") if isinstance(record, dict) else None
-            if not isinstance(raw_vector, list) or len(raw_vector) != self.dim:
-                raise ValueError("embedding backend returned an invalid vector dimension")
-            vector = [float(value) for value in raw_vector]
-            if not all(math.isfinite(value) for value in vector):
-                raise ValueError("embedding backend returned a non-finite vector")
-            if self.normalization == "l2":
-                norm = math.sqrt(sum(value * value for value in vector))
-                if norm == 0:
-                    raise ValueError("embedding backend returned a zero vector")
-                vector = [value / norm for value in vector]
-            elif self.normalization != "none":
-                raise ValueError("normalization must be 'l2' or 'none'")
-            vectors.append(vector)
         return vectors
 
 
@@ -756,73 +668,12 @@ def _load_labels(database: Path, root: Path, run_ids: set[str]) -> dict[str, boo
     return load_labels(database=database, repo_root=root, run_ids=run_ids)
 
 
-class _CappedRemoteEmbedder:
-    """Use the existing durable lifetime ledger before every embedding request."""
-
-    def __init__(self, backend: Any, *, ledger: Path, cap: float, price: float) -> None:
-        from evallab.interpretation.monitor_agent import InvestigationBudget
-
-        self.backend = backend
-        self.identity, self.digest = backend.identity, backend.digest
-        self.budget = InvestigationBudget(
-            ledger, budget_usd=cap, max_calls=10_000,
-            input_usd_per_million=price, output_usd_per_million=0.0,
-        )
-
-    def embed(self, texts: Sequence[str]) -> list[list[float]]:
-        vectors: list[list[float]] = []
-        for start in range(0, len(texts), 64):
-            batch = list(texts[start:start + 64])
-            # Reserve the full request's UTF-8 size plus framing. The extra
-            # max_tokens key is ledger bookkeeping, not sent to the endpoint.
-            payload = {
-                "model": self.backend.model, "input": batch,
-                "encoding_format": "float", "max_tokens": 1,
-            }
-            reservation = self.budget.reserve(
-                pass_id="atlas-embedding-" + uuid4().hex, payload=payload, max_output_tokens=1,
-            )
-            failed = True
-            try:
-                vectors.extend(self.backend.embed(batch))
-                failed = False
-            finally:
-                # The embedding adapter does not expose observed usage. Retain
-                # the conservative charge even on failure; do not invent a bill.
-                self.budget.finish(reservation, None, failed=failed)
-        return vectors
-
-
-def _embedder(args: argparse.Namespace) -> Any:
-    if args.embedder == "hashing":
-        return HashingEmbedder(dim=args.embedding_dim)
-    if (args.spend_cap_usd is None or not math.isfinite(args.spend_cap_usd)
-            or args.spend_cap_usd <= 0):
-        raise ValueError("--embedder remote requires a positive --spend-cap-usd")
-    fields = ("embedding_endpoint", "embedding_model", "embedding_model_revision",
-              "embedding_tokenizer", "embedding_tokenizer_revision")
-    if any(not getattr(args, field) for field in fields):
-        raise ValueError("remote embeddings require endpoint, model/revision and tokenizer/revision")
-    price = args.embedding_input_usd_per_million
-    if price is None or not math.isfinite(price) or price <= 0:
-        raise ValueError("remote embeddings require a positive --embedding-input-usd-per-million")
-    backend = OpenAICompatibleEmbedder(
-        endpoint=args.embedding_endpoint, model=args.embedding_model,
-        model_revision=args.embedding_model_revision, tokenizer_id=args.embedding_tokenizer,
-        tokenizer_revision=args.embedding_tokenizer_revision, dim=args.embedding_dim,
-        api_key=os.environ.get(args.embedding_api_key_env),
-    )
-    return _CappedRemoteEmbedder(
-        backend, ledger=args.embedding_ledger, cap=args.spend_cap_usd, price=price,
-    )
-
-
 def _build_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int:
     del harbor
     started = time.perf_counter()
     if args.embedding_dim < 1:
         raise ValueError("--embedding-dim must be positive")
-    embedder = _embedder(args)  # Refuse uncapped remote calls before opening any input.
+    embedder = HashingEmbedder(dim=args.embedding_dim)
     if args.name_with_model:
         run_atlas.require_subscription_route(args.name_with_model)
     facets = list(run_atlas.load_facets(args.facets).values())
@@ -982,21 +833,8 @@ def add_clusters_parser(actions: Any) -> None:
     build.add_argument("--database", type=Path, default=run_atlas.DEFAULT_DATABASE)
     build.add_argument("--seed", type=int, default=0)
     build.add_argument("--min-size", type=int, default=5)
-    build.add_argument("--embedder", choices=("hashing", "remote"), default="hashing")
-    build.add_argument("--spend-cap-usd", type=float,
-                       help="Required positive spend authorization for opt-in remote embeddings")
+    build.add_argument("--embedder", choices=("hashing",), default="hashing")
     build.add_argument("--embedding-dim", type=int, default=256)
-    build.add_argument("--embedding-endpoint")
-    build.add_argument("--embedding-model")
-    build.add_argument("--embedding-model-revision")
-    build.add_argument("--embedding-tokenizer")
-    build.add_argument("--embedding-tokenizer-revision")
-    build.add_argument("--embedding-api-key-env", default="OPENAI_API_KEY")
-    build.add_argument("--embedding-input-usd-per-million", type=float,
-                       help="Approved input-token price; required for capped remote embeddings")
-    build.add_argument("--embedding-ledger", type=Path,
-                       default=run_atlas.ATLAS_ROOT / "embedding-spend.jsonl",
-                       help="Durable lifetime-cap ledger; failed request reservations are retained")
     build.add_argument("--name-with-model", metavar="ROUTE", help="Opt-in subscription gateway naming")
     _add_queue_arguments(build, skip=("--database",))
     build.add_argument("--no-queues", action="store_true",

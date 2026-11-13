@@ -85,7 +85,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -1147,86 +1147,4 @@ def _order_modes(detected: list[FailureMode]) -> tuple[FailureMode, ...]:
     """Sort modes into the stable MODE_ORDER for deterministic output."""
     order = {name: index for index, name in enumerate(MODE_ORDER)}
     return tuple(sorted(detected, key=lambda item: order.get(item.mode, 99)))
-
-
-def diagnose_atif(
-    trajectory: Mapping[str, Any],
-    *,
-    trial_id: str,
-    trial_name: str,
-    task_name: str = "unknown",
-    agent_name: str = "unknown",
-    model_name: str = "unknown",
-    reward: float | None = None,
-    exception_class: str | None = None,
-) -> TrialDiagnosis:
-    """Diagnose one ATIF trajectory document without a Harbor trial directory.
-
-    Document-level entry point for imported trajectories: the caller supplies the
-    recorded outcome alongside the trajectory. Outcome semantics match
-    :func:`diagnose_trial` (infra/unscored never carry modes). Without a
-    trial directory there is no outline, so view-derived equivalents feed
-    the detectors and no heuristic label is proposed.
-    """
-    raw_steps = trajectory.get("steps")
-    steps = (
-        [step for step in raw_steps if isinstance(step, dict)]
-        if isinstance(raw_steps, list)
-        else []
-    )
-    identity = {
-        "trial_id": trial_id,
-        "trial_name": trial_name,
-        "task_name": task_name,
-        "agent_name": agent_name,
-        "model_name": model_name,
-    }
-    # HAR-92: scored trials stay scored whatever ended the agent phase; only
-    # an unscored raise is an infra failure.
-    if exception_class is not None and reward is None:
-        return TrialDiagnosis(
-            **identity,
-            outcome="infra_failed",
-            reward=None,
-            exception_class=str(exception_class),
-            heuristic_label=None,
-            modes=(),
-            notices=("trial raised before scoring; never labeled as a task failure",),
-        )
-    if reward is None:
-        return TrialDiagnosis(
-            **identity,
-            outcome="unscored",
-            reward=None,
-            exception_class=None,
-            heuristic_label=None,
-            modes=(),
-            notices=("no numeric reward recorded; never labeled as a task failure",),
-        )
-    notices: list[str] = ["document-level diagnosis (no trial dir); heuristic label unavailable"]
-    views = _step_views(steps)
-    modes: tuple[FailureMode, ...] = ()
-    if reward >= PASS_THRESHOLD:
-        notices.append("scored pass; no failure modes proposed")
-    elif not views:
-        notices.append("trajectory steps unreadable; no modes proposed")
-    else:
-        tool_views = [view for view in views if view.tool_name]
-        first_tool = next((view.step_id for view in tool_views), None)
-        ctx = _DetectContext(
-            total_tool_calls=sum(view.call_count for view in views),
-            step_to_first_tool=first_tool,
-            step_to_first_edit=None,
-            loop_detected=bool(_longest_command_run(tool_views)[0]),
-        )
-        modes = _order_modes(_detect(ctx, views))
-    return TrialDiagnosis(
-        **identity,
-        outcome="scored",
-        reward=reward,
-        exception_class=str(exception_class) if exception_class is not None else None,
-        heuristic_label=None,
-        modes=modes,
-        notices=tuple(notices),
-    )
 

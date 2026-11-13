@@ -77,7 +77,7 @@ Dispatcher wake/presence follows current configuration (`dispatch.wake` is prese
 
 Follow `docs/GENERATED-CACHE-POLICY.md`: prove inactive ownership/processes, merged/current refs, clean state, recoverable commits, and survival of unique ignored evidence. Preserve local refs or a verified archive when publication is not authorized; do not push all unpushed branches by default. Use native no-force removal after the owned PR is complete, and keep unknown/dirty/in-use trees intact.
 
-For routine estate reduction, prefer conservative hygiene sweeps (such as `evallab tidy`)
+For routine estate reduction, prefer conservative hygiene sweeps
 over ad-hoc removals: preserve every commit (unpushed branches are pushed before their worktree
 is removed), hold trees carrying ignored `runs/` job evidence for the evidence lifecycle instead
 of deleting them, and record dispositions.

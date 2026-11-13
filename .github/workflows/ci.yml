@@ -94,9 +94,8 @@ jobs:
         # Pull requests use four shards so the author waits about half as long (measured
         # 2026-11-11: slowest job 368 s with four shards against 536 s with two). Push,
         # merge_group and manual runs keep two shards: nobody waits on them, and each extra
-        # shard adds about 45 s of setup to the shared 20-job pool. Each shard imports only
-        # its own test files (tests/conftest.py). tests/test_quality_gates.py proves that
-        # each list below is a complete 1..N partition.
+        # shard adds about 45 s of setup to the shared 20-job pool.
+        # Each shard imports only its own test files (tests/conftest.py).
         shard: ${{ fromJSON(github.event_name == 'pull_request' && '["1/4", "2/4", "3/4", "4/4"]' || '["1/2", "2/2"]') }}
     # HAR-297: the catalog, verdict and z2-table suites run only against a live
     # database; without this service they skip on every CI run. Files are sharded
@@ -177,9 +176,7 @@ jobs:
           git -C /tmp/harbor024/repo fetch --depth=1 origin b53b8134e1241686dca7759af188f987ecc48e8b
           git -C /tmp/harbor024/repo checkout --detach FETCH_HEAD
           # Every file listed here skips (or covers only its stubs) when Harbor is
-          # absent, so the main pytest step cannot exercise it. HAR-260:
-          # tests/test_quality_gates.py::test_every_harbor_gated_test_file_runs_in_the_native_harbor_step
-          # fails when a Harbor-gated test file is missing from this list. `-rA`
+          # absent, so the main pytest step cannot exercise it. `-rA`
           # puts every test's PASSED/SKIPPED status in the log: dots plus one
           # aggregate count cannot show that a gated file really ran.
           uv run --no-sync pytest --shard ${{ matrix.shard }} -n 0 -rA \

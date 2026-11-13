@@ -770,7 +770,6 @@ def test_nightly_refresh_command_never_constructs_executor(
         raise AssertionError("paid nightly must not be constructed")
 
     monkeypatch.setattr(cli.Executor, "from_repo", explode)
-    monkeypatch.setattr(cli, "NightlyCycle", explode)
     seen: list[RefreshConfig] = []
 
     def fake_run(config: RefreshConfig, *, now: datetime | None = None) -> dict[str, Any]:
@@ -792,7 +791,6 @@ def test_nightly_refresh_command_never_constructs_executor(
         readers_store=readers,
         data_root=data,
         verdict_root=data,
-        report_date=None,
     )
 
     assert cli._nightly_command(args, runtime) == 0
@@ -815,7 +813,6 @@ def test_nightly_refresh_command_never_constructs_executor(
         facts_root=None,
         readers_store=None,
         data_root=None,
-        report_date=None,
     )
     assert cli._nightly_command(absent, runtime) == 0
     assert seen[1].data_root is None
@@ -824,37 +821,16 @@ def test_nightly_refresh_command_never_constructs_executor(
     assert seen[1].verdict_root is None
 
 
-def test_legacy_nightly_does_not_call_refresh(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from evallab import cli
-
-    def paid(*_args: object, **_kwargs: object) -> None:
-        raise RuntimeError("paid-path")
-
-    def forbid(*_args: object, **_kwargs: object) -> None:
-        raise AssertionError("refresh")
-
-    monkeypatch.setattr(cli.Executor, "from_repo", paid)
-    monkeypatch.setattr(nightly_refresh, "run_refresh", forbid)
-    args = argparse.Namespace(refresh=False, report_date=None)
-
-    with pytest.raises(RuntimeError, match="paid-path"):
-        cli._nightly_command(args, tmp_path)
-
-
-def test_nightly_refresh_flag_defaults_off() -> None:
+def test_nightly_requires_refresh_and_rejects_legacy_date() -> None:
     from evallab.cli import parser
 
-    assert parser().parse_args(["nightly"]).refresh is False
+    with pytest.raises(SystemExit) as missing:
+        parser().parse_args(["nightly"])
+    assert missing.value.code == 2
+    with pytest.raises(SystemExit) as retired:
+        parser().parse_args(["nightly", "--refresh", "--date", "2026-10-07"])
+    assert retired.value.code == 2
     assert parser().parse_args(["nightly", "--refresh"]).refresh is True
-
-
-def test_installer_hardcodes_refresh_flag() -> None:
-    root = Path(__file__).resolve().parents[1]
-    script = (root / "scripts/ops/launchd/install-nightly-refresh.sh").read_text(encoding="utf-8")
-    assert '"nightly", "--refresh"' in script
-    assert 'launchctl enable "gui/$(id -u)/$LABEL"' in script
 
 
 def test_naive_now_is_rejected(tmp_path: Path) -> None:

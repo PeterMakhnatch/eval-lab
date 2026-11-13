@@ -1,14 +1,12 @@
 from __future__ import annotations
 
 import hashlib
-from datetime import UTC, date, datetime
+from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
 
 from evallab import database
-from evallab.automation import NightlyCycle
 from evallab.cli import _doctor
-from evallab.digest import DigestRenderer
 from evallab.evidence import facts as facts_module
 from evallab.evidence.atif import (
     JOB_PROJECTION_FILE,
@@ -23,9 +21,6 @@ from evallab.queue import DirectoryQueue, Executor, load_events
 from evallab.schemas import (
     AutoRunRule,
     ExperimentSpec,
-    HeadlessDoctorChecks,
-    HeadlessDoctorReport,
-    LaunchAgentAudit,
     StandingApprovalsPolicy,
 )
 
@@ -254,56 +249,6 @@ def test_zero_trial_catalog_job_is_projected_by_job_marker(tmp_path: Path) -> No
 
     assert invariant.ok is True
     assert invariant.projected_job_ids == {job_id}
-
-
-def test_nightly_uses_completed_job_ingester_and_records_projection_failure(
-    tmp_path: Path,
-) -> None:
-    calls: list[str] = []
-    queue = DirectoryQueue(tmp_path / "queue")
-    executor = Executor(
-        repo_root=tmp_path,
-        queue=queue,
-        policy=_policy(),
-        ingester=lambda path: None,
-        spent_today=lambda: 0,
-        consecutive_harness_failures=lambda: 0,
-    )
-    checks = HeadlessDoctorChecks(
-        keychain_readable=False,
-        codex_auth_present=True,
-        docker_reachable=True,
-        postgres_reachable=True,
-        disk_headroom=True,
-        launch_agents_intact=True,
-    )
-    report = HeadlessDoctorReport(
-        checked_at=datetime.now(UTC),
-        healthy=True,
-        checks=checks,
-        launch_agents=LaunchAgentAudit(checked=0),
-    )
-    doctor = SimpleNamespace(run=lambda: report)
-    result = NightlyCycle(
-        doctor=doctor,  # type: ignore[arg-type]
-        executor=executor,
-        renderer=DigestRenderer(
-            repo_root=tmp_path,
-            queue=queue,
-            policy=_policy(),
-            trial_loader=lambda day: [],
-        ),
-        committer=lambda path: False,
-        completed_job_ingester=lambda: calls.append("ingest-and-project") or _result(_failure()),
-    ).run(report_date=date(2026, 8, 14))
-
-    assert calls == ["ingest-and-project"]
-    assert result.quarantined is False
-    event = next(
-        event for event in load_events(queue.events_path) if event.event == "projection_failed"
-    )
-    assert event.actor == "nightly"
-    assert event.reason_code == _failure().reason_code
 
 
 def test_doctor_fails_when_catalog_projection_invariant_is_broken(

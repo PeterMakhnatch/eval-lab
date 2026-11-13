@@ -7,7 +7,7 @@ import shlex
 import sys
 from collections.abc import Callable, Sequence
 from dataclasses import asdict
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from evallab import __version__, database
@@ -15,22 +15,16 @@ from evallab import queue as queue_module
 from evallab.automation import (
     GuardedTick,
     HeadlessDoctor,
-    NightlyCycle,
     audit_launch_agents,
     sync_primary_status,
 )
-from evallab.backups import create_postgres_backup
 from evallab.canary import CanaryEnqueuer, load_canary_suite
-from evallab.digest import DigestRenderer
 from evallab.evidence.atif import check_projection_invariant, ingest_and_project
 from evallab.fetch import (
     HarborBackend,
 )
 from evallab.gc import (
-    append_gc_plan_to_digest,
     doctor_disk_line,
-    format_plan,
-    nightly_gc_plan,
 )
 from evallab.modal_ops import stop_selfhosted_app_if_drained
 from evallab.preflight import build_preflight_report, render_preflight
@@ -52,7 +46,6 @@ from evallab.quota import (
     load_quota_report,
     provider_subscription_description,
 )
-from evallab.researchers import ResearcherLoop
 from evallab.results import JobRecord, load_job, load_jobs
 from evallab.runner import (
     RunRequest,
@@ -62,10 +55,7 @@ from evallab.runner import (
 )
 from evallab.storage.paths import DERIVED_ROOT_ENV, derived_root_from_environment
 from evallab.tracing import (
-    TraceError,
-    format_batch,
     instrument_openinference,
-    trace_completed_jobs,
 )
 
 
@@ -206,33 +196,6 @@ def _doctor(
     return 0 if all(ok for name, ok, _ in checks if name in required) else 1
 
 
-def _nightly_digest_enricher(root: Path, get_loop: Callable[[], ResearcherLoop]):
-    def enrich(path: Path, day: date) -> None:
-        get_loop().enrich_digest(path, day)
-        append_gc_plan_to_digest(path, nightly_gc_plan(root))
-
-    return enrich
-
-
-def _nightly_analysis_stager(root: Path) -> Callable[[], object]:
-    """Stage-only completion hook (M006): freezes identity, never calls."""
-
-    def stage() -> object:
-        from evallab.analysis_worker import default_job_roots, default_worker
-
-        return default_worker(root).stage(default_job_roots(root))
-
-    return stage
-
-
-def _digest_renderer(root: Path) -> DigestRenderer:
-    return DigestRenderer(
-        repo_root=root,
-        queue=DirectoryQueue(root / "queue"),
-        policy=load_policy(root / "policy/standing-approvals.yaml"),
-    )
-
-
 # ---------------------------------------------------------------------------
 # Declarative Command Handlers
 # ---------------------------------------------------------------------------
@@ -315,76 +278,22 @@ def _preflight_command(
 def _nightly_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
-    if getattr(args, "refresh", False):
-        from evallab.nightly_refresh import RefreshConfig, refresh_exit_code, run_refresh
+    from evallab.nightly_refresh import RefreshConfig, refresh_exit_code, run_refresh
 
-        result = run_refresh(
-            RefreshConfig(
-                repo_root=root,
-                state_dir=args.state_dir.expanduser().resolve(),
-                queue_roots=tuple(args.queue_root),
-                facts_root=args.facts_root,
-                readers_store=args.readers_store,
-                data_root=args.data_root,
-                verdict_root=getattr(args, "verdict_root", None),
-                backup=getattr(args, "backup", False),
-            )
+    result = run_refresh(
+        RefreshConfig(
+            repo_root=root,
+            state_dir=args.state_dir.expanduser().resolve(),
+            queue_roots=tuple(args.queue_root),
+            facts_root=args.facts_root,
+            readers_store=args.readers_store,
+            data_root=args.data_root,
+            verdict_root=getattr(args, "verdict_root", None),
+            backup=getattr(args, "backup", False),
         )
-        print(json.dumps(result, indent=2, sort_keys=True))
-        return refresh_exit_code(result)
-    executor = Executor.from_repo(root)
-    researcher_loop: ResearcherLoop | None = None
-    database_url = database_url_from_environment()
-
-    def get_researcher_loop() -> ResearcherLoop:
-        nonlocal researcher_loop
-        if researcher_loop is None:
-            researcher_loop = ResearcherLoop.from_repo(root)
-        return researcher_loop
-
-    result = NightlyCycle(
-        doctor=HeadlessDoctor(root, executor=executor),
-        executor=executor,
-        renderer=_digest_renderer(root),
-        canary_enqueuer=CanaryEnqueuer.from_repo(root, executor).enqueue,
-        researcher_pass=lambda day: get_researcher_loop().run(report_date=day).invocation_count,
-        digest_enricher=_nightly_digest_enricher(root, get_researcher_loop),
-        completed_job_ingester=lambda: ingest_and_project(
-            database_url,
-            load_jobs(
-                [
-                    root / "runs",
-                    root / "research/evidence/runs",
-                    root / "evidence/runs",
-                ]
-            ),
-            root=root,
-            output_root=derived_root_from_environment(root),
-        ),
-        database_backup=lambda day: create_postgres_backup(root, day),
-        analysis_stager=_nightly_analysis_stager(root),
-    ).run(report_date=args.report_date)
-    print(f"digest: {result.digest_path}")
-    print(f"database backup: {getattr(result, 'backup_path', None) or 'not created'}")
-    print(f"enqueued: {result.enqueued}")
-    print(f"dispatched: {result.dispatched}")
-    print(f"researcher invocations: {getattr(result, 'researcher_invocations', 0)}")
-    print(f"quarantined: {'yes' if result.quarantined else 'no'}")
-    try:
-        print(
-            format_batch(
-                trace_completed_jobs(
-                    root / "runs",
-                    include_controls=False,
-                    dry_run=False,
-                )
-            )
-        )
-    except TraceError as exc:
-        print(f"trace skipped: {exc}")
-    plan = nightly_gc_plan(root)
-    print(format_plan(plan))
-    return 1 if result.quarantined else 0
+    )
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return refresh_exit_code(result)
 
 
 def _run_command(
@@ -1077,11 +986,11 @@ def parser() -> argparse.ArgumentParser:
     preflight.set_defaults(func=_preflight_command)
 
 
-    nightly = commands.add_parser("nightly", help="Run the fail-closed unattended nightly cycle")
-    nightly.add_argument("--date", dest="report_date", type=date.fromisoformat)
+    nightly = commands.add_parser("nightly", help="Refresh local nightly reports")
     nightly.add_argument(
         "--refresh",
         action="store_true",
+        required=True,
         help="HAR-199: local-only $0 incremental refresh; never dispatch or call models",
     )
     nightly.add_argument(
@@ -1115,7 +1024,7 @@ def parser() -> argparse.ArgumentParser:
     nightly.add_argument(
         "--backup",
         action="store_true",
-        help="With --refresh: also take the dated pg_dump under the postgres_backup step timeout",
+        help="With --refresh: also take the dated pg_dump under the 120-second backup timeout",
     )
     nightly.set_defaults(func=_nightly_command)
 

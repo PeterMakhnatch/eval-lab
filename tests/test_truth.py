@@ -12,7 +12,6 @@ from evallab.cohort import (
     bootstrap_mean_interval,
     compare,
     minimum_detectable_effect,
-    power_requirements,
     render_markdown,
 )
 from evallab.schemas import CohortComparisonSpec
@@ -347,9 +346,6 @@ def test_comparison_prints_literal_refusal_when_model_pin_is_missing(
 def test_power_reports_mde_and_required_n_k_tradeoffs(capsys: pytest.CaptureFixture[str]) -> None:
     effect = minimum_detectable_effect(n_tasks=100, k=1, baseline=0.5)
     assert effect is not None and 0 < effect < 0.3
-    rows = power_requirements(baseline=0.3, attempt_effect=0.2, max_k=3)
-    assert [row["k"] for row in rows] == [1, 2, 3]
-    assert all(int(row["required_n_tasks"] or 0) >= 2 for row in rows)
 
 
 def test_graded_agent_stops_preserve_verifier_reward_under_both_policies(

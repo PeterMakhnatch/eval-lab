@@ -15,7 +15,7 @@ belongs in `src/evallab/`, not a second operator workflow.
 
 ## Tests or checks
 - `uv run pytest tests/test_quality_gates.py`
-- `uv run pytest tests/test_profile_harness.py`
+- `uv run pytest tests/test_profiles.py`
 - `bash scripts/premerge.sh`
 
 The [CI contract](../agents/CHECKS.md) owns current checks and the native discovery

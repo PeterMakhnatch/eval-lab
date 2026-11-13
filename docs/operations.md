@@ -56,7 +56,7 @@ uv run evallab tick
 ```
 
 `submit` prints the `spec_id` on its own labelled line. That bare ULID is the
-value `approve`, `reject`, and the catalog's `experiment_id` column all take;
+value `approve` and the catalog's `experiment_id` column take;
 the `state:` and `path:` lines beside it are context, not identifiers.
 
 Out-of-policy work waits for an explicit decision:
@@ -65,12 +65,7 @@ Out-of-policy work waits for an explicit decision:
 uv run evallab approve <spec-id> --actor peter
 ```
 
-An approval does not override the hard per-job or daily cost ceiling. Pause new
-alert from the current batch stops launches the same way (running trials are
-untouched); the tick names the rule. Only alerts from running jobs or jobs
-launched since the last resume fence, so a resolved historical spike never
---actor <you> --reason "<why>"`: acked alerts still render on the job page
-marked `acknowledged by <actor>` but never fence again. A restart reconciles
+An approval does not override the hard per-job or daily cost ceiling. A restart reconciles
 `queue/running/` against completed immutable Harbor jobs before starting new
 work. Self-hosted-model specs probe the upstream first: a cold endpoint waits
 up to `--selfhosted-warmup-seconds` (default 600) for a 200 and otherwise
@@ -103,7 +98,7 @@ Which classes need authorisation:
 | `local-controls` | `oracle`, `nop` | yes — no authorisation, no ceremony |
 | everything else | `codex`, `claude-code`, any future paid adapter | no — one recorded authorisation per spec |
 
-For the DeepSeek credential contract and native runner configuration, see [`docs/execution-tiers.md`](execution-tiers.md).
+For the DeepSeek credential contract and native runner configuration, see [`docs/third-party.md`](third-party.md).
 
 How it is enforced, in order:
 
@@ -113,8 +108,8 @@ How it is enforced, in order:
    standing rule cannot cover paid work even if one names a paid agent. Editing
    `policy/standing-approvals.yaml` therefore cannot re-open unattended spend.
 3. The authorisation itself is the `human_approved` record in append-only
-   `queue/events.jsonl`, written by `evallab approve` and withdrawn by
-   the automation that submits paid work is what writes that file.
+   `queue/events.jsonl`, written by `evallab approve`; the automation that
+   submits paid work does not write that ledger entry.
 
 It fails closed. If `queue/events.jsonl` cannot be read, the whole tick stops
 with `authorization_ledger_unreadable` and dispatches nothing, free controls
@@ -133,88 +128,10 @@ uv run evallab tick
 ```
 
 `--actor` is required on `approve`; it is never defaulted, because the recorded
-name is the whole point of the record. To withdraw before dispatch:
-
-```bash
-```
+name is the whole point of the record.
 
 Authorisation does not lift a ceiling, the quiet-failure breaker, the registry
 checks, or the credential requirement — those still refuse an authorised spec.
-
-### Authorising an experiment campaign once
-
-For a bounded cohort, Research-Harbor approves the campaign file once — as
-Peter's delegate — instead of one spec at a time (HAR-175). The campaign
-records the budget (USD), the allowed task list (task ids and package
-digests), the reference profile plus allowed declared deviations, the egress
-lock requirement, the backstop floor for trial ceilings, the queue cwd, and
-the submitter:
-
-```bash
-```
-
-Approval is append-only and attributable, and the content is digest-pinned
-and immutable after approval. Specs that claim the campaign (`campaign_id`)
-and match it on profile, setup, lock, task digest, ceilings, and budget are
-admitted automatically with policy rule `campaign:<id>` — nothing is
-approved per ID, and routine admissions are silent. Any mismatch is refused
-with its own `campaign_*` reason and the spec stays waiting/refused, never
-silently admitted. Specs without a campaign keep the per-ID path above
-unchanged. An infra-excluded trial earns exactly one automatic replacement
-(cloned spec with `campaign_replaces` lineage); budget exhaustion fences new
-launches with the existing queue STOP while running trials finish untouched.
-Only a budget or rule breach, or a gate defect, escalates: one escalation
-event plus one `lin comment` to the campaign's card.
-
-HAR-189 meters GPU, Daytona and model API dollars separately in `campaign
-validate` and `campaign status campaign.json` (`spend_breakdown` in JSON).
-Self-hosted and zero-estimate Daytona specs reserve the campaign's expected
-wave cost per trial (`wave_cost_estimate(tasks × attempts_per_task).expected_usd
-/ trials`), times spec attempts, or a larger declared estimate. `attempts_per_task`
-is the explicit campaign pin (default 1). A $0.60 ceiling reservation is not
-used because it would throttle concurrency and increase GPU waves.
-Validate/status also print the dynamic overrun exposure: in-flight trial count
-times the positive worst-ceiling minus reservation gap, plus the budget. This
-is conditional on trials staying within the HAR-168 resource envelope (or
-larger declared ceilings); billing actuals above it are still counted in full.
-Modal's existing read-only daily billing report for the exact serving app is split by each
-trial's wall-time overlap with that UTC day, including concurrent trials and
-other campaigns/worktrees. Startup and idle dollars remain in that app pool;
-native job/trial identities deduplicate retained copies. Daytona reuses the
-`spend day` resource/rate-card estimate with recorded usage preferred. Missing
-or lagging measurements retain each trial's remaining reservation, never $0.
-
-HAR-193 opt-in: pin `attempts_per_task` (the maximum), `concurrency` (wave
-width), and `adaptive_sampling: {"target_confidence": 0.95, "seed": 20261007}`.
-Stage one native attempt per spec (`attempts: 1`, `campaign_task_attempt:
-1..attempts_per_task`); submissions wait without reservations. Only explicit,
-package-bound `oracle:pass+nop:fail` controls admit. Each tick releases a
-priority wave through the existing capacity, Daytona clamp and campaign
-budget gate; settled uncertain follow-ups precede unstarted tasks. A budget
-stop leaves at most one wave partially informative. Context exhaustion is a
-non-pass, not an infra replacement. Beta(1,1) predictive confidence concerns
-the finite all-pass / mixed / no-pass band, not proof of latent pass rate
-zero or one; at confidence .95 and two attempts it saves **zero** draws.
-See `research/experiments/har193-adaptive/README.md` for the replay and error
-rate, including the prior-predictive rather than uniform frequentist bound.
-Already-qualified setups do not repeat a serialized full-trial smoke (HAR-192).
-Pin the optional campaign `execution` policy with a concurrency cap, model host
-and digest-bound native qualification evidence. A whole matching approved batch
-uses that cap by default; explicit `--parallel` can only lower it. Unqualified,
-mixed, drifted or missing evidence retains the original smoke gate, and fresh
-authenticated model readiness remains mandatory. Native evidence does not record
-the model host, so only `model_host: modal` policies may carry qualification;
-Runpod campaigns keep the serialized smoke. A locked-Docker campaign with an
-approved `cost_estimate` reserves that per-trial envelope even for model-free
-controls, because GPU billing does not include the shared VM. Replacements are
-reconciled before model teardown, so one allowed infra replacement does not
-require an unnecessary cold start. Old campaigns with no policy retain their approval
-digests and behavior. See [cheap campaign execution](execution-tiers.md#cheap-campaign-execution-har-192-source-not-deployment)
-for the exact evidence contract, resource limits and unrun comparison plan.
-
-The nightly canary cycle still stages its paid canaries every night, but they
-land in `waiting/`, not `approved/`: staging is not a failure, and the cycle is
-not quarantined for it. Nothing dispatches until Peter authorises a spec by id.
 
 ## What the quota gate does and does not decide
 
@@ -347,11 +264,8 @@ not "plenty left" — never a number, and never a blank.
 
 **The queue, grouped by purpose,** over the unfinished states (`proposed`,
 `pending`, `approved`, `waiting`, `running`). Finished states are history: they
-cannot spend and cannot be under-powered. Until `ExperimentSpec.purpose`
-(WS-E item 1) lands, the surface says the field does not exist in this build
-and groups everything under `purpose not declared [unavailable]` rather than
-inventing a bucket. A spec file this build cannot validate is listed by name
-with its error — under-reporting the queue is the one thing this surface must
+cannot spend and cannot be under-powered. A spec file this build cannot validate
+is listed by name with its error — under-reporting the queue is the one thing this surface must
 not do. It reads the state directories directly instead of through
 `DirectoryQueue`, which creates them, because reporting that there is no queue
 must not create one.
@@ -381,9 +295,7 @@ uv run evallab preflight --useful-effect 0.15
 and a comparison whose smallest detectable difference exceeds it becomes a
 warning.
 
-The same block, byte for byte, is embedded in the nightly digest under
-`## Preflight`, and the operator-facing `evallab tick` prints it before it
-builds an executor.
+The operator-facing `evallab tick` prints the same block before it builds an executor.
 
 ## CORE tool health
 
@@ -495,41 +407,17 @@ FAIL  sync-primary   skipped (dirty) behind 848 age 3m; skipped while 848 commit
 The row is advisory: `sync-primary` is not in doctor's `required` set, so it
 never changes doctor's exit code or the headless `ready` field.
 
-Install the two user-session LaunchAgents:
-
-```bash
-```
-
-- `com.petermakhnatch.evallab.tick` runs every 30 minutes.
 - `com.petermakhnatch.evallab.nightly` runs the **$0 refresh** at 02:30 ET: `nightly --refresh`, never queue dispatch or the research cycle. For the stable installed runtime (no tick job), use `scripts/ops/launchd/install-nightly-refresh.sh --load`; on demand use `launchctl kickstart gui/$(id -u)/com.petermakhnatch.evallab.nightly`. State, Parquet, HAR-177 ledger/verdicts, HAR-176 pages and HAR-184 replay live in `~/.local/state/evallab-nightly`; `--queue-root` selects read-only checkouts (default primary plus worktrees with queues). Unchanged inputs are a locked high-water no-op. The ten-line digest is `~/.local/state/daily-report/inputs/evallab-nightly.json`, consumed additively into `facts.json`/`facts.md` only while ≤36 hours old; installation does not trigger the reporter or any LLM. `install-nightly-refresh.sh --uninstall` boots the label out and removes the plist, keeping the runtime snapshot and refresh state; re-running it is a no-op.
   Set `--verdict-root <checkout>` when the primary lacks the real HAR-177 census/variant/oracle files (on this host: `.worktrees/har177-verdicts-20261006`). The service records per-file SHA-256/source provenance and snapshots only those inputs under `state/evidence`; retiring that source checkout does not lose the reviewed evidence. A present source missing required inputs fails closed.
   Per-job projection refusals retain the original guard and exact reason in `state.json` and the digest JSON; the ten-line summary lists reason classes. Refused jobs are excluded from run/trial/legit/history/page counts and never marked processed. Only changed source inputs retry them; unchanged input is a no-op even when refusals remain.
   Source `watch/hooks.jsonl` changes refresh the run and replay; generated `watch` and `processed` outputs do not trigger another refresh.
   Each queue root is an independent source. A configured `--queue-root` that is missing, or a root whose evidence vanishes mid-run (a worktree retired while the refresh walks it), is recorded under `source_failures` as `{path, reason}` in the result and digest JSON and on the digest's queue-roots line; the run restarts without that root and the remaining sources still refresh (`status: partial`). A missing path outside every source still fails the whole run. An auto-discovered worktree retired *before* the run is simply no longer discovered.
-  Every result carries `backup`: the newest checksum-verified dump under the primary's `backups/postgres/`, its creation time, age, and freshness. The limit is 36 hours. A missing or stale backup automatically runs the existing bounded `postgres_backup` step, including on unchanged evidence. `--backup` additionally requests a dated dump while the previous dump remains fresh. The result records `attempt: {ok, path|error}`. The digest shows PASS or FAIL, the backup age, and the limit.
+  Every result carries `backup`: the newest checksum-verified dump under the primary's `backups/postgres/`, its creation time, age, and freshness. The limit is 36 hours. A missing or stale backup automatically runs a dump with a 120-second guard, including on unchanged evidence. `--backup` additionally requests a dated dump while the previous dump remains fresh. The result records `attempt: {ok, path|error}`. The digest shows PASS or FAIL, the backup age, and the limit.
   Exit status: `0` means all sources and backup health pass (also `status: locked`, when another refresh holds the lock). `1` means a source fails, a backup attempt fails, or the verified backup remains missing or stale. This applies to a `noop` result too. `2` means the whole refresh fails.
   Unchanged evidence does not replay projections or advance their high-water state. If backup health or source failures changed, the digest health lines are still republished so a successful backup or retired-source recovery cannot leave yesterday's failure visible.
 
-For a dispatch-only schedule that checks the approved queue every minute:
-
-```bash
-```
-
-`--interval-seconds` must be a positive integer; the default remains 1800.
-`--tick-only` unloads and removes an existing nightly schedule before installing
-the tick schedule. It does not run the nightly researcher, canary-enqueue,
-backup, or digest pipeline. Reinstall without `--tick-only` to restore both jobs.
-Without `--canary-suite`, the timer only consumes existing approved specs: it
-does not replenish an empty queue or authorize paid work. This is periodic
-dispatch while the host is awake and the user session is active, not an
-always-on remote worker.
-
-After explicit deployment approval, opt into replenishment from an existing,
-version-pinned canary suite:
-
 ```bash
 uv run evallab tick --canary-suite policy/canary-suite.yaml
-  --canary-suite policy/canary-suite.yaml
 ```
 
 The suite's `interval_seconds` controls enrollment slots, independently of the
@@ -556,28 +444,7 @@ suite grants no paid-run authority. Invalid enrollment quarantines the tick
 without dispatch. The suite file must parse and validate before installation
 changes any launchd service.
 
-`schedule status` emits JSON under `jobs.<launchd-label>`: installed and loaded
-state, configured cadence/checkout and canary-suite path, process state/PID,
-invocation count, and last exit code when available. Loaded does not mean healthy:
-inspect `last_exit_code` and the logs below. Unavailable probes report unknown rather than absent; an
-unreadable/invalid configuration or failed probe exits 2. Environment values and
-raw launchctl output are not returned.
-
-```bash
-```
-
-Uninstall unloads only the two known Eval Lab scheduler labels and removes their
-plists, preserving logs and unrelated services. Repeating it is safe. A failed
-unload is reported before the corresponding definition is deleted. Reinstalling
-or uninstalling can interrupt a running scheduled command: stop admitting work
-and let active runs settle before changing the schedule.
-
-For testing, a temporary HOME alone is **not** launchd isolation: service
-identity is `gui/<UID>/<Label>`. Use a recording launchctl backend for unit tests,
-or unique labels plus a separate queue, database, and output root for real
-local-control smoke runs. Never test installation with production labels.
-
-Both invoke `/bin/zsh -lc 'cd <repo> && uv run evallab …'`. Logs live under
+LaunchAgents invoke `/bin/zsh -lc 'cd <repo> && uv run evallab …'`. Logs live under
 `~/Library/Logs/evallab/`. Reinstalling replaces and reloads the definitions.
 Because these are LaunchAgents, not system daemons, they run inside the logged-in
 user session where Keychain access is possible. The plist supplies a bounded
@@ -602,7 +469,7 @@ point separates workspace data from imported code. For example, the following
 cd /absolute/original/workspace
 /absolute/reviewed-runtime/.venv/bin/python -I -c \
   'import sys; from pathlib import Path; from evallab.cli import run_cli; sys.exit(run_cli(workspace=Path.cwd()))' \
-  schedule status
+  doctor --headless
 ```
 
 `-I` prevents ambient `PYTHONPATH` or working-directory imports from selecting
@@ -624,8 +491,6 @@ The original schedule remains subject to its existing approval policy.
 The release receipt records the exact before/after definitions and rollback:
 unload the idle labels, restore their saved definitions, and reload without an
 immediate `RunAtLoad` invocation. Retain the prior runtime checkout for rollback.
-Do not use ordinary `schedule install` over a split-workspace deployment: its
-default `uv run` command would select the workspace's installation again.
 
 Queue events rotate before an append would take `queue/events.jsonl` past
 10 MiB. Seven numbered archives are retained (`events.jsonl.1` is newest), and
@@ -634,152 +499,25 @@ active file. A process lock serializes rotation and appends across launchd and
 manual commands. The oldest archive is the only event file removed during a
 rotation; size the retained window into any external backup or audit policy.
 
-`tick` and `nightly` both run the headless doctor first. If any infrastructure
-check fails,
-they append a boolean-only quarantine event and dispatch nothing. In particular,
+`tick` runs the headless doctor first. If any infrastructure check fails,
+it appends a boolean-only quarantine event and dispatches nothing. In particular,
 a locked or unreadable Keychain defers Claude specs; Codex and credentialless
 controls remain independently eligible. A nonblocking process lock permits only
 one executor to claim queue work; a concurrent tick records `executor_busy`
 instead of double-dispatching or losing its terminal scheduler event.
 
-## Nightly pipeline and step registry
+## Nightly refresh
 
-The unattended nightly cycle (`evallab nightly`) executes an ordered pipeline of
-registered steps (`NightlyStep` in `src/evallab/automation.py`). Each step
-declares a stable identifier (`name`), its execution callable, a wall-clock
-`timeout` (seconds), an `on_fail` policy (`abort` versus `continue`), human-readable
-`description`, and whether the step is inherently `idempotent`.
-
-### Registered step sequence
-
-Steps run in the exact order below:
-
-| # | Step Name | Timeout | `on_fail` | Idempotent | Description |
-|---|---|---:|---|:---:|---|
-| 1 | `doctor` | 60s | `abort` | Yes | Run boolean headless health probes and quarantine the cycle if infra is unhealthy |
-| 2 | `catalog_ingest` | 300s | `abort` | Yes | Ingest completed Harbor jobs into PostgreSQL catalog and Parquet projections |
-| 3 | `analysis_staging` | 60s | `continue` | Yes | Stage analysis requests for completed jobs without calling models |
-| 4 | `parquet_compaction` | 300s | `continue` | Yes | Consolidate granular Parquet partitions for closed days into `compact/dt=YYYY-MM-DD/` and prune old files |
-| 5 | `postgres_backup` | 120s | `abort` | Yes | Create an atomic, timestamped `pg_dump` backup before dispatch |
-| 6 | `canary_enqueue` | 60s | `abort` | No | Enqueue version-pinned canary evaluation specs for the day |
-| 7 | `dispatch` | executor-owned | `abort` | No | Execute approved queue specs via `Executor.tick()` |
-| 8 | `researcher_pass` | 1860s | `continue` | No | Run unattended researcher loop iterations if budget and credentials allow |
-| 9 | `lessons` | 120s | `continue` | Yes | Materialize statistical lesson views and regenerate `research/lessons.md` |
-| 10 | `digest` | 60s | `abort` | Yes | Render, enrich with fleet telemetry, and commit the daily Markdown digest |
-| 11 | `status_update` | 30s | `continue` | Yes | Generate and update the `STATUS.md` operator surface |
-
-### `on_fail` policy semantics
-
-- **`abort`**: If the step fails (raises an unhandled exception or encounters a fatal condition),
-  `quarantined` and `aborted` are set to `True`. Subsequent non-surface pipeline steps are skipped with
-  reason `quarantined_by_prior_step` or `aborted_by_prior_step`. Terminal reporting surfaces (`digest`
-  and `status_update`) still run so the quarantine state and failure event are durably rendered in the
-  human daily digest and `STATUS.md`.
-- **`continue`**: If the step fails, its failure is captured in its `StepOutcome` and logged as a
-  queue error event (e.g. `parquet_compaction_failed`, `lessons_generation_failed`). The cycle is
-  **not** quarantined, and subsequent pipeline steps continue executing.
-
-For queue event bursts and deterministic status projections, see [live watch](live-watch.md#storm-alarms-and-deterministic-status).
-For native tracing and diagnostics, see [the tracing contract](live-watch.md#native-atif-to-otlp-export).
-
-### Idempotence
-
-- **Idempotent steps** (`doctor`, `catalog_ingest`, `analysis_staging`, `parquet_compaction`,
-  `postgres_backup`, `lessons`, `digest`, `status_update`): Running these steps multiple times over
-  unchanged repository evidence produces identical artifacts and deterministic state.
-- **Inherently stateful / non-idempotent steps** (`canary_enqueue`, `dispatch`, `researcher_pass`):
-  These steps advance the queue, execute trials, or consume daily researcher quotas. They mutate queue
-  directories and consume execution allowances.
-
-### Timeout enforcement
-
-`NightlyCycle.run` enforces each declared `timeout` with a main-thread `SIGALRM`
-(`run_with_timeout`). On expiry it terminates every child process started since
-the cycle began (SIGTERM to each child and to any process group it leads, SIGKILL
-after 5 s) *before* unwinding the step, so cleanup that waits on a child cannot
-hang and nothing is orphaned. `StepTimeout` is a `BaseException`, so step bodies'
-`except Exception` bookkeeping cannot swallow it. Detached Docker containers are
-outside the process tree; the executor's own cleanup still owns those.
-
-No step is ever retried. The outcome is `failed` with the error
-`StepTimeout: exceeded declared timeout of …` and reason `timeout_exceeded`
-(idempotent) or `timeout_exceeded_non_idempotent_not_retried`. An idempotent
-step then follows its `on_fail` policy and records `nightly_step_timed_out`; a
-non-idempotent step fails closed regardless of `on_fail` (its side effects
-before expiry are unknown) and records `nightly_quarantined`, which the digest
-renders as quarantine.
-
-`dispatch` declares no outer timeout: `Executor.tick()` already terminates each
-Harbor process group at `timeout_seconds` + 600 s per trial (see the executor
-resilience boundary below), and a shorter outer alarm would kill paid trials.
-`researcher_pass` is bounded by two attempts of every role's own limit plus 60 s
-(`pass_wall_clock_bound_seconds`).
-
-### How to add or substitute a step
-
-To add a new step or customize the pipeline:
-
-1. **Define a step function** accepting `context: NightlyContext`:
-   ```python
-   def _step_my_custom_task(context: NightlyContext) -> None:
-       # Access context.target_date, context.executor, context.renderer, etc.
-       do_work(context.target_date)
-   ```
-2. **Instantiate a `NightlyStep`**:
-   ```python
-   custom_step = NightlyStep(
-       name="my_custom_task",
-       fn=_step_my_custom_task,
-       timeout=120.0,
-       on_fail="continue",  # or "abort"
-       description="Run custom evaluation task",
-       idempotent=True,
-   )
-   ```
-3. **Pass custom steps or step handlers** to `NightlyCycle`:
-   ```python
-   cycle = NightlyCycle(
-       doctor=doctor,
-       executor=executor,
-       renderer=renderer,
-       steps=[*NightlyCycle.DEFAULT_STEPS[:4], custom_step, *NightlyCycle.DEFAULT_STEPS[4:]],
-   )
-   ```
-4. For testing seams, inject custom callables via `compactor`, `lessons_generator`,
-   `status_updater`, `database_backup`, `completed_job_ingester`, or `canary_enqueuer`.
-
-### Reading the per-step outcome report
-
-`NightlyResult` exposes the outcome of every registered step via `result.steps`
-(`tuple[StepOutcome, ...]`) and `result.step_by_name(name)`:
-
-- `status`: `"ran"`, `"skipped"`, or `"failed"`.
-- `duration_s`: Wall-clock execution time in seconds.
-- `reason`: Explanation when `status == "skipped"` (e.g., `"no_backup_configured"`,
-  `"quarantined_by_prior_step"`) or when a step timed out (`"timeout_exceeded"`,
-  `"timeout_exceeded_non_idempotent_not_retried"`).
-- `error`: Error string when `status == "failed"` (e.g., `"RuntimeError: ..."`).
-
-Use `result.format_step_report()` to format the summary:
-
-```text
-Nightly Step Report:
-  - doctor: ran (0.015s)
-  - catalog_ingest: ran (0.432s)
-  - analysis_staging: skipped [no_stager_configured] (0.000s)
-  - parquet_compaction: ran (0.089s)
-  - postgres_backup: ran (0.052s)
-  - canary_enqueue: skipped [no_canary_enqueuer_configured] (0.000s)
-  - dispatch: ran (0.001s)
-  - researcher_pass: skipped [no_researcher_configured] (0.000s)
-  - lessons: ran (0.045s)
-  - digest: ran (0.012s)
-  - status_update: ran (0.008s)
-```
+`evallab nightly --refresh` runs the installed local refresh.
+It does not dispatch trials or start the researcher loop.
+The command keeps its path options and backup freshness checks.
+A missing or stale backup uses the existing 120-second timeout guard.
+The former no-refresh dispatch pipeline and `--date` mode are retired.
+Stored queues, receipts, reports, and backups remain unchanged.
 
 ## Executor resilience boundary
 
-Every queue spec carries `timeout_seconds` (default 1,800; maximum 21,600). It
+Every queue spec carries `timeout_seconds` (default 1,800; maximum 28,800). It
 becomes Harbor's agent timeout (through `--agent-timeout-multiplier`).
 
 The executor watches each active Harbor trial directory independently. It
@@ -806,12 +544,7 @@ all attempt evidence for explicit operator resubmission; it never calls the
 provider implicitly during recovery. While any unresolved running spec remains,
 the executor defers every approved spec with `running_specs_unresolved`; this
 prevents detached work from overlapping new provider calls or escaping the
-cost ceiling after a UTC day boundary. Nightly applies the same barrier to the
-out-of-queue researcher pass and records a semantic-date deferral event.
-
-Nightly digest publication also has a fixed timeout on every Git command, uses
-no terminal input, and fails the nightly process instead of waiting for a
-prompt.
+cost ceiling after a UTC day boundary.
 
 After an interrupted Harbor run, cleanup snapshots only containers with all of
 these properties: Docker Compose project labels, a Compose config path inside
@@ -849,108 +582,47 @@ non-secret force-auth-file switch is set by the executor. Claude runs through
 force-OAuth switches in the immediate Harbor child; it never aliases OAuth to
 an API-key variable.
 
-Every Harbor child, in-process Harbor call, launchd job, CI workflow and wrapper script
+Every Harbor child, in-process Harbor call, launchd job, and wrapper script
 runs with `HARBOR_TELEMETRY=off`. Harbor otherwise sends `harbor.job_finished` (job id,
 agents, models, token usage, cost, duration and reward) to PostHog
 ([usage stats](https://docs.harborframework.com/telemetry/telemetry.md)). New Python
 launch paths take their environment from `evallab.harbor_telemetry.harbor_child_environment`
 or `execution_contracts.subscription_environment`.
 
-Render a digest on demand (the file date is the morning/report date; its primary
-reporting period is the preceding catalog day):
+
+The installed nightly command refreshes local reports.
+It does not dispatch trials, ship traces, run researchers, or commit a digest.
 
 ```bash
+uv run evallab nightly --refresh
 ```
 
-The nightly command additionally commits only `digests/YYYY-MM-DD.md`; unrelated
-working-tree changes are never staged:
-
-```bash
-uv run evallab nightly
-```
-
-Before canary dispatch, a healthy nightly cycle runs the Compose PostgreSQL
+Nightly refresh runs the Compose PostgreSQL
 container's own `pg_dump` in custom format. Python does not read or forward a
 database password: `POSTGRES_USER` and `POSTGRES_DB` expand inside the container.
 The dump and SHA-256 JSON manifest are fsynced inside one dated generation
 directory, then the complete directory is published with one atomic rename in
 the primary checkout's ignored `backups/postgres/` directory. A same-date rerun
 verifies and reuses the immutable generation rather than replacing it. A process
-lock prevents overlapping manual and scheduled dumps. A failed, empty,
-incomplete, or unpublished dump records `postgres_backup_failed`, renders the
-digest as quarantined, and prevents dispatch.
+lock prevents overlapping manual and scheduled dumps.
+A failed dump remains a backup failure in the refresh report.
+Refresh does not dispatch trials or commit a digest.
 
-Validate a dump without restoring it (set the path to the dated dump first):
+See [third-party.md](third-party.md#backup-recovery) for PostgreSQL and SQLite backup and recovery procedures.
 
-```bash
-PRIMARY_ROOT="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
-DUMP="$PRIMARY_ROOT/backups/postgres/evallab-2026-08-14/database.dump"
-docker compose -f "$PRIMARY_ROOT/compose.yaml" exec -T postgres pg_restore --list < "$DUMP"
-shasum -a 256 "$DUMP"
-```
-
-Compare the second command with `manifest.json` in the same generation.
-Legacy verified `.dump`/`.dump.json` pairs remain readable and are reused for their date.
-Check backup health and prove an isolated restore with the existing container:
-
-```bash
-uv run python -m evallab.backups status --root "$PRIMARY_ROOT"
-uv run python -m evallab.backups restore --root "$PRIMARY_ROOT" --dump "$DUMP"
-```
-
-The health command exits 1 for a missing or stale dump.
-The restore command verifies the checksum before database access.
-It creates a random `evallab_restore_*` database and restores only into that database.
-It compares counts for experiments, jobs, trials, rewards, artifacts, run_files, trajectory_documents, and deterministic_trial_facts.
-It drops the throwaway database after success or failure.
-The JSON receipt includes the dump path, size, SHA-256, both count maps, and duration.
-Live count queries run in a read-only transaction. The check never changes the live catalog.
-Concurrent catalog writes can cause a count mismatch. Repeat the check when ingestion is idle.
-
-### SQLite journals and trace database
-
-Use the same backup owner for installed SQLite stores:
-
-```bash
-uv run python -m evallab.backups sqlite --root "$PRIMARY_ROOT"
-```
-
-Use `--source /absolute/path/to/store.sqlite` to select one existing database.
-The default list includes the trace database and installed domain journals; it excludes credentials and historical release copies.
-The source opens with `mode=ro` and `query_only=ON`. The backup API includes committed WAL content.
-The command never checkpoints or truncates a live WAL and never writes into the source database.
-It verifies all table counts from one consistent source snapshot, not a later live count.
-It copies the backup into a separate temporary restore and runs `PRAGMA integrity_check`.
-Only a matching, valid restore publishes an immutable generation under `$PRIMARY_ROOT/backups/sqlite/`.
-The private manifest contains the snapshot SHA-256, both count maps, engine/version metadata, duration, and restore-cleanup receipt.
-
-Never restore over a live database. Restore the hash-matching snapshot into a new, owner-controlled path.
-Verify integrity and manifest counts there before the database owner approves a reader or writer switch.
-Keep the source, its WAL, and prior generations intact during recovery.
-A source merge does not install a backup schedule or change the nightly job's pinned runtime.
-
+## Nightly digest and canary drift
 
 The digest includes the prior day's trials, early-morning automation, policy
 attribution, cost, exception taxonomy, queue depth, waiting rationales, evidence
 growth, and quarantine state. PostgreSQL remains rebuildable from raw jobs; the
 digest is a human-facing derived report.
 
-The trial tables list evaluation runs. The lab's own self-tests do not belong
-there: on 2026-08-16 they were 49 of the digest's 264 lines. The rule is the
-attribution those runs already carry — `evallab smoke` names every job it
-creates `smoke-<agent>-<token>` and writes it under `runs/_smoke/`, so a job
-name beginning `smoke-` is a self-test and nothing else is. Self-tests are
-summarised, never dropped: one bullet per task and agent giving the trial count
-and observed reward range, and a self-test that raised an exception stays a full
-row in the table because a broken harness is signal. Every other run, including
-every `oracle` and `nop` control used as evidence, is always listed. Spend and
-the exception taxonomy still count self-test trials, so the filter changes what
-is readable and not what is reported.
+The trial tables list evaluation runs. Self-test runs created by
+`python -m evallab.smoke` (`smoke-<agent>-<token>` under `runs/_smoke/`) are
+summarised rather than listed in full unless they raise an exception.
 
-Nightly also validates and enqueues the pinned suite in
-[execution tiers](execution-tiers.md#canary-suite-and-drift-interpretation) before draining the queue. A changed task digest or
-floating source ref quarantines the cycle before dispatch. Digest excursions
-are labeled harness-drift suspects, never capability news.
+`tick --canary-suite` rejects a changed task digest or floating source ref before dispatch.
+Digest excursions are labeled harness-drift suspects, never capability news.
 
 ## Run controls before model experiments
 
@@ -963,56 +635,14 @@ Expected outcome: Oracle has `reward=1`, no-op has `reward=0`, neither has an
 exception, and both have verifier evidence. If either expectation fails, debug
 the task or harness before spending model tokens.
 
-## Pinned benchmark fetch
-
-Acquire a Harbor Hub dataset into `library/benchmarks/<name>/` at an immutable
-pin. `@latest`, `@head`, and other unpinned refs are refused.
-
-```bash
-```
-
-`--verify-sample N` runs free `oracle` then `nop` on N tasks with Harbor
-`-n` ≤ 2 and writes the rewards into that bench's `MANIFEST.md`. Re-fetching
-the same pin verifies the recorded Harbor sync digest and no-ops. Existing
-INGEST pins (`aime`, `gpqa-diamond`, `humanevalfix`, `terminal-bench-sample`)
-are never rewritten. `--audit` walks every `library/benchmarks/*/MANIFEST.md`
-and prints pass or the exact drift reason.
-
-
-Unpromoted Harbor jobs under `runs/` are eligible only after they are
-completed, ingested, and projected. The policy is:
-
-- compress after 14 days
-- prune after 60 days
-- each action writes `runs/.tombstones/<job-id>.json` (job id, spec id,
-  digests, reward summary, why removed)
-- `--apply` also appends `gc_compressed` / `gc_pruned` lines to
-  `queue/events.jsonl` and retargets the catalog to the tombstone: it writes
-  `UPDATE`s `jobs.evidence_path` / `trials.evidence_path` when Postgres is up
-  so no row points at a deleted directory
-
-Never eligible: `research/evidence/`, anything named in a digest or
-`digests/DISCOVERIES.md`, jobs that are not ingested+projected, and the
-tombstones themselves.
-
-Default is a dry-run plan:
-
-```bash
-```
-
-Nightly calls the same planner in plan-only mode and appends a
-**GC would reclaim** section to the digest. Doctor prints one `disk …`
-trend line with candidate counts. Apply is never invoked by nightly.
-
 ## Ingest and query
 
 ```bash
 uv run evallab ingest runs research/evidence/runs
 ```
 
-The first `trajectories` command reports validation and counts without writing.
-Every completed job uses one idempotent ingest-and-project path. Queue completion,
-the nightly backfill, `ingest`, and `trajectories --export` all update
+Every completed job uses one idempotent ingest-and-project path. Queue completion and
+`ingest` update
 PostgreSQL first, then write a `jobs.parquet` marker per job and the
 deterministic trial tables below the configured shared Parquet root at
 `job_id=*/trial_id=*/`. The
@@ -1040,12 +670,8 @@ EVALLAB_DERIVED_ROOT=derived/parquet
 ```
 
 A relative value is resolved against the primary checkout; an absolute value
-may instead select a shared volume. The `ingest --derived-dir` and
-`trajectories --export --output-dir` flags are deliberate one-command overrides and
-remain relative to the invoking checkout. `report family` also reads the shared
-root by default; its `--parquet-dir` is an explicit local override. Both
-`report family` and `report card` render without writing by default. Publication
-is explicit through `report family --output-dir` or `report card --output`.
+may instead select a shared volume. The `ingest --derived-dir` flag is a deliberate
+one-command override and remains relative to the invoking checkout.
 This setting is storage topology, not authentication: model access remains
 subscription-only through Keychain or the agent's auth file, and API-key
 variables do not belong in this lab's `.env`.
@@ -1077,18 +703,7 @@ absolute path to choose another.
 The notice appears once per invoking tree and resolved root, so an interactive
 command says it and the nightly loop does not repeat it. It is emitted only for
 a resolution nobody named: a `--derived-dir` argument and an absolute
-`EVALLAB_DERIVED_ROOT` are deliberate choices and stay quiet. Before this,
-`derived/parquet` with nothing to distinguish it from the worktree's own.
-
-Analysis sidecars follow the same "the catalog is derived" rule. `analyze review`
-appends a durable human decision under `derived/analyses/<analysis_id>/reviews/`
-and indexes it only when given `--index`. Without that flag, it prints an
-`analyze ingest-sidecar <analysis.json> --database-url <url>` command.
-That index-only command ingests the sidecar and every existing review beside it,
-reports the review count and catalog identity, and never appends another review.
-Use it to index an existing decision; use `analyze review --index` only when
-intending to append a new decision as well.
-
+`EVALLAB_DERIVED_ROOT` are deliberate choices and stay quiet.
 Concurrent catalog ingestion retries only PostgreSQL `DeadlockDetected` for
 schema initialization, the base job/trial/reward/artifact phase, and the
 document/fact phase. Each phase has at most four attempts, with 0.05s, 0.1s,
@@ -1107,7 +722,7 @@ into an execution failure. It appends a
 the cause is visibly attributed to the harness. `uv run evallab doctor` enforces
 the operational invariant: every catalog job has complete trial partitions, or
 its exact job ID has such a recorded exception. To prove rebuildability, point
-`EVALLAB_DERIVED_ROOT` at an empty isolated directory and run
+`EVALLAB_DERIVED_ROOT` at an empty isolated directory and run `uv run evallab ingest runs ...`.
 Identical table row counts are expected.
 
 ## Evidence promotion checklist
@@ -1120,7 +735,7 @@ Only small representative runs belong in `research/evidence/runs/`:
    user data is present.
 4. Confirm each file is small enough for ordinary Git review.
 5. Copy the complete small job directory and run `uv run evallab summarize`.
-6. Run the repository secret/size audit in `uv run pytest` before commit.
+6. Run the repository secret audit in `uv run pytest tests/test_repository_contract.py` before commit.
 
 For large evidence, leave the job in ignored `runs/`, ingest its metadata, and
 write a small report with digests and a durable artifact URI once object storage
@@ -1133,7 +748,6 @@ Every workflow installs `uv==0.9.24` with `python3 -m pip install --user uv==0.9
 Harbor 0.24.0 is a base dependency in `pyproject.toml`, independent of the optional Laminar exporter.
 Run `uv sync --locked` to install its supported native SDK and console script.
 The remaining isolated workflow CLI install selects `harbor==0.24.0`.
-`tests/test_quality_gates.py::test_every_workflow_pins_uv_and_harbor_to_one_version` compares workflow installs with `runner.HARBOR_CLI_PIN`.
 Update the runtime pin, lock, workflow install, and recorded native field contracts together.
 The normal doctor treats a missing or drifting Harbor runtime as a failure, not an advisory.
 
@@ -1146,7 +760,7 @@ Rationale (preserves the two invariants that existed before the outage):
 
 This change was made because a single throttled codeload path made every job unrunnable even when the rest of the pipeline was healthy. The PyPI path is a different CDN and has never exhibited the same 429/502/503 cascade in our runs. The PR that introduced it will itself run the modified workflows; a green result on that PR is the verification that the jobs remain executable.
 
-The workflows moved back to `setup-python` (v6 SHA) because a single release asset made every 3.12 job unrunnable even while the sibling 3.14 asset served normally. The runner image already ships the provisioned versions in its toolcache, so the common path performs no network download at all. HAR-330 repaired `ci.yml` and `typecheck.yml`; HAR-339 moved the ten auxiliary workflows onto the same pin and aligned the two remaining v5 uses (`loca-lean.yml`, `tau-knowledge.yml`). `tests/test_quality_gates.py::test_workflows_never_provision_python_with_uv` refuses a uv-managed interpreter install anywhere under `.github/workflows/`, including in a comment, and `test_jobs_provision_python_with_pinned_setup_python` requires the v6 SHA with a `python-version` plus an `only-system` export before the first uv command. `test_python_run_steps_follow_an_interpreter_pin` accepts only `actions/setup-python` as a pin.
+The workflows moved back to `setup-python` (v6 SHA) because a single release asset made every 3.12 job unrunnable even while the sibling 3.14 asset served normally. The runner image already ships the provisioned versions in its toolcache, so the common path performs no network download at all. HAR-330 repaired `ci.yml` and `typecheck.yml`; HAR-339 moved the ten auxiliary workflows onto the same pin and aligned the two remaining v5 uses (`loca-lean.yml`, `tau-knowledge.yml`).
 
 ## CI: uv package cache and bounded download retries (HAR-252)
 
@@ -1171,76 +785,12 @@ Every workflow job that resolves packages now:
 `uv run` without `--no-sync` syncs implicitly, so those jobs carry the same cover. Jobs
 that only run `uv tool install`, `uv python install` or `uvx` need the retry floor but
 no project cache.
-`tests/test_quality_gates.py::test_uv_downloading_jobs_cache_packages_and_retry`
-enforces both properties, and its fixture cases fail a job that drops the cache step,
-restores it after the sync, keys it without `uv.lock`, or lowers the retry count.
 
 Cache trust: entries hold only wheels and index responses, the artifacts
 `uv sync --locked` already verifies against the lock hashes. A cache saved by a pull
 request is scoped to that pull request, so `main` restores only entries created on
 `main` or by its own runs. This adds no new third-party trust root beyond the
 SHA-pinned `actions/cache` the quality and typecheck jobs already used.
-
-## CI incident quarantine: abandoned typecheck prerequisite (HAR-356)
-
-**Owner: builder**, the existing HAR-356 owner. Quarantine only this CI
-infrastructure signal and its failed attempt for investigation, **not a flaky
-test** or a test exclusion. No tests or gates are disabled. The zero-diagnostic
-typecheck baseline and fail-closed required gates remain unchanged
-([CI contract](../agents/CHECKS.md#ci-contract)).
-
-Investigate any later required-gate failure with an `abandoned` or missing
-prerequisite under this owner. Preserve its run, attempt, job, and head before
-requesting another run. Do not treat a repeated abandonment as resolved.
-
-Observed evidence for original head
-[`720dc63353eaede9c54cc012df46616b1ae94154`](https://github.com/PeterMakhnatch/eval-lab/commit/720dc63353eaede9c54cc012df46616b1ae94154),
-[run 42674380020](https://github.com/PeterMakhnatch/eval-lab/actions/runs/42674380020):
-
-- [Attempt 1](https://github.com/PeterMakhnatch/eval-lab/actions/runs/42674380020/attempts/1)
-  contains only the failed
-  [`typecheck-required` job 129352210372](https://github.com/PeterMakhnatch/eval-lab/actions/runs/42674380020/job/129352210372).
-  Its log records `TY_RESULT: abandoned`, `ty=abandoned`, and exit code 1.
-  No attempt-1 prerequisite `ty` job appears in that attempt or in the
-  [complete check-suite listing](https://api.github.com/repos/PeterMakhnatch/eval-lab/check-suites/115581418337/check-runs?filter=all).
-- [Attempt 2](https://github.com/PeterMakhnatch/eval-lab/actions/runs/42674380020/attempts/2)
-  contains passing
-  [`ty` job 129357168249](https://github.com/PeterMakhnatch/eval-lab/actions/runs/42674380020/job/129357168249)
-  (`All checks passed!`) and
-  [`typecheck-required` job 129357716773](https://github.com/PeterMakhnatch/eval-lab/actions/runs/42674380020/job/129357716773).
-  No test runs in this typecheck workflow.
-
-GitHub provides no upstream abandonment reason in the available attempt or
-check-suite evidence. The cause remains unknown; this entry claims no upstream
-fix. A later passing typecheck does not establish a typechecker or test flake.
-Preserve the failed attempt and its logs: rerun success cannot certify the
-original first attempt.
-
-Inspect with authenticated `gh` access. Always select the attempt explicitly;
-do not replace failed evidence with the latest attempt:
-
-```bash
-gh api repos/PeterMakhnatch/eval-lab/actions/runs/42674380020/attempts/1/jobs --paginate --jq '.jobs[] | {id, name, conclusion, html_url}'
-gh run view 42674380020 --repo PeterMakhnatch/eval-lab --attempt 1 --job 129352210372 --log
-gh api 'repos/PeterMakhnatch/eval-lab/check-suites/115581418337/check-runs?filter=all&per_page=100' --paginate --jq '.check_runs[] | {id, name, conclusion, html_url}'
-gh api repos/PeterMakhnatch/eval-lab/actions/runs/42674380020/attempts/2/jobs --paginate --jq '.jobs[] | {id, name, conclusion, html_url}'
-gh run view 42674380020 --repo PeterMakhnatch/eval-lab --attempt 2 --job 129357168249 --log
-```
-
-The disposable [control PR #1955](https://github.com/PeterMakhnatch/eval-lab/pull/1955)
-submits the unchanged original head against the original base
-`24cbe13b97e25ff813ec75c4dc0b7a0ab234e335`.
-Its new `pull_request`
-[run 42677668572, attempt 1](https://github.com/PeterMakhnatch/eval-lab/actions/runs/42677668572/attempts/1)
-passes both [`ty` job 129363342728](https://github.com/PeterMakhnatch/eval-lab/actions/runs/42677668572/job/129363342728)
-and [`typecheck-required` job 129363706937](https://github.com/PeterMakhnatch/eval-lab/actions/runs/42677668572/job/129363706937).
-This is first-attempt evidence on the original commit, not a rerun of the failed
-attempt or proof of an upstream fix. The control PR is not for merge.
-
-Record delivery-PR evidence separately: the exact head, tested merge SHA,
-run/attempt/job URLs, and terminal results. Require every reported CI check to
-complete successfully, including both `quality-required` and
-`typecheck-required`, under [Definition of Green](../agents/CHECKS.md#definition-of-green).
 
 ## Agent profiles and model routes
 
@@ -1304,40 +854,7 @@ Claude dispatch records the sanitized observation in `claude-dispatch-quota.json
 `lab-metadata.json`, and each trial's `agent/quota/claude-dispatch.json`.
 Each retry gets a fresh reading for that attempt.
 The record proves what admission observed, not what the lab consumed.
-`evallab preflight` and `python -m evallab.quota` remain disk-only reporting surfaces.
-
-### Spend reconciliation
-
-```sh
-```
-
-Reconciliation compares provider balances over a half-open `[since, until)` window.
-Exit 3 means `UNVERIFIED`: a requested endpoint fails or no numeric comparison exists.
-A discrepancy strictly above the threshold exits 1.
-Non-baseline windows require explicit starting counters. Unknown baselines stay unknown.
-Subscription list-price equivalents do not enter cash spend by default.
-Modal remains `NOT MEASURED` without live billing evidence.
-`scan-omp --write` changes the spend ledger. Use it only under current authority.
-Deduplication checks route, time, and token/cost identity against existing rows.
-
-### Spend windows and source attribution
-
-```sh
-```
-
-For `spend check`, exit 3 refuses an over-cap launch. Exit 2 means unverifiable spend and also refuses launch.
-An exit 0 does not replace current execution approval.
-The day report resolves a dated ceiling at 00:00 UTC for that day.
-Launch admission resolves the ceiling at the current window end.
-An old `--since` never renews an expired approval.
-
-Card attribution requires explicit `linear_card` provenance or an exact historical binding.
-Task, model, app, and harness names do not establish card ownership.
-Conflicting bindings remain `unattributed`.
-Modal bills remain app residuals without complete app/window ownership evidence.
-Daytona dollars remain estimates when the provider supplies quota but no billed usage.
-Provider billing tags remain queryable labels, not inferred card ownership or additional approval.
-Do not enter the same Modal actuals again in a generic model-call ledger.
+`evallab preflight` remains a disk-only reporting surface.
 
 ## Retained LoRA training and serving
 

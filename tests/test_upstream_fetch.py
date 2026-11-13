@@ -2,15 +2,9 @@
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
 from typing import Any
 
-from evallab.upstream_fetch import (
-    commands_from_trial,
-    detect_upstream_fetch,
-    format_fetch_notice,
-)
+from evallab.upstream_fetch import detect_upstream_fetch
 
 
 def _kinds(commands: list[str], **kwargs: Any) -> list[tuple[str, bool]]:
@@ -147,41 +141,3 @@ def test_names_task_repo_matches_package_and_url() -> None:
     ]
 
 
-def _write_trajectory(agent_dir: Path, name: str, steps: list[dict[str, Any]]) -> None:
-    agent_dir.mkdir(parents=True, exist_ok=True)
-    (agent_dir / name).write_text(json.dumps({"steps": steps}), encoding="utf-8")
-
-
-def test_commands_from_trial_dedupes_and_sorts() -> None:
-    trial = Path("/tmp") / "upstream-fetch-test-trial"
-    steps = [
-        {
-            "step_id": 4,
-            "tool_calls": [
-                {"function_name": "bash_command", "arguments": {"keystrokes": "pip download x==1"}},
-                {"function_name": "bash_command", "arguments": {"keystrokes": ""}},
-            ],
-        },
-        {"step_id": 2, "tool_calls": [{"function_name": "other", "arguments": {}}]},
-    ]
-    _write_trajectory(trial / "agent", "trajectory.json", steps)
-    _write_trajectory(trial / "agent", "trajectory.summarization-1-answers.json", steps)
-    try:
-        assert commands_from_trial(trial) == [(4, "pip download x==1")]
-    finally:
-        for path in (trial / "agent").glob("*.json"):
-            path.unlink()
-        (trial / "agent").rmdir()
-        trial.rmdir()
-
-
-def test_commands_from_trial_missing_dir_is_empty(tmp_path: Path) -> None:
-    assert commands_from_trial(tmp_path / "no-such-trial") == []
-
-
-def test_fetch_notice_states_rule_and_zero() -> None:
-    findings = detect_upstream_fetch([(4, "pip download waitress==2.0.0")], task_repo="Pylons/waitress")
-    notice = format_fetch_notice(findings)
-    assert "upstream fetch detected" in notice
-    assert "scored 0" in notice
-    assert "pip-download-remote-package" in notice

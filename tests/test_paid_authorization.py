@@ -14,9 +14,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from evallab.automation import NightlyCycle
 from evallab.canary import CanaryEnqueuer, task_directory_digest
-from evallab.digest import DigestRenderer
 from evallab.queue import (
     DirectoryQueue,
     Executor,
@@ -30,9 +28,6 @@ from evallab.schemas import (
     CanaryMember,
     CanarySuite,
     ExperimentSpec,
-    HeadlessDoctorChecks,
-    HeadlessDoctorReport,
-    LaunchAgentAudit,
     QueueEvent,
     StandingApprovalsPolicy,
 )
@@ -240,24 +235,7 @@ def test_free_controls_still_run_unattended(tmp_path: Path, agent: str) -> None:
     assert service.queue.authorizations() == {}
 
 
-# --- 4. the nightly cycle cannot bypass the check --------------------------
-
-
-class StaticDoctor:
-    def run(self) -> HeadlessDoctorReport:
-        return HeadlessDoctorReport(
-            checked_at=datetime.now(UTC),
-            healthy=True,
-            checks=HeadlessDoctorChecks(
-                keychain_readable=True,
-                codex_auth_present=True,
-                docker_reachable=True,
-                postgres_reachable=True,
-                disk_headroom=True,
-                launch_agents_intact=True,
-            ),
-            launch_agents=LaunchAgentAudit(checked=0),
-        )
+# --- 4. canary staging cannot bypass the check -------------------------------
 
 
 def canary_suite(root: Path) -> CanarySuite:
@@ -279,32 +257,18 @@ def canary_suite(root: Path) -> CanarySuite:
     return CanarySuite(agents=["codex"], members=members)
 
 
-def test_nightly_cycle_enqueues_paid_canaries_but_dispatches_none(tmp_path: Path) -> None:
-    """The exact defect: nine paid Codex sessions a night, unattended."""
+def test_canary_enqueue_preserves_paid_authorization(tmp_path: Path) -> None:
+    """Paid canaries remain blocked across consecutive staging days."""
     requests: list = []
     service = executor(tmp_path, requests)
     enqueuer = CanaryEnqueuer(
         repo_root=tmp_path, executor=service, suite=canary_suite(tmp_path)
     )
-    cycle = NightlyCycle(
-        doctor=StaticDoctor(),  # type: ignore[arg-type]
-        executor=service,
-        renderer=DigestRenderer(
-            repo_root=tmp_path,
-            queue=service.queue,
-            policy=permissive_policy(),
-            trial_loader=lambda day: [],
-            drift_loader=lambda day: [],
-        ),
-        committer=lambda path: True,
-        canary_enqueuer=enqueuer.enqueue,
-    )
 
-    first = cycle.run(report_date=date(2026, 8, 14))
-    second = cycle.run(report_date=date(2026, 8, 15))
-
-    assert first.enqueued == second.enqueued == 3
-    assert first.dispatched == second.dispatched == 0
+    assert enqueuer.enqueue(date(2026, 8, 14)) == 3
+    assert service.tick() == 0
+    assert enqueuer.enqueue(date(2026, 8, 15)) == 3
+    assert service.tick() == 0
     assert requests == []
     assert list(service.queue.state_dir("approved").glob("*.json")) == []
     waiting = service.queue.list_specs("waiting")

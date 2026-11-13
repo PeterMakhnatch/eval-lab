@@ -14,10 +14,8 @@ from evallab.readers.harbor_analyze import (
     parse_checks,
     reader_usage,
     resolve_trial_task,
-    score_binary,
     stage_task,
     stage_trial,
-    write_budget_verdict,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures" / "harbor_analyze"
@@ -156,25 +154,6 @@ def test_independent_task_withholds_detector_but_keeps_core_verifier(tmp_path):
     assert all((task / name).read_text() == name for name in withheld)
 
 
-def test_unadmitted_check_is_explicitly_budget_capped(tmp_path):
-    pytest.importorskip("harbor.analyze", reason="Harbor 0.24 rubric (laminar extra)")
-    path = write_budget_verdict(
-        task_name="mimo-v2.6-rl/format-code-task-000792",
-        source_name="prepared-task",
-        source_job="tasks",
-        root=tmp_path,
-    )
-    verdict = json.loads(path.read_text())
-    assert verdict["checks"] and all(value is None for value in verdict["checks"].values())
-    assert verdict["error"] == "budget cap"
-    assert verdict["tokens"] == {"input": 0, "output": 0}
-    assert verdict["cost_usd"] == 0.0
-    assert json.loads((tmp_path / verdict["raw"]).read_text()) == {
-        "admitted": False,
-        "error": "budget cap",
-    }
-
-
 def test_unknown_outcome_is_not_silently_a_negative():
     with pytest.raises(ValueError, match="Invalid Harbor outcome"):
         parse_checks({"checks": {"reward_hacking": {"outcome": "unknown"}}})
@@ -194,29 +173,6 @@ def test_usage_comes_from_real_agent_totals_not_source_trial_usage():
     assert usage["cost_usd"] == pytest.approx(0.0029)
     assert flash_cost(20_000, 1_000, 5_000) == pytest.approx(0.0029)
     assert reader_usage({"agent_result": None})["cost_usd"] is None
-
-
-def test_binary_scores_keep_missing_and_abstentions_out_of_negatives():
-    verdicts = [
-        {"trial": "copied", "checks": {"reward_hacking": True}},
-        {"trial": "clean", "checks": {"reward_hacking": False}},
-        {"trial": "undecided", "checks": {"reward_hacking": None}},
-    ]
-    score = score_binary(
-        verdicts, {"copied": True, "clean": False, "undecided": True, "missing": False}
-    )
-    assert score == {
-        "check": "reward_hacking",
-        "n_labels": 4,
-        "tp": 1,
-        "fn": 0,
-        "fp": 0,
-        "tn": 1,
-        "abstained": 1,
-        "missing": 1,
-        "recall": 1.0,
-        "fpr": 0.0,
-    }
 
 
 def test_taskless_trial_resolves_no_task_but_stages_cleanly(tmp_path):

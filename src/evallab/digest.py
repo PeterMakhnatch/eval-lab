@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import re
-import subprocess
 from collections import Counter
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -14,9 +13,7 @@ from evallab import database
 from evallab.preflight import PreflightReport, build_preflight_report, digest_section
 from evallab.queue import DirectoryQueue, load_events, provider_reported_exhaustion
 from evallab.runner import (
-    SUPPORT_COMMAND_TIMEOUT_SECONDS,
     database_url_from_environment,
-    subscription_environment,
 )
 from evallab.schemas import (
     CanaryDriftObservation,
@@ -579,54 +576,6 @@ class DigestRenderer:
             return None
         match = re.search(r"<!-- run-bytes: (\d+) -->", path.read_text())
         return int(match.group(1)) if match else None
-
-
-def commit_digest(path: Path) -> bool:
-    repo_root = path.resolve().parent.parent
-    relative = path.resolve().relative_to(repo_root)
-    environment = {
-        **subscription_environment(),
-        "GIT_EDITOR": ":",
-        "GIT_TERMINAL_PROMPT": "0",
-    }
-
-    def run_git(command: list[str], *, check: bool) -> subprocess.CompletedProcess[str]:
-        try:
-            return subprocess.run(
-                command,
-                cwd=repo_root,
-                check=check,
-                stdin=subprocess.DEVNULL,
-                capture_output=True,
-                text=True,
-                timeout=SUPPORT_COMMAND_TIMEOUT_SECONDS,
-                env=environment,
-            )
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            raise RuntimeError("bounded digest Git command failed") from exc
-
-    run_git(["git", "add", "--", str(relative)], check=True)
-    changed = run_git(
-        ["git", "diff", "--cached", "--quiet", "--", str(relative)],
-        check=False,
-    ).returncode
-    if changed == 0:
-        return False
-    if changed != 1:
-        raise RuntimeError("git could not inspect the staged digest")
-    run_git(
-        [
-            "git",
-            "commit",
-            "--only",
-            "-m",
-            f"Add {path.stem} lab digest",
-            "--",
-            str(relative),
-        ],
-        check=True,
-    )
-    return True
 
 
 def _directory_bytes(root: Path) -> int:

@@ -20,19 +20,12 @@ import pytest
 from evallab.campaigns import (
     TrialLimits,
 )
-from evallab.campaigns import (
-    plan_repeated_matrix as campaign_plan_repeated_matrix,
-)
-from evallab.campaigns import (
-    resume_repeated_matrix as campaign_resume_repeated_matrix,
-)
 from evallab.repetition import (
     ZAI_OPENAPI_DEFAULT_MAX_COST_USD,
     ZAI_OPENAPI_DEFAULT_MAX_INPUT_TOKENS,
     ZAI_OPENAPI_DEFAULT_MAX_OUTPUT_TOKENS,
     ZAI_OPENAPI_DEFAULT_MAX_REQUESTS,
     ZAI_OPENAPI_DEFAULT_MAX_TOTAL_TOKENS,
-    RepeatedAttemptMatrix,
     deterministic_attempt_id,
     plan_repeated_matrix,
     resume_repeated_matrix,
@@ -338,16 +331,5 @@ def test_resume_rejects_unknown_and_conflicting_outcomes() -> None:
         )
 
 
-def test_campaigns_module_re_exports() -> None:
-    plan_data = _make_tb4_plan(2)
-    matrix = campaign_plan_repeated_matrix(plan_data, attempts_per_task=2)
-    assert isinstance(matrix, RepeatedAttemptMatrix)
-    assert matrix.total_attempts == 4
-
-    att0 = matrix.attempts[0].attempt_id
-    resumed = campaign_resume_repeated_matrix(
-        matrix, outcomes=[{"attempt_id": att0, "status": "completed", "usage": {}}]
-    )
-    assert resumed.consumed_cost_usd == ZAI_OPENAPI_DEFAULT_MAX_COST_USD
 
 

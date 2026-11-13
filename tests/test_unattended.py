@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import plistlib
 import subprocess
-from datetime import UTC, date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import pytest
@@ -11,23 +11,14 @@ import yaml
 
 import evallab.automation as automation_module
 import evallab.cli as cli_module
-import evallab.digest as digest_module
 from evallab.automation import (
     GuardedTick,
     HeadlessDoctor,
-    NightlyCycle,
     audit_launch_agents,
 )
 from evallab.canary import CanaryEnqueuer, task_directory_digest
-from evallab.digest import DigestRenderer, DigestTrial, commit_digest
+from evallab.digest import DigestRenderer, DigestTrial
 from evallab.queue import DirectoryQueue, Executor, load_events
-from evallab.researchers import (
-    CallLedger,
-    InvocationResponse,
-    InvocationUsage,
-    ResearcherLoop,
-    append_fleet_section,
-)
 from evallab.schemas import (
     AutoRunRule,
     CanaryDriftObservation,
@@ -340,355 +331,6 @@ class FakeLaunchctl:
         return subprocess.CompletedProcess(command, code, self.output, "")
 
 
-def test_healthy_nightly_dispatches_control_and_renders_catalog_job(tmp_path: Path) -> None:
-    ingested: list[Path] = []
-
-    def runner(request):
-        job = request.jobs_dir / request.name
-        job.mkdir(parents=True)
-        return job
-
-    queue = DirectoryQueue(tmp_path / "queue")
-    service = Executor(
-        repo_root=tmp_path,
-        queue=queue,
-        policy=policy(),
-        runner=runner,
-        ingester=ingested.append,
-        spent_today=lambda: 0,
-        consecutive_harness_failures=lambda: 0,
-        credential_probe=lambda: frozenset({"claude-oauth", "codex-auth"}),
-    )
-    service.submit(
-        ExperimentSpec(
-            name="nightly-oracle-control",
-            hypothesis="control remains healthy",
-            purpose="practice",
-            task="library/tasks/event-summary",
-            agent="oracle",
-            submitted_by="scheduler-test",
-        )
-    )
-    report_date = date(2026, 8, 13)
-
-    def load_trials(day: date) -> list[DigestTrial]:
-        if day != report_date or not ingested:
-            return []
-        return [
-            DigestTrial(
-                job_name="nightly-oracle-control",
-                task_name="local/event-summary",
-                agent_name="oracle",
-                model_name=None,
-                reward=1.0,
-                exception_type=None,
-                cost_usd=0,
-                finished_at="2026-08-13T02:31:00Z",
-            )
-        ]
-
-    committed: list[Path] = []
-    backups: list[date] = []
-    backup_path = tmp_path / "backups/postgres/test.dump"
-    result = NightlyCycle(
-        doctor=StaticDoctor(health_report()),  # type: ignore[arg-type]
-        executor=service,
-        renderer=DigestRenderer(
-            repo_root=tmp_path,
-            queue=queue,
-            policy=policy(),
-            trial_loader=load_trials,
-        ),
-        committer=lambda path: committed.append(path) or True,
-        database_backup=lambda day: backups.append(day) or backup_path,
-    ).run(report_date=report_date)
-
-    assert result.dispatched == 1
-    assert len(ingested) == 1
-    assert committed == [result.digest_path]
-    assert backups == [report_date]
-    assert result.backup_path == backup_path
-    assert any(
-        event.event == "postgres_backup_completed" and event.reason_code == "nightly_pg_dump"
-        for event in load_events(queue.events_path)
-    )
-    content = result.digest_path.read_text()
-    assert "nightly-oracle-control" in content
-    assert "local-controls" in content
-    assert "Quarantined: no" in content
-    assert result.step_by_name("parquet_compaction") is not None
-    assert result.step_by_name("parquet_compaction").status == "ran"
-    assert result.step_by_name("lessons") is not None
-    assert result.step_by_name("lessons").status == "ran"
-    assert result.step_by_name("postgres_backup") is not None
-    assert result.step_by_name("postgres_backup").status == "ran"
-    assert result.step_by_name("dispatch") is not None
-    assert result.step_by_name("dispatch").status == "ran"
-    assert result.step_by_name("digest") is not None
-    assert result.step_by_name("digest").status == "ran"
-
-
-def test_nightly_researcher_defers_while_running_job_is_unresolved(
-    tmp_path: Path,
-) -> None:
-    queue = DirectoryQueue(tmp_path / "queue")
-    researcher_calls: list[date] = []
-    service = Executor(
-        repo_root=tmp_path,
-        queue=queue,
-        policy=policy(),
-        runner=lambda request: (_ for _ in ()).throw(
-            AssertionError(f"new work dispatched: {request.name}")
-        ),
-        ingester=lambda _path: None,
-        spent_today=lambda: 0,
-        consecutive_harness_failures=lambda: 0,
-        credential_probe=lambda: frozenset({"claude-oauth", "codex-auth"}),
-    )
-    approved, _ = service.submit(
-        ExperimentSpec(
-            name="partial-before-nightly",
-            hypothesis="detached Harbor work blocks the researcher",
-            purpose="practice",
-            task="library/tasks/event-summary",
-            agent="oracle",
-            submitted_by="scheduler-test",
-        )
-    )
-    queued = queue.load(approved)
-    queue.transition(
-        approved,
-        "running",
-        actor="executor",
-        event="dispatch_started",
-    )
-    job_dir = tmp_path / queued.jobs_dir / queued.name
-    job_dir.mkdir(parents=True)
-    (job_dir / "result.json").write_text(
-        '{"n_total_trials": 1, "stats": {}, "finished_at": null}\n'
-    )
-    report_date = date(2026, 8, 15)
-
-    result = NightlyCycle(
-        doctor=StaticDoctor(health_report()),  # type: ignore[arg-type]
-        executor=service,
-        renderer=DigestRenderer(
-            repo_root=tmp_path,
-            queue=queue,
-            policy=policy(),
-            trial_loader=lambda _day: [],
-        ),
-        committer=lambda _path: False,
-        researcher_pass=lambda day: researcher_calls.append(day) or 1,
-    ).run(report_date=report_date)
-
-    assert result.dispatched == 0
-    assert result.researcher_invocations == 0
-    assert researcher_calls == []
-    deferrals = [
-        event
-        for event in load_events(queue.events_path)
-        if event.event == "researcher_pass_deferred"
-    ]
-    assert [(event.reason_code, event.report_date) for event in deferrals] == [
-        ("running_specs_unresolved", report_date.isoformat())
-    ]
-
-
-@pytest.mark.parametrize(
-    ("failure", "reason"),
-    [
-        (OSError("disk full"), "pg_dump_failed:OSError"),
-        (
-            subprocess.TimeoutExpired(["pg_dump"], 600),
-            "pg_dump_failed:TimeoutExpired",
-        ),
-    ],
-)
-def test_nightly_backup_failure_quarantines_before_dispatch(
-    tmp_path: Path,
-    failure: Exception,
-    reason: str,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        "evallab.automation.date_time_now",
-        lambda: datetime(2026, 8, 15, 5, 0, 1, tzinfo=UTC),
-    )
-    queue = DirectoryQueue(tmp_path / "queue")
-    calls = []
-    service = Executor(
-        repo_root=tmp_path,
-        queue=queue,
-        policy=policy(),
-        runner=lambda request: calls.append(request),
-        ingester=lambda _path: None,
-        spent_today=lambda: 0,
-        consecutive_harness_failures=lambda: 0,
-        credential_probe=lambda: frozenset({"claude-oauth", "codex-auth"}),
-    )
-    approved, _ = service.submit(
-        ExperimentSpec(
-            name="backup-gated-control",
-            hypothesis="a failed backup prevents nightly dispatch",
-            purpose="practice",
-            task="library/tasks/event-summary",
-            agent="oracle",
-            submitted_by="scheduler-test",
-        )
-    )
-
-    result = NightlyCycle(
-        doctor=StaticDoctor(health_report()),  # type: ignore[arg-type]
-        executor=service,
-        renderer=DigestRenderer(
-            repo_root=tmp_path,
-            queue=queue,
-            policy=policy(),
-            trial_loader=lambda _day: [],
-        ),
-        committer=lambda _path: False,
-        database_backup=lambda _day: (_ for _ in ()).throw(failure),
-    ).run(report_date=date(2026, 8, 14))
-
-    assert result.quarantined is True
-    assert result.dispatched == 0
-    assert result.backup_path is None
-    assert approved.exists()
-    assert calls == []
-    assert any(
-        event.event == "postgres_backup_failed" and event.reason_code == reason
-        for event in load_events(queue.events_path)
-    )
-    content = result.digest_path.read_text()
-    assert "Quarantined: yes" in content
-    assert f"Failed readiness checks: {reason}" in content
-    assert "Zero dispatch enforced: yes" in content
-
-
-def test_digest_enrichment_failure_rerenders_a_quarantined_digest(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(
-        "evallab.automation.date_time_now",
-        lambda: datetime(2026, 8, 15, 5, 0, 1, tzinfo=UTC),
-    )
-    queue = DirectoryQueue(tmp_path / "queue")
-    service = Executor(
-        repo_root=tmp_path,
-        queue=queue,
-        policy=policy(),
-        runner=lambda request: request.jobs_dir / request.name,
-        ingester=lambda _path: None,
-        spent_today=lambda: 0,
-        consecutive_harness_failures=lambda: 0,
-        credential_probe=lambda: frozenset({"claude-oauth", "codex-auth"}),
-    )
-
-    def partial_enrichment(path: Path, _day: date) -> None:
-        path.write_text(path.read_text() + "PARTIAL ENRICHMENT\n")
-        raise RuntimeError("fleet unavailable")
-
-    result = NightlyCycle(
-        doctor=StaticDoctor(health_report()),  # type: ignore[arg-type]
-        executor=service,
-        renderer=DigestRenderer(
-            repo_root=tmp_path,
-            queue=queue,
-            policy=policy(),
-            trial_loader=lambda _day: [],
-        ),
-        committer=lambda _path: True,
-        digest_enricher=partial_enrichment,
-    ).run(report_date=date(2026, 8, 14))
-
-    assert result.quarantined is True
-    assert result.committed is True
-    content = result.digest_path.read_text()
-    assert "Quarantined: yes" in content
-    assert "Failed readiness checks: fleet_digest_failed:RuntimeError" in content
-    assert "digest_enrichment_failed" in content
-    assert "PARTIAL ENRICHMENT" not in content
-
-
-def test_fleet_uses_semantic_report_date_across_local_midnight(tmp_path: Path) -> None:
-    report_date = date(2026, 8, 14)
-    digest_path = tmp_path / "digests/2026-08-14.md"
-    digest_path.parent.mkdir(parents=True)
-    digest_path.write_text("# Digest\n")
-    queue = DirectoryQueue(tmp_path / "queue")
-    queue.append_event(
-        QueueEvent(
-            event_id="01M00000000000000000000000",
-            spec_id="system-01M00000000000000000000000",
-            occurred_at=datetime(2026, 8, 15, 5, 0, 1, tzinfo=UTC),
-            event="researcher_pass_deferred",
-            actor="nightly",
-            reason_code="missing_credential:codex",
-            report_date=report_date.isoformat(),
-        )
-    )
-
-    append_fleet_section(
-        digest_path,
-        report_date=report_date,
-        repo_root=tmp_path,
-        policy=policy(),
-        ledger=CallLedger(tmp_path / "queue/researchers/calls.jsonl"),
-        catalog_spend=lambda _day: 0,
-    )
-
-    content = digest_path.read_text()
-    assert "Deferrals: 1" in content
-    assert "researcher_pass_deferred: missing_credential:codex" in content
-
-
-def test_researcher_resamples_utc_budget_day_before_each_retry(tmp_path: Path) -> None:
-    local_offset = timezone(-timedelta(hours=4))
-    clock_values = iter(
-        [
-            datetime(2026, 8, 14, 19, 59, tzinfo=local_offset),
-            datetime(2026, 8, 14, 20, 1, tzinfo=local_offset),
-        ]
-    )
-    catalog_days: list[date] = []
-    invocation_count = 0
-
-    def invoker(**_kwargs) -> InvocationResponse:
-        nonlocal invocation_count
-        invocation_count += 1
-        return InvocationResponse(
-            output="not-json" if invocation_count == 1 else "{}",
-            usage=InvocationUsage(),
-        )
-
-    loop = ResearcherLoop(
-        repo_root=tmp_path,
-        invoker=invoker,  # type: ignore[arg-type]
-        policy=policy(),
-        catalog_spend=lambda day: catalog_days.append(day) or 0,
-        clock=lambda: next(clock_values),
-    )
-
-    result = loop._invoke_validated(
-        pass_id="utc-boundary-pass",
-        role="analyst",
-        prompt="return usage",
-        output_model=InvocationUsage,
-        work_dir=tmp_path / "attempts",
-    )
-
-    assert result == InvocationUsage()
-    assert catalog_days == [date(2026, 8, 14), date(2026, 8, 15)]
-    records = loop.ledger.records()
-    assert [(record.event, record.day) for record in records] == [
-        ("started", date(2026, 8, 14)),
-        ("failed", date(2026, 8, 14)),
-        ("started", date(2026, 8, 15)),
-        ("completed", date(2026, 8, 15)),
-    ]
-
-
 def test_guarded_tick_records_dispatch_idle_and_stop_deferrals(tmp_path: Path) -> None:
     queue = DirectoryQueue(tmp_path / "queue")
 
@@ -738,50 +380,6 @@ def test_guarded_tick_records_dispatch_idle_and_stop_deferrals(tmp_path: Path) -
         ("tick_deferred", "stop_file_present"),
         ("tick_dispatched", "dispatched:1"),
     ]
-
-
-def test_locked_keychain_still_dispatches_credentialless_nightly_control(
-    tmp_path: Path,
-) -> None:
-    calls = []
-    queue = DirectoryQueue(tmp_path / "queue")
-    service = Executor(
-        repo_root=tmp_path,
-        queue=queue,
-        policy=policy(),
-        runner=lambda request: calls.append(request),
-        ingester=lambda path: None,
-        spent_today=lambda: 0,
-        consecutive_harness_failures=lambda: 0,
-        credential_probe=lambda: frozenset(),
-    )
-    approved, _ = service.submit(
-        ExperimentSpec(
-            name="must-not-dispatch",
-            hypothesis="locked model credentials do not block a free control",
-            purpose="practice",
-            task="library/tasks/event-summary",
-            agent="oracle",
-            submitted_by="scheduler-test",
-        )
-    )
-    result = NightlyCycle(
-        doctor=StaticDoctor(health_report(keychain_readable=False, codex_auth_present=False)),  # type: ignore[arg-type]
-        executor=service,
-        renderer=DigestRenderer(
-            repo_root=tmp_path,
-            queue=queue,
-            policy=policy(),
-            trial_loader=lambda day: [],
-        ),
-        committer=lambda path: True,
-    ).run(report_date=date.today())
-
-    assert result.dispatched == 1
-    assert len(calls) == 1
-    content = result.digest_path.read_text()
-    assert "Quarantined: no" in content
-    assert not approved.exists()
 
 
 def test_digest_uses_queue_when_catalog_is_unavailable(tmp_path: Path) -> None:
@@ -925,60 +523,6 @@ def test_digest_keeps_a_failed_smoke_run_visible(tmp_path: Path) -> None:
     assert any("smoke-oracle-06jyeb02basb" in row for row in rows)
     assert not any("smoke-oracle-036m0fqpzzz0" in row for row in rows)
     assert "harness_failure=1" in text
-
-
-def test_commit_digest_commits_only_the_digest(tmp_path: Path) -> None:
-    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
-    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True)
-    subprocess.run(["git", "config", "user.name", "Test"], cwd=tmp_path, check=True)
-    digest = tmp_path / "digests/2026-08-13.md"
-    digest.parent.mkdir()
-    digest.write_text("daily\n")
-    unrelated = tmp_path / "unrelated.txt"
-    unrelated.write_text("do not commit\n")
-
-    assert commit_digest(digest) is True
-
-    tracked = subprocess.run(
-        ["git", "show", "--pretty=", "--name-only", "HEAD"],
-        cwd=tmp_path,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.splitlines()
-    assert tracked == ["digests/2026-08-13.md"]
-    assert unrelated.exists()
-
-
-def test_commit_digest_bounds_every_noninteractive_git_command(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    digest = tmp_path / "digests/2026-08-14.md"
-    digest.parent.mkdir()
-    digest.write_text("daily\n")
-    calls: list[tuple[list[str], dict[str, object]]] = []
-
-    def run(command: list[str], **kwargs):
-        calls.append((command, kwargs))
-        if "diff" in command:
-            return subprocess.CompletedProcess(command, 1, stdout="", stderr="")
-        if "commit" in command:
-            raise subprocess.TimeoutExpired(command, kwargs["timeout"])
-        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
-
-    monkeypatch.setattr(digest_module.subprocess, "run", run)
-
-    with pytest.raises(RuntimeError, match="bounded digest Git command failed"):
-        commit_digest(digest)
-
-    assert len(calls) == 3
-    assert all(
-        kwargs["timeout"] == digest_module.SUPPORT_COMMAND_TIMEOUT_SECONDS for _, kwargs in calls
-    )
-    assert all(kwargs["stdin"] is subprocess.DEVNULL for _, kwargs in calls)
-    assert all(kwargs["capture_output"] is True for _, kwargs in calls)
-    assert all(kwargs["env"]["GIT_TERMINAL_PROMPT"] == "0" for _, kwargs in calls)
 
 
 def test_doctor_codex_only_night_is_healthy(tmp_path: Path) -> None:
@@ -1286,37 +830,6 @@ def test_digest_calibrates_a_judge_only_on_an_evidence_bound_record(tmp_path: Pa
     assert "no judge is calibrated" not in passing
 
 
-def test_fleet_reports_live_handoffs_and_never_a_retired_role(tmp_path: Path) -> None:
-    """Only files that exist, named as files, and never a finished mission as fleet state."""
-    digest_path = tmp_path / "digests/2026-08-16.md"
-    digest_path.parent.mkdir(parents=True)
-    digest_path.write_text("# Digest\n")
-    handoffs = tmp_path / "agents/handoffs"
-    handoffs.mkdir(parents=True)
-    (handoffs / "gate-auth.md").write_text(
-        "Status: building\nLast: wired the gate\nNext: open the PR\nBlockers: none\n"
-    )
-    (handoffs / "mender.md").write_text("Status: done\nLast: merged\nNext: none\nBlockers: none\n")
-    (handoffs / "orchestrator-handoff.md").write_text("# Replacement orchestrator\n\nProse.\n")
-
-    append_fleet_section(
-        digest_path,
-        report_date=date(2026, 8, 16),
-        repo_root=tmp_path,
-        policy=policy(),
-        ledger=CallLedger(tmp_path / "queue/researchers/calls.jsonl"),
-        catalog_spend=lambda _day: 0,
-    )
-
-    content = digest_path.read_text()
-    rows = _table_rows(content, "### Missions with a live handoff")
-    assert rows == ["| gate-auth.md | building | wired the gate | open the PR | none |"]
-    assert "- Reported `done`, awaiting archive: 1 (mender.md)." in content
-    assert "- No machine-readable `Status:` header: 1 (orchestrator-handoff.md)." in content
-    assert "| unknown |" not in content
-    assert "### Roles" not in content
-
-
 def _create_fixture_suite(
     root: Path, *, name: str = "suite", agents: list[str] | None = None
 ) -> Path:
@@ -1460,6 +973,8 @@ def _provider_route_queue_payload(name: str) -> dict:
     }
 
 
+
+
 def test_nightly_enqueue_survives_a_provider_route_spec_in_the_queue(tmp_path: Path) -> None:
     """One lane's spec format must not be able to kill the whole nightly.
 
@@ -1514,3 +1029,4 @@ def test_nightly_enqueue_survives_a_provider_route_spec_in_the_queue(tmp_path: P
         "canary_enqueue_failed" in (event.reason_code or "")
         for event in load_events(service.queue.events_path)
     )
+

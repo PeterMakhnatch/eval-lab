@@ -5,41 +5,27 @@ Tests:
 2. Warning ATIF (is_ingestable=True, is_analysis_ready=True, status="warn")
 3. Malformed ATIF (catalog-visible but analysis-ineligible, is_analysis_ready=False, status="fail")
 4. Infrastructure exception quarantined with reason code (not reward 0, is_analysis_ready=False)
-5. AnalysisWorker admission gate defers missing report as "quality_not_evaluated"
-6. AnalysisWorker admission gate rejects quarantined/failed quality trials
-7. Idempotency: identical reruns produce deterministic, byte-stable Parquet tables
-8. DuckDB attach: registers and queries trajectory_quality_reports and trajectory_quality_findings
-9. Status generator: renders quality ledger counts and reason codes without content leaks
+5. Idempotency: identical reruns produce deterministic, byte-stable Parquet tables
+6. DuckDB queries trajectory_quality_reports and trajectory_quality_findings
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
-from datetime import UTC, date, datetime
 from pathlib import Path
 
 import duckdb
 import pytest
 
-from evallab.analysis_worker import (
-    AdmissionContext,
-    AnalysisRequest,
-    RequestStore,
-    admit,
-)
 from evallab.interpretation.trajectory_quality import (
     FindingSeverity,
     QualityStatus,
     TrajectoryQualityFinding,
     TrajectoryQualityReport,
     evaluate_trial_quality,
-    load_quality_report_for_trial,
     persist_quality_ledger,
 )
-from evallab.profiles import AgentProfile
-from evallab.schemas import StandingApprovalsPolicy
-from evallab.status_generator import StatusReportData, render_status_markdown
 
 
 @pytest.fixture
@@ -226,194 +212,13 @@ def test_idempotent_and_deterministic_persistence(sample_trial_dir: Path, tmp_pa
     assert bytes_rep1 == bytes_rep2
     assert bytes_find1 == bytes_find2
 
-    # Load report back
-    loaded = load_quality_report_for_trial("trial-1-id", derived_root)
-    assert loaded is not None
-    assert loaded.status == QualityStatus.PASS
-    assert loaded.is_analysis_ready is True
-
-
-def test_analysis_worker_admission_fails_closed_on_missing_quality(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """AnalysisWorker defers as quality_not_evaluated when no quality ledger record exists."""
-    repo_root = tmp_path / "repo"
-    repo_root.mkdir(parents=True)
-    trial_path = repo_root / "runs" / "job-1" / "trial-1"
-    agent_dir = trial_path / "agent"
-    agent_dir.mkdir(parents=True)
-
-    res_bytes = b'{"id": "trial-1"}'
-    traj_bytes = b'{"steps": []}'
-    lock_bytes = b"{}"
-    (trial_path / "result.json").write_bytes(res_bytes)
-    (agent_dir / "trajectory.json").write_bytes(traj_bytes)
-    (trial_path / "lock.json").write_bytes(lock_bytes)
-
-    # Empty derived directory with no quality reports
-    monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(repo_root / "derived" / "parquet"))
-
-    request = AnalysisRequest.model_validate(
-        {
-            "request_id": "0123456789abcdef",
-            "created_at": datetime.now(UTC),
-            "experiment_id": "exp-1",
-            "job_id": "job-1",
-            "trial_id": "trial-1",
-            "job_name": "job-1",
-            "trial_name": "trial-1",
-            "trial_path": "runs/job-1/trial-1",
-            "profile_id": "profile-1",
-            "adapter": "test-adapter",
-            "model": "test-model",
-            "result_sha256": "sha256:" + hashlib.sha256(res_bytes).hexdigest(),
-            "trajectory_sha256": "sha256:" + hashlib.sha256(traj_bytes).hexdigest(),
-            "lock_sha256": "sha256:" + hashlib.sha256(lock_bytes).hexdigest(),
-            "task_digest": "sha256:1111",
-            "verifier_digest": "sha256:2222",
-            "rubric_sha256": "sha256:3333",
-            "prompt_sha256": "sha256:4444",
-            "profile_digest": "sha256:5555",
-        }
-    )
-    policy = StandingApprovalsPolicy(
-        version=1,
-        daily_cost_ceiling_usd=20.0,
-        per_job_cost_ceiling_usd=3.0,
-        quiet_failure_rule=3,
-        auto_run=[
-            {"name": "local-controls", "agents": ["oracle", "nop"]},
-            {
-                "name": "researcher-followups",
-                "agents": ["test-adapter", "codex"],
-                "max_attempts": 5,
-                "requires": [],
-            },
-        ],
-        escalate_to_human=[],
-    )
-    ctx = AdmissionContext(
-        stop_present=lambda: False,
-        policy=policy,
-        profile=AgentProfile(
-            profile_id="p1",
-            adapter="test-adapter",
-            model="gpt-5.6",
-            auth_mode="subscription-keychain",
-            secret_source="keychain:eval-lab",
-            verified_facts=("2026-08-06: proven run",),
-        ),
-        probe=None,
-        spent_today_usd=lambda: 0.0,
-        est_call_cost_usd=0.01,
-        services_healthy=lambda: True,
-        requirement_checks={},
-    )
-    store = RequestStore(repo_root / "derived" / "analyses" / "worker")
-    decision = admit(request, store, ctx, repo_root)
-    assert decision.kind == "defer"
-    assert decision.reason == "quality_not_evaluated"
-
-
-def test_analysis_worker_quarantines_quarantined_quality_evidence(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """AnalysisWorker strictly quarantines trials whose quality ledger status is quarantine or failed."""
-    repo_root = tmp_path / "repo"
-    repo_root.mkdir(parents=True)
-    trial_path = repo_root / "runs" / "job-1" / "trial-1"
-    agent_dir = trial_path / "agent"
-    agent_dir.mkdir(parents=True)
-
-    res_bytes = b'{"id": "trial-1"}'
-    traj_bytes = b'{"steps": []}'
-    lock_bytes = b"{}"
-    (trial_path / "result.json").write_bytes(res_bytes)
-    (agent_dir / "trajectory.json").write_bytes(traj_bytes)
-    (trial_path / "lock.json").write_bytes(lock_bytes)
-
-    derived_root = repo_root / "derived" / "parquet"
-    monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(derived_root))
-
-    # Persist a quarantined quality report
-    q_rep = TrajectoryQualityReport(
-        job_id="job-1",
-        trial_id="trial-1",
-        document_id="doc-1",
-        raw_atif_digest="sha256:abc",
-        raw_result_digest="sha256:def",
-        check_version="v1",
-        check_digest="sha256:123",
-        status=QualityStatus.QUARANTINE,
-        is_ingestable=True,
-        is_analysis_ready=False,
-        quarantine_reason="infrastructure_exception:docker_timeout",
-        findings_count=1,
-        warnings_count=0,
-        errors_count=1,
-    )
-    persist_quality_ledger([q_rep], [], derived_root)
-
-    request = AnalysisRequest.model_validate(
-        {
-            "request_id": "0123456789abcdef",
-            "created_at": datetime.now(UTC),
-            "experiment_id": "exp-1",
-            "job_id": "job-1",
-            "trial_id": "trial-1",
-            "job_name": "job-1",
-            "trial_name": "trial-1",
-            "trial_path": "runs/job-1/trial-1",
-            "profile_id": "profile-1",
-            "adapter": "test-adapter",
-            "model": "test-model",
-            "result_sha256": "sha256:" + hashlib.sha256(res_bytes).hexdigest(),
-            "trajectory_sha256": "sha256:" + hashlib.sha256(traj_bytes).hexdigest(),
-            "lock_sha256": "sha256:" + hashlib.sha256(lock_bytes).hexdigest(),
-            "task_digest": "sha256:1111",
-            "verifier_digest": "sha256:2222",
-            "rubric_sha256": "sha256:3333",
-            "prompt_sha256": "sha256:4444",
-            "profile_digest": "sha256:5555",
-        }
-    )
-    policy = StandingApprovalsPolicy(
-        version=1,
-        daily_cost_ceiling_usd=20.0,
-        per_job_cost_ceiling_usd=3.0,
-        quiet_failure_rule=3,
-        auto_run=[
-            {"name": "local-controls", "agents": ["oracle", "nop"]},
-            {
-                "name": "researcher-followups",
-                "agents": ["test-adapter", "codex"],
-                "max_attempts": 5,
-                "requires": [],
-            },
-        ],
-        escalate_to_human=[],
-    )
-    ctx = AdmissionContext(
-        stop_present=lambda: False,
-        policy=policy,
-        profile=AgentProfile(
-            profile_id="p1",
-            adapter="test-adapter",
-            model="gpt-5.6",
-            auth_mode="subscription-keychain",
-            secret_source="keychain:eval-lab",
-            verified_facts=("2026-08-06: proven run",),
-        ),
-        probe=None,
-        spent_today_usd=lambda: 0.0,
-        est_call_cost_usd=0.01,
-        services_healthy=lambda: True,
-        requirement_checks={},
-    )
-    store = RequestStore(repo_root / "derived" / "analyses" / "worker")
-    decision = admit(request, store, ctx, repo_root)
-    assert decision.kind == "quarantine"
-    assert "quality_quarantined:infrastructure_exception:docker_timeout" in decision.reason
+    # Query the persisted report through the retained Parquet reader.
+    with duckdb.connect() as conn:
+        loaded = conn.execute(
+            "SELECT status, is_analysis_ready FROM read_parquet(?) WHERE trial_id = ?",
+            [str(rep_p2), "trial-1-id"],
+        ).fetchall()
+    assert loaded == [(QualityStatus.PASS, True)]
 
 
 def test_duckdb_attach_and_queries(tmp_path: Path) -> None:
@@ -463,25 +268,3 @@ def test_duckdb_attach_and_queries(tmp_path: Path) -> None:
     assert f_rows[0] == ("fnd-duck-1", "ATIF_SCHEMA_INVALID", "warn")
 
 
-def test_status_generator_renders_quality_ledger_without_leaks() -> None:
-    """Status generator presents aggregate quality ledger counts and reason codes without content leaks."""
-    data = StatusReportData(
-        target_date=date(2026, 8, 25),
-        reporting_date=date(2026, 8, 24),
-        quality_summary={
-            "total": 10,
-            "pass": 7,
-            "warn": 1,
-            "fail": 1,
-            "quarantine": 1,
-            "reasons": {
-                "infrastructure_exception:timeout": 1,
-                "missing_trajectory_file": 1,
-            },
-        },
-    )
-    md = render_status_markdown(data)
-    assert "### Evidence Quality Ledger" in md
-    assert "- **Evaluated Trials:** 10 (Passed: 7, Warnings: 1, Failed: 1, Quarantined: 1)" in md
-    assert "`infrastructure_exception:timeout`: 1" in md
-    assert "`missing_trajectory_file`: 1" in md

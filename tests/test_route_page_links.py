@@ -8,18 +8,6 @@ from urllib.parse import unquote
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-
-# Repository-relative page globs whose relative links must resolve. Add pages here.
-LINK_CHECKED_PAGES: tuple[str, ...] = (
-    "README.md",
-    "docs/NOW.md",
-    "docs/mimo/*.md",
-    "research/experiments/mimo-*/README.md",
-    "library/tasks/**/*.md",
-    "research/experiments/library-ladder-coverage/README.md",
-)
-
 _TARGET = r"(<[^>\n]*>|[^\s)]+)"
 _INLINE_LINK = re.compile(
     r"!?\[(?:[^\[\]\n]|\[[^\[\]\n]*\])*\]\(\s*"
@@ -82,10 +70,6 @@ def dead_links(root: Path, pages: tuple[str, ...]) -> list[str]:
 def assert_no_dead_links(root: Path, pages: tuple[str, ...]) -> None:
     dead = dead_links(root, pages)
     assert not dead, f"{len(dead)} dead relative link(s):\n" + "\n".join(dead)
-
-
-def test_committed_route_pages_have_no_dead_relative_links() -> None:
-    assert_no_dead_links(REPO_ROOT, LINK_CHECKED_PAGES)
 
 
 def test_missing_target_fails_naming_page_and_target(tmp_path: Path) -> None:

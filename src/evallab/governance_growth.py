@@ -6,7 +6,8 @@ fit alone yet exceed a budget together. A PR fails only when its tested total is
 over budget AND its own net contribution to that metric is positive. Shrinking
 and untouched metrics always pass. Push events report all budget problems without
 failing, so a race cannot make main red. Budget raises stay visible in the same
-PR; deletions never require a budget reduction.
+PR; deletions never require a budget reduction. Suggested raises renew baseline
+slack to cover later PR growth; smaller sufficient raises remain valid.
 """
 
 from __future__ import annotations
@@ -32,6 +33,18 @@ BUDGET_METRICS = {
     "large-python-files:src/evallab": ("src/evallab", "Python files above 800 lines"),
     "large-python-files:tests": ("tests", "Python files above 800 lines"),
 }
+
+
+def _budget_step(key: str, total: int) -> tuple[int, str]:
+    """Apply the baseline slack rule to a suggested raise, not a required minimum."""
+    if key.startswith("large-python-files:"):
+        return total, "limit = total; no slack because large-file counts should only fall"
+    slack = (total + 49) // 50
+    rule = "limit = total + 2% (rounded up)"
+    if not key.startswith("python-lines:"):
+        slack = max(1, slack)
+        rule = "limit = total + 2% (rounded up, at least 1 item)"
+    return total + slack, f"{rule} to cover later PR growth"
 
 
 def _budget_line(key: str, limit: int) -> str:
@@ -162,11 +175,12 @@ def _budget_issues(
         if total <= limit:
             continue
         name, unit = BUDGET_METRICS[key]
+        suggested, explanation = _budget_step(key, total)
         message = (
             f"total-budget: {name} has {total} {unit}; budget {limit}; "
             f"this PR contributes {contribution[key]:+d}; remove {total - limit} {unit}, "
-            f"or replace its line in {BUDGETS}: {_budget_line(key, total)} "
-            "(replace both placeholders)"
+            f"or replace its line in {BUDGETS}: {_budget_line(key, suggested)} "
+            f"({explanation}; replace both placeholders)"
         )
         if os.environ.get("GITHUB_EVENT_NAME") == "push" or contribution[key] <= 0:
             print(f"governance budget report-only: {message}")

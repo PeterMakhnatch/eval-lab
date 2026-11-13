@@ -1,5 +1,6 @@
 # Baseline bfb70a11e: physical Python lines include an unterminated final line.
-# Lines and count metrics have ceil(2%) slack (at least 1 item); >800 counts have none.
+# Baseline and suggested raises share _budget_step in governance_growth.py:
+# lines get ceil(2%) slack; counts get at least 1 item; >800 counts get none.
 # Edit only the affected row for a raise. Give its concrete reason and raised_by.
 # Lowering is optional. A deletion never requires a budget edit.
 [budgets]

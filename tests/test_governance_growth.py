@@ -232,21 +232,21 @@ def budgets(root: Path, overrides: dict[str, int], *, metadata: bool = True) -> 
 
 
 @pytest.mark.parametrize(
-    ("key", "path", "initial", "added", "cap", "total"),
+    ("key", "path", "initial", "added", "cap", "total", "suggested"),
     [
-        ("python-lines:src/evallab", "src/evallab/a.py", "", "# a\n# final", 1, 2),
-        ("python-lines:tests", "tests/a.py", "", "# a\n# b\n", 1, 2),
-        ("python-lines:research", "research/a.py", "", "# a\n# b\n", 1, 2),
-        ("python-lines:library", "library/a.py", "", "# a\n# b\n", 1, 2),
-        ("markdown-files:docs", "docs/a.md", "", "# A\n", 0, 1),
-        ("markdown-files:agents", "agents/a.md", "", "# A\n", 0, 1),
-        ("experiment-directories:research/experiments", "research/experiments/a/result.json", "", "{}\n", 0, 1),
-        ("large-python-files:src/evallab", "src/evallab/a.py", "# a\n" * 800, "# a\n" * 801, 0, 1),
-        ("large-python-files:tests", "tests/a.py", "# a\n" * 800, "# a\n" * 801, 0, 1),
+        ("python-lines:src/evallab", "src/evallab/a.py", "", "# a\n# final", 1, 2, 3),
+        ("python-lines:tests", "tests/a.py", "", "# a\n" * 51, 50, 51, 53),
+        ("python-lines:research", "research/a.py", "", "# a\n# b\n", 1, 2, 3),
+        ("python-lines:library", "library/a.py", "", "# a\n# b\n", 1, 2, 3),
+        ("markdown-files:docs", "docs/a.md", "", "# A\n", 0, 1, 2),
+        ("markdown-files:agents", "agents/a.md", "", "# A\n", 0, 1, 2),
+        ("experiment-directories:research/experiments", "research/experiments/a/result.json", "", "{}\n", 0, 1, 2),
+        ("large-python-files:src/evallab", "src/evallab/a.py", "# a\n" * 800, "# a\n" * 801, 0, 1, 1),
+        ("large-python-files:tests", "tests/a.py", "# a\n" * 800, "# a\n" * 801, 0, 1, 1),
     ],
 )
 def test_each_total_budget_pass_message_and_exact_raise(
-    repo: Path, key: str, path: str, initial: str, added: str, cap: int, total: int,
+    repo: Path, key: str, path: str, initial: str, added: str, cap: int, total: int, suggested: int,
 ) -> None:
     budgets(repo, {key: cap})
     if initial:
@@ -257,19 +257,64 @@ def test_each_total_budget_pass_message_and_exact_raise(
     name, unit = BUDGET_METRICS[key]
     delta = 1 if initial else total
     replacement = (
-        f'{json.dumps(key)} = {{ limit = {total}, reason = "State the concrete need", '
+        f'{json.dumps(key)} = {{ limit = {suggested}, reason = "State the concrete need", '
         'raised_by = "Your name or PR" }'
     )
+    if key.startswith("large-python-files:"):
+        explanation = "limit = total; no slack because large-file counts should only fall"
+    elif key.startswith("python-lines:"):
+        explanation = "limit = total + 2% (rounded up) to cover later PR growth"
+    else:
+        explanation = "limit = total + 2% (rounded up, at least 1 item) to cover later PR growth"
     assert growth_issues(repo, baseline) == [
         f"total-budget: {name} has {total} {unit}; budget {cap}; "
         f"this PR contributes {delta:+d}; remove {total - cap} {unit}, "
-        f"or replace its line in {BUDGETS}: {replacement} (replace both placeholders)"
+        f"or replace its line in {BUDGETS}: {replacement} ({explanation}; replace both placeholders)"
     ]
     rows = (repo / BUDGETS).read_text().splitlines()
     rows = [replacement if row.startswith(json.dumps(key)) else row for row in rows]
     fixed = "\n".join(rows).replace("State the concrete need", "Required API contract")
     put(repo, BUDGETS, fixed.replace("Your name or PR", "Fixture PR") + "\n")
     assert growth_issues(repo, baseline) == []
+    put(repo, BUDGETS, (repo / BUDGETS).read_text().replace(
+        f"limit = {suggested},", f"limit = {total},",
+    ))
+    assert growth_issues(repo, baseline) == []
+
+
+def test_printed_raise_covers_later_pr_without_another_budget_edit(
+    repo: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    key = "python-lines:tests"
+    budgets(repo, {key: 99})
+    put(repo, "tests/seed.py", "# seed\n" * 99)
+    baseline = commit(repo)
+    put(repo, "tests/a.py", "# A\n")
+    issues = growth_issues(repo, baseline)
+    assert len(issues) == 1
+    replacement = issues[0].split(f"or replace its line in {BUDGETS}: ", 1)[1].split(" (limit =", 1)[0]
+    replacement = replacement.replace("State the concrete need", "Required API contract").replace(
+        "Your name or PR", "PR A",
+    )
+    rows = (repo / BUDGETS).read_text().splitlines()
+    put(repo, BUDGETS, "\n".join(
+        replacement if row.startswith(json.dumps(key)) else row for row in rows
+    ) + "\n")
+    assert growth_issues(repo, baseline) == []
+    head_a = commit(repo)
+    budget_blob = git(repo, "rev-parse", f"HEAD:{BUDGETS}")
+    git(repo, "branch", "-f", "main", head_a)
+    git(repo, "checkout", "-qb", "second", head_a)
+    put(repo, "tests/b.py", "# B\n" * 2)
+    head_b = commit(repo)
+    event = repo / "event.json"
+    event.write_text(json.dumps({"pull_request": {
+        "head": {"sha": head_b}, "base": {"sha": head_a},
+    }}))
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event))
+    assert git(repo, "rev-parse", f"HEAD:{BUDGETS}") == budget_blob
+    assert growth_issues(repo) == []
 
 
 def test_budget_raise_needs_reason_and_author_but_lowering_does_not(repo: Path) -> None:

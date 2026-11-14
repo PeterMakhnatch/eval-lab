@@ -313,11 +313,6 @@ class Ship:
         self.run(["git", "fetch", "origin", pr["baseRefName"]])
         from evallab.ship.preflight import inspect_preflight
 
-        if preflight_only:
-            if pr["baseRefName"] != "main":
-                raise Blocked("ship only delivers PRs targeting main")
-            inspect_preflight(self, pr, preflight_only=True)
-            return
         if "pr" not in self.data:
             if pr["changedFiles"] > 3000:
                 raise Blocked("PR exceeds GitHub's complete changed-path API limit")
@@ -329,6 +324,12 @@ class Ship:
             pr["files"] = [{"path": name} for row in files
                            for name in {row["filename"], row.get("previous_filename", row["filename"])}]
             self.save("resolved", pr=pr)
+        pr["files"] = self.data["pr"]["files"]
+        if preflight_only:
+            if pr["baseRefName"] != "main":
+                raise Blocked("ship only delivers PRs targeting main")
+            inspect_preflight(self, pr, preflight_only=True)
+            return
         if pr["headRefOid"] != self.data["pr"]["headRefOid"]:
             raise Blocked("PR head moved; preserve this receipt and use a fresh --state-dir")
         if pr["baseRefName"] != "main":
@@ -362,7 +363,16 @@ class Ship:
                     "--match-head-commit", pr["headRefOid"], check=False)
             pr = self.view()
         if pr["state"] != "MERGED" or not pr.get("mergeCommit", {}).get("oid"):
-            raise Blocked("Remote PR is not MERGED with a merge commit")
+            from evallab.ship.preflight import workflow_paths, workflow_recovery
+
+            message = "Remote PR is not MERGED with a merge commit"
+            paths = workflow_paths(self.data["pr"])
+            if paths:
+                base = self.run(["git", "rev-parse", "origin/main"]).stdout.strip()
+                message += (f". If main changed {paths[0]} after this branch point and the gh token has no "
+                            "workflow scope, GitHub will refuse the squash merge although checks are green. "
+                            + workflow_recovery(base))
+            raise Blocked(message)
         commit = pr["mergeCommit"]["oid"]
         self.save("merged", merge_commit=commit)
         self.run(["git", "fetch", "origin", "main"])

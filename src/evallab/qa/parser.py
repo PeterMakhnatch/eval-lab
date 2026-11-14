@@ -29,6 +29,12 @@ def task_command(args: argparse.Namespace, root: Path, **kwargs: Any) -> int:
     return command(args, root, **kwargs)
 
 
+def replay_command(args: argparse.Namespace, root: Path, **kwargs: Any) -> int:
+    from evallab.qa.pack import replay_command as command
+
+    return command(args, root, **kwargs)
+
+
 def score_command(args: argparse.Namespace, root: Path, **kwargs: Any) -> int:
     from evallab.qa.task import score_command as command
 
@@ -94,7 +100,7 @@ def add_suite_command(commands: argparse._SubParsersAction) -> None:
 
 
 def add_task_commands(sub: Any) -> None:
-    """Register ``task`` and ``task-score`` under the shared ``evallab qa`` parser."""
+    """Register task QA, regression replay, and task scoring commands."""
     task = sub.add_parser(
         "task",
         help="Executed task QA: S0 controls, advisory S1 rubric, S2 shortcut+ref-subset, S3 fresh replay",
@@ -145,6 +151,24 @@ def add_task_commands(sub: Any) -> None:
         help="Prior run directory to reuse digest-bound measured checks/probes from",
     )
     task.set_defaults(func=task_command)
+    replay = sub.add_parser(
+        "replay", help="Validate and replay a digest-bound grader regression pack"
+    )
+    replay.add_argument("pack_dir", type=Path)
+    replay.add_argument("--task", type=Path, required=True)
+    replay.add_argument("--plan", action="store_true", help="$0 validation and reservation preview")
+    replay.add_argument("--environment", choices=("modal",), default="modal")
+    replay.add_argument("--max-usd", type=float, help="Run-wide Modal reservation cap (not a bill)")
+    replay.add_argument("--approve", help="Recorded approval text required for real Modal execution")
+    replay.add_argument(
+        "--usd-per-execution",
+        type=float,
+        default=MODAL_USD_PER_ALLOCATION_UNIT,
+        help="Positive finite USD reservation estimate per allocation unit (default: %(default)s)",
+    )
+    replay.add_argument("--run-dir", type=Path)
+    replay.add_argument("--cells", help="Comma-separated cell ids; omitted required cells prevent a match")
+    replay.set_defaults(func=replay_command)
     score = sub.add_parser(
         "task-score",
         help="Digest-bound task-audit scores (flagged vs verified); unmeasured never counts as pass",

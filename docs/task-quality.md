@@ -1796,6 +1796,41 @@ uv run evallab qa task-score --key envcheck-tb4-39 \
   --level verified --scoreboard research/qa-scoreboard/scoreboard.csv
 ```
 
+### Grader regression replay
+
+`evallab qa replay` validates a `qa.pack/v1` regression pack against a pinned task package.
+The pack contains a `qa.finding/v1` finding, submission scripts, a distinguishing check, and an optional grader patch.
+All pack paths are relative and remain inside the pack.
+Validation checks the task digest, finding subject, required cells, and patch safety before any execution.
+A grader patch can change only `tests/`.
+The mechanical guard rejects deleted assertions/tests, added skips, tolerance changes, and unsafe reward-writer changes.
+It does not prove that added checks follow the instruction; semantic review remains necessary.
+The patch parser accepts conventional unified diffs and rejects unsupported patch metadata.
+Staging refuses directory symlinks.
+
+```bash
+# Validate the complete pack and print the cell plan without constructing a backend.
+uv run evallab qa replay <pack-dir> --task <package-dir> --plan
+
+# Replay each selected cell in a fresh native Modal environment.
+uv run evallab qa replay <pack-dir> --task <package-dir> --environment modal \
+  --max-usd 2 --usd-per-execution 0.0025 \
+  --approve "Authorized grader replay, at most USD 2 in reservations" \
+  --run-dir <fresh-run-dir>
+```
+
+`--plan` costs $0 and creates no backend or run directory.
+Reservation estimates use the allocation units from `qa task --plan`, not a bill.
+`--cells id,id` selects cells, but omitted required cells prevent an overall match.
+Fixed-grader cells use a staged task copy; replay never patches the original task or changes the pack.
+Check cells run the submission and check together, without the verifier.
+A check exit code of 0 means pass.
+Missing results, timeouts, and infrastructure failures remain `unmeasured`, never pass or reward 0.
+The run directory contains `replay.json` with expectations, measured results, native evidence hashes, variant digests, and the spend receipt.
+The command exits with status 0 only when every required cell is measured and matches its expectation.
+
+### QA Task options
+
 Options: `--task`, `--key`, `--split {dev,heldout}`, `--item`,
 `--packages-root`, `--run-dir`, `--stages` (default `S0,S1,S2,S3`),
 `--trial-timeout` (default 1800), `--rubric`, `--model` (default

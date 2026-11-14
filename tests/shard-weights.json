@@ -1,0 +1,387 @@
+{
+  "modules": {
+    "tests/line/test_batch_coverage.py": [
+      6,
+      0
+    ],
+    "tests/line/test_final_check.py": [
+      8,
+      0
+    ],
+    "tests/line/test_j3.py": [
+      11,
+      0
+    ],
+    "tests/line/test_residuals.py": [
+      10,
+      0
+    ],
+    "tests/line/test_structural_reader.py": [
+      15,
+      0
+    ],
+    "tests/line/test_watch.py": [
+      84,
+      0
+    ],
+    "tests/test_attach.py": [
+      8,
+      0
+    ],
+    "tests/test_attach_properties.py": [
+      11,
+      0
+    ],
+    "tests/test_campaign_approval.py": [
+      4,
+      0
+    ],
+    "tests/test_cheat.py": [
+      37,
+      0
+    ],
+    "tests/test_cloud_trace_db.py": [
+      53,
+      0
+    ],
+    "tests/test_cloud_trace_export.py": [
+      9,
+      6
+    ],
+    "tests/test_cloud_trace_retriever_optional_registry.py": [
+      11,
+      0
+    ],
+    "tests/test_counts.py": [
+      4,
+      0
+    ],
+    "tests/test_craft.py": [
+      5,
+      0
+    ],
+    "tests/test_governance_growth.py": [
+      7,
+      0
+    ],
+    "tests/test_grader_hardening.py": [
+      10,
+      0
+    ],
+    "tests/test_hack_drop.py": [
+      10,
+      0
+    ],
+    "tests/test_harbor024_agent_kwargs.py": [
+      10,
+      2
+    ],
+    "tests/test_harbor_deepseek.py": [
+      5,
+      0
+    ],
+    "tests/test_harbor_host_isolation.py": [
+      9,
+      4
+    ],
+    "tests/test_harbor_modal.py": [
+      6,
+      3
+    ],
+    "tests/test_heldout_v7_campaign.py": [
+      10,
+      0
+    ],
+    "tests/test_heldout_v7_native.py": [
+      8,
+      4
+    ],
+    "tests/test_heldout_v7_staged.py": [
+      25,
+      0
+    ],
+    "tests/test_html_js_filter_verifier.py": [
+      4,
+      0
+    ],
+    "tests/test_l0_gate_only_scan.py": [
+      9,
+      0
+    ],
+    "tests/test_laminar_tracing.py": [
+      27,
+      0
+    ],
+    "tests/test_lessons.py": [
+      4,
+      0
+    ],
+    "tests/test_line_gate.py": [
+      7,
+      0
+    ],
+    "tests/test_line_replay_script.py": [
+      11,
+      0
+    ],
+    "tests/test_mimo_clean.py": [
+      6,
+      0
+    ],
+    "tests/test_mimo_fleet_census.py": [
+      5,
+      0
+    ],
+    "tests/test_mimo_training_split.py": [
+      65,
+      0
+    ],
+    "tests/test_mimoagent_stops.py": [
+      9,
+      5
+    ],
+    "tests/test_mimoagent_worker.py": [
+      0,
+      33
+    ],
+    "tests/test_openrouter_route.py": [
+      5,
+      0
+    ],
+    "tests/test_premerge_modes.py": [
+      7,
+      0
+    ],
+    "tests/test_purge_build_caches.py": [
+      5,
+      0
+    ],
+    "tests/test_qa_counterfactual.py": [
+      4,
+      0
+    ],
+    "tests/test_queue_properties.py": [
+      12,
+      0
+    ],
+    "tests/test_ref_subset.py": [
+      8,
+      0
+    ],
+    "tests/test_registry.py": [
+      7,
+      0
+    ],
+    "tests/test_release_branch_rescue_host.py": [
+      5,
+      0
+    ],
+    "tests/test_repaired_data_sft_v2_build.py": [
+      18,
+      0
+    ],
+    "tests/test_run_atlas_store.py": [
+      5,
+      0
+    ],
+    "tests/test_separate_verifier.py": [
+      24,
+      0
+    ],
+    "tests/test_setup_fingerprint.py": [
+      6,
+      0
+    ],
+    "tests/test_sheet_recalc_engine_controls.py": [
+      13,
+      0
+    ],
+    "tests/test_sheet_recalc_verifiers.py": [
+      8,
+      0
+    ],
+    "tests/test_ship.py": [
+      43,
+      0
+    ],
+    "tests/test_test_hygiene.py": [
+      16,
+      0
+    ],
+    "tests/test_training_freeze.py": [
+      22,
+      0
+    ],
+    "tests/test_zai_secret_proxy.py": [
+      4,
+      0
+    ]
+  },
+  "source_runs": [
+    "43530498508",
+    "43530390490",
+    "43530345745"
+  ],
+  "unweighted": {
+    "1": [
+      [
+        182,
+        13
+      ]
+    ],
+    "2": [
+      [
+        91,
+        8
+      ],
+      [
+        91,
+        5
+      ]
+    ],
+    "3": [
+      [
+        49,
+        3
+      ],
+      [
+        77,
+        6
+      ],
+      [
+        56,
+        4
+      ]
+    ],
+    "4": [
+      [
+        37,
+        2
+      ],
+      [
+        48,
+        3
+      ],
+      [
+        54,
+        6
+      ],
+      [
+        43,
+        2
+      ]
+    ],
+    "5": [
+      [
+        24,
+        1
+      ],
+      [
+        24,
+        0
+      ],
+      [
+        38,
+        6
+      ],
+      [
+        47,
+        4
+      ],
+      [
+        49,
+        2
+      ]
+    ],
+    "6": [
+      [
+        21,
+        2
+      ],
+      [
+        34,
+        1
+      ],
+      [
+        26,
+        1
+      ],
+      [
+        28,
+        2
+      ],
+      [
+        44,
+        5
+      ],
+      [
+        29,
+        2
+      ]
+    ],
+    "7": [
+      [
+        20,
+        1
+      ],
+      [
+        31,
+        2
+      ],
+      [
+        36,
+        6
+      ],
+      [
+        28,
+        2
+      ],
+      [
+        32,
+        0
+      ],
+      [
+        16,
+        1
+      ],
+      [
+        19,
+        2
+      ]
+    ],
+    "8": [
+      [
+        19,
+        1
+      ],
+      [
+        23,
+        2
+      ],
+      [
+        25,
+        4
+      ],
+      [
+        16,
+        0
+      ],
+      [
+        18,
+        1
+      ],
+      [
+        25,
+        1
+      ],
+      [
+        28,
+        2
+      ],
+      [
+        28,
+        2
+      ]
+    ]
+  }
+}

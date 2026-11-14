@@ -10,12 +10,12 @@ Intervals and paired comparisons are in the full scoreboard; `summary.json` reta
 
 | Receipt | SHA-256 |
 |---|---|
-| `freeze.json` | `59310e92f7580915b3464f1e8a524d370a1d6e57d23571a881321b0384fd3c48` |
-| `scoreboard.json` | `e4962dbe58542fda42e41dc35e9ede69fa8cc4e9e9e90a494d339cfa9a681c18` |
-| `SCOREBOARD.md` | `f475160358d01d75c8b4e9e5dd2b8a3b98d1096ef525bc13607fdcc4cd556be0` |
-| `items.jsonl` | `6d00e6e968a45a6f42c2b194b37ef7e5d1ffc39b361e0dd7c56dead2563e161d` |
+| `freeze.json` | `ae73ec2f6eb3b219e01928c2b2efc65b5836cfb5c2c7068807b333dbc20f05ef` |
+| `scoreboard.json` | `847c754941421fe10ecb357a66524ad8ed93f4bef73e00a210e552ff41fd7cf8` |
+| `SCOREBOARD.md` | `3647bfc0603ea92a2f5c15efef1ed30c82c5094976863de3480f9cb8997ba8b3` |
+| `items.jsonl` | `fef6048e290b4e326e3d941077ba4d230fa8e3f12017e05be83ba5201c2b821a` |
 | `qa-links.jsonl` | `a7c3457d12f92416a9e2335abb17b7ddfe37526782be0d72858a2ee62076ecfc` |
-| `summary.json` | `03e76674a965aeb80df47e943aa612bbb1549c83af2bbe0e28c91553193becf8` |
+| `summary.json` | `42c028846bcf03f8d77c0661a1ee0ec0dc03ef865c386492bf2376f8a6b596d2` |
 
 ## Frozen offline cohorts
 

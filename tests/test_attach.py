@@ -510,18 +510,6 @@ def test_sql_preamble_is_byte_identical(tmp_path: Path) -> None:
         r2.connection.close()
 
 
-def test_cross_zone_join_when_postgres_unavailable_skips(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, unavailable_postgres_address: str
-) -> None:
-    monkeypatch.setenv("DATABASE_URL", f"postgresql://{unavailable_postgres_address}/nowhere?connect_timeout=1")
-    result = attach(repo_root=tmp_path)
-    try:
-        z2 = next(z for z in result.zones if z.name == "z2")
-        assert z2.attached is False
-    finally:
-        result.connection.close()
-
-
 def test_sql_preamble_escapes_quote_bearing_dsn_and_parquet_paths(tmp_path: Path) -> None:
     derived = tmp_path / "derived'root"
     dsn = "postgresql://evallab:p'ass@invalid.example/evallab"

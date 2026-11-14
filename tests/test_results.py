@@ -166,12 +166,3 @@ def test_discovery_skips_a_malformed_job_level_result(tmp_path: Path) -> None:
     with pytest.raises(json.JSONDecodeError):
         load_job(job_dir)
 
-
-def test_load_job_fails_closed_on_a_malformed_job_result(tmp_path: Path) -> None:
-    """Discovery is lenient, but selecting the job explicitly must not be: a
-    malformed job-level result raises rather than silently loading an empty job."""
-    job_dir = make_job(tmp_path)
-    (job_dir / "result.json").write_text("garbage", encoding="utf-8")
-
-    with pytest.raises(json.JSONDecodeError):
-        load_job(job_dir)

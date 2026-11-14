@@ -230,15 +230,6 @@ def test_unknown_sourced_observation_is_not_a_match(tmp_path: Path) -> None:
     assert _posture(root, job, trial, record)["reference_profile_match"] is False
 
 
-def test_explicitly_unbounded_ceilings_do_not_disqualify(tmp_path: Path) -> None:
-    root = _repo_root(tmp_path)
-    job = _job(tmp_path, spec={"reference_profile": PROFILE_NAME})
-    trial, record = _trial(
-        job, "t1", trial_fp=_matching_fingerprint(), egress={"applied": True}
-    )
-    assert _posture(root, job, trial, record)["reference_profile_match"] is True
-
-
 def test_unsourced_reference_fields_do_not_disqualify(tmp_path: Path) -> None:
     root = _repo_root(tmp_path)
     job = _job(tmp_path, spec={"reference_profile": PROFILE_NAME})

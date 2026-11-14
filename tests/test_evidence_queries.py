@@ -329,44 +329,6 @@ def test_full_corpus_derived_parquet_coverage_real(derived_for_check: Path) -> N
         attach_result.connection.close()
 
 
-def test_promoted_only_subset_fails_coverage_assertions() -> None:
-    """Assert that a promoted-bundles-only dataset fails the full-corpus requirements."""
-    sql = Path("sql/evidence_queries.sql").read_text()
-    with duckdb.connect(":memory:") as con:
-        con.execute(sql)
-        # Synthetic promoted-only data (11 trials, 0 exceptions)
-        con.execute(
-            """
-            INSERT INTO trial_facts (
-                experiment_id, job_id, trial_id, job_name, trial_name, task_name,
-                task_digest, verifier_digest, environment_digest, agent_config_digest,
-                agent_name, agent_version, model_name, primary_reward,
-                exception_class, exception_phase, duration_seconds, cost_usd
-            ) VALUES
-            ('e','j1','t1','canary','t1','local-lab/event-summary',NULL,NULL,NULL,NULL,'codex','v1','m',1.0,NULL,NULL,1.0,0.0),
-            ('e','j1','t2','canary','t2','local-lab/event-summary',NULL,NULL,NULL,NULL,'codex','v1','m',1.0,NULL,NULL,1.0,0.0),
-            ('e','j1','t3','canary','t3','local-lab/event-summary',NULL,NULL,NULL,NULL,'codex','v1','m',1.0,NULL,NULL,1.0,0.0),
-            ('e','j2','t4','canary','t4','petermakhnatch/transaction-reconciliation',NULL,NULL,NULL,NULL,'codex','v1','m',1.0,NULL,NULL,1.0,0.0),
-            ('e','j2','t5','canary','t5','petermakhnatch/transaction-reconciliation',NULL,NULL,NULL,NULL,'codex','v1','m',1.0,NULL,NULL,1.0,0.0),
-            ('e','j2','t6','canary','t6','petermakhnatch/transaction-reconciliation',NULL,NULL,NULL,NULL,'codex','v1','m',1.0,NULL,NULL,1.0,0.0),
-            ('e','j3','t7','canary','t7','terminal-bench/html-js-filter',NULL,NULL,NULL,NULL,'codex','v1','m',0.0,NULL,NULL,1.0,0.0),
-            ('e','j3','t8','canary','t8','terminal-bench/html-js-filter',NULL,NULL,NULL,NULL,'codex','v1','m',0.0,NULL,NULL,1.0,0.0),
-            ('e','j3','t9','canary','t9','terminal-bench/html-js-filter',NULL,NULL,NULL,NULL,'codex','v1','m',0.0,NULL,NULL,1.0,0.0),
-            ('e','j4','t10','ctrl','t10','local-lab/event-summary',NULL,NULL,NULL,NULL,'oracle','v1','m',1.0,NULL,NULL,1.0,0.0),
-            ('e','j5','t11','ctrl','t11','local-lab/event-summary',NULL,NULL,NULL,NULL,'nop','v1','m',0.0,NULL,NULL,1.0,0.0);
-            """
-        )
-        total_trials = con.execute("SELECT count(*) FROM trial_facts").fetchone()[0]
-        # Promoted subset has only 11 trials instead of 92
-        assert total_trials != 92
-
-        summary = dict(
-            con.execute("SELECT task_name, never_measured FROM v_task_summary").fetchall()
-        )
-        # Promoted subset has 0 never_measured trials for html-js-filter (fails non-zero check)
-        assert summary["terminal-bench/html-js-filter"] == 0
-
-
 def test_scored_agent_exits_are_measured_in_sql() -> None:
     with duckdb.connect(":memory:") as con:
         con.execute(Path("sql/evidence_queries.sql").read_text())

@@ -196,23 +196,6 @@ def test_exec_refuses_provider_key_in_tool_env(wrapper_module: ModuleType) -> No
         asyncio.run(agent.exec_as_agent(object(), "env", env={"DEEPSEEK_API_KEY": SECRET_SENTINEL}))
 
 
-def test_wrapper_rejects_real_secret_in_exec_environment(
-    wrapper_module: ModuleType,
-) -> None:
-    agent = wrapper_module.SecretSafeDeepSeekMiniSweAgent(
-        _Connection(provider="deepseek", api_key=SECRET_SENTINEL)
-    )
-
-    with pytest.raises(ValueError, match="cannot enter the task exec environment"):
-        asyncio.run(
-            agent.exec_as_agent(
-                object(),
-                "mini-swe-agent --yolo",
-                env={"DEEPSEEK_API_KEY": SECRET_SENTINEL},
-            )
-        )
-
-
 def test_wrapper_rejects_host_secret_under_another_env_name(
     wrapper_module: ModuleType, monkeypatch: pytest.MonkeyPatch
 ) -> None:

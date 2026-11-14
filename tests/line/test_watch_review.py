@@ -14,13 +14,17 @@ import pytest
 from watch_helpers import (
     I06A,
     I06B,
+    I12_ROWS,
     I15,
     ROUTE,
     STAGE_ONE,
     World,
+    declared_inputs,
     details,
+    edit_commit,
     put_fields,
     reseal,
+    run_rows,
     trial_rows,
     two_increments,
 )
@@ -300,47 +304,6 @@ def test_a_child_that_is_a_link_to_a_copy_fails_conservation(world: World) -> No
     child.symlink_to(copy, target_is_directory=True)
     assert "child batch missing" in details(world, "conservation")
 
-def declared_inputs(world: World, manifest: Path, declared: dict[str, Any]) -> tuple[Any, Any]:
-    """The same declared inputs as a line spec and as a watch configuration."""
-    labels = str(declared.get("labels", world.labels))
-    status = str(declared.get("task_status", world.tmp / "status.json"))
-    cache = declared.get("cache")
-    autoreview = (
-        {"mode": "cached", "cache": str(cache), "max_usd": 0}
-        if cache
-        else {"mode": "off", "max_usd": 0}
-    )
-    models = {"allowed": [ROUTE] if cache else []}
-    verdicts = declared.get("verdicts")
-    spec = {
-        "schema": "evallab.line_spec/v1",
-        "batch_id": "diff",
-        "split": "dev",
-        "sources": [{"corpus": "rows", "rollouts": str(manifest), "labels": labels}],
-        "task_status": status,
-        "autoreview": autoreview,
-        "models": models,
-        "audit": {"rate": 0.5, "seed": "fixed"},
-        "judge": {
-            "queue": str(world.tmp / "diff-queue.jsonl"),
-            "write": False,
-            "verdicts": str(verdicts or world.tmp / "diff-verdicts.jsonl"),
-        },
-        "labels_policy": {"attempted_cheat": "exclude"},
-        "out_root": str(world.tmp / "diff-batches"),
-    }
-    config: dict[str, Any] = {
-        "task_status": status,
-        "autoreview": autoreview,
-        "models": models,
-        "sources": [
-            {"corpus": "rows", "kind": "manifest", "path": str(manifest), "labels": labels}
-        ],
-    }
-    if verdicts:
-        config["judge"] = {"queue": None, "write": True, "verdicts": str(verdicts)}
-    return spec, config
-
 def both(world: World, rows: list[dict[str, Any]] | str, **declared: Any) -> tuple[bool, bool]:
     """(``line run`` refuses, ``line watch`` refuses) for the same manifest and declared inputs."""
     manifest = Path(declared.pop("manifest", world.tmp / "rows.jsonl"))
@@ -368,9 +331,6 @@ def test_the_differential_harness_accepts_clean_inputs(world: World) -> None:
     assert both(world, trial_rows(world, ["a1", "a2", "a3"])) == (False, False)
 
 Case = Callable[[World], tuple[list[dict[str, Any]] | str, dict[str, Any]]]
-
-def run_rows(world: World) -> list[dict[str, Any]]:
-    return trial_rows(world, ["a1", "a2", "a3"])
 
 def in_a_run_json(where: str, fields: dict[str, Any]) -> Case:
     def build(world: World) -> tuple[list[dict[str, Any]] | str, dict[str, Any]]:

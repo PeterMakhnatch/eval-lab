@@ -21,8 +21,11 @@ from watch_helpers import (
     STAGE_TWO,
     USER,
     World,
+    advancing,
     atif,
+    declared_inputs,
     oracle,
+    run_rows,
     trial_rows,
     write_trial,
 )

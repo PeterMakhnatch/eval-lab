@@ -14,15 +14,17 @@ from watch_helpers import (
     CLEAN,
     I06A,
     I06B,
+    I12_ROWS,
     I15,
     STAGE_ONE,
     STAGE_THREE,
     STAGE_TWO,
-    USER,
     Clock,
     NoTestRegistry,
     World,
+    advancing,
     atif,
+    edit_commit,
     put_fields,
     reseal,
     tree_hashes,
@@ -34,15 +36,6 @@ from evallab.line import core, watch
 from evallab.line.io import read_json, read_rows, write_json, write_rows
 from evallab.line.watch_state import State, WatchError, owner_lock
 
-
-def advancing(world: World, *steps: Callable[[], None]) -> Callable[[float], None]:
-    """A sleep that runs the next step (advance the clock, touch a file) between cycles."""
-    queue = list(steps)
-
-    def sleep(_seconds: float) -> None:
-        queue.pop(0)()
-
-    return sleep
 
 def test_a_failed_line_check_stops_the_watcher_and_commits_nothing(
     world: World, monkeypatch: pytest.MonkeyPatch
@@ -277,10 +270,6 @@ def test_a_state_directory_without_watch_json_fails_the_live_check(
     assert [c["name"] for c in reported["checks"]] == ["children", "conservation", "cumulative", "spend"]
     assert not (world.state_dir / "check.json").exists()  # not treated as a batch folder
 
-def edit_commit(world: World, number: int, **changes: Any) -> None:
-    path = world.state.inc(number) / "commit.json"
-    write_json(path, {**read_json(path), **changes})
-
 def edit_increment_spec(world: World) -> None:
     path = world.state.inc(1) / "spec.json"
     write_json(path, {**read_json(path), "audit": {"rate": 1.0, "seed": "other"}})
@@ -494,19 +483,6 @@ def test_p13_a_link_above_a_manifest_row_outside_the_manifests_folder_is_refused
     ]
     write_json(world.config_path, config)
     assert "link" in world.run()["error"] and not world.state.folders()
-
-I12_ROWS: dict[str, Callable[[Path], dict[str, Any]]] = {
-    "pair": lambda trial: {"id": "x1", "pair": "t-secret-test", "path": str(trial)},
-    "inline_steps": lambda _t: {"id": "x2", "task_id": "t-secret-test", "steps": [USER]},
-    "no_id": lambda trial: {"task_id": "t-secret-test", "path": str(trial)},
-    "answer_keys_path": lambda _t: {"id": "x3", "path": "research/answer-keys/a.json"},
-    "harbor_task_mapping": lambda trial: {
-        "id": "x4",
-        "path": str(trial),
-        "task": {"name": "t-secret-test"},
-    },
-    "nested_split": lambda trial: {"id": "x5", "path": str(trial), "meta": {"split": "test"}},
-}
 
 @pytest.mark.parametrize("case", sorted(I12_ROWS))
 def test_i12_i14_a_manifest_row_naming_test_material_stops_the_watcher_even_if_held(

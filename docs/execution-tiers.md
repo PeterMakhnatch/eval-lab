@@ -375,6 +375,34 @@ Oracle/nop controls and verifier runs stay exactly as `AGENTS.md` prescribes:
 through `evallab` wrappers, jobs under `runs/`, ≤2 concurrent. The larger VM
 just means `local-heavy` tasks no longer fail on memory.
 
+### Reward-dir lock on Docker Desktop (HAR-434)
+
+A separate-mode verifier can make `/logs/verifier` root-only and run agent code as
+`nobody`. That lock assumes the container owns the directory. On a Linux Docker
+daemon it does. Docker Desktop does not.
+
+Observed: Docker Desktop maps the bind-mounted directory to the host user (uid 501
+on the Mac) while the container reports `root:root`. A `nobody` child inside that
+container therefore keeps write access. The retained probe records the mapping and
+the result:
+
+```text
+inside: drwx------ 2 root root 64 Nov 14 08:05 /logs/verifier
+uid=65534(nobody) gid=65534(nogroup) groups=65534(nogroup)
+nobody_write_rc=0
+```
+
+Observed: the ico cheat trial `har-ico-cheat-exact__gvP3TLq` reached reward 1 while
+the verifier ran all 19 tests and every test failed, and the retained reward files
+hold `1`. Inferred: the cheat package's detached daemon wrote those files, because
+`tests/test.sh` writes `0` first and the trial does not instrument that write.
+
+A local reward from a task that only locks the directory and drops to `nobody` is
+therefore not proof that its reward channel is closed on this backend. Compare the
+retained reward files with the pytest result instead. See
+[the ico-path-patch controls](../research/evidence/ico-path-patch-controls-20261114/README.md)
+and `bind-mount-uid-probe.log` beside that file.
+
 `evallab run` uses the task's declared `[agent] timeout_sec` when
 `--timeout-seconds` is omitted. The declaration must be an integral value from
 1 to 28,800 seconds; missing or invalid values require an explicit override.

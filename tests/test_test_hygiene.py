@@ -45,11 +45,12 @@ def test_shard_partition_preserves_inventory_with_stale_weights(
     paths = {
         path.relative_to(root).as_posix()
         for directory in config["tool"]["pytest"]["ini_options"]["testpaths"]
-        for path in (root / directory).rglob("test_*.py")
+        for entry in (root / directory,)
+        for path in ((entry,) if entry.is_file() else entry.rglob("test_*.py"))
     }
     paths.add("tests/test_new_évidence.py")
     weights = json.loads(json.dumps(_conftest._SHARD_WEIGHTS))
-    weights["modules"]["tests/test_deleted_module.py"] = [999, 999]
+    weights["modules"]["tests/test_deleted_module.py"] = [4, 0]
     monkeypatch.setattr(_conftest, "_SHARD_WEIGHTS", weights)
     _conftest._weighted_shards.cache_clear()
     try:

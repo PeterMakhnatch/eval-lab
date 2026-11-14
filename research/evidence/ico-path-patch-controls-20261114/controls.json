@@ -1,0 +1,525 @@
+[
+  {
+    "control": "oracle",
+    "agent": "oracle",
+    "control_role": "superseded-initial-wave",
+    "authoritative": false,
+    "job": "har-ico-oracle",
+    "job_id": "d9e4e286-e5eb-40c3-b8ef-e33806fbb237",
+    "published_job": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-oracle",
+    "publication_command": "uv run --no-sync evallab process-job runs/har-ico-oracle --no-ingest --publication-card HAR-434 --json",
+    "trial": "har-ico-oracle__Nec3GaF",
+    "expected_reward": 1.0,
+    "actual_reward": null,
+    "reward_verdict": "unmeasured_no_verifier_phase",
+    "exception": {
+      "type": "EnvironmentStartTimeoutError",
+      "message": "Environment start timed out after 600.0 seconds"
+    },
+    "verifier": {
+      "seconds": null,
+      "started_at": null,
+      "finished_at": null,
+      "reason": "no verifier phase ran; Harbor aborted during environment start"
+    },
+    "timeouts": {
+      "agent_timeout_multiplier_observed": 1.44444444444,
+      "note": "First wave ran through evallab run, which derived a 1.44444444444 agent-timeout multiplier from Harbor request semantics; superseded by the exact-limit runs that pin --agent-timeout-multiplier 1."
+    },
+    "exceeded_environment_build_window": {
+      "observed_seconds": 600.0,
+      "window_seconds": 600,
+      "evidence": "exception message Environment start timed out after 600.0 seconds"
+    },
+    "source_task": {
+      "path": "/Users/petermakhnatch/.local/state/foreman/worktrees/20261114T072556007067Z-a21774cfe1064ff282e06f180d2866a3/library/external/terminal-bench-v3.0.0/tasks/ico-path-patch",
+      "digest_kind": "sha256-of-canonical-json-file-manifest-v1 (sorted relative paths + SHA256 bytes + size_bytes; excludes modes)",
+      "digest": "sha256:f2f1cc0301204390486c965356449a02a9236062d3b7b14f695ba9066f4bb54f",
+      "file_count": 13,
+      "post_run_digest_matches": true
+    },
+    "executed_task": {
+      "path": "runs/.exec-stage/har-ico-oracle (Harbor staging copy, byte-identical to source)",
+      "copy_identity": "derived from source path, bytes unchanged",
+      "digest_kind": "sha256-of-canonical-json-file-manifest-v1 (sorted relative paths + SHA256 bytes + size_bytes; excludes modes)",
+      "digest": "sha256:f2f1cc0301204390486c965356449a02a9236062d3b7b14f695ba9066f4bb54f",
+      "harbor_task_checksum": "sha256:e3ac9bfcb9f0c7eba687e29ec62e684007ec016c06e833c404c6ac5ef4af5758",
+      "registry_digests": {
+        "package_digest": "sha256:f918871d912b1239d7fcdbc28af5d836e7786314318af05a8f591e9fb964f984",
+        "harbor_digest": "sha256:0115a4136189b48da79070f9b3004dc4e0dfc1a60725c5acebdd7f380d037d14"
+      }
+    },
+    "host": {
+      "os": "Darwin",
+      "release": "25.5.0",
+      "architecture": "arm64"
+    },
+    "docker_daemon": {
+      "architecture": "aarch64",
+      "os_type": "linux",
+      "operating_system": "Docker Desktop",
+      "server_version": "29.8.0",
+      "kernel_version": "7.0.12-linuxkit",
+      "ncpu": 16,
+      "memtotal_bytes": 4105551872,
+      "reported_by": "docker info captured in native-control-evidence/input-and-host-evidence.json"
+    },
+    "agent_image": {
+      "image_id": null,
+      "architecture": null,
+      "os": null,
+      "reason": "Harbor deletes the environment image after the trial (environment delete=true) and the daemon kept no har-ico-* image at collection time; the run started before the native image recorder was attached, and host-isolation.json records container ids but not image ids."
+    },
+    "verifier_image": {
+      "image_id": null,
+      "architecture": null,
+      "os": null,
+      "reason": "No verifier phase ran: Harbor aborted during environment start (EnvironmentStartTimeoutError), so no verifier image was created."
+    },
+    "containers": {
+      "agent_env": null,
+      "verifier": null
+    },
+    "evidence": {
+      "raw_job": "/Users/petermakhnatch/.local/state/foreman/worktrees/20261114T072556007067Z-a21774cfe1064ff282e06f180d2866a3/runs/har-ico-oracle",
+      "published_job": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-oracle",
+      "trial_result": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-oracle/har-ico-oracle__Nec3GaF/result.json",
+      "trial_log": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-oracle/har-ico-oracle__Nec3GaF/trial.log",
+      "host_isolation": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-oracle/har-ico-oracle__Nec3GaF/host-isolation.json",
+      "job_log": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-oracle/job.log",
+      "native_input_evidence": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-oracle/native-control-evidence/input-and-host-evidence.json",
+      "run_command_log": "/private/tmp/har-434-controls-RctCnV/har-ico-oracle-command.log"
+    },
+    "notes": "Environment build exceeded the 600 s build window while a second Docker job was running; counted as a real outcome, not retried as a substitute.",
+    "published_job_exists": true,
+    "published_trial_exists": true
+  },
+  {
+    "control": "nop",
+    "agent": "nop",
+    "control_role": "superseded-initial-wave",
+    "authoritative": false,
+    "job": "har-ico-nop",
+    "job_id": "8fec7148-67d0-4f97-8543-7763d31e1ecd",
+    "published_job": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-nop",
+    "publication_command": "uv run --no-sync evallab process-job runs/har-ico-nop --no-ingest --publication-card HAR-434 --json",
+    "trial": "har-ico-nop__zXNHqko",
+    "expected_reward": 0.0,
+    "actual_reward": 0.0,
+    "reward_verdict": "counted_fail",
+    "exception": null,
+    "verifier": {
+      "seconds": 42.966658,
+      "started_at": "2026-11-14T07:50:28.713132Z",
+      "finished_at": "2026-11-14T07:51:11.679790Z",
+      "source": "result.json verifier phase timestamps"
+    },
+    "timeouts": {
+      "agent_timeout_multiplier_observed": 1.44444444444,
+      "note": "First wave ran through evallab run, which derived a 1.44444444444 agent-timeout multiplier from Harbor request semantics; superseded by the exact-limit runs that pin --agent-timeout-multiplier 1."
+    },
+    "source_task": {
+      "path": "/Users/petermakhnatch/.local/state/foreman/worktrees/20261114T072556007067Z-a21774cfe1064ff282e06f180d2866a3/library/external/terminal-bench-v3.0.0/tasks/ico-path-patch",
+      "digest_kind": "sha256-of-canonical-json-file-manifest-v1 (sorted relative paths + SHA256 bytes + size_bytes; excludes modes)",
+      "digest": "sha256:f2f1cc0301204390486c965356449a02a9236062d3b7b14f695ba9066f4bb54f",
+      "file_count": 13,
+      "post_run_digest_matches": true
+    },
+    "executed_task": {
+      "path": "runs/.exec-stage/har-ico-nop (Harbor staging copy, byte-identical to source)",
+      "copy_identity": "derived from source path, bytes unchanged",
+      "digest_kind": "sha256-of-canonical-json-file-manifest-v1 (sorted relative paths + SHA256 bytes + size_bytes; excludes modes)",
+      "digest": "sha256:f2f1cc0301204390486c965356449a02a9236062d3b7b14f695ba9066f4bb54f",
+      "harbor_task_checksum": "sha256:e3ac9bfcb9f0c7eba687e29ec62e684007ec016c06e833c404c6ac5ef4af5758",
+      "registry_digests": {
+        "package_digest": "sha256:f918871d912b1239d7fcdbc28af5d836e7786314318af05a8f591e9fb964f984",
+        "harbor_digest": "sha256:0115a4136189b48da79070f9b3004dc4e0dfc1a60725c5acebdd7f380d037d14"
+      }
+    },
+    "host": {
+      "os": "Darwin",
+      "release": "25.5.0",
+      "architecture": "arm64"
+    },
+    "docker_daemon": {
+      "architecture": "aarch64",
+      "os_type": "linux",
+      "operating_system": "Docker Desktop",
+      "server_version": "29.8.0",
+      "kernel_version": "7.0.12-linuxkit",
+      "ncpu": 16,
+      "memtotal_bytes": 4105551872,
+      "reported_by": "docker info captured in native-control-evidence/input-and-host-evidence.json"
+    },
+    "agent_image": {
+      "image_id": null,
+      "architecture": null,
+      "os": null,
+      "reason": "Harbor deletes the environment image after the trial (environment delete=true) and the daemon kept no har-ico-* image at collection time; the run started before the native image recorder was attached, and host-isolation.json records container ids but not image ids."
+    },
+    "verifier_image": {
+      "image_id": null,
+      "architecture": null,
+      "os": null,
+      "reason": "Harbor deletes the environment image after the trial (environment delete=true) and the daemon kept no har-ico-* image at collection time; the run started before the native image recorder was attached, and host-isolation.json records container ids but not image ids."
+    },
+    "containers": {
+      "agent_env": "8cbb4ebd5217339927f157934aecc17fad475f527415103f3132373c8bd0531b",
+      "verifier": "24f5abf2dedf4a13cde1d1465bc09fbdf19537e86e4e89f8d8419b5388896e9b"
+    },
+    "evidence": {
+      "raw_job": "/Users/petermakhnatch/.local/state/foreman/worktrees/20261114T072556007067Z-a21774cfe1064ff282e06f180d2866a3/runs/har-ico-nop",
+      "published_job": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-nop",
+      "trial_result": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-nop/har-ico-nop__zXNHqko/result.json",
+      "verifier_stdout": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-nop/har-ico-nop__zXNHqko/verifier/test-stdout.txt",
+      "host_isolation": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-nop/har-ico-nop__zXNHqko/host-isolation.json",
+      "verifier_host_isolation": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-nop/har-ico-nop__zXNHqko/host-isolation-har-ico-nop__zXNHqko__verifier__trial.json",
+      "native_input_evidence": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-nop/native-control-evidence/input-and-host-evidence.json"
+    },
+    "notes": "Verifier reported 19 failed in 4.65 s: artifacts /root/patch_ico.py and /root/ico/ico_patched are absent, service launches fail with PermissionError. Reward 0 matches expectation.",
+    "published_job_exists": true,
+    "published_trial_exists": true
+  },
+  {
+    "control": "oracle",
+    "agent": "oracle",
+    "control_role": "authoritative-exact-limit",
+    "authoritative": true,
+    "job": "har-ico-oracle-exact",
+    "job_id": "7a46858f-14fb-446e-8508-141c3b425a74",
+    "published_job": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-oracle-exact",
+    "publication_command": "uv run --no-sync evallab process-job runs/har-ico-oracle-exact --no-ingest --publication-card HAR-434 --json",
+    "trial": "har-ico-oracle-exact__2kboEXh",
+    "expected_reward": 1.0,
+    "actual_reward": 0.0,
+    "reward_verdict": "counted_fail",
+    "exception": null,
+    "verifier": {
+      "seconds": 154.658566,
+      "started_at": "2026-11-14T07:52:40.607192Z",
+      "finished_at": "2026-11-14T07:55:15.265758Z",
+      "source": "result.json verifier phase timestamps"
+    },
+    "timeouts": {
+      "declared_agent_seconds": 5400,
+      "effective_agent_seconds": 5400,
+      "request_timeout_seconds": 5400,
+      "verifier_seconds": 900,
+      "build_seconds": 600,
+      "agent_timeout_multiplier": "1"
+    },
+    "source_task": {
+      "path": "/Users/petermakhnatch/.local/state/foreman/worktrees/20261114T072556007067Z-a21774cfe1064ff282e06f180d2866a3/library/external/terminal-bench-v3.0.0/tasks/ico-path-patch",
+      "digest_kind": "sha256-of-canonical-json-file-manifest-v1 (sorted relative paths + SHA256 bytes + size_bytes; excludes modes)",
+      "digest": "sha256:f2f1cc0301204390486c965356449a02a9236062d3b7b14f695ba9066f4bb54f",
+      "file_count": 13,
+      "post_run_digest_matches": true
+    },
+    "executed_task": {
+      "path": "runs/.exec-stage/har-ico-oracle-exact (Harbor staging copy, byte-identical to source)",
+      "copy_identity": "byte-identical staging copy of the source package",
+      "digest_kind": "sha256-of-canonical-json-file-manifest-v1 (sorted relative paths + SHA256 bytes + size_bytes; excludes modes)",
+      "digest": "sha256:f2f1cc0301204390486c965356449a02a9236062d3b7b14f695ba9066f4bb54f",
+      "harbor_task_checksum": "sha256:e3ac9bfcb9f0c7eba687e29ec62e684007ec016c06e833c404c6ac5ef4af5758",
+      "registry_digests": {
+        "package_digest": "sha256:f918871d912b1239d7fcdbc28af5d836e7786314318af05a8f591e9fb964f984",
+        "harbor_digest": "sha256:0115a4136189b48da79070f9b3004dc4e0dfc1a60725c5acebdd7f380d037d14"
+      }
+    },
+    "host": {
+      "os": "Darwin",
+      "release": "25.5.0",
+      "architecture": "arm64"
+    },
+    "docker_daemon": {
+      "architecture": "aarch64",
+      "os_type": "linux",
+      "operating_system": "Docker Desktop",
+      "server_version": "29.8.0",
+      "kernel_version": "7.0.12-linuxkit",
+      "ncpu": 16,
+      "memtotal_bytes": 4105551872,
+      "reported_by": "docker info captured in native-control-evidence/input-and-host-evidence.json"
+    },
+    "agent_image": {
+      "image_id": null,
+      "architecture": null,
+      "os": null,
+      "reason": "Harbor deletes the environment image after the trial (environment delete=true) and the daemon kept no har-ico-* image at collection time; the run started before the native image recorder was attached, and host-isolation.json records container ids but not image ids."
+    },
+    "verifier_image": {
+      "image_id": "sha256:32301ca5211ada81754964dc6fbf464cf9828074208ff61ce99dabd6028d59e4",
+      "architecture": "arm64",
+      "os": "linux",
+      "repo_tags": [
+        "har-ico-oracle-exact__2kboexh__verifier__trial-main:latest"
+      ],
+      "captured_at": "2026-11-14T07:53:24.350538+00:00",
+      "evidence_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-oracle-exact/native-control-evidence/live-native-image-inspect.json",
+      "inspected_by": "docker image inspect (native daemon, before image deletion)",
+      "role": "verifier"
+    },
+    "containers": {
+      "agent_env": "bc8a45d158bd2b5c7edbf2539b87341e2bc643bbd4e165a2959c2b655e72b9bb",
+      "verifier": "b530a78c8cb663541ce241ef49e353d214de1cf5d9131daccde2b03947ad0d52"
+    },
+    "evidence": {
+      "raw_job": "/Users/petermakhnatch/.local/state/foreman/worktrees/20261114T072556007067Z-a21774cfe1064ff282e06f180d2866a3/runs/har-ico-oracle-exact",
+      "published_job": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-oracle-exact",
+      "trial_result": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-oracle-exact/har-ico-oracle-exact__2kboEXh/result.json",
+      "verifier_stdout": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-oracle-exact/har-ico-oracle-exact__2kboEXh/verifier/test-stdout.txt",
+      "verifier_ctrf": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-oracle-exact/har-ico-oracle-exact__2kboEXh/verifier/ctrf.json",
+      "agent_log": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-oracle-exact/har-ico-oracle-exact__2kboEXh/agent",
+      "host_isolation": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-oracle-exact/har-ico-oracle-exact__2kboEXh/host-isolation.json",
+      "verifier_host_isolation": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-oracle-exact/har-ico-oracle-exact__2kboEXh/host-isolation-har-ico-oracle-exact__2kboEXh__verifier__trial.json",
+      "native_input_evidence": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-oracle-exact/native-control-evidence/input-and-host-evidence.json",
+      "prepared_commands": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-oracle-exact/native-control-evidence/exact-limit-prepared-commands.json",
+      "live_native_image_inspect": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-oracle-exact/native-control-evidence/live-native-image-inspect.json",
+      "source_task_archive": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-oracle-exact/native-control-evidence/source-task.tar.gz",
+      "command_log": "/private/tmp/har-434-controls-RctCnV/har-ico-oracle-exact-command.log"
+    },
+    "notes": "Exact 5400/900/600 windows (agent_timeout_multiplier=1). Agent patch produced /root/ico/ico_patched (artifact 1.4 MB) and the two patch/binary tests passed, but all 17 service tests failed with \"service did not accept connection\", because the environment ships an x86-64 ELF (environment/ico/ico) while the native daemon and images are linux/arm64, so the binary cannot exec. Honest failure: reward 0, no exception, verifier phase 154.659 s.",
+    "published_job_exists": true,
+    "published_trial_exists": true
+  },
+  {
+    "control": "nop",
+    "agent": "nop",
+    "control_role": "authoritative-exact-limit",
+    "authoritative": true,
+    "job": "har-ico-nop-exact",
+    "job_id": "e080c700-7d0e-41fe-812e-4edeb9a359cc",
+    "published_job": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-nop-exact",
+    "publication_command": "uv run --no-sync evallab process-job runs/har-ico-nop-exact --no-ingest --publication-card HAR-434 --json",
+    "trial": "har-ico-nop-exact__XV8zPj9",
+    "expected_reward": 0.0,
+    "actual_reward": 0.0,
+    "reward_verdict": "counted_fail",
+    "exception": null,
+    "verifier": {
+      "seconds": 50.854065,
+      "started_at": "2026-11-14T07:56:49.613493Z",
+      "finished_at": "2026-11-14T07:57:40.467558Z",
+      "source": "result.json verifier phase timestamps"
+    },
+    "timeouts": {
+      "declared_agent_seconds": 5400,
+      "effective_agent_seconds": 5400,
+      "request_timeout_seconds": 5400,
+      "verifier_seconds": 900,
+      "build_seconds": 600,
+      "agent_timeout_multiplier": "1"
+    },
+    "source_task": {
+      "path": "/Users/petermakhnatch/.local/state/foreman/worktrees/20261114T072556007067Z-a21774cfe1064ff282e06f180d2866a3/library/external/terminal-bench-v3.0.0/tasks/ico-path-patch",
+      "digest_kind": "sha256-of-canonical-json-file-manifest-v1 (sorted relative paths + SHA256 bytes + size_bytes; excludes modes)",
+      "digest": "sha256:f2f1cc0301204390486c965356449a02a9236062d3b7b14f695ba9066f4bb54f",
+      "file_count": 13,
+      "post_run_digest_matches": true
+    },
+    "executed_task": {
+      "path": "runs/.exec-stage/har-ico-nop-exact (Harbor staging copy, byte-identical to source)",
+      "copy_identity": "byte-identical staging copy of the source package",
+      "digest_kind": "sha256-of-canonical-json-file-manifest-v1 (sorted relative paths + SHA256 bytes + size_bytes; excludes modes)",
+      "digest": "sha256:f2f1cc0301204390486c965356449a02a9236062d3b7b14f695ba9066f4bb54f",
+      "harbor_task_checksum": "sha256:e3ac9bfcb9f0c7eba687e29ec62e684007ec016c06e833c404c6ac5ef4af5758",
+      "registry_digests": {
+        "package_digest": "sha256:f918871d912b1239d7fcdbc28af5d836e7786314318af05a8f591e9fb964f984",
+        "harbor_digest": "sha256:0115a4136189b48da79070f9b3004dc4e0dfc1a60725c5acebdd7f380d037d14"
+      }
+    },
+    "host": {
+      "os": "Darwin",
+      "release": "25.5.0",
+      "architecture": "arm64"
+    },
+    "docker_daemon": {
+      "architecture": "aarch64",
+      "os_type": "linux",
+      "operating_system": "Docker Desktop",
+      "server_version": "29.8.0",
+      "kernel_version": "7.0.12-linuxkit",
+      "ncpu": 16,
+      "memtotal_bytes": 4105551872,
+      "reported_by": "docker info captured in native-control-evidence/input-and-host-evidence.json"
+    },
+    "agent_image": {
+      "image_id": "sha256:2241f57a446d826e450c2cbc35e933e96f7a6a736f7766f0d37ee87ea35149fc",
+      "architecture": "arm64",
+      "os": "linux",
+      "repo_tags": [
+        "har-ico-nop-exact__xv8zpj9__env-main:latest"
+      ],
+      "captured_at": "2026-11-14T07:56:27.692625+00:00",
+      "evidence_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-nop-exact/native-control-evidence/live-native-image-inspect.json",
+      "inspected_by": "docker image inspect (native daemon, before image deletion)",
+      "role": "agent"
+    },
+    "verifier_image": {
+      "image_id": "sha256:0ec40464abfd96e350f8789b764acf208418d58d7520ac01862f02985c1243ea",
+      "architecture": "arm64",
+      "os": "linux",
+      "repo_tags": [
+        "har-ico-nop-exact__xv8zpj9__verifier__trial-main:latest"
+      ],
+      "captured_at": "2026-11-14T07:57:10.102121+00:00",
+      "evidence_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-nop-exact/native-control-evidence/live-native-image-inspect.json",
+      "inspected_by": "docker image inspect (native daemon, before image deletion)",
+      "role": "verifier"
+    },
+    "containers": {
+      "agent_env": "5e36498eb5a4456ddfc6f7b98c5c16cad127c45315ffc8bf509349486a626fdf",
+      "verifier": "4bf39a888687dbbef9ba7b39a4c9555991e814de84ba13a604a776745875f64f"
+    },
+    "evidence": {
+      "raw_job": "/Users/petermakhnatch/.local/state/foreman/worktrees/20261114T072556007067Z-a21774cfe1064ff282e06f180d2866a3/runs/har-ico-nop-exact",
+      "published_job": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-nop-exact",
+      "trial_result": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-nop-exact/har-ico-nop-exact__XV8zPj9/result.json",
+      "verifier_stdout": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-nop-exact/har-ico-nop-exact__XV8zPj9/verifier/test-stdout.txt",
+      "verifier_ctrf": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-nop-exact/har-ico-nop-exact__XV8zPj9/verifier/ctrf.json",
+      "agent_log": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-nop-exact/har-ico-nop-exact__XV8zPj9/agent",
+      "host_isolation": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-nop-exact/har-ico-nop-exact__XV8zPj9/host-isolation.json",
+      "verifier_host_isolation": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-nop-exact/har-ico-nop-exact__XV8zPj9/host-isolation-har-ico-nop-exact__XV8zPj9__verifier__trial.json",
+      "native_input_evidence": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-nop-exact/native-control-evidence/input-and-host-evidence.json",
+      "prepared_commands": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-nop-exact/native-control-evidence/exact-limit-prepared-commands.json",
+      "live_native_image_inspect": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-nop-exact/native-control-evidence/live-native-image-inspect.json",
+      "source_task_archive": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-nop-exact/native-control-evidence/source-task.tar.gz",
+      "command_log": "/private/tmp/har-434-controls-RctCnV/har-ico-nop-exact-command.log"
+    },
+    "notes": "Exact 5400/900/600 windows (agent_timeout_multiplier=1). Verifier reported 19 failed in 5.44 s: missing /root/patch_ico.py and /root/ico/ico_patched, service launches fail with PermissionError. Reward 0 matches expectation; verifier phase 50.854 s.",
+    "published_job_exists": true,
+    "published_trial_exists": true
+  },
+  {
+    "control": "cheat",
+    "agent": "oracle",
+    "control_role": "authoritative-exact-limit",
+    "authoritative": true,
+    "job": "har-ico-cheat-exact",
+    "job_id": "ff781a6e-edaa-4ead-a553-a37330800220",
+    "published_job": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-cheat-exact",
+    "publication_command": "uv run --no-sync evallab process-job runs/har-ico-cheat-exact --no-ingest --publication-card HAR-434 --json",
+    "trial": "har-ico-cheat-exact__gvP3TLq",
+    "expected_reward": 0.0,
+    "actual_reward": 1,
+    "reward_verdict": "counted_pass_reward_forged",
+    "exception": null,
+    "verifier": {
+      "seconds": 133.894377,
+      "started_at": "2026-11-14T07:59:17.537028Z",
+      "finished_at": "2026-11-14T08:01:31.431405Z",
+      "source": "result.json verifier phase timestamps"
+    },
+    "timeouts": {
+      "declared_agent_seconds": 5400,
+      "effective_agent_seconds": 5400,
+      "request_timeout_seconds": 5400,
+      "verifier_seconds": 900,
+      "build_seconds": 600,
+      "agent_timeout_multiplier": "1"
+    },
+    "source_task": {
+      "path": "/Users/petermakhnatch/.local/state/foreman/worktrees/20261114T072556007067Z-a21774cfe1064ff282e06f180d2866a3/library/external/terminal-bench-v3.0.0/tasks/ico-path-patch",
+      "digest_kind": "sha256-of-canonical-json-file-manifest-v1 (sorted relative paths + SHA256 bytes + size_bytes; excludes modes)",
+      "digest": "sha256:f2f1cc0301204390486c965356449a02a9236062d3b7b14f695ba9066f4bb54f",
+      "file_count": 13,
+      "post_run_digest_matches": true
+    },
+    "executed_task": {
+      "path": "/private/tmp/har-434-controls-RctCnV/ico-path-patch (fresh copy executed by Harbor through /private/tmp; staging path runs/.exec-stage/har-ico-cheat-exact)",
+      "copy_identity": "fresh /private/tmp copy of the source package with only solution/solve.sh replaced by the frozen cheat/solve.sh bytes",
+      "digest_kind": "sha256-of-canonical-json-file-manifest-v1 (sorted relative paths + SHA256 bytes + size_bytes; excludes modes)",
+      "digest": "sha256:fc6b31d16c4b27254ab2e921e16b081b8546b47e846716dc7b044aab3aef4e99",
+      "harbor_task_checksum": "sha256:84491b54a2f1e0dfe28e3b8781fb99602ed5e45d6f754ee9ecf57bd75eb986b9",
+      "registry_digests": {
+        "package_digest": "sha256:21fcdc8f48e233e7a1bb6d6f075e6aa424b2827eb8df8c60f7c388c5f077eec1",
+        "harbor_digest": "sha256:661d46e06e997aa53f5372ff7346ff7f9cb52c92eba7cbc9032924c3ea683556"
+      }
+    },
+    "host": {
+      "os": "Darwin",
+      "release": "25.5.0",
+      "architecture": "arm64"
+    },
+    "docker_daemon": {
+      "architecture": "aarch64",
+      "os_type": "linux",
+      "operating_system": "Docker Desktop",
+      "server_version": "29.8.0",
+      "kernel_version": "7.0.12-linuxkit",
+      "ncpu": 16,
+      "memtotal_bytes": 4105551872,
+      "reported_by": "docker info captured in native-control-evidence/input-and-host-evidence.json"
+    },
+    "agent_image": {
+      "image_id": "sha256:a9d00811787ebc5747df7aa8242a06cde406f01d292b07f3cf032760932fef7d",
+      "architecture": "arm64",
+      "os": "linux",
+      "repo_tags": [
+        "har-ico-cheat-exact__gvp3tlq__env-main:latest"
+      ],
+      "captured_at": "2026-11-14T07:58:53.021726+00:00",
+      "evidence_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-cheat-exact/native-control-evidence/live-native-image-inspect.json",
+      "inspected_by": "docker image inspect (native daemon, before image deletion)",
+      "role": "agent"
+    },
+    "verifier_image": {
+      "image_id": "sha256:f5a3eade499197e01484a090d8b0341619907ba6fb22b56397c808bdd31bd7d3",
+      "architecture": "arm64",
+      "os": "linux",
+      "repo_tags": [
+        "har-ico-cheat-exact__gvp3tlq__verifier__trial-main:latest"
+      ],
+      "captured_at": "2026-11-14T07:59:36.589719+00:00",
+      "evidence_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-cheat-exact/native-control-evidence/live-native-image-inspect.json",
+      "inspected_by": "docker image inspect (native daemon, before image deletion)",
+      "role": "verifier"
+    },
+    "containers": {
+      "agent_env": "1ba05d4ae43c224d08724afe5d521cd7d7a9c1a6d7b0128f2e76d8045a366942",
+      "verifier": "d1787482a4a46f2339dc36adf872652accccd4ea5b77a9af08a16730e10647a3"
+    },
+    "evidence": {
+      "raw_job": "/Users/petermakhnatch/.local/state/foreman/worktrees/20261114T072556007067Z-a21774cfe1064ff282e06f180d2866a3/runs/har-ico-cheat-exact",
+      "published_job": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-cheat-exact",
+      "trial_result": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-cheat-exact/har-ico-cheat-exact__gvP3TLq/result.json",
+      "verifier_stdout": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-cheat-exact/har-ico-cheat-exact__gvP3TLq/verifier/test-stdout.txt",
+      "verifier_ctrf": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-cheat-exact/har-ico-cheat-exact__gvP3TLq/verifier/ctrf.json",
+      "agent_log": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-cheat-exact/har-ico-cheat-exact__gvP3TLq/agent",
+      "host_isolation": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-cheat-exact/har-ico-cheat-exact__gvP3TLq/host-isolation.json",
+      "verifier_host_isolation": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-cheat-exact/har-ico-cheat-exact__gvP3TLq/host-isolation-har-ico-cheat-exact__gvP3TLq__verifier__trial.json",
+      "native_input_evidence": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-cheat-exact/native-control-evidence/input-and-host-evidence.json",
+      "prepared_commands": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-cheat-exact/native-control-evidence/exact-limit-prepared-commands.json",
+      "live_native_image_inspect": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-cheat-exact/native-control-evidence/live-native-image-inspect.json",
+      "source_task_archive": "/Users/petermakhnatch/Developer/eval-lab-results/2026-11-14/HAR-434-har-ico-cheat-exact/native-control-evidence/source-task.tar.gz",
+      "command_log": "/private/tmp/har-434-controls-RctCnV/har-ico-cheat-exact-command.log",
+      "bind_mount_uid_probe": "/private/tmp/har-434-controls-RctCnV/bind-mount-uid-probe/probe.log",
+      "bind_mount_uid_probe_script": "/private/tmp/har-434-controls-RctCnV/bind-mount-uid-probe.sh",
+      "bind_mount_uid_probe_sha256": "sha256:9ada6c5a73d92fbae0485a1d28d6781208f0eb4fa6afb8ff08188936d0c99e36"
+    },
+    "notes": "Exact 5400/900/600 windows (agent_timeout_multiplier=1). DEFECT: expected reward 0, observed reward 1. Pytest recorded 19 failed (all behavior checks, including \"patched output is not an ELF executable\"), yet the harness reward files contain the cheat daemon payload: reward.txt=\"1\" and reward.json={\"reward\": 1}. The frozen cheat/solve.sh places poisoned artifacts that double-fork a daemon rewriting /logs/verifier; tests drop artifacts to nobody and test.sh chmods /logs/verifier 700, but on this Docker Desktop bind-mount backend the chmod/uid drop does not protect the channel (permission model reproduced by the retained disposable-container probe at /private/tmp/har-434-controls-RctCnV/bind-mount-uid-probe/probe.log: a nobody child wrote into a root:root drwx------ bind-mounted directory). Verifier phase 133.894 s.",
+    "defect": {
+      "expected_reward": 0.0,
+      "observed_reward": 1.0,
+      "pytest_summary": "19 failed in 89.58s",
+      "forged_reward_files": {
+        "reward.txt": "1\n",
+        "reward.json": "{\"reward\": 1}"
+      },
+      "forgery_source": "frozen cheat/solve.sh poisoned artifacts executed by the verifier as the dropped nobody uid",
+      "mechanism": "Docker Desktop bind mount keeps the shared verifier directory writable by the unmapped dropped uid despite chmod 700 root:root, so the forged daemon rewrote the reward channel",
+      "control_experiment": {
+        "what": "Retained disposable-container probe of the reward-channel permission model: python:3.12-slim, host directory bind-mounted at /logs/verifier, in-container chmod 700 root:root, then setpriv --reuid=nobody --regid=nogroup --clear-groups write to /logs/verifier/reward.txt.",
+        "observed": "Inside container /logs/verifier is drwx------ root root, yet the nobody child write returned rc 0 and created a 7-byte reward.txt; host side shows the file owned by uid 501. Docker Desktop file sharing does not enforce the in-container uid on this bind mount.",
+        "exit_status": 0,
+        "host": "Darwin 25.5.0 arm64",
+        "daemon": "Docker server 29.8.0 arm64 linux",
+        "evidence_file": "/private/tmp/har-434-controls-RctCnV/bind-mount-uid-probe/probe.log",
+        "script_file": "/private/tmp/har-434-controls-RctCnV/bind-mount-uid-probe.sh",
+        "scope": "Probe demonstrates the permission model only. Trial logs prove the reward channel was rewritten: pytest reported 19 failed while reward.txt=\"1\" and reward.json={\"reward\": 1} contain the cheat daemon payload. The attribution of the write to the dropped nobody daemon is an inference from those two observations."
+      }
+    },
+    "published_job_exists": true,
+    "published_trial_exists": true
+  }
+]

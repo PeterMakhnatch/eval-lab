@@ -19,6 +19,7 @@ from typing import Any, Literal
 
 from evallab.control_expect import declared_expectation
 from evallab.task_artifact_lint import lint_artifact_overwrites
+from evallab.task_exec_lint import lint_executes
 from evallab.task_install_lint import lint_installs
 
 
@@ -380,6 +381,7 @@ def lint_task(task_dir: Path) -> list[Finding]:
     findings: list[Finding] = []
     artifact_findings: list[Finding] = []
     declared: list[str] = []
+    separate_verifier = False
     manifest = task_dir / "task.toml"
     diagnostics: list[Diagnostic] = []
     config = _parse_task_toml(manifest, diagnostics)
@@ -395,6 +397,7 @@ def lint_task(task_dir: Path) -> list[Finding]:
             declared = [path for path in artifacts if isinstance(path, str)]
         verifier = config.get("verifier")
         mode = verifier.get("environment_mode") if isinstance(verifier, dict) else None
+        separate_verifier = mode == "separate"
         if mode != "separate":
             findings.append(
                 Finding(
@@ -445,6 +448,8 @@ def lint_task(task_dir: Path) -> list[Finding]:
             )
     findings.extend(_lint_sources(task_dir))
     findings.extend(lint_installs(task_dir, declared))
+    if separate_verifier:
+        findings.extend(lint_executes(task_dir, declared))
     findings.extend(artifact_findings)
     return findings
 

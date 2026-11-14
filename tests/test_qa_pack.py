@@ -181,6 +181,23 @@ def test_pack_paths_refuse_escape_and_absolute_files(
         pack.validate_pack(fixture.directory, fixture.task)
 
 
+@pytest.mark.parametrize("escape", [False, True], ids=["in-pack", "escape"])
+def test_pack_evidence_directory_must_remain_inside_pack(
+    regression_pack: RegressionPack, tmp_path: Path, escape: bool,
+) -> None:
+    fixture = regression_pack
+    relative = "receipts/engine/s3-replay/"
+    directory = (tmp_path if escape else fixture.directory) / relative
+    directory.mkdir(parents=True)
+    fixture.finding["evidence_refs"] = ["../" + relative if escape else relative]
+    fixture.save()
+    if escape:
+        with pytest.raises(ValueError, match="unsafe relative path"):
+            pack.validate_pack(fixture.directory, fixture.task)
+    else:
+        assert pack.validate_pack(fixture.directory, fixture.task) == fixture.manifest
+
+
 def test_pack_refuses_symlink_escape(regression_pack: RegressionPack, tmp_path: Path) -> None:
     fixture = regression_pack
     outside = tmp_path / "outside.sh"

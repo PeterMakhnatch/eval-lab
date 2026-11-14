@@ -31,7 +31,7 @@ def _text(value: Any) -> bool:
     return isinstance(value, str) and bool(value.strip())
 
 
-def _path(root: Path, value: Any, *, exists: bool = True) -> Path:
+def _path(root: Path, value: Any, *, exists: bool = True, allow_directory: bool = False) -> Path:
     _require(_text(value), "pack path must be a nonempty relative path")
     raw = PurePosixPath(value)
     _require(not raw.is_absolute() and ".." not in raw.parts and "\\" not in value
@@ -39,7 +39,7 @@ def _path(root: Path, value: Any, *, exists: bool = True) -> Path:
     path = root.joinpath(*raw.parts)
     _require(path.resolve().is_relative_to(root.resolve()), f"path escapes root: {value}")
     if exists:
-        _require(path.is_file(), f"missing pack/task file: {value}")
+        _require(path.is_file() or (allow_directory and path.is_dir()), f"missing pack/task file: {value}")
     return path
 
 
@@ -314,7 +314,7 @@ def validate_pack(pack_dir: Path, task_dir: Path) -> dict[str, Any]:
     _require(PurePosixPath(witness).as_posix() not in {"oracle", "nop"},
              "finding reproducer must identify a witness script, not a reserved submission")
     for ref in finding.evidence_refs:
-        _path(pack, ref)
+        _path(pack, ref, allow_directory=True)
     cells = manifest["cells"]
     _require(isinstance(cells, list) and cells, "pack cells must be nonempty")
     ids: set[str] = set()

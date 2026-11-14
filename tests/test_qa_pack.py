@@ -420,9 +420,9 @@ def test_shared_grader_plan_reserves_only_one_environment_per_cell(
     assert all(cell["execution_upper_bound"] == 3 for cell in report["cells"])
 
 
-@pytest.mark.parametrize("mismatch", [False, True], ids=["match", "mismatch"])
+@pytest.mark.parametrize("outcome", [1, 0, None], ids=["match", "mismatch", "unmeasured"])
 def test_cli_exit_status_reports_actual_replay(
-    regression_pack: RegressionPack, tmp_path: Path, capsys: pytest.CaptureFixture[str], mismatch: bool,
+    regression_pack: RegressionPack, tmp_path: Path, capsys: pytest.CaptureFixture[str], outcome: int | None,
 ) -> None:
     fixture = regression_pack
     parser = argparse.ArgumentParser()
@@ -431,12 +431,14 @@ def test_cli_exit_status_reports_actual_replay(
         "qa", "replay", str(fixture.directory), "--task", str(fixture.task),
         "--run-dir", str(tmp_path / "cli-run"), "--max-usd", "2", "--approve", "hermetic test",
     ])
-    backend = FakeNativeBackend(fixture.manifest["cells"], {"oracle-original": 0} if mismatch else {})
+    backend = FakeNativeBackend(fixture.manifest["cells"], {"oracle-original": outcome})
     status = args.func(
         args, tmp_path, harbor="fake unused CLI dispatch", executor_factory=backend.factory,
     )
-    assert status == (1 if mismatch else 0)
-    assert json.loads(capsys.readouterr().out)["matched"] is not mismatch
+    report = json.loads(capsys.readouterr().out)
+    assert status == (0 if outcome == 1 else 1)
+    assert report["matched"] is (outcome == 1)
+    assert report["cells"][0]["result"] == ("unmeasured" if outcome is None else outcome)
 
 
 def test_cli_plan_validates_without_backend(

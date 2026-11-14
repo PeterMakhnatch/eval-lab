@@ -283,7 +283,7 @@ Otherwise, the object contains `schema` (`evallab.reward_report/v1`), `classific
 
 The rules mirror the HAR-437 scan in
 `research/experiments/reward-report-contradictions/build.py`.
-The module `evallab/reward_report.py` never imports research code.
+The module `src/evallab/reward_report.py` never imports research code.
 `forged` means `passed == 0`, `failed > 0`, and `reward > 0`.
 `partial-credit` means `reward >= 1`, `passed > 0`, and `failed > 0`.
 `unknown` covers the remaining contradiction shapes.

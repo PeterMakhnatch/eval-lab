@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from watch_helpers import Clock, NoTestRegistry, World
 
 from evallab import hack_drop as hd
 from evallab.line import core
@@ -60,3 +61,11 @@ def fixture_spec(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         },
     )
     return path
+
+
+@pytest.fixture
+def world(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> World:
+    registry = NoTestRegistry()
+    monkeypatch.setattr(hd, "_get_corpus_registry", lambda *_a, **_k: registry)
+    monkeypatch.setattr(core, "_code", lambda _: ("a" * 40, False))
+    return World(tmp_path, Clock(), registry)

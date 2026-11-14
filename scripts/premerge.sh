@@ -6,7 +6,8 @@ usage() {
     'Usage: scripts/premerge.sh [--full | --static | --focused [TEST_FILE [PYTEST_ARGS...]]]' \
     '  --static   Run static gates only; no tests or runtime smoke.' \
     '  --focused  Run static gates and automatic branch tests, or explicit tests.' \
-    '  --full     Reproduce the complete Python 3.12 CI gate (default).'
+    '  --full     Reproduce the complete Python 3.12 CI gate (default).' \
+    '  Conflict exception: set EVALLAB_PREPUSH_NEEDS_BASE=<sha> and EVALLAB_PREPUSH_REASON=<reason>.'
 }
 
 mode=full
@@ -81,6 +82,31 @@ case "${mode}" in
     ;;
   focused)
     echo "local prepush checkpoint: selected coverage only; not CI green"
+    branch="$(git symbolic-ref --quiet --short HEAD || git rev-parse --short HEAD)"
+    echo "push check branch: ${branch}"
+    push_command=(uv run --no-sync evallab ship check-push)
+    if [[ -n "${EVALLAB_PREPUSH_NEEDS_BASE:-}" || -n "${EVALLAB_PREPUSH_REASON:-}" ]]; then
+      if [[ -z "${EVALLAB_PREPUSH_NEEDS_BASE:-}" || -z "${EVALLAB_PREPUSH_REASON:-}" ]]; then
+        echo "error: set both EVALLAB_PREPUSH_NEEDS_BASE and EVALLAB_PREPUSH_REASON" >&2
+        exit 2
+      fi
+      push_command+=("--needs-base=${EVALLAB_PREPUSH_NEEDS_BASE}" "--reason=${EVALLAB_PREPUSH_REASON}")
+    fi
+    if ! git diff --quiet HEAD --; then
+      echo "push check skipped: uncommitted tracked changes; check-push compares committed HEAD and could falsely refuse the same patch."
+    else
+      push_exit=0
+      push_output="$("${push_command[@]}" 2>&1)" || push_exit=$?
+      printf '%s\n' "${push_output}"
+      if [[ "${push_exit}" -ne 0 ]]; then
+        case "${push_output}" in
+          "Command refused ("*"): gh "* | "Command refused ("*"): git fetch "*)
+            echo "warning: remote push check unavailable; continuing offline local checks; rerun ship check-push before pushing." >&2
+            ;;
+          *) exit "${push_exit}" ;;
+        esac
+      fi
+    fi
     if [[ $# -eq 0 ]]; then
       uv run --no-sync pytest --collect-only -q -n 0 -p no:cacheprovider
       uv run --no-sync evallab registry devloop \

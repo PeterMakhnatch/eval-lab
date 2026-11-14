@@ -564,7 +564,6 @@ def test_checkpoint_always_selects_repository_contracts(tmp_path, changed) -> No
         "tests/test_quality_gates.py",
         "tests/test_ci_coverage.py",
         "tests/test_governance.py",
-        "tests/test_route_page_links.py",
         "tests/test_fixture_conformance.py",
         "tests/test_attach.py::TestFrontMatterParsing",
     }

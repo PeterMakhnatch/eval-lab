@@ -10,10 +10,11 @@ from __future__ import annotations
 
 import json
 import re
-import shlex
 from collections.abc import Iterator, Sequence
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
+
+from evallab.shell_lint import command_head, logical_lines, shell_commands, split_shell
 
 if TYPE_CHECKING:
     from evallab.task_lint import Finding
@@ -30,18 +31,6 @@ _FROZEN_UNPINNED: dict[tuple[str, str], frozenset[str]] = {
     ),
 }
 
-_SHELL_PUNCTUATION = ";&|()"
-_COMMAND_SEPARATORS = frozenset({"&&", "||", ";", "|", "|&", "&", ";;", "(", ")"})
-_SHELL_KEYWORDS = frozenset(
-    {
-        "if", "then", "else", "elif", "fi", "do", "done", "while", "until",
-        "for", "in", "case", "esac", "!", "{", "}", "time", "builtin", "eval",
-    }
-)
-_EXEC_WRAPPERS = frozenset({"sudo", "env", "command", "exec", "nohup"})
-_WRAPPER_VALUE_OPTIONS = frozenset(
-    {"-u", "--user", "-g", "--group", "-h", "--host", "--unset", "-C", "-S"}
-)
 _INSTALL_VALUE_OPTIONS = frozenset(
     {
         "-r", "--requirement", "-c", "--constraint", "--build-constraint",
@@ -70,74 +59,6 @@ _ARTIFACT_SUBSTITUTION = re.compile(
     r"""\$\(\s*(?:cat\s+|<\s*)(?P<dollar>"[^"\n]+"|'[^'\n]+'|[^\s()]+)\s*\)"""
     r"""|`\s*cat\s+(?P<backtick>"[^"\n]+"|'[^'\n]+'|[^\s`]+)\s*`"""
 )
-
-
-def _logical_lines(text: str) -> Iterator[tuple[int, str]]:
-    """Join backslash continuations and retain the first physical line number."""
-    pending = ""
-    start = 1
-    for number, raw in enumerate(text.splitlines(), 1):
-        line = raw.strip()
-        if not line or line.startswith("#"):
-            continue
-        if not pending:
-            start = number
-        continued = line.endswith("\\")
-        pending += line[:-1] if continued else line
-        if continued:
-            pending += " "
-            continue
-        yield start, pending
-        pending = ""
-    if pending:
-        yield start, pending
-
-
-def _split_shell(line: str) -> list[str]:
-    """Split a shell line, separating operators attached without spaces."""
-    lexer = shlex.shlex(line, posix=True, punctuation_chars=_SHELL_PUNCTUATION)
-    lexer.whitespace_split = True
-    lexer.commenters = "#"
-    try:
-        return [token for token in lexer if token]
-    except ValueError:
-        return line.split()
-
-
-def _command_head(tokens: list[str]) -> list[str]:
-    """Remove assignments, shell keywords, and wrappers before the command."""
-    index = 0
-    while index < len(tokens):
-        token = tokens[index]
-        if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", token):
-            index += 1
-            continue
-        if token in _SHELL_KEYWORDS:
-            index += 1
-            continue
-        wrapper = PurePosixPath(token).name
-        if wrapper not in _EXEC_WRAPPERS:
-            break
-        index += 1
-        while index < len(tokens) and tokens[index].startswith("-"):
-            option = tokens[index]
-            index += 1
-            if option == "--":
-                break
-            if option in _WRAPPER_VALUE_OPTIONS:
-                index += 1
-    return tokens[index:]
-
-
-def _shell_commands(tokens: list[str]) -> Iterator[tuple[list[str], str]]:
-    start = 0
-    for index, token in enumerate(tokens):
-        if token in _COMMAND_SEPARATORS:
-            if index > start:
-                yield _command_head(tokens[start:index]), token
-            start = index + 1
-    if start < len(tokens):
-        yield _command_head(tokens[start:]), ""
 
 
 def _option_end(tokens: list[str], index: int) -> int:
@@ -265,7 +186,7 @@ def _install_tokens(line: str, *, dockerfile: bool) -> list[str]:
             return payload if isinstance(payload, list) and all(
                 isinstance(token, str) for token in payload
             ) else []
-    return _split_shell(line)
+    return split_shell(line)
 
 
 def _is_dockerfile(path: Path) -> bool:
@@ -350,7 +271,7 @@ def _xargs_inputs(command: list[str]) -> tuple[list[str], list[str]]:
                 index += 1
             if option in {"-a", "--arg-file"} and value:
                 files.append(value)
-    return files, _command_head(command[index:])
+    return files, command_head(command[index:])
 
 
 def _installs_packages(command: list[str]) -> bool:
@@ -408,10 +329,10 @@ def lint_installs(task_dir: Path, artifacts: Sequence[str] = ()) -> list[Finding
         runtime_reported = False
         network_download_line: int | None = None
         script_checksum = False
-        for number, line in _logical_lines(
+        for number, line in logical_lines(
             path.read_text(encoding="utf-8", errors="replace")
         ):
-            commands = list(_shell_commands(_install_tokens(line, dockerfile=dockerfile)))
+            commands = list(shell_commands(_install_tokens(line, dockerfile=dockerfile)))
             unpinned: list[str] = []
             installers: list[str] = []
             runtime_install = False

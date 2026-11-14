@@ -682,6 +682,16 @@ absolute path at or below an artifact's top directory (`/app` for `/app/x`) that
 is neither the artifact, above it, nor below it. These warnings leave the exit
 code at 0; other rules' errors still fail.
 
+One error rule protects the verifier's own files. `artifact-overwrites-verifier`
+fires when a separate-mode declared artifact equals, sits under, or sits above one of
+`/tests`, `/logs/verifier`, `/etc`, `/usr`, `/bin`, `/sbin`, `/lib`, `/lib64`, `/opt`,
+`/var/lib`, `/proc`, `/sys` and `/dev`. An artifact at `/`, `/tests/test_outputs.py` or
+`/logs` therefore fails lint: Harbor uploads declared artifacts into the verifier
+container before grading, so that path can replace the grader, its reward file, or the
+verifier interpreter, and any submission scores 1. `/root`, `/app`, `/srv`,
+`/workspace` and `/home` stay allowed because real packages deliver their output
+there. This rule never fires for `environment_mode = "shared"`.
+
 ## Retained packet and receipt readers
 
 Registry continues to validate historical `certification.json` packets against exact package hashes.

@@ -18,6 +18,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Literal
 
 from evallab.control_expect import declared_expectation
+from evallab.task_artifact_lint import lint_artifact_overwrites
 from evallab.task_exec_lint import lint_executes
 from evallab.task_install_lint import lint_installs
 
@@ -419,7 +420,9 @@ def lint_task(task_dir: Path) -> list[Finding]:
             )
         else:
             if isinstance(artifacts, list):
-                artifact_findings = _artifact_contract_findings(task_dir, artifacts)
+                artifact_findings = lint_artifact_overwrites(
+                    task_dir, declared
+                ) + _artifact_contract_findings(task_dir, artifacts)
 
     solution = task_dir / "solution" / "solve.sh"
     if not solution.is_file():

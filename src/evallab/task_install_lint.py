@@ -1,8 +1,9 @@
-"""Static checks for task dependency pins and verifier-time installs.
+"""Static checks for task dependency pins and verifier network access.
 
-`task_lint` owns the package rules. This module owns the two dependency-drift
-rules: an install that will drift after authoring, and an install that runs
-while grading. Both screen source text; neither executes a task file.
+`task_lint` owns the package rules. This module owns three dependency-drift
+rules: an install that will drift after authoring, an install that runs while
+grading, and a verifier network download without a checksum. All screen source
+text; none executes a task file.
 """
 
 from __future__ import annotations
@@ -259,6 +260,34 @@ def _is_dockerfile(path: Path) -> bool:
     return path.name == "Dockerfile" or path.name.startswith("Dockerfile.")
 
 
+def _download_command(command: list[str]) -> bool:
+    """True when one command clones a repository or fetches a URL operand."""
+    head = PurePosixPath(command[0]).name
+    if head in {"curl", "wget"}:
+        # An option-only command such as `curl --version` downloads nothing.
+        return any(not token.startswith("-") for token in command[1:])
+    return head == "git" and "clone" in command[1:]
+
+
+def _checksum_command(command: list[str]) -> bool:
+    """True when one command verifies bytes with a sha256 check file."""
+    head = PurePosixPath(command[0]).name
+    arguments = command[1:]
+    if not any(token in {"-c", "--check"} for token in arguments):
+        return False
+    if head == "sha256sum":
+        return True
+    if head != "shasum":
+        return False
+    # `shasum` defaults to sha1, so a 256 bit algorithm must be explicit.
+    for index, token in enumerate(arguments):
+        if token in {"-a256", "--algorithm=256"}:
+            return True
+        if token in {"-a", "--algorithm"} and arguments[index + 1:index + 2] == ["256"]:
+            return True
+    return False
+
+
 def _task_sources(task_dir: Path) -> list[Path]:
     """Return every Dockerfile and shell file the package builds or runs."""
     sources = [
@@ -270,18 +299,21 @@ def _task_sources(task_dir: Path) -> list[Path]:
 
 
 def lint_installs(task_dir: Path) -> list[Finding]:
-    """Screen build dependencies and verifier installs without executing them."""
+    """Screen dependency drift and verifier network access without executing them."""
     # Imported here: task_lint imports this module while it loads.
     from evallab.task_lint import Finding
 
     findings: list[Finding] = []
     for path in _task_sources(task_dir):
         dockerfile = _is_dockerfile(path)
-        verifier = not dockerfile and path.is_relative_to(task_dir / "tests")
+        under_tests = path.is_relative_to(task_dir / "tests")
+        verifier = not dockerfile and under_tests
         accepted = _FROZEN_UNPINNED.get(
             (task_dir.name, path.relative_to(task_dir).as_posix()), frozenset()
         )
         runtime_reported = False
+        network_download_line: int | None = None
+        script_checksum = False
         for number, line in _logical_lines(
             path.read_text(encoding="utf-8", errors="replace")
         ):
@@ -289,10 +321,15 @@ def lint_installs(task_dir: Path) -> list[Finding]:
             unpinned: list[str] = []
             installers: list[str] = []
             runtime_install = False
+            download = False
+            checksum = False
             for index, (command, separator) in enumerate(commands):
                 if not command:
                     continue
                 head = PurePosixPath(command[0]).name
+                if under_tests:
+                    download |= _download_command(command)
+                    checksum |= _checksum_command(command)
                 install = _install_command(command)
                 if install is not None:
                     label, arguments = install
@@ -310,6 +347,12 @@ def lint_installs(task_dir: Path) -> list[Finding]:
                     runtime_install |= bool(following) and PurePosixPath(
                         following[0]
                     ).name in {"sh", "bash", "zsh", "dash", "ksh"}
+            # A Dockerfile RUN must carry its own check; a shell script may
+            # verify the bytes anywhere in the file.
+            if download and not (dockerfile and checksum):
+                network_download_line = network_download_line or number
+            if not dockerfile:
+                script_checksum |= checksum
             if unpinned:
                 findings.append(
                     Finding(
@@ -333,4 +376,16 @@ def lint_installs(task_dir: Path) -> list[Finding]:
                     )
                 )
                 runtime_reported = True
+        if network_download_line is not None and not script_checksum:
+            findings.append(
+                Finding(
+                    "verifier-network-download",
+                    "warning",
+                    str(path),
+                    f"line {network_download_line}: the verifier downloads from the network "
+                    "without a checksum; check the bytes with sha256sum -c in the same "
+                    f"{'RUN instruction' if dockerfile else 'script'} so a moved or vanished "
+                    "remote cannot turn a correct answer into 0",
+                )
+            )
     return findings

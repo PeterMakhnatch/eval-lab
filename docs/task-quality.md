@@ -602,7 +602,8 @@ on every `*.py` under `tests/` and `solution/`, and `json.loads` on every `*.jso
 under `tests/`. Any `bash -n` diagnostic is an error, including a warning without
 a failing exit. When `bash` is not on `PATH`, shell files get no finding.
 
-Two warning rules cover dependency drift. `unpinned-python-dependency` checks
+Three warning rules cover dependency pins and verifier reproducibility.
+`unpinned-python-dependency` checks
 every `RUN` instruction in the package's Dockerfiles, including nested build
 contexts such as `environment/runtime-server/Dockerfile`, and every shell file in
 the package. It covers `pip install`, `pip3 install`, `python -m pip install`,
@@ -619,8 +620,26 @@ software while grading: it detects `apt-get`, a Python package install, `uvx`, a
 `curl` or `wget` piped into a shell. Put those installs in `tests/Dockerfile`
 instead. The imported tau3-bench package keeps its upstream bytes, which this
 repository does not edit, so its `fastmcp>=3.0` requirement is the one named
-exception in the rule; every other unpinned requirement warns. Both rules are
-warnings, so the exit code stays 0 unless an error rule fires.
+exception in the rule; every other unpinned requirement warns.
+
+`verifier-network-download` checks every `Dockerfile`, `Dockerfile.*`, and `*.sh`
+under a task package's `tests/`, at any nesting depth and in every verifier mode.
+Files outside `tests/` never warn. It warns for an external repository clone
+with `git clone`, a saved download using `curl` or `wget` with an operand
+such as `curl -o`, `wget -O`, or `curl ... > file`, and a download piped into
+a shell such as `curl ... | sh`. The clean form verifies the downloaded bytes
+with `sha256sum -c` or `shasum -a 256 -c` in the same Dockerfile `RUN`
+instruction or the same shell script. A checksum in a separate `RUN` does not
+count. A commit-hash URL is not a checksum pin; the remote can still vanish.
+Matching joins backslash continuations, splits attached shell operators, and
+strips `RUN` flags, on the same terms as the install rules. The library has
+exactly 2 findings: `library/tasks/terminal-bench-html-js-filter/tests/Dockerfile`
+fetches a GitHub archive zip with `curl -o` at a commit URL without a checksum;
+`library/tasks/query-optimize/tests/test.sh` pipes a uv installer download into
+`sh`. The query-optimize package also keeps its
+`verifier-runtime-install` warning. This overlap is deliberate and matches the
+upstream Harbor rule set. All three rules are warnings, so the exit code stays 0
+unless an error rule fires.
 
 Only tasks with `environment_mode = "separate"` and declared artifacts receive
 these warnings: `artifacts-instructed` when `instruction.md` is missing or does

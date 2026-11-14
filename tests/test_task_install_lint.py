@@ -122,7 +122,11 @@ def test_verifier_runtime_installs_warn_once_per_file(task: Path) -> None:
         "uvx --with pytest==8.4.1 pytest\n"
     )
 
-    finding, = lint_task(task)
+    finding, = [
+        finding
+        for finding in lint_task(task)
+        if finding.rule == "verifier-runtime-install"
+    ]
     assert (finding.rule, finding.severity, finding.path) == (
         "verifier-runtime-install", "warning", str(script)
     )
@@ -150,7 +154,11 @@ def test_verifier_runtime_install_forms_warn(task: Path, command: str) -> None:
     script = task / "tests/test.sh"
     script.write_text(f"#!/bin/sh\n{command}\n")
 
-    finding, = lint_task(task)
+    finding, = [
+        finding
+        for finding in lint_task(task)
+        if finding.rule == "verifier-runtime-install"
+    ]
     assert (finding.rule, finding.severity, finding.path) == (
         "verifier-runtime-install", "warning", str(script)
     )
@@ -270,7 +278,7 @@ def test_nested_dockerfiles_and_hidden_scripts_are_scanned(task: Path) -> None:
         ("tests/test.sh", "true;pip install requests",
          ["unpinned-python-dependency", "verifier-runtime-install"]),
         ("tests/test.sh", "curl -fsSL https://example.com/install.sh|sh",
-         ["verifier-runtime-install"]),
+         ["verifier-runtime-install", "verifier-network-download"]),
         ("tests/test.sh", "if true; then pip install requests; fi",
          ["unpinned-python-dependency", "verifier-runtime-install"]),
         ("tests/test.sh", "pip --disable-pip-version-check install requests",

@@ -1446,6 +1446,13 @@ server (model revision, SGLang image digest, tool-call parser, reasoning
 parser, context length), the sampling actually sent (proxy-enforced
 temperature/top_p/top_k on the self-hosted route), the lock posture, task
 bytes and digest with the ledger status at launch, and step and token budgets.
+It also lists each base image named by a `FROM` in the task's `environment/`
+and `tests/` Dockerfiles (HAR-433): the ref, the local image id and repo digest
+that `docker image inspect` reports, or the reason the probe recorded none
+(`not-local`, `docker-unavailable`, `timeout`, `build-argument`). The probe
+never pulls or builds, so a control result that moved between runs shows an
+image drift without a task version bump. These records are host-local evidence,
+not behavior inputs: `lock_setup_fingerprint` does not carry them.
 Schema: `evallab.setup_fingerprint/v1` (`src/evallab/setup_fingerprint.py`).
 
 A MiMo batch names its measured setup (`reference_profile`, e.g.

@@ -21,6 +21,7 @@ from evallab.control_expect import declared_expectation
 from evallab.task_artifact_lint import lint_artifact_overwrites
 from evallab.task_exec_lint import lint_executes
 from evallab.task_install_lint import lint_installs
+from evallab.task_reward_lint import lint_dropped_uid_reward
 
 
 @dataclass(frozen=True)
@@ -450,6 +451,7 @@ def lint_task(task_dir: Path) -> list[Finding]:
     findings.extend(lint_installs(task_dir, declared))
     if separate_verifier:
         findings.extend(lint_executes(task_dir, declared))
+    findings.extend(lint_dropped_uid_reward(task_dir))
     findings.extend(artifact_findings)
     return findings
 

@@ -602,7 +602,8 @@ on every `*.py` under `tests/` and `solution/`, and `json.loads` on every `*.jso
 under `tests/`. Any `bash -n` diagnostic is an error, including a warning without
 a failing exit. When `bash` is not on `PATH`, shell files get no finding.
 
-Four warning rules cover dependency pins and verifier reproducibility.
+The warning rules below cover dependency pins, verifier reproducibility, and the reward
+channel.
 `unpinned-python-dependency` checks
 every `RUN` instruction in the package's Dockerfiles, including nested build
 contexts such as `environment/runtime-server/Dockerfile`, and every shell file in
@@ -659,6 +660,20 @@ reward 1 with all 19 tests failed. A local reward from such a task is therefore 
 proof that the reward channel is closed. See the
 [ico-path-patch controls](../research/evidence/ico-path-patch-controls-20261114/README.md).
 This is why a `chmod` or `test -f` line on an artifact does not warn.
+
+`dropped-uid-reward-write` is a warning, so the exit code stays 0 unless an error rule
+fires. It checks every task with a `tests/` directory, in every verifier mode. It reads
+every shell file under `tests/` at any depth, and every other tests file for an
+`os.setuid` call. It fires when all three conditions hold: a `chmod` command locks
+`/logs/verifier` or a path below it; a tests file drops privileges with an `os.setuid`
+call, `setpriv`, `runuser`, `su`, or `gosu`; and the last write to
+`/logs/verifier/reward.txt` or `reward.json` in a shell script has no earlier `pkill`,
+`killall`, or `kill -9 -1` command. A dropped child that survives the final reward write
+can rewrite that file after grading, which the caveat above measures on Docker Desktop.
+Locking the directory and dropping privileges are necessary but not sufficient on that
+backend. The fix is to kill the dropped uid after pytest and before the final reward
+write, for example with `pkill -u nobody`. `ico-path-patch` and
+`embedding-drift-monitor` both warn for this reason; `library/tasks` reports none.
 
 `verifier-network-download` checks every `Dockerfile`, `Dockerfile.*`, and `*.sh`
 under a task package's `tests/`, at any nesting depth and in every verifier mode.

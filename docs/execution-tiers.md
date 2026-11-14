@@ -375,6 +375,12 @@ Oracle/nop controls and verifier runs stay exactly as `AGENTS.md` prescribes:
 through `evallab` wrappers, jobs under `runs/`, ≤2 concurrent. The larger VM
 just means `local-heavy` tasks no longer fail on memory.
 
+`evallab run` uses the task's declared `[agent] timeout_sec` when
+`--timeout-seconds` is omitted. The declaration must be an integral value from
+1 to 28,800 seconds; missing or invalid values require an explicit override.
+An explicit `--timeout-seconds` retains its existing meaning. Build and verifier
+deadlines, the phase allowance, and billable-run restrictions remain unchanged.
+
 ### Local Docker sandbox → host isolation
 
 Every ordinary `evallab` Docker launch selects

@@ -14,12 +14,33 @@ if TYPE_CHECKING:
 def _run_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
+    import tomllib
+
+    from evallab.execution_contracts import MAX_TRIAL_TIMEOUT_SECONDS
     from evallab.queue import Executor
     from evallab.results import load_job
     from evallab.runner import RunRequest
 
+    task = _resolve(root, args.task)
+    timeout_seconds = args.timeout_seconds
+    if timeout_seconds is None:
+        document = tomllib.loads((task / "task.toml").read_text(encoding="utf-8"))
+        agent = document.get("agent")
+        declared = agent.get("timeout_sec") if isinstance(agent, dict) else None
+        if (
+            isinstance(declared, bool)
+            or not isinstance(declared, (int, float))
+            or not 1 <= declared <= MAX_TRIAL_TIMEOUT_SECONDS
+            or int(declared) != declared
+        ):
+            raise ValueError(
+                "task.toml must declare an integral [agent] timeout_sec of "
+                f"1-{MAX_TRIAL_TIMEOUT_SECONDS} seconds; otherwise pass --timeout-seconds"
+            )
+        timeout_seconds = int(declared)
+
     request = RunRequest(
-        task=_resolve(root, args.task),
+        task=task,
         agent=args.agent,
         name=args.name,
         jobs_dir=_resolve(root, args.jobs_dir),
@@ -28,7 +49,7 @@ def _run_command(
         model=args.model,
         concurrency=args.concurrency,
         attempts=args.attempts,
-        timeout_seconds=args.timeout_seconds,
+        timeout_seconds=timeout_seconds,
         allow_billable=args.allow_billable,
     )
     job_dir = Executor.from_repo(root).execute_direct(request)
@@ -70,8 +91,7 @@ def register_parser(commands: argparse._SubParsersAction) -> None:
     run.add_argument(
         "--timeout-seconds",
         type=int,
-        default=1_800,
-        help="executor wall-clock allowance per attempted trial",
+        help="Agent timeout in seconds (default: task.toml [agent] timeout_sec)",
     )
     run.add_argument(
         "--allow-billable",

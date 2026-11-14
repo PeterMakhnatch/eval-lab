@@ -27,8 +27,11 @@ import ast
 import hashlib
 import json
 import os
-from collections.abc import Iterator
+import re
+import subprocess
+from collections.abc import Callable, Iterator
 from contextlib import suppress
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -354,6 +357,154 @@ def _harness_settings(
     return additions, step_limit
 
 
+#: Host-local base-image probe cap, in seconds. The probe runs only
+#: ``docker image inspect``: it never pulls or builds, so a tag that is not on
+#: the host records ``not-local`` instead of silently changing the evidence.
+BASE_IMAGE_INSPECT_TIMEOUT_SECONDS = 5.0
+
+#: Docker CLI diagnostics that mean the daemon is unreachable, not that the
+#: image is absent. ``docker image inspect`` exits 1 for both cases.
+_DOCKER_UNAVAILABLE_MARKERS = (
+    "cannot connect to the docker daemon",
+    "is the docker daemon running",
+    "error during connect",
+)
+
+
+def _image_repository(ref: str) -> str:
+    """The repository part of a Docker image ref, without tag or digest."""
+    name = ref.split("@", 1)[0]
+    head, separator, tail = name.rpartition(":")
+    return head if separator and "/" not in tail else name
+
+
+def _select_repo_digest(ref: str, digests: Any) -> str | None:
+    """The RepoDigests entry naming the ref's repository, or None."""
+    if not isinstance(digests, list):
+        return None
+    repository = _image_repository(ref)
+    for entry in sorted(str(item) for item in digests):
+        if _image_repository(entry) == repository:
+            return entry
+    return None
+
+
+def inspect_local_image(
+    ref: str, *, timeout: float = BASE_IMAGE_INSPECT_TIMEOUT_SECONDS
+) -> tuple[str | None, str | None] | None:
+    """(image id, repo digest) of a locally present image, else None.
+
+    Runs ``docker image inspect`` only: no pull, no build, bounded by
+    *timeout*. Raises ``OSError`` when the Docker CLI or daemon is unavailable
+    and ``subprocess.TimeoutExpired`` when the probe exceeds the timeout.
+    """
+    completed = subprocess.run(
+        ["docker", "image", "inspect", "--format", "{{.Id}} {{json .RepoDigests}}", ref],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=timeout,
+    )
+    if completed.returncode != 0:
+        diagnostics = (completed.stderr or "").casefold()
+        if any(marker in diagnostics for marker in _DOCKER_UNAVAILABLE_MARKERS):
+            raise OSError(completed.stderr.strip() or "docker daemon unavailable")
+        return None
+    image_id, _, digests_text = completed.stdout.strip().partition(" ")
+    try:
+        digests = json.loads(digests_text) if digests_text else []
+    except ValueError:
+        digests = []
+    return (image_id or None, _select_repo_digest(ref, digests))
+
+
+def _dockerfile_from_lines(dockerfile: Path) -> Iterator[tuple[int, str]]:
+    """(line, arguments) for each FROM in one Dockerfile.
+
+    Continuations join as in ``task_lint._lint_dockerfile``; operand parsing is
+    that module's ``_from_operands`` so the fingerprint and the lint agree.
+    """
+    try:
+        text = dockerfile.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return
+    pending = ""
+    start = 1
+    for number, raw in enumerate(text.splitlines(), 1):
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if not pending:
+            start = number
+        continued = line.endswith("\\")
+        pending += line[:-1] if continued else line
+        if continued:
+            pending += " "
+            continue
+        instruction = re.match(r"(?i)^FROM\b(.*)$", pending)
+        pending = ""
+        if instruction is not None:
+            yield start, instruction[1]
+
+
+def task_base_images(
+    task_dir: Path,
+    *,
+    inspector: Callable[[str], tuple[str | None, str | None] | None] | None = None,
+    timeout: float = BASE_IMAGE_INSPECT_TIMEOUT_SECONDS,
+) -> list[dict[str, Any]]:
+    """Local identity of every base image in the task's Dockerfiles (HAR-433).
+
+    One entry per ``FROM`` in ``environment/`` and ``tests/`` Dockerfiles, in
+    path then line order. Stage aliases and ``scratch`` build from no registry
+    and are skipped. ``reason`` names why no image id was recorded:
+    ``not-local``, ``docker-unavailable``, ``timeout``, ``build-argument``.
+    """
+    from evallab.task_lint import _from_operands
+
+    probe = inspector if inspector is not None else partial(inspect_local_image, timeout=timeout)
+    records: list[dict[str, Any]] = []
+    for context in ("environment", "tests"):
+        for dockerfile in sorted((task_dir / context).rglob("Dockerfile")):
+            if not dockerfile.is_file():
+                continue
+            stages: set[str] = set()
+            for line, arguments in _dockerfile_from_lines(dockerfile):
+                ref, stage = _from_operands(arguments)
+                if stage is not None:
+                    stages.add(stage.casefold())
+                if not ref or ref.casefold() == "scratch" or ref.casefold() in stages:
+                    continue
+                record: dict[str, Any] = {
+                    "dockerfile": dockerfile.relative_to(task_dir).as_posix(),
+                    "line": line,
+                    "ref": ref,
+                    "image_id": None,
+                    "repo_digest": None,
+                    "reason": None,
+                }
+                if "$" in ref:
+                    record["reason"] = "build-argument"
+                else:
+                    try:
+                        found = probe(ref)
+                    except subprocess.TimeoutExpired:
+                        record["reason"] = "timeout"
+                    except TimeoutError:
+                        record["reason"] = "timeout"
+                    except OSError:
+                        record["reason"] = "docker-unavailable"
+                    else:
+                        if found is None:
+                            record["reason"] = "not-local"
+                        else:
+                            record["image_id"], record["repo_digest"] = found
+                            if record["image_id"] is None and record["repo_digest"] is None:
+                                record["reason"] = "not-local"
+                records.append(record)
+    return records
+
+
 def _setup_fields(
     *,
     spec: Any,
@@ -513,6 +664,12 @@ def build_intended_fingerprint(
         repo_root=repo_root,
         request=request,
     )
+    # Host-local image identities are evidence, not behavior inputs: they are
+    # recorded in the intended fingerprint and its trial copies, while
+    # lock_setup_fingerprint keeps only the fields Harbor manages.
+    environment_fields = dict(setup["environment"])
+    environment_fields["base_images"] = task_base_images(task_dir)
+    setup["environment"] = environment_fields
     task_id = (spec.task_id or task_dir.name) if spec is not None else task_dir.name
     try:
         task_bytes, task_digest = task_bytes_and_digest(task_dir)

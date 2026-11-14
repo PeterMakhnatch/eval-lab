@@ -360,3 +360,20 @@ def test_focused_push_check_refuses_incomplete_exception(checkpoint, variable):
     assert result.returncode == 2
     assert "set both EVALLAB_PREPUSH_NEEDS_BASE and EVALLAB_PREPUSH_REASON" in result.stderr
     assert not (root / "test-ran").exists()
+
+
+@pytest.mark.parametrize("dirty", [False, True])
+def test_focused_detached_tree_preserves_dirty_skip_and_clean_diagnostic(checkpoint, dirty):
+    root, env = checkpoint
+    subprocess.run(["git", "checkout", "--detach"], cwd=root, env=env, check=True, capture_output=True)
+    if dirty:
+        (root / "test_selected.py").write_text("def test_selected(): assert True\n")
+
+    result = _run(checkpoint, "--focused", "test_selected.py")
+
+    assert result.returncode == (0 if dirty else 1), result.stdout + result.stderr
+    if dirty:
+        assert "push check skipped: uncommitted tracked changes" in result.stdout
+    else:
+        assert "Command refused (1): git symbolic-ref" in result.stdout
+        assert "remote push check unavailable" not in result.stderr

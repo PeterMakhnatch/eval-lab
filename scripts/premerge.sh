@@ -82,7 +82,7 @@ case "${mode}" in
     ;;
   focused)
     echo "local prepush checkpoint: selected coverage only; not CI green"
-    branch="$(git symbolic-ref --quiet --short HEAD)"
+    branch="$(git symbolic-ref --quiet --short HEAD || git rev-parse --short HEAD)"
     echo "push check branch: ${branch}"
     push_command=(uv run --no-sync evallab ship check-push)
     if [[ -n "${EVALLAB_PREPUSH_NEEDS_BASE:-}" || -n "${EVALLAB_PREPUSH_REASON:-}" ]]; then

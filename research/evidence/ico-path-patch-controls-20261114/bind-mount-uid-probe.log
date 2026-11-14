@@ -1,0 +1,18 @@
+== started_at 2026-11-14T08:05:15Z
+== host: Darwin 25.5.0 arm64
+== docker client: 29.8.0
+== docker server: 29.8.0 arm64 linux
+== probe dir: /private/tmp/har-434-controls-RctCnV/bind-mount-uid-probe/verifier
+== command: docker run --rm --network none -v /private/tmp/har-434-controls-RctCnV/bind-mount-uid-probe/verifier:/logs/verifier python:3.12-slim sh -c mkdir\ -p\ /logs/verifier\;\ chmod\ 700\ /logs/verifier\;\ echo\ \"inside:\ \$\(ls\ -ld\ /logs/verifier\)\"\;\ id\ nobody\;\ setpriv\ --reuid=nobody\ --regid=nogroup\ --clear-groups\ sh\ -c\ \"echo\ forged\ \>\ /logs/verifier/reward.txt\"\;\ echo\ \"nobody_write_rc=\$\?\"\;\ ls\ -l\ /logs/verifier\;\ echo\ 0\ \>\ /logs/verifier/reward.txt\;\ echo\ \"root_write_rc=\$\?\" 
+inside: drwx------ 2 root root 64 Nov 14 08:05 /logs/verifier
+uid=65534(nobody) gid=65534(nogroup) groups=65534(nogroup)
+nobody_write_rc=0
+total 4
+-rw-r--r-- 1 root root 7 Nov 14 08:05 reward.txt
+root_write_rc=0
+== exit_status 0
+== host_side_stat:
+  /private/tmp/har-434-controls-RctCnV/bind-mount-uid-probe/verifier mode=drwx------ uid=501 gid=0 size=96
+  /private/tmp/har-434-controls-RctCnV/bind-mount-uid-probe/verifier/reward.txt mode=-rw-r--r-- uid=501 gid=0 size=2
+== host_side_reward_content: 0
+== finished_at 2026-11-14T08:05:16Z

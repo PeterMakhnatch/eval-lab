@@ -108,6 +108,18 @@ blaming a test hang.
 
 Run focused checks or explicit premerge before pushing.
 
+### Size limits
+
+`uv run python -m evallab.governance check` enforces Python growth limits against the PR merge base.
+It limits new files and growth per root and large module. Stage new files before the check.
+It also checks total budgets in `agents/budgets.toml` on the tested candidate tree.
+An over-budget metric blocks only PRs that add net size to it. Push events report total excess without failing.
+The failure prints the exact fix. Delete obsolete code first; do not split files only to evade a limit.
+For necessary PR growth, add the printed line to `agents/growth-ledger.jsonl` with a concrete reason.
+For necessary total growth, raise only the affected budget row with a new concrete `reason` and `raised_by`.
+Raises remain visible in `git log agents/budgets.toml`. Shrinking PRs need no budget edit.
+
+
 ### Local line-change gate
 
 Before merging a line-behavior change, run the paired full-line DEV gate:
@@ -150,8 +162,14 @@ Run **`make prepush` before every push**. This is a local checkpoint, **not CI g
 2. **Prepush checkpoint (`make prepush`)**:
    Reuses `scripts/premerge.sh --focused`. It runs the cheap static gates and
    typecheck. It leaves the expensive lessons lineage check to full static/CI.
-   It selects
-   tests against the merge base with `origin/main`, including committed branch
+   On a clean tracked tree, it runs `evallab ship check-push` against committed HEAD.
+   It skips this comparison for uncommitted tracked edits, which could cause a false same-patch refusal.
+   Commit fixes before later checkpoints. Remote command failures warn so offline local checks can finish;
+   policy refusals still block. Rerun `uv run evallab ship check-push` before pushing after a warning.
+   For a real conflict or needed base commit, use
+   `EVALLAB_PREPUSH_NEEDS_BASE=<sha> EVALLAB_PREPUSH_REASON='<reason>' make prepush TESTS='<selectors>'`.
+   Both variables are required; they pass `--needs-base <sha> --reason '<reason>'`, not a blanket skip.
+   It selects tests against the merge base with `origin/main`, including committed branch
    changes, local edits, untracked files, and both sides of renames.
    It selects direct module consumers and tests that reference changed paths,
    filenames, or parent directories. This includes deleted and non-Python files.
@@ -210,6 +228,10 @@ explicit per-call `derived_root`; linked worktrees otherwise share the primary
 checkout's derived store. Keep real canary inputs read-only and verify persisted
 labels in the isolated store, not by restoring shared data after the test.
 
+Hermetic-test guards in `tests/test_test_hygiene.py` reject unscoped import-time host changes,
+database probes, and slow server polling. `_HOST_STATE_EXCEPTIONS` there is the exact-operation allowlist.
+Do not add whole-file exemptions.
+
 An autouse `subprocess.Popen` guard rejects `codex`, `claude`, `agy`,
 `cursor-agent`, `opencode`, `omp`, `security`, and `gemini` before they launch
 outside the current test's `tmp_path` and `_isolate_temp_root` directories.
@@ -242,10 +264,8 @@ Before any role (author DRI or integrator) merges a PR:
    do not; see [Keep CI cycles low](#keep-ci-cycles-low).
 5. Do not substitute local green, an old run, a manual dispatch, mergeability, or
    unavailable branch protection for these checks.
-6. Apply the guarded merge rules in `agents/WORKFLOW.md`, executing
-   with exact-head guards (`gh pr merge <n> --squash --delete-branch --match-head-commit <HEAD_SHA>`).
-   Follow with bounded merged-revision proof on `main` (confirm the merge commit, its CI,
-   or postmerge verification).
+6. Run `evallab ship <PR>` from the detached delivery worktree.
+   Ship enforces exact-head checks and path gates, then proves the merged revision and retires the topic.
 
 A squash-merged branch is never rebased, reused, or pushed again. After your PR
 merges, delete the branch and start any follow-up from a fresh branch off
@@ -259,27 +279,20 @@ merge commit body.
 
 ### Keep CI cycles low
 
-On 2026-11-11, 210 PR runs served 82 PRs. 24% of the runs repeated an unchanged
-head after a PR title or body edit. 23% followed a rebase that no rule required.
+In the last 60 merged PRs before the guards, 31 extra CI runs followed avoidable updates:
+25 followed base-only updates and 6 followed title/body edits. There were 0 first-cycle failures.
 Every run uses the shared pool of 20 hosted jobs.
 
-- Write the complete PR title and body in `gh pr create`. Do not edit them later.
-  Each edit reruns both gates on the same head. Add later evidence with `gh pr comment`.
-- Do not rebase or update the branch because `main` moved. Branch protection does
-  not require an up-to-date branch, and PR CI tests GitHub's merge of the head into
-  the base. Rebase only when GitHub reports a conflict, or when the change needs a
-  commit that landed after the branch point. The push run on `main` proves the merged
-  revision; fix forward from that run.
-- Push one head per fix. Read the result of the running CI before the next push,
-  unless you already know that the head is wrong.
-- When the PR is final, enable auto-merge at once:
-  `gh pr merge <n> --auto --squash --delete-branch --match-head-commit <HEAD_SHA>`.
-  GitHub merges when `quality-required` and `typecheck-required` pass. Use it only
-  when steps 1 and 3 hold, the PR is not a draft or held, the diff selects no
-  `agents/ship-gates.toml` path gate, and `gh pr checks` reports no check outside the
-  `quality` and `typecheck` workflows. Otherwise merge by hand or with `evallab ship`
-  after all reported checks pass. A later push keeps auto-merge armed for the new head;
-  run `gh pr merge <n> --disable-auto` first if that head must not merge.
+- Create the PR once with `evallab ship open --title-file <file> --body-file <file>`.
+  Add later evidence with `evallab ship comment <PR> --body-file <file>`. Do not edit the title or body.
+- Run `evallab ship <PR> --preflight-only` from the detached delivery worktree immediately after creation.
+- Do not update the branch because `main` moved. Ship accepts current same-base CI without a fresh head.
+  Update only for a real conflict or a needed commit. Prepush checks the committed patch before another push.
+- Workflow exception: if the PR changes `.github/workflows/**` and main changed the same file after the branch point,
+  a token without `workflow` scope can refuse the merge even with green CI.
+  Merge `origin/main` into the topic once, run `make prepush`, push, and wait for fresh CI.
+  Alternatively, Peter can run `gh auth refresh -s workflow`. This does not authorize a base-only update elsewhere.
+- Push 1 head per fix. Read its CI result before another push. Use final `evallab ship <PR>` after all checks pass.
 
 ## GitHub enforcement versus process
 

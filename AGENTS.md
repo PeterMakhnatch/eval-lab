@@ -22,24 +22,30 @@ Replace the angle-bracket values before running these commands.
    Run repository commands inside the owned worktree, not the primary checkout.
 3. Read the affected package instructions, then exactly 1 manual from the table below.
    Core changes also read `src/evallab/AGENTS.md`. Read placement rules only when adding or moving files.
-4. Edit the scoped files. Inspect their direct consumers. Run the focused checkpoint before every push:
-   ```sh
-   make prepush TESTS='<affected test selectors>'
-   ```
-   Without an explicit selection, `make prepush` selects affected tests. It does not prove CI green.
-5. Commit only your paths and push 1 head per fix:
+4. Edit the scoped files and inspect their direct consumers. Stage and commit only your paths:
    ```sh
    git add -- <owned-paths>
    git commit -m '<complete change summary>' -- <owned-paths>
+   ```
+5. Run the focused checkpoint before every push, then push 1 head per fix:
+   ```sh
+   make prepush TESTS='<affected test selectors>'
    git push -u origin <topic>
    ```
+   Without a selection, prepush selects affected tests. It checks committed HEAD; commit fixes before later checkpoints.
 6. Create the PR with its complete title and body once:
    ```sh
-   gh pr create --base main --title '<title>' --body-file <body-file>
+   uv run --no-sync evallab ship open --title-file <title-file> --body-file <body-file>
    ```
-   Add later evidence with `gh pr comment <PR> --body-file <evidence-file>`.
-   Title or body edits repeat CI. Do not rebase because `main` moves; resolve a real conflict only.
-7. Read the exact-head CI result before another push:
+   Immediately run preflight from the detached delivery worktree:
+   ```sh
+   cd <delivery-worktree> && uv run --no-sync evallab ship <PR> --preflight-only
+   ```
+7. Add later evidence with a comment, then read exact-head CI before another push:
+   ```sh
+   uv run --no-sync evallab ship comment <PR> --body-file <evidence-file>
+   ```
+   Do not edit the title/body or update the base without a real need. See `agents/CHECKS.md`.
    ```sh
    gh pr checks <PR> --watch
    ```

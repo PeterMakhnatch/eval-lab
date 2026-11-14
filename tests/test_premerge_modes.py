@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -33,6 +34,9 @@ def checkpoint(tmp_path: Path) -> tuple[Path, dict[str, str]]:
         "elif 'evallab.lessons' in args and os.environ.get('FAIL_LESSONS'):\n"
         "    print('lessons unavailable', file=sys.stderr)\n"
         "    sys.exit(26)\n"
+        "elif 'ship' in args:\n"
+        "    from evallab.entry import run_ship\n"
+        "    sys.exit(run_ship(args[args.index('ship'):]))\n"
         "elif 'pytest' in args:\n"
         "    offset = args.index('pytest') + 1\n"
         "    os.execv(sys.executable, [sys.executable, '-m', 'pytest', "
@@ -84,8 +88,20 @@ def checkpoint(tmp_path: Path) -> tuple[Path, dict[str, str]]:
     }
     env.pop("FAIL_STATIC", None)
     env.pop("EVALLAB_PREPUSH_BASE", None)
-    for name in ("FAIL_LESSONS", "CHECKER_OUTPUT", "CHECKER_EXIT"):
+    for name in ("FAIL_LESSONS", "CHECKER_OUTPUT", "CHECKER_EXIT",
+                 "EVALLAB_PREPUSH_NEEDS_BASE", "EVALLAB_PREPUSH_REASON"):
         env.pop(name, None)
+    fake = ROOT / "tests/fixtures/ship_fake_gh.py"
+    gh = bin_dir / "gh"
+    gh.write_text(f"#!{sys.executable}\n" + fake.read_text().split("\n", 1)[1])
+    gh.chmod(0o755)
+    state = tmp_path / "github.json"
+    state.write_text(json.dumps({"pr": {}, "open_prs": []}))
+    env["SHIP_FAKE_STATE"] = str(state)
+    for args in (["init", "-qb", "topic"], ["add", "--", "test_selected.py"],
+                 ["commit", "-qm", "base"],
+                 ["update-ref", "refs/remotes/origin/main", "HEAD"]):
+        subprocess.run(["git", *args], cwd=tmp_path, env=env, check=True, capture_output=True)
     return tmp_path, env
 
 
@@ -127,6 +143,7 @@ def test_focused_checkpoint_excludes_unselected_failures(
     (root / "test_unselected.py").write_text("def test_unselected():\n    assert False\n")
     result = _run(checkpoint, "--focused", "test_selected.py::test_selected", "-q")
     assert result.returncode == 0, result.stdout + result.stderr
+    assert "Push check passed: no open PR" in result.stdout
     assert (root / "test-ran").exists()
     assert not (root / "smoke-ran").exists()
 
@@ -202,14 +219,7 @@ def test_make_prepush_preserves_explicit_selection(
 def test_make_prepush_without_selector_runs_automatic_checkpoint(
     checkpoint: tuple[Path, dict[str, str]],
 ) -> None:
-    root, env = checkpoint
-    for args in (
-        ["init", "-q"],
-        ["add", "--", "test_selected.py"],
-        ["commit", "-qm", "base"],
-        ["update-ref", "refs/remotes/origin/main", "HEAD"],
-    ):
-        subprocess.run(["git", *args], cwd=root, env=env, check=True, capture_output=True)
+    root, _ = checkpoint
     (root / "tests").mkdir()
     (root / "tests/test_automatic.py").write_text(
         "from pathlib import Path\n"
@@ -232,10 +242,7 @@ def test_focused_checkpoint_leaves_lessons_to_static_and_ci(checkpoint, explicit
     if explicit:
         args = ("test_selected.py",)
     else:
-        for args_git in (["init", "-q"], ["add", "test_selected.py"],
-                         ["commit", "-qm", "base"],
-                         ["update-ref", "refs/remotes/origin/main", "HEAD"]):
-            subprocess.run(["git", *args_git], cwd=root, env=env, check=True, capture_output=True)
+        # The fixture already has a committed base and origin/main.
         (root / "tests").mkdir()
         (root / "tests/test_changed.py").write_text("def test_changed(): assert True\n")
         args = ()
@@ -273,3 +280,83 @@ def test_typecheck_receipt_is_private_ephemeral_and_outside_checkout(checkpoint,
     assert not receipt.exists()
     assert not (root / "runs").exists()
     assert (root / "test-ran").exists() == (checker_exit == 0)
+
+
+def _open_checkpoint_pr(checkpoint):
+    root, env = checkpoint
+    def git(*args):
+        return subprocess.check_output(["git", *args], cwd=root, env=env, text=True).strip()
+    base = git("rev-parse", "HEAD")
+    git("init", "--bare", str(root / "origin.git"))
+    git("remote", "add", "origin", str(root / "origin.git"))
+    git("push", "origin", "HEAD:refs/heads/main")
+    (root / "consumer.txt").write_text("change\n")
+    git("add", "consumer.txt")
+    git("commit", "-qm", "change")
+    head = git("rev-parse", "HEAD")
+    git("push", "origin", "HEAD:refs/heads/topic", "HEAD:refs/pull/42/head")
+    Path(env["SHIP_FAKE_STATE"]).write_text(json.dumps({"pr": {
+        "number": 42, "state": "OPEN", "headRefOid": head, "headRefName": "topic",
+        "baseRefName": "main", "isCrossRepository": False,
+    }}))
+    return git, base
+
+
+@pytest.mark.parametrize("change", ["same", "changed", "unstaged", "staged", "override"])
+def test_focused_push_check_compares_commits_and_preserves_explicit_exception(checkpoint, change):
+    root, env = checkpoint
+    git, base = _open_checkpoint_pr(checkpoint)
+    if change != "same":
+        (root / "consumer.txt").write_text("  change\n" if change == "override" else "needed fix\n")
+        if change != "unstaged":
+            git("add", "consumer.txt")
+        if change in {"changed", "override"}:
+            git("commit", "-qm", "fix")
+    if change == "override":
+        env["EVALLAB_PREPUSH_NEEDS_BASE"] = base
+        env["EVALLAB_PREPUSH_REASON"] = "The indentation fix needs this base."
+
+    result = _make_prepush(checkpoint, "test_selected.py")
+
+    assert result.returncode == (1 if change == "same" else 0), result.stdout + result.stderr
+    assert (root / "test-ran").exists() == (change != "same")
+    if change in {"unstaged", "staged"}:
+        assert "push check skipped: uncommitted tracked changes" in result.stdout
+        assert "compares committed HEAD" in result.stdout
+        assert not json.loads(Path(env["SHIP_FAKE_STATE"]).read_text()).get("calls")
+    elif change == "same":
+        assert "Push refused: same patch" in result.stdout
+    elif change == "override":
+        assert f"explicit base dependency {base}" in result.stdout
+        assert env["EVALLAB_PREPUSH_REASON"] in result.stdout
+    else:
+        assert "Push check passed: the patch differs" in result.stdout
+
+
+@pytest.mark.parametrize("remote_error", ["github", "fetch"])
+def test_focused_push_check_allows_offline_local_checks(checkpoint, remote_error):
+    root, env = checkpoint
+    if remote_error == "github":
+        (root / "bin/gh").write_text("#!/bin/sh\necho 'GitHub unavailable' >&2\nexit 7\n")
+    else:
+        git, _ = _open_checkpoint_pr(checkpoint)
+        git("remote", "set-url", "origin", str(root / "missing.git"))
+
+    result = _make_prepush(checkpoint, "test_selected.py")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "remote push check unavailable" in result.stderr
+    assert "rerun ship check-push before pushing" in result.stderr
+    assert (root / "test-ran").exists()
+
+
+@pytest.mark.parametrize("variable", ["EVALLAB_PREPUSH_NEEDS_BASE", "EVALLAB_PREPUSH_REASON"])
+def test_focused_push_check_refuses_incomplete_exception(checkpoint, variable):
+    root, env = checkpoint
+    env[variable] = "incomplete"
+
+    result = _make_prepush(checkpoint, "test_selected.py")
+
+    assert result.returncode == 2
+    assert "set both EVALLAB_PREPUSH_NEEDS_BASE and EVALLAB_PREPUSH_REASON" in result.stderr
+    assert not (root / "test-ran").exists()

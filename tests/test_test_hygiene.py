@@ -37,33 +37,39 @@ pytest_terminal_summary = _conftest.pytest_terminal_summary
 
 
 @pytest.mark.parametrize("total", range(1, 9))
-def test_shard_partition_preserves_crc32_and_applicable_pins(
+def test_shard_partition_preserves_inventory_with_stale_weights(
     total: int, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    paths = [
-        f"{directory}/test_{name}.py"
-        for directory in (
-            "tests",
-            "tests/line",
-            "dashboard/tests",
-            "research/analysis/tests",
-            "research/calibration/tests",
-            "research/experiments/library-ladder-coverage",
-        )
-        for name in ("job_diff", "regrade", "cheat", "ci_coverage", "évidence")
-    ]
-    pins = {path: index % 8 + 1 for index, path in enumerate(paths[:16])}
-    monkeypatch.setattr(_conftest, "SHARD_OVERRIDES", pins)
-    partitions = {
-        index: {path for path in paths if _conftest.shard_for(path, total) == index}
-        for index in range(1, total + 1)
+    root = _CONFTEST_PATH.parents[1]
+    config = tomllib.loads((root / "pyproject.toml").read_text())
+    paths = {
+        path.relative_to(root).as_posix()
+        for directory in config["tool"]["pytest"]["ini_options"]["testpaths"]
+        for entry in (root / directory,)
+        for path in ((entry,) if entry.is_file() else entry.rglob("test_*.py"))
     }
-    assert set.union(*partitions.values()) == set(paths)
-    assert sum(map(len, partitions.values())) == len(paths)
-    for path in paths:
-        pin = pins.get(path)
-        expected = pin if pin is not None and pin <= total else zlib.crc32(path.encode()) % total + 1
-        assert _conftest.shard_for(path, total) == expected
+    paths.add("tests/test_new_évidence.py")
+    weights = json.loads(json.dumps(_conftest._SHARD_WEIGHTS))
+    weights["modules"]["tests/test_deleted_module.py"] = [4, 0]
+    monkeypatch.setattr(_conftest, "_SHARD_WEIGHTS", weights)
+    _conftest._weighted_shards.cache_clear()
+    try:
+        partitions = {
+            index: {path for path in paths if _conftest.shard_for(path, total) == index}
+            for index in range(1, total + 1)
+        }
+        assert set.union(*partitions.values()) == paths
+        assert sum(map(len, partitions.values())) == len(paths)
+        for path in paths - weights["modules"].keys():
+            assert _conftest.shard_for(path, total) == zlib.crc32(path.encode()) % total + 1
+        expected = {path: _conftest.shard_for(path, total) for path in sorted(paths)}
+        _conftest._weighted_shards.cache_clear()
+        assert {path: _conftest.shard_for(path, total) for path in sorted(paths, reverse=True)} == expected
+        if total > 1:
+            longest = sorted(weights["modules"], key=lambda path: (-weights["modules"][path][0], path))[:2]
+            assert _conftest.shard_for(longest[0], total) != _conftest.shard_for(longest[1], total)
+    finally:
+        _conftest._weighted_shards.cache_clear()
 
 
 def _write_shard_collection_tree(root: Path) -> list[str]:
@@ -72,6 +78,7 @@ def _write_shard_collection_tree(root: Path) -> list[str]:
         "from __future__ import annotations\n"
         "import json, os, zlib\n"
         "from pathlib import Path\n"
+        "from functools import cache\n"
         "from collections.abc import Generator\n"
         "from typing import Any\n"
         "import pytest\n"
@@ -81,11 +88,12 @@ def _write_shard_collection_tree(root: Path) -> list[str]:
         "_SHARD_SKIPPED_MODULES = pytest.StashKey()\n"
         "_CALL_DURATIONS = pytest.StashKey()\n"
         "DEFAULT_SLOW_TEST_BUDGET_SECONDS = 60.0\n"
-        "SHARD_OVERRIDES = {}\n"
+        f"_SHARD_WEIGHTS = {repr(_conftest._SHARD_WEIGHTS)}\n"
     )
     hooks = "\n\n".join(
         inspect.getsource(getattr(_conftest, name))
         for name in (
+            "_weighted_shards",
             "shard_for",
             "_OtherShardFile",
             "_module_path",

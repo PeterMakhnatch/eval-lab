@@ -13,6 +13,7 @@ import tempfile
 import zlib
 from collections.abc import Generator
 from datetime import UTC, datetime
+from functools import cache
 from pathlib import Path
 from typing import Any
 
@@ -260,19 +261,50 @@ _CALL_DURATIONS: pytest.StashKey[dict[str, float]] = pytest.StashKey()
 
 DEFAULT_SLOW_TEST_BUDGET_SECONDS: float = 60.0
 
-# Shard pins that flip a test module's crc32 shard to balance CI shard load. A pin
-# applies only when its index fits the run's shard total; otherwise crc32 decides.
-# test_mimoagent_worker.py is 50 to 85 s of the serial native step. With four shards,
-# crc32 puts it on shard 2, the slowest (368 s on 2026-11-11); shard 4 is the fastest (229 s).
-SHARD_OVERRIDES: dict[str, int] = {"tests/test_mimoagent_worker.py": 4}
+_SHARD_WEIGHTS = json.loads((Path(__file__).parent / "shard-weights.json").read_text())
+
+
+@cache
+def _weighted_shards(total: int) -> dict[str, int]:
+    modules = _SHARD_WEIGHTS["modules"]
+    loads = [list(load) for load in _SHARD_WEIGHTS["unweighted"].get(str(total), [[0, 0]] * total)]
+    native_floor = max((values[1] for values in modules.values()), default=0)
+    native_target = max(
+        native_floor + min(load[1] for load in loads),
+        (sum(load[1] for load in loads) + sum(values[1] for values in modules.values())) / total,
+    )
+    longest = sorted(modules, key=lambda path: (-modules[path][0], path))[:2]
+    assignments: dict[str, int] = {}
+    for path in sorted(modules, key=lambda path: (-max(modules[path][0], modules[path][1] * 2), path)):
+        base, native = modules[path]
+
+        def cost(index: int, base: int = base, native: int = native) -> tuple[float, float, int]:
+            base_load, native_load = loads[index]
+            native_load += native
+            return (
+                max(0, native_load - native_target),
+                (base_load + base) / 4 + native_load / 2,
+                index,
+            )
+
+        candidates = range(total)
+        if total > 1 and path in longest:
+            occupied = {assignments[other] for other in longest if other in assignments}
+            candidates = [index for index in candidates if index + 1 not in occupied]
+        index = min(candidates, key=cost)
+        assignments[path] = index + 1
+        loads[index][0] += base
+        loads[index][1] += native
+    return assignments
 
 
 def shard_for(rel_path: str, total: int) -> int:
-    """Assign a repo-relative POSIX module path to one shard."""
-    override = SHARD_OVERRIDES.get(rel_path)
-    if override is not None and override <= total:
-        return override
-    return zlib.crc32(rel_path.encode("utf-8")) % total + 1
+    """Pack median worker-seconds: base / 4 plus native / 2 estimates wall cost.
+    Seed short modules at crc32; keep native loads near their single-module floor.
+    Separate the 2 longest base modules because loadscope cannot split either.
+    """
+    owner = _weighted_shards(total).get(rel_path)
+    return owner if owner is not None else zlib.crc32(rel_path.encode("utf-8")) % total + 1
 
 
 def _module_path(path: Path, config: pytest.Config) -> str:

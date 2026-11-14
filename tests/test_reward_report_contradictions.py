@@ -17,6 +17,7 @@ HEADER = (
     "date,job,trial,task,reward,reward_source,reward_txt,tests,passed,failed,skipped,"
     "reason,classification"
 )
+MISMATCH_HEADER = "date,job,trial,task,agent,model,reward,reward_txt"
 
 
 @pytest.fixture
@@ -39,6 +40,8 @@ def add_trial(
     reward: float | None = 1,
     reward_txt: str | None = None,
     statuses: tuple[str, ...] | None = ("failed",),
+    agent: str | None = None,
+    model: str | None = None,
 ) -> Path:
     trial_dir = root / date / job / trial
     verifier = trial_dir / "verifier"
@@ -46,6 +49,13 @@ def add_trial(
     result = {"task_name": task}
     if reward is not None:
         result["verifier_result"] = {"rewards": {"reward": reward}}
+    if agent is not None or model is not None:
+        identity = {}
+        if agent is not None:
+            identity["name"] = agent
+        if model is not None:
+            identity["model_name"] = model
+        result["config"] = {"agent": identity}
     (trial_dir / "result.json").write_text(json.dumps(result), encoding="utf-8")
     if reward_txt is not None:
         (verifier / "reward.txt").write_text(reward_txt, encoding="utf-8")
@@ -69,6 +79,97 @@ def build_table(build, tmp_path: Path) -> list[dict[str, str]]:
     out = tmp_path / "out"
     assert build.main(["--root", str(root), "--out-dir", str(out)]) == 0
     return read_rows(out / "contradictions.csv")
+
+
+def mismatch_table(build, tmp_path: Path) -> list[dict[str, str]]:
+    build_table(build, tmp_path)
+    return read_rows(tmp_path / "out" / "reward-file-mismatches.csv")
+
+
+def test_har_438_retained_reward_mismatch_row(build, tmp_path: Path) -> None:
+    add_trial(
+        tmp_path / "results",
+        job="HAR-438-har438-embedding-cheat-retry",
+        trial="har438-embedding-cheat-retry__Menu4KH",
+        task="terminal-bench/embedding-drift-monitor",
+        reward=0.0,
+        reward_txt="1",
+        statuses=("passed",),
+        agent="oracle",
+        model="claude-sonnet-4-5",
+    )
+    rows = mismatch_table(build, tmp_path)
+    target = tmp_path / "out" / "reward-file-mismatches.csv"
+    assert target.read_bytes().startswith((MISMATCH_HEADER + "\n").encode("utf-8"))
+    assert b"\r" not in target.read_bytes()
+    assert rows == [
+        {
+            "date": "2026-11-14",
+            "job": "HAR-438-har438-embedding-cheat-retry",
+            "trial": "har438-embedding-cheat-retry__Menu4KH",
+            "task": "terminal-bench/embedding-drift-monitor",
+            "agent": "oracle",
+            "model": "claude-sonnet-4-5",
+            "reward": "0",
+            "reward_txt": "1",
+        }
+    ]
+
+
+def test_equal_or_absent_retained_rewards_are_not_mismatches(build, tmp_path: Path) -> None:
+    root = tmp_path / "results"
+    add_trial(root, trial="equal", reward=1, reward_txt="1", statuses=("passed",))
+    add_trial(root, trial="no-reward-txt", reward=1, statuses=("passed",))
+    add_trial(root, trial="no-captured-reward", reward=None, reward_txt="1", statuses=("passed",))
+    add_trial(root, trial="no-agent-config", reward=0, reward_txt="1", statuses=("passed",))
+    rows = mismatch_table(build, tmp_path)
+    assert [(row["trial"], row["agent"], row["model"]) for row in rows] == [
+        ("no-agent-config", "", "")
+    ]
+    assert (tmp_path / "out" / "reward-file-mismatches.csv").read_text(
+        encoding="utf-8"
+    ) == MISMATCH_HEADER + "\n" + "2026-11-14,job,no-agent-config,terminal-bench/example,,,0,1\n"
+
+
+def test_mismatch_threshold_is_strictly_greater_than_onee9(build, tmp_path: Path) -> None:
+    root = tmp_path / "results"
+    add_trial(root, trial="within", reward=1, reward_txt="1.0000000001", statuses=("passed",))
+    add_trial(root, trial="outside", reward=1, reward_txt="1.000000002", statuses=("passed",))
+    rows = mismatch_table(build, tmp_path)
+    assert [row["trial"] for row in rows] == ["outside"]
+    assert (rows[0]["reward"], rows[0]["reward_txt"]) == ("1", "1.000000002")
+
+
+def test_check_covers_both_csvs(build, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    root = tmp_path / "results"
+    add_trial(root, reward=0, reward_txt="1", statuses=("passed",), agent="oracle")
+    build_table(build, tmp_path)
+    mismatches = tmp_path / "out" / "reward-file-mismatches.csv"
+    argv = ["--check", "--root", str(root), "--out-dir", str(tmp_path / "out")]
+    capsys.readouterr()
+    assert build.main(argv) == 0
+    reproduced = capsys.readouterr().out
+    assert "contradictions.csv: reproduces from the results root" in reproduced
+    assert "reward-file-mismatches.csv: reproduces from the results root" in reproduced
+
+    rows = read_rows(mismatches)
+    rows[0]["agent"] = "changed"
+    with mismatches.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(
+            handle, fieldnames=MISMATCH_HEADER.split(","), lineterminator="\n"
+        )
+        writer.writeheader()
+        writer.writerows(rows)
+    assert build.main(argv) == 1
+    error = capsys.readouterr().err
+    assert "reward-file-mismatches.csv: missing or stale" in error
+    assert "+++ reward-file-mismatches.csv (rebuilt)" in error
+    assert "changed" in error
+
+    mismatches.unlink()
+    assert build.main(argv) == 1
+    assert not mismatches.exists()
+    assert "missing or stale" in capsys.readouterr().err
 
 
 def test_har_434_exact_csv_row(build, tmp_path: Path) -> None:
@@ -116,7 +217,8 @@ def test_consistent_and_missing_reports_emit_no_rows(
     assert (tmp_path / "out" / "contradictions.csv").read_text(encoding="utf-8") == HEADER + "\n"
     assert capsys.readouterr().out == (
         "scanned=3 comparable=2 with_reward=3 contradictions=0 "
-        "forged=0 partial-credit=0 unknown=0\nwrote contradictions.csv\n"
+        "forged=0 partial-credit=0 unknown=0 mismatches=0\n"
+        "wrote contradictions.csv\nwrote reward-file-mismatches.csv\n"
     )
 
 
@@ -163,7 +265,8 @@ def test_ctrf_summary_fallback_is_comparable(
     assert row["classification"] == "partial-credit"
     assert capsys.readouterr().out == (
         "scanned=1 comparable=1 with_reward=1 contradictions=1 "
-        "forged=0 partial-credit=1 unknown=0\nwrote contradictions.csv\n"
+        "forged=0 partial-credit=1 unknown=0 mismatches=0\n"
+        "wrote contradictions.csv\nwrote reward-file-mismatches.csv\n"
     )
 
 
@@ -177,7 +280,8 @@ def test_malformed_and_empty_ctrf_are_not_comparable(
     assert build_table(build, tmp_path) == []
     assert capsys.readouterr().out == (
         "scanned=4 comparable=0 with_reward=4 contradictions=0 "
-        "forged=0 partial-credit=0 unknown=0\nwrote contradictions.csv\n"
+        "forged=0 partial-credit=0 unknown=0 mismatches=0\n"
+        "wrote contradictions.csv\nwrote reward-file-mismatches.csv\n"
     )
 
 
@@ -196,7 +300,8 @@ def test_scan_uses_only_exact_published_layout(
     assert [row["trial"] for row in rows] == [valid.name]
     assert capsys.readouterr().out == (
         "scanned=1 comparable=1 with_reward=1 contradictions=1 "
-        "forged=1 partial-credit=0 unknown=0\nwrote contradictions.csv\n"
+        "forged=1 partial-credit=0 unknown=0 mismatches=0\n"
+        "wrote contradictions.csv\nwrote reward-file-mismatches.csv\n"
     )
 
 
@@ -283,3 +388,7 @@ def test_reason_classification_and_number_text_units(build) -> None:
     assert build.classify(0, (2, 0, 2, 0)) == ""
     assert build.number_text(1.0) == "1"
     assert build.number_text(0.5) == "0.5"
+    assert build.exact_number_text(1.0) == "1"
+    assert build.exact_number_text(1.000000002) == "1.000000002"
+    assert build.exact_number_text(None) == ""
+    assert build.exact_number_text(float("inf")) == ""

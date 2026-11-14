@@ -28,6 +28,16 @@ Append "; reward.txt says {reward_txt}" when rewards differ by more than 1e-9.
 CSV rows follow walk order, use LF endings, and format numbers to 6 decimal
 places with trailing zeros removed. The header is present even without rows.
 
+The same walk also writes reward-file-mismatches.csv: every published trial whose
+captured reward differs from its retained verifier/reward.txt by more than 1e-9.
+The captured reward is the finite numeric result.json value. A trial is a mismatch
+only when both values are usable, so a missing reward.txt or a missing captured
+reward never produces a row. Columns are the directory names, the exact task_name,
+config.agent.name, config.agent.model_name (empty when absent or not a string), and
+both reward values. Mismatch values use the shortest round-trip decimal text, so a
+difference just above 1e-9 stays visible. --check compares both CSVs and never
+writes either.
+
 Reproduce from the repository worktree:
     python3 research/experiments/reward-report-contradictions/build.py
     python3 research/experiments/reward-report-contradictions/build.py --check
@@ -57,7 +67,18 @@ HERE = Path(__file__).resolve().parent
 DEFAULT_ROOT = Path.home() / "Developer" / "eval-lab-results"
 RESULTS_ROOT_ENV = "EVALLAB_RESULTS_ROOT"
 CSV_NAME = "contradictions.csv"
+MISMATCH_CSV_NAME = "reward-file-mismatches.csv"
 DATE_DIR_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+MISMATCH_COLUMNS = (
+    "date",
+    "job",
+    "trial",
+    "task",
+    "agent",
+    "model",
+    "reward",
+    "reward_txt",
+)
 COLUMNS = (
     "date",
     "job",
@@ -106,6 +127,14 @@ def number_text(value: float | None) -> str:
         return ""
     text = f"{value:.6f}".rstrip("0").rstrip(".")
     return "0" if text == "-0" else text
+
+
+def exact_number_text(value: float | None) -> str:
+    """Use the shortest round-trip text so a listed difference stays visible."""
+    if value is None or not math.isfinite(value):
+        return ""
+    text = repr(float(value))
+    return text[:-2] if text.endswith(".0") else text
 
 
 def _json_number(value: object) -> float | None:
@@ -160,6 +189,17 @@ def reward_values(trial_dir: Path, result: dict) -> tuple[float | None, str, flo
     if reward_txt is not None:
         return reward_txt, "reward_txt", reward_txt
     return None, "", None
+
+
+def agent_identity(result: dict) -> tuple[str, str]:
+    """Return (config.agent.name, config.agent.model_name) strings, else empty."""
+    config = result.get("config")
+    agent = config.get("agent") if isinstance(config, dict) else None
+    if not isinstance(agent, dict):
+        return "", ""
+    name = agent.get("name")
+    model = agent.get("model_name")
+    return name if isinstance(name, str) else "", model if isinstance(model, str) else ""
 
 
 def contradiction_reason(reward: float, counts: tuple[int, int, int, int]) -> str:
@@ -257,9 +297,38 @@ def trial_row(date: str, job: str, trial_dir: Path, result: dict) -> dict[str, s
     return _contradiction_row(date, job, trial_dir, result, reward, source, reward_txt, counts)
 
 
-def _scan(root: Path) -> tuple[list[dict[str, str]], Counter[str]]:
-    """Read each trial once and retain rows plus deterministic coverage counters."""
+def _mismatch_row(
+    date: str,
+    job: str,
+    trial_dir: Path,
+    result: dict,
+    reward: float | None,
+    source: str,
+    reward_txt: float | None,
+) -> dict[str, str] | None:
+    """Build a reward-file mismatch row from evidence already read by the caller."""
+    if reward is None or source != "result" or reward_txt is None:
+        return None
+    if abs(reward_txt - reward) <= 1e-9:
+        return None
+    task = result.get("task_name")
+    agent, model = agent_identity(result)
+    return {
+        "date": date,
+        "job": job,
+        "trial": trial_dir.name,
+        "task": task if isinstance(task, str) else "",
+        "agent": agent,
+        "model": model,
+        "reward": exact_number_text(reward),
+        "reward_txt": exact_number_text(reward_txt),
+    }
+
+
+def _scan(root: Path) -> tuple[list[dict[str, str]], list[dict[str, str]], Counter[str]]:
+    """Read each trial once; retain rows, mismatch rows, and coverage counters."""
     rows = []
+    mismatches = []
     counters: Counter[str] = Counter()
     for date, job, trial_dir, result in published_trials(root):
         counters["scanned"] += 1
@@ -272,7 +341,11 @@ def _scan(root: Path) -> tuple[list[dict[str, str]], Counter[str]]:
             rows.append(row)
             counters["contradictions"] += 1
             counters[row["classification"]] += 1
-    return rows, counters
+        mismatch = _mismatch_row(date, job, trial_dir, result, reward, source, reward_txt)
+        if mismatch is not None:
+            mismatches.append(mismatch)
+            counters["mismatches"] += 1
+    return rows, mismatches, counters
 
 
 def trial_rows(root: Path) -> list[dict[str, str]]:
@@ -280,13 +353,28 @@ def trial_rows(root: Path) -> list[dict[str, str]]:
     return _scan(root)[0]
 
 
-def render(rows: Sequence[dict[str, str]]) -> str:
-    """Render the exact CSV columns with a header and LF line endings."""
+def mismatch_rows(root: Path) -> list[dict[str, str]]:
+    """Return every reward-file mismatch row in deterministic date/job/trial order."""
+    return _scan(root)[1]
+
+
+def _render(rows: Sequence[dict[str, str]], columns: Sequence[str]) -> str:
+    """Render exact columns with a header and LF line endings."""
     buffer = io.StringIO(newline="")
-    writer = csv.DictWriter(buffer, fieldnames=COLUMNS, lineterminator="\n")
+    writer = csv.DictWriter(buffer, fieldnames=columns, lineterminator="\n")
     writer.writeheader()
     writer.writerows(rows)
     return buffer.getvalue()
+
+
+def render(rows: Sequence[dict[str, str]]) -> str:
+    """Render the exact contradiction CSV columns with a header and LF endings."""
+    return _render(rows, COLUMNS)
+
+
+def render_mismatches(rows: Sequence[dict[str, str]]) -> str:
+    """Render the exact mismatch CSV columns with a header and LF endings."""
+    return _render(rows, MISMATCH_COLUMNS)
 
 
 def check(target: Path, rebuilt: str) -> bool:
@@ -321,20 +409,26 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=Path(os.environ.get(RESULTS_ROOT_ENV, str(DEFAULT_ROOT))),
         help=f"published results root (default: ${RESULTS_ROOT_ENV} or {DEFAULT_ROOT})",
     )
-    parser.add_argument("--out-dir", type=Path, default=HERE, help="directory for contradictions.csv")
+    parser.add_argument(
+        "--out-dir", type=Path, default=HERE, help="directory for the two CSVs"
+    )
     parser.add_argument("--check", action="store_true", help="exit 1 for CSV drift; never write")
     args = parser.parse_args(argv)
     try:
-        rows, counters = _scan(args.root)
-        rebuilt = render(rows)
-        fields = ("scanned", "comparable", "with_reward", "contradictions", *CLASSES)
+        rows, mismatches, counters = _scan(args.root)
+        fields = ("scanned", "comparable", "with_reward", "contradictions", *CLASSES, "mismatches")
         print(" ".join(f"{name}={counters[name]}" for name in fields))
-        target = args.out_dir / CSV_NAME
+        outputs = (
+            (CSV_NAME, render(rows)),
+            (MISMATCH_CSV_NAME, render_mismatches(mismatches)),
+        )
         if args.check:
-            return 0 if check(target, rebuilt) else 1
+            results = [check(args.out_dir / name, text) for name, text in outputs]
+            return 0 if all(results) else 1
         args.out_dir.mkdir(parents=True, exist_ok=True)
-        target.write_text(rebuilt, encoding="utf-8", newline="")
-        print(f"wrote {CSV_NAME}")
+        for name, text in outputs:
+            (args.out_dir / name).write_text(text, encoding="utf-8", newline="")
+            print(f"wrote {name}")
     except (BuildError, OSError) as error:
         print(f"{'--check' if args.check else 'build'}: {error}", file=sys.stderr)
         return 2

@@ -1,0 +1,6 @@
+date,job,trial,task,agent,model,reward,reward_txt
+2026-10-09,unknown-sepsv2-cur-format-code-task-000666-a4,sepsv2-cur-format-code-task-0006__o7XoMzd,mimo-v2.6-rl/format-code-task-000666,oracle,,0,1
+2026-10-09,unknown-sepsv2-cur-format-code-task-001809-a4,sepsv2-cur-format-code-task-0018__KRhsGME,mimo-v2.6-rl/format-code-task-001809,oracle,,0,1
+2026-10-09,unknown-sepsv2-cur-format-code-task-002391-a4,sepsv2-cur-format-code-task-0023__GFs2kdf,mimo-v2.6-rl/format-code-task-002391,oracle,,0,1
+2026-10-09,unknown-sepsv2-cur-format-code-task-002552-a4,sepsv2-cur-format-code-task-0025__hKTw4gF,mimo-v2.6-rl/format-code-task-002552,oracle,,0,1
+2026-11-14,HAR-438-har438-embedding-cheat-retry,har438-embedding-cheat-retry__Menu4KH,terminal-bench/embedding-drift-monitor,oracle,,0,1

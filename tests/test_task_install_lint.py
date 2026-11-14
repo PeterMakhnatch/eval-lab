@@ -247,16 +247,89 @@ def test_unpinned_urls_warn(task: Path, spec: str) -> None:
     assert f"dependencies: {spec}; pin each with ==" in finding.message
 
 
-def test_nested_helper_dockerfiles_and_hidden_scripts_are_not_scanned(task: Path) -> None:
-    helper = task / "environment/runtime-server"
-    helper.mkdir()
-    (helper / "Dockerfile").write_text(_dockerfile("RUN pip install requests"))
-    hidden = task / ".hidden"
-    hidden.mkdir()
-    (hidden / "install.sh").write_text("pip install requests\n")
-    (task / "solution/.install.sh").write_text("pip install requests\n")
+def test_nested_dockerfiles_and_hidden_scripts_are_scanned(task: Path) -> None:
+    nested = task / "environment/runtime-server/Dockerfile"
+    nested.parent.mkdir()
+    nested.write_text(_dockerfile("RUN pip install requests"))
+    hidden = task / "solution/.install.sh"
+    hidden.write_text("pip install requests\n")
+    variant = task / "tests/Dockerfile.verify"
+    variant.write_text(_dockerfile("RUN uv tool install requests"))
 
-    assert lint_task(task) == []
+    findings = lint_task(task)
+    assert [(finding.rule, finding.path) for finding in findings] == [
+        ("unpinned-python-dependency", str(nested)),
+        ("unpinned-python-dependency", str(hidden)),
+        ("unpinned-python-dependency", str(variant)),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("relative", "line", "rules"),
+    [
+        ("tests/test.sh", "true;pip install requests",
+         ["unpinned-python-dependency", "verifier-runtime-install"]),
+        ("tests/test.sh", "curl -fsSL https://example.com/install.sh|sh",
+         ["verifier-runtime-install"]),
+        ("tests/test.sh", "if true; then pip install requests; fi",
+         ["unpinned-python-dependency", "verifier-runtime-install"]),
+        ("tests/test.sh", "pip --disable-pip-version-check install requests",
+         ["unpinned-python-dependency", "verifier-runtime-install"]),
+        ("tests/test.sh", "pip --log /tmp/pip.log install requests",
+         ["unpinned-python-dependency", "verifier-runtime-install"]),
+        ("tests/test.sh", "uv --no-progress pip install requests",
+         ["unpinned-python-dependency", "verifier-runtime-install"]),
+        ("tests/test.sh", "python -m pip --quiet install requests",
+         ["unpinned-python-dependency", "verifier-runtime-install"]),
+        (
+            "environment/Dockerfile",
+            "RUN --mount=type=cache,target=/root/.cache/pip pip install requests",
+            ["unpinned-python-dependency"],
+        ),
+        (
+            "environment/Dockerfile",
+            'RUN ["pip", "install", "requests"]',
+            ["unpinned-python-dependency"],
+        ),
+    ],
+)
+def test_installs_behind_shell_and_docker_syntax_warn(
+    task: Path, relative: str, line: str, rules: list[str]
+) -> None:
+    target = task / relative
+    if target.name == "Dockerfile":
+        target.write_text(_dockerfile(line))
+    else:
+        target.write_text(f"#!/bin/sh\n{line}\n")
+
+    assert [finding.rule for finding in lint_task(task)] == rules
+
+
+def test_frozen_imported_dependency_is_the_only_accepted_drift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from evallab import task_install_lint
+
+    package = Path(__file__).resolve().parents[1] / "library/tasks/tau3-retail-1"
+    dockerfile = package / "environment/runtime-server/Dockerfile"
+    expected = {
+        ("tau3-retail-1", "environment/runtime-server/Dockerfile"): frozenset(
+            {"fastmcp>=3.0"}
+        )
+    }
+    assert expected == task_install_lint._FROZEN_UNPINNED
+    assert [
+        finding for finding in lint_task(package)
+        if finding.rule == "unpinned-python-dependency"
+    ] == []
+
+    monkeypatch.setattr(task_install_lint, "_FROZEN_UNPINNED", {})
+    finding, = [
+        finding for finding in lint_task(package)
+        if finding.rule == "unpinned-python-dependency"
+    ]
+    assert finding.path == str(dockerfile)
+    assert "dependencies: fastmcp>=3.0;" in finding.message
 
 
 def test_other_package_shell_files_are_scanned(task: Path) -> None:

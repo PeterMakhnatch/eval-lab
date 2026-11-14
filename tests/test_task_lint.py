@@ -38,6 +38,10 @@ _ALLOWED_LIBRARY_WARNINGS = {
         "library/tasks/tau3-retail-1",
     },
     "verifier-runtime-install": {"library/tasks/query-optimize"},
+    "verifier-network-download": {
+        "library/tasks/query-optimize",
+        "library/tasks/terminal-bench-html-js-filter",
+    },
 }
 
 
@@ -574,7 +578,7 @@ def test_committed_task_library_lints_without_error_findings() -> None:
     assert warnings == _ALLOWED_LIBRARY_WARNINGS
     # One finding per Dockerfile that breaks a rule, so a second unpinned
     # Dockerfile inside an already-listed package cannot hide.
-    assert sum(finding.severity == "warning" for _, finding in findings) == 20
+    assert sum(finding.severity == "warning" for _, finding in findings) == 22
     assert cli.run_cli(
         ["tasks", "lint", str(REPO_ROOT / "library/tasks")], workspace=REPO_ROOT
     ) == 0

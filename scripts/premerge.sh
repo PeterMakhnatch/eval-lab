@@ -84,19 +84,19 @@ case "${mode}" in
     echo "local prepush checkpoint: selected coverage only; not CI green"
     branch="$(git symbolic-ref --quiet --short HEAD)"
     echo "push check branch: ${branch}"
-    push_args=()
+    push_command=(uv run --no-sync evallab ship check-push)
     if [[ -n "${EVALLAB_PREPUSH_NEEDS_BASE:-}" || -n "${EVALLAB_PREPUSH_REASON:-}" ]]; then
       if [[ -z "${EVALLAB_PREPUSH_NEEDS_BASE:-}" || -z "${EVALLAB_PREPUSH_REASON:-}" ]]; then
         echo "error: set both EVALLAB_PREPUSH_NEEDS_BASE and EVALLAB_PREPUSH_REASON" >&2
         exit 2
       fi
-      push_args=(--needs-base "${EVALLAB_PREPUSH_NEEDS_BASE}" --reason "${EVALLAB_PREPUSH_REASON}")
+      push_command+=("--needs-base=${EVALLAB_PREPUSH_NEEDS_BASE}" "--reason=${EVALLAB_PREPUSH_REASON}")
     fi
     if ! git diff --quiet HEAD --; then
       echo "push check skipped: uncommitted tracked changes; check-push compares committed HEAD and could falsely refuse the same patch."
     else
       push_exit=0
-      push_output="$(uv run --no-sync evallab ship check-push "${push_args[@]}" 2>&1)" || push_exit=$?
+      push_output="$("${push_command[@]}" 2>&1)" || push_exit=$?
       printf '%s\n' "${push_output}"
       if [[ "${push_exit}" -ne 0 ]]; then
         case "${push_output}" in

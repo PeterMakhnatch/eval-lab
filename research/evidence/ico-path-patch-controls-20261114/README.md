@@ -83,7 +83,9 @@ interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 2.4.0, stripped
 
 The host reports `arm64`.
 The Docker daemon reports `aarch64`.
-Both the agent image and the verifier image report `linux/arm64`.
+Every captured image reports `linux/arm64`.
+Harbor deleted the oracle agent image before inspection.
+The oracle verifier image, the nop agent and verifier images, and the cheat agent and verifier images were inspected before deletion.
 
 A direct free probe with the same Python image confirms the loader failure:
 

@@ -176,7 +176,7 @@ Run **`make prepush` before every push**. This is a local checkpoint, **not CI g
    Asset references in runtime loaders also select their direct test consumers.
    It does not expand every Markdown edit to all documentation consumer tests.
    A bare collect-only run checks the full test tree for import and collection errors.
-   Workflow/native-list, governance, route links, fixture conformance, harness
+   Workflow/native-list, governance, fixture conformance, harness
    fixture analysis, and front-matter parser contracts run without branch changes.
    Pytest uses at most 2 workers. Typical changes should finish within
    2 minutes; broad changes can take longer. No automatic full-suite fallback runs.

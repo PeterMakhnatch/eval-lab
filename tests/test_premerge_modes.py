@@ -318,7 +318,7 @@ def test_focused_push_check_compares_commits_and_preserves_explicit_exception(ch
 
     result = _make_prepush(checkpoint, "test_selected.py")
 
-    assert result.returncode == (1 if change == "same" else 0), result.stdout + result.stderr
+    assert result.returncode == (2 if change == "same" else 0), result.stdout + result.stderr
     assert (root / "test-ran").exists() == (change != "same")
     if change in {"unstaged", "staged"}:
         assert "push check skipped: uncommitted tracked changes" in result.stdout

@@ -83,7 +83,17 @@ def _absolute_paths(text: str) -> set[str]:
 # `touch`, and `tee` create every operand; `cp`, `mv`, and `ln` create the last.
 _CREATE_ALL_OPERANDS = frozenset({"mkdir", "touch", "tee"})
 _CREATE_LAST_OPERAND = frozenset({"cp", "mv", "ln"})
-_REDIRECTION = re.compile(r"(?<![<>&])(?:>>?|&>)\s*([^\s;&|()<>]+)")
+_CREATE_VALUE_OPTIONS = {
+    "mkdir": frozenset({"-m", "--mode"}),
+    "install": frozenset({"-m", "--mode", "-o", "--owner", "-g", "--group", "-S", "--suffix"}),
+    "cp": frozenset({"-S", "--suffix"}),
+    "mv": frozenset({"-S", "--suffix"}),
+    "ln": frozenset({"-S", "--suffix"}),
+    "touch": frozenset({"-d", "--date", "-r", "--reference", "-t", "--time"}),
+}
+_REDIRECTION = re.compile(
+    r"(?P<operator>\d*(?:>>?|<<?))(?P<target>[^\s<>&|]*)"
+)
 
 
 def _command_created_paths(command: Sequence[str]) -> set[str]:
@@ -91,23 +101,66 @@ def _command_created_paths(command: Sequence[str]) -> set[str]:
     if not command:
         return set()
     head = PurePosixPath(command[0]).name
-    arguments = command[1:]
-    operands = [argument for argument in arguments if not argument.startswith("-")]
-    if head in _CREATE_ALL_OPERANDS:
-        return {argument for argument in operands if argument.startswith("/")}
-    if head == "install":
-        directories = any(argument in {"-d", "--directory"} for argument in arguments)
-        targets = operands if directories else operands[-1:]
-        return {argument for argument in targets if argument.startswith("/")}
-    if head in _CREATE_LAST_OPERAND:
-        return {argument for argument in operands[-1:] if argument.startswith("/")}
-    return set()
+    if head not in _CREATE_ALL_OPERANDS | _CREATE_LAST_OPERAND | {"install"}:
+        return set()
+    arguments = iter(command[1:])
+    operands: list[str] = []
+    target_directory: str | None = None
+    directories = False
+    options = True
+    for argument in arguments:
+        if options and argument == "--":
+            options = False
+        elif options and argument.startswith("-"):
+            option, separator, value = argument.partition("=")
+            if head == "install" and option in {"-d", "--directory"}:
+                directories = True
+            elif head in _CREATE_LAST_OPERAND | {"install"} and option in {
+                "-t", "--target-directory"
+            }:
+                target_directory = value if separator else next(arguments, "")
+            elif head in _CREATE_LAST_OPERAND | {"install"} and argument.startswith("-t"):
+                target_directory = argument[2:]
+            elif not separator and option in _CREATE_VALUE_OPTIONS.get(head, ()):
+                next(arguments, None)
+        else:
+            operands.append(argument)
+    if target_directory is not None:
+        targets = [target_directory]
+    elif head in _CREATE_ALL_OPERANDS or directories:
+        targets = operands
+    else:
+        targets = operands[-1:]
+    return {argument for argument in targets if argument.startswith("/")}
 
 
 def _run_created_paths(line: str) -> set[str]:
     """Absolute paths one Dockerfile RUN instruction writes into the verifier image."""
-    created = {match.group(1) for match in _REDIRECTION.finditer(line)}
-    for command, _separator in _shell_commands(_install_tokens(line, dockerfile=True)):
+    if re.match(r"(?i)^RUN\s+(?:--\S+\s+)*\[", line):
+        tokens = _install_tokens(line, dockerfile=True)
+        return {_posix_path(path) for path in _command_created_paths(tokens)}
+    # Keep quote origin until redirects are removed: quoted `>` is only data.
+    tokens = _install_tokens(line, dockerfile=True, preserve_quotes=True)
+    created: set[str] = set()
+    command_tokens: list[str] = []
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        index += 1
+        redirect = _REDIRECTION.fullmatch(token)
+        if redirect is None:
+            command_tokens.append(token)
+            continue
+        target = redirect["target"]
+        if not target and index < len(tokens) and not re.fullmatch(r"[;&|()]+", tokens[index]):
+            target = tokens[index]
+            index += 1
+        targets = _install_tokens(target, dockerfile=False)
+        if "<" not in redirect["operator"] and len(targets) == 1:
+            created.add(targets[0])
+    # Decode shell words only after redirect recognition, using the existing parser.
+    commands = _install_tokens(" ".join(command_tokens), dockerfile=False)
+    for command, _separator in _shell_commands(commands):
         created |= _command_created_paths(command)
     return {_posix_path(path) for path in created if path.startswith("/")}
 

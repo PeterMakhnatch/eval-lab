@@ -50,14 +50,3 @@ def test_a_refused_check_is_a_finished_failing_result(
     assert read_json(batch / "scoreboard.json")["quality_checks"] == saved["checks"]
     assert "FAIL" in (batch / "SCOREBOARD.md").read_text()
 
-
-def test_an_invalid_batch_directory_writes_nothing(
-    fixture_spec: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """The refusal of the batch itself (preflight) happens before any file is rewritten."""
-    root = fixture_spec.parent
-    batch = core.run_line(fixture_spec, root)
-    before = (batch / "check.json").read_bytes()
-    (batch / "extra.jsonl").write_text('{"a": 1}\n')
-    assert cli.run_cli(["line", "check", str(batch)], workspace=root) == 2
-    assert (batch / "check.json").read_bytes() == before

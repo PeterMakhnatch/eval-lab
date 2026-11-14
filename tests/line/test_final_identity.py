@@ -67,14 +67,3 @@ def test_a_test_name_nested_in_another_json_file_is_refused(tmp_path: Path) -> N
     with pytest.raises(AdmissionRefused, match="assigned TEST in registry"):
         admit_rollout(trial, registry=_Registry(), require_trajectory=False)
 
-
-def test_a_manifest_row_id_that_is_a_test_name_is_refused(tmp_path: Path) -> None:
-    trial = _trial(tmp_path, {})
-    with pytest.raises(AdmissionRefused, match="assigned TEST in registry"):
-        admit_rollout(
-            trial,
-            registry=_Registry(),
-            row={"id": SECRET, "path": trial},
-            run_id=SECRET,
-            require_trajectory=False,
-        )

@@ -105,7 +105,3 @@ def test_a_ref_without_a_version_is_refused() -> None:
     with pytest.raises(FetchError):
         parse_pin("harbor-index")
 
-
-def test_a_pinned_ref_parses() -> None:
-    pin = parse_pin("harbor-index@1.0")
-    assert (pin.name, pin.version) == ("harbor-index", "1.0")

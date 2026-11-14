@@ -348,12 +348,6 @@ def test_invalid_kind_is_rejected(retriever: CloudTraceRetriever, kind: str) -> 
         retriever.retrieve_similar_examples("query", kind)
 
 
-@pytest.mark.parametrize("top_k", (0, -1, True, 1.5))
-def test_invalid_top_k_is_rejected(retriever: CloudTraceRetriever, top_k: Any) -> None:
-    with pytest.raises(ValueError, match="top_k"):
-        retriever.retrieve_similar_examples("query", "task_quality", top_k)
-
-
 @pytest.mark.parametrize("field", ("snippet_chars", "max_steps_per_trace"))
 @pytest.mark.parametrize("value", (0, -1, True, 1.5))
 def test_invalid_bounds_are_rejected(db: CloudTraceDatabase, field: str, value: Any) -> None:

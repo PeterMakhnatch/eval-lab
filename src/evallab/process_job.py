@@ -187,6 +187,8 @@ def _process_trial(
 ) -> dict[str, Any]:
     """One trial's run report record (JSON-serializable)."""
     from evallab import probe03
+    from evallab.reward_report import assess as _assess_reward_report
+    from evallab.reward_report import flags as _reward_report_flags
     from evallab.step_layers import (
         coverage_record,
         discover_trajectory_parts,
@@ -227,6 +229,8 @@ def _process_trial(
 
     # Reward (probe-02 semantics via the probe03 port).
     reward, scored, reward_source = probe03.read_reward(trial_dir)
+    # HAR-440: retain reward/report contradiction evidence without changing scoring.
+    reward_report = _assess_reward_report(trial_dir)
 
     # First-failure + attribution tags (ported Traces probe-03 rules).
     try:
@@ -417,6 +421,7 @@ def _process_trial(
         "reward": reward,
         "scored": scored,
         "reward_source": reward_source,
+        "reward_report": reward_report,
         "stop_reason": stop_reason,
         "tokens_steps": tokens_steps,
         "tokens_native": {
@@ -528,6 +533,8 @@ def _process_trial(
         from evallab.token_flow import trial_flags as _token_flow_flags
 
         flags.extend(_token_flow_flags(token_flow))
+    if reward_report is not None:
+        flags.extend(_reward_report_flags(reward_report))
     record["flags"] = flags
     # The decision page is attached in process_job after counts land, via
     # _attach_decision: one clean path with the real counts field, never a

@@ -273,6 +273,31 @@ Outcome rejection attribution evaluates normalizer counts before selecting a rul
 Mixed malformed step IDs can therefore raise `TypeError`, including for unrelated rejection causes.
 
 
+## Reward-report contradictions in processed trials
+
+`process-job` writes 1 `reward_report` record per trial.
+The value is `null` when the trial contradicts nothing.
+Otherwise, the object contains `schema` (`evallab.reward_report/v1`), `classification`, `reason`,
+`mismatch`, `reward`, `reward_source`, `reward_txt`, and `counts`.
+`counts` contains `tests`, `passed`, `failed`, and `skipped`.
+
+The rules mirror the HAR-437 scan in
+`research/experiments/reward-report-contradictions/build.py`.
+The module `evallab/reward_report.py` never imports research code.
+`forged` means `passed == 0`, `failed > 0`, and `reward > 0`.
+`partial-credit` means `reward >= 1`, `passed > 0`, and `failed > 0`.
+`unknown` covers the remaining contradiction shapes.
+A mismatch means the effective reward differs from `verifier/reward.txt` by more than `1e-9`.
+A missing report or a report with no test list is not comparable and raises no classification flag.
+A reward-file mismatch still produces a record with `classification: null` and `reason: ""`.
+A trial with no usable reward produces no record at all.
+The classification flag is `reward_report:<classification>:<passed>/<tests>-passed`.
+For example, the flag is `reward_report:forged:0/19-passed`.
+The mismatch flag is `reward_report:mismatch:<reward>-vs-<reward_txt>`.
+For example, the flag is `reward_report:mismatch:0-vs-1`.
+The record and flags are evidence only.
+This check never rewrites `reward`, `scored`, `reward_source`, `counts`, or `decision`.
+
 ## Catalog entities and joins
 
 `sql/schema.sql` owns catalog DDL. Do not duplicate its schema in another writer.

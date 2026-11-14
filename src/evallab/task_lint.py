@@ -18,7 +18,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Literal
 
 from evallab.control_expect import declared_expectation
-from evallab.task_install_lint import lint_installs
+from evallab.task_install_lint import _install_tokens, _shell_commands, lint_installs
 
 
 @dataclass(frozen=True)
@@ -29,7 +29,7 @@ class Finding:
     message: str
 
 
-def _docker_sources(arguments: str) -> list[str]:
+def _docker_operands(arguments: str) -> list[str]:
     """Use the workbench's flag/JSON/shlex pattern, retaining operand validation."""
     payload = arguments.strip()
     while payload.startswith("--"):
@@ -51,7 +51,12 @@ def _docker_sources(arguments: str) -> list[str]:
         raise ValueError("COPY/ADD needs nonempty source operands and a final destination")
     if any(source.startswith("<<") for source in operands[:-1]):
         raise ValueError("COPY/ADD heredoc sources are unsupported by this static lint")
-    return operands[:-1]
+    return operands
+
+
+def _docker_sources(arguments: str) -> list[str]:
+    """The COPY/ADD source operands; the final destination is never a source."""
+    return _docker_operands(arguments)[:-1]
 
 
 _ABSOLUTE_PATH = re.compile(r"(?<![\w./:-])/(?:[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*)")
@@ -72,6 +77,89 @@ def _top_directory(path: str) -> str:
 
 def _absolute_paths(text: str) -> set[str]:
     return {_posix_path(match.group(0)).rstrip(".") for match in _ABSOLUTE_PATH.finditer(text)}
+
+
+# Commands whose operands are paths the verifier image creates. `mkdir`,
+# `touch`, and `tee` create every operand; `cp`, `mv`, and `ln` create the last.
+_CREATE_ALL_OPERANDS = frozenset({"mkdir", "touch", "tee"})
+_CREATE_LAST_OPERAND = frozenset({"cp", "mv", "ln"})
+_REDIRECTION = re.compile(r"(?<![<>&])(?:>>?|&>)\s*([^\s;&|()<>]+)")
+
+
+def _command_created_paths(command: Sequence[str]) -> set[str]:
+    """Absolute paths one shell command creates, as far as its tokens show."""
+    if not command:
+        return set()
+    head = PurePosixPath(command[0]).name
+    arguments = command[1:]
+    operands = [argument for argument in arguments if not argument.startswith("-")]
+    if head in _CREATE_ALL_OPERANDS:
+        return {argument for argument in operands if argument.startswith("/")}
+    if head == "install":
+        directories = any(argument in {"-d", "--directory"} for argument in arguments)
+        targets = operands if directories else operands[-1:]
+        return {argument for argument in targets if argument.startswith("/")}
+    if head in _CREATE_LAST_OPERAND:
+        return {argument for argument in operands[-1:] if argument.startswith("/")}
+    return set()
+
+
+def _run_created_paths(line: str) -> set[str]:
+    """Absolute paths one Dockerfile RUN instruction writes into the verifier image."""
+    created = {match.group(1) for match in _REDIRECTION.finditer(line)}
+    for command, _separator in _shell_commands(_install_tokens(line, dockerfile=True)):
+        created |= _command_created_paths(command)
+    return {_posix_path(path) for path in created if path.startswith("/")}
+
+
+def _dockerfile_created_paths(dockerfile: Path) -> set[str]:
+    """Absolute paths one verifier Dockerfile creates: COPY/ADD destinations and RUN writes."""
+    try:
+        text = dockerfile.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return set()
+    created: set[str] = set()
+    pending = ""
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        continued = line.endswith("\\")
+        pending += line[:-1] if continued else line
+        if continued:
+            pending += " "
+            continue
+        instruction = re.match(r"(?i)^(COPY|ADD|RUN)\b(.*)$", pending)
+        if instruction is not None:
+            if instruction[1].upper() == "RUN":
+                created |= _run_created_paths(pending)
+            else:
+                try:
+                    destination = _docker_operands(instruction[2])[-1]
+                except ValueError:
+                    destination = ""
+                if destination.startswith("/"):
+                    created.add(_posix_path(destination))
+        pending = ""
+    return created
+
+
+def _verifier_owned_paths(tests: Path, artifacts: Sequence[str]) -> set[str]:
+    """Paths the verifier image creates itself, so a read of them is not hidden input.
+
+    Harbor creates the parents of declared artifacts to land them, so a created
+    directory that holds an artifact proves nothing about the other files below
+    it; only created paths outside those parents are verifier-owned.
+    """
+    if not tests.is_dir():
+        return set()
+    created: set[str] = set()
+    for dockerfile in sorted(tests.rglob("Dockerfile*")):
+        if dockerfile.is_file():
+            created |= _dockerfile_created_paths(dockerfile)
+    return {
+        path for path in created if not any(_contains(artifact, path) for artifact in artifacts)
+    }
 
 
 def _artifact_contract_findings(task_dir: Path, artifacts: Sequence[str]) -> list[Finding]:
@@ -136,8 +224,14 @@ def _artifact_contract_findings(task_dir: Path, artifacts: Sequence[str]) -> lis
             )
         )
     top_directories = {_top_directory(artifact) for artifact in artifacts}
+    verifier_owned = _verifier_owned_paths(tests, artifacts)
     for tests_file, paths in paths_by_file.items():
+        # Fixture data names whatever the test data holds; it is not a read.
+        if tests_file.relative_to(tests).parts[0] == "fixtures":
+            continue
         for path in sorted(paths):
+            if any(_contains(path, owned) for owned in verifier_owned):
+                continue
             if any(_contains(path, top) for top in top_directories) and not any(
                 relates(path, artifact) for artifact in artifacts
             ):

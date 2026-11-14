@@ -12,7 +12,6 @@ from evallab.line import core, watch, watch_queue, watch_rollup
 from evallab.line.io import digest, read_json, read_rows, write_json, write_rows
 from evallab.line.watch_state import State
 
-
 USER = {"step_id": 0, "source": "user", "message": "fix it"}
 
 CLEAN = ("src/app.py", "def add(a, b):\n    return a + b\n")

@@ -525,6 +525,7 @@ def lint_task(task_dir: Path) -> list[Finding]:
     """Inspect one task without executing or modifying any task content."""
     findings: list[Finding] = []
     artifact_findings: list[Finding] = []
+    declared: list[str] = []
     manifest = task_dir / "task.toml"
     diagnostics: list[Diagnostic] = []
     config = _parse_task_toml(manifest, diagnostics)
@@ -535,6 +536,9 @@ def lint_task(task_dir: Path) -> list[Finding]:
             )
         )
     else:
+        artifacts = config.get("artifacts")
+        if isinstance(artifacts, list):
+            declared = [path for path in artifacts if isinstance(path, str)]
         verifier = config.get("verifier")
         mode = verifier.get("environment_mode") if isinstance(verifier, dict) else None
         if mode != "separate":
@@ -547,7 +551,7 @@ def lint_task(task_dir: Path) -> list[Finding]:
                     "tampering (replacing pytest/git) can forge reward",
                 )
             )
-        elif not config.get("artifacts"):
+        elif not artifacts:
             findings.append(
                 Finding(
                     "artifacts-declared",
@@ -558,7 +562,6 @@ def lint_task(task_dir: Path) -> list[Finding]:
                 )
             )
         else:
-            artifacts = config.get("artifacts")
             if isinstance(artifacts, list):
                 artifact_findings = _artifact_contract_findings(task_dir, artifacts)
 
@@ -585,7 +588,7 @@ def lint_task(task_dir: Path) -> list[Finding]:
                 )
             )
     findings.extend(_lint_sources(task_dir))
-    findings.extend(lint_installs(task_dir))
+    findings.extend(lint_installs(task_dir, declared))
     findings.extend(artifact_findings)
     return findings
 

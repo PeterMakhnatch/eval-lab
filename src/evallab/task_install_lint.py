@@ -1,9 +1,9 @@
 """Static checks for task dependency pins and verifier network access.
 
-`task_lint` owns the package rules. This module owns three dependency-drift
+`task_lint` owns the package rules. This module owns four dependency-drift
 rules: an install that will drift after authoring, an install that runs while
-grading, and a verifier network download without a checksum. All screen source
-text; none executes a task file.
+grading, a verifier network download without a checksum, and an install from an
+agent-written dependency list. All screen source text; none executes a task file.
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import re
 import shlex
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
 
@@ -57,6 +57,18 @@ _INSTALL_VALUE_OPTIONS = frozenset(
         "--only-group", "--upgrade-strategy", "--progress-bar", "--report",
         "--global-option", "--install-option", "--build-option",
     }
+)
+
+_XARGS_VALUE_OPTIONS = frozenset(
+    {
+        "-a", "--arg-file", "-d", "--delimiter", "-E", "-I", "--replace",
+        "-L", "--max-lines", "-n", "--max-args", "-P", "--max-procs",
+        "-s", "--max-chars", "--process-slot-var",
+    }
+)
+_ARTIFACT_SUBSTITUTION = re.compile(
+    r"""\$\(\s*(?:cat\s+|<\s*)(?P<dollar>"[^"\n]+"|'[^'\n]+'|[^\s()]+)\s*\)"""
+    r"""|`\s*cat\s+(?P<backtick>"[^"\n]+"|'[^'\n]+'|[^\s`]+)\s*`"""
 )
 
 
@@ -300,12 +312,94 @@ def _task_sources(task_dir: Path) -> list[Path]:
     return sorted(sources)
 
 
-def lint_installs(task_dir: Path) -> list[Finding]:
+def _python_install_inputs(arguments: list[str]) -> Iterator[str]:
+    """Yield requirement files and positional operands, not other option values."""
+    index = 0
+    options = True
+    while index < len(arguments):
+        argument = arguments[index]
+        index += 1
+        if options and argument == "--":
+            options = False
+        elif options and argument.startswith("-"):
+            option, separator, value = argument.partition("=")
+            if option in _INSTALL_VALUE_OPTIONS:
+                if not separator and index < len(arguments):
+                    value = arguments[index]
+                    index += 1
+                if option in {"-r", "--requirement"} and value:
+                    yield value
+        else:
+            yield argument
+
+
+def _xargs_inputs(command: list[str]) -> tuple[list[str], list[str]]:
+    """Return xargs input files and the command after its leading options."""
+    files: list[str] = []
+    index = 1
+    while index < len(command):
+        argument = command[index]
+        index += 1
+        if argument == "--":
+            break
+        if not argument.startswith("-"):
+            index -= 1
+            break
+        option, separator, value = argument.partition("=")
+        if option in _XARGS_VALUE_OPTIONS:
+            if not separator and index < len(command):
+                value = command[index]
+                index += 1
+            if option in {"-a", "--arg-file"} and value:
+                files.append(value)
+    return files, _command_head(command[index:])
+
+
+def _installs_packages(command: list[str]) -> bool:
+    return _install_command(command) is not None or bool(
+        command
+        and PurePosixPath(command[0]).name in {"apt-get", "apt"}
+        and "install" in command[1:]
+    )
+
+
+def _agent_dependency_artifacts(
+    line: str, commands: list[tuple[list[str], str]], artifacts: set[str]
+) -> list[str]:
+    references: list[str] = []
+    installing = False
+    for command, _ in commands:
+        install = _install_command(command)
+        if install is not None:
+            references.extend(_python_install_inputs(install[1]))
+        installing |= _installs_packages(command)
+        if command and PurePosixPath(command[0]).name == "xargs":
+            files, operand = _xargs_inputs(command)
+            if _installs_packages(operand):
+                references.extend(files)
+                installing = True
+    if installing:
+        for match in _ARTIFACT_SUBSTITUTION.finditer(line):
+            value = match.group("dollar") or match.group("backtick")
+            references.append(value[1:-1] if value.startswith(("'", '"')) else value)
+    # Token matching and raw substitutions share one source-order deduplication.
+    return sorted(
+        dict.fromkeys(reference for reference in references if reference in artifacts),
+        key=line.find,
+    )
+
+
+def lint_installs(task_dir: Path, artifacts: Sequence[str] = ()) -> list[Finding]:
     """Screen dependency drift and verifier network access without executing them."""
     # Imported here: task_lint imports this module while it loads.
     from evallab.task_lint import Finding
 
     findings: list[Finding] = []
+    declared = {
+        artifact.rstrip("/") or "/"
+        for artifact in artifacts
+        if PurePosixPath(artifact).is_absolute()
+    }
     for path in _task_sources(task_dir):
         dockerfile = _is_dockerfile(path)
         under_tests = path.is_relative_to(task_dir / "tests")
@@ -378,6 +472,19 @@ def lint_installs(task_dir: Path) -> list[Finding]:
                     )
                 )
                 runtime_reported = True
+            if under_tests and declared:
+                for artifact in _agent_dependency_artifacts(line, commands, declared):
+                    findings.append(
+                        Finding(
+                            "verifier-installs-agent-dependencies",
+                            "warning",
+                            str(path),
+                            f"line {number}: the verifier installs packages from the "
+                            f"agent-written artifact {artifact}; the agent writes that file "
+                            "before grading, so one entry can load a pytest plugin or startup "
+                            "hook and forge the pass; install from a verifier-owned list instead",
+                        )
+                    )
         if network_download_line is not None and not script_checksum:
             findings.append(
                 Finding(

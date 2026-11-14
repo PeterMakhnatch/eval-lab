@@ -651,8 +651,14 @@ code as root in the verifier before pytest, so it can rewrite the tests or
 `/logs/verifier/reward.txt`. This package produces the only finding in
 `library/external`; `library/tasks` and `library/benchmarks` report none. The safe
 pattern is to lock `/logs/verifier` to root-only and run agent code as `nobody`, as
-`ico-path-patch` and `embedding-drift-monitor` do. This is why a `chmod` or `test -f`
-line on an artifact does not warn.
+`ico-path-patch` and `embedding-drift-monitor` do. That pattern assumes the container
+owns the mounted directory. A Linux Docker daemon satisfies that assumption. Docker
+Desktop does not: the bind-mounted reward directory belongs to the host user, so the
+dropped `nobody` child still writes the reward files. The ico cheat trial then reached
+reward 1 with all 19 tests failed. A local reward from such a task is therefore not
+proof that the reward channel is closed. See the
+[ico-path-patch controls](../research/evidence/ico-path-patch-controls-20261114/README.md).
+This is why a `chmod` or `test -f` line on an artifact does not warn.
 
 `verifier-network-download` checks every `Dockerfile`, `Dockerfile.*`, and `*.sh`
 under a task package's `tests/`, at any nesting depth and in every verifier mode.

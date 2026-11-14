@@ -603,17 +603,24 @@ under `tests/`. Any `bash -n` diagnostic is an error, including a warning withou
 a failing exit. When `bash` is not on `PATH`, shell files get no finding.
 
 Two warning rules cover dependency drift. `unpinned-python-dependency` checks
-every `RUN` instruction in the task's `environment/Dockerfile` and
-`tests/Dockerfile`, and every shell file in the package. It covers `pip install`,
-`pip3 install`, `python -m pip install`, `uv pip install`, `uv tool install`, and
-the `uvx --with` or `-w` values. It warns when an installed requirement has no
-`==` pin and no URL that names a 40-hex commit or a `sha256` digest. It stays
-silent for a `-r` requirement file, a local path, and a `${VAR}` path.
+every `RUN` instruction in the package's Dockerfiles, including nested build
+contexts such as `environment/runtime-server/Dockerfile`, and every shell file in
+the package. It covers `pip install`, `pip3 install`, `python -m pip install`,
+`uv pip install`, `uv tool install`, and the `uvx --with` or `-w` values. It
+warns when an installed requirement has no `==` pin and no URL that names a
+40-hex commit or a `sha256` digest. It stays silent for a `-r` requirement file,
+a local path, and a `${VAR}` path. Matching joins backslash continuations, skips
+comment lines, reads Docker `RUN` flags such as `--mount=type=cache`, splits
+attached shell operators such as `true;pip install x` and `curl URL|sh`, steps
+past `if`/`then`/`fi` keywords, and passes over global installer options such as
+`pip --disable-pip-version-check install x` and `uv --no-progress pip install x`.
 `verifier-runtime-install` warns once per shell file under `tests/` that installs
 software while grading: it detects `apt-get`, a Python package install, `uvx`, and
 `curl` or `wget` piped into a shell. Put those installs in `tests/Dockerfile`
-instead. Both rules are warnings, so the exit code stays 0 unless an error rule
-fires.
+instead. The imported tau3-bench package keeps its upstream bytes, which this
+repository does not edit, so its `fastmcp>=3.0` requirement is the one named
+exception in the rule; every other unpinned requirement warns. Both rules are
+warnings, so the exit code stays 0 unless an error rule fires.
 
 Only tasks with `environment_mode = "separate"` and declared artifacts receive
 these warnings: `artifacts-instructed` when `instruction.md` is missing or does

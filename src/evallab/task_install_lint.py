@@ -18,6 +18,47 @@ if TYPE_CHECKING:
     from evallab.task_lint import Finding
 
 
+# Imported benchmark packages keep their upstream bytes, and this repository
+# must not edit a registered task in place. Each entry names the package, the
+# task-relative file, and the requirement that stays floating there. Naming the
+# drift keeps the scan scope honest instead of narrowing the scan to hide it;
+# tests/test_task_install_lint.py pins the entry and the library warning set.
+_FROZEN_UNPINNED: dict[tuple[str, str], frozenset[str]] = {
+    ("tau3-retail-1", "environment/runtime-server/Dockerfile"): frozenset(
+        {"fastmcp>=3.0"}
+    ),
+}
+
+_SHELL_PUNCTUATION = ";&|()"
+_COMMAND_SEPARATORS = frozenset({"&&", "||", ";", "|", "|&", "&", ";;", "(", ")"})
+_SHELL_KEYWORDS = frozenset(
+    {
+        "if", "then", "else", "elif", "fi", "do", "done", "while", "until",
+        "for", "in", "case", "esac", "!", "{", "}", "time", "builtin", "eval",
+    }
+)
+_EXEC_WRAPPERS = frozenset({"sudo", "env", "command", "exec", "nohup"})
+_WRAPPER_VALUE_OPTIONS = frozenset(
+    {"-u", "--user", "-g", "--group", "-h", "--host", "--unset", "-C", "-S"}
+)
+_INSTALL_VALUE_OPTIONS = frozenset(
+    {
+        "-r", "--requirement", "-c", "--constraint", "--build-constraint",
+        "-e", "--editable", "-i", "--index-url", "--extra-index-url",
+        "-p", "--python", "-f", "--find-links", "-t", "--target",
+        "--prefix", "--root", "--cache-dir", "--index", "--default-index",
+        "--trusted-host", "--proxy", "--cert", "--client-cert", "--timeout",
+        "--retries", "--log", "--config-settings", "-C", "--platform",
+        "--python-version", "--implementation", "--abi", "--only-binary",
+        "--no-binary", "--keyring-provider", "--resolution", "--prerelease",
+        "--exclude-newer", "--link-mode", "--python-platform", "--directory",
+        "--project", "--with", "-w", "--from", "--src", "--extra", "--group",
+        "--only-group", "--upgrade-strategy", "--progress-bar", "--report",
+        "--global-option", "--install-option", "--build-option",
+    }
+)
+
+
 def _logical_lines(text: str) -> Iterator[tuple[int, str]]:
     """Join backslash continuations and retain the first physical line number."""
     pending = ""
@@ -39,35 +80,30 @@ def _logical_lines(text: str) -> Iterator[tuple[int, str]]:
         yield start, pending
 
 
-_COMMAND_SEPARATORS = frozenset({"&&", "||", ";", "|", "|&", "&", ";;"})
-_INSTALL_VALUE_OPTIONS = frozenset(
-    {
-        "-r", "--requirement", "-c", "--constraint", "--build-constraint",
-        "-e", "--editable", "-i", "--index-url", "--extra-index-url",
-        "-p", "--python", "-f", "--find-links", "-t", "--target",
-        "--prefix", "--root", "--cache-dir", "--index", "--default-index",
-        "--trusted-host", "--proxy", "--cert", "--client-cert", "--timeout",
-        "--retries", "--log", "--config-settings", "-C", "--platform",
-        "--python-version", "--implementation", "--abi", "--only-binary",
-        "--no-binary", "--keyring-provider", "--resolution", "--prerelease",
-        "--exclude-newer", "--link-mode", "--python-platform", "--directory",
-        "--project", "--with", "-w", "--from", "--src", "--extra", "--group",
-        "--only-group", "--upgrade-strategy", "--progress-bar", "--report",
-        "--global-option", "--install-option", "--build-option",
-    }
-)
+def _split_shell(line: str) -> list[str]:
+    """Split a shell line, separating operators attached without spaces."""
+    lexer = shlex.shlex(line, posix=True, punctuation_chars=_SHELL_PUNCTUATION)
+    lexer.whitespace_split = True
+    lexer.commenters = "#"
+    try:
+        return [token for token in lexer if token]
+    except ValueError:
+        return line.split()
 
 
 def _command_head(tokens: list[str]) -> list[str]:
-    """Remove assignments and execution wrappers before inspecting a command."""
+    """Remove assignments, shell keywords, and wrappers before the command."""
     index = 0
     while index < len(tokens):
         token = tokens[index]
         if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", token):
             index += 1
             continue
+        if token in _SHELL_KEYWORDS:
+            index += 1
+            continue
         wrapper = PurePosixPath(token).name
-        if wrapper not in {"sudo", "env", "command", "exec"}:
+        if wrapper not in _EXEC_WRAPPERS:
             break
         index += 1
         while index < len(tokens) and tokens[index].startswith("-"):
@@ -75,7 +111,7 @@ def _command_head(tokens: list[str]) -> list[str]:
             index += 1
             if option == "--":
                 break
-            if option in {"-u", "--user", "-g", "--group", "-h", "--host", "--unset", "-C"}:
+            if option in _WRAPPER_VALUE_OPTIONS:
                 index += 1
     return tokens[index:]
 
@@ -91,18 +127,61 @@ def _shell_commands(tokens: list[str]) -> Iterator[tuple[list[str], str]]:
         yield _command_head(tokens[start:]), ""
 
 
+def _option_end(tokens: list[str], index: int) -> int:
+    """Return the index of the first token after the leading option list."""
+    while index < len(tokens):
+        token = tokens[index]
+        if token == "--":
+            return index + 1
+        if not token.startswith("-") or token == "-":
+            return index
+        option, separator, _ = token.partition("=")
+        index += 1
+        if not separator and option in _INSTALL_VALUE_OPTIONS and index < len(tokens):
+            index += 1
+    return index
+
+
 def _install_command(tokens: list[str]) -> tuple[str, list[str]] | None:
     if not tokens:
         return None
     head = PurePosixPath(tokens[0]).name
-    if head in {"pip", "pip3"} and tokens[1:2] == ["install"]:
-        return f"{head} install", tokens[2:]
-    if re.fullmatch(r"python(?:\d+(?:\.\d+)*)?", head) and tokens[1:4] == [
-        "-m", "pip", "install"
-    ]:
-        return f"{head} -m pip install", tokens[4:]
-    if head == "uv" and tokens[1:3] in (["pip", "install"], ["tool", "install"]):
-        return f"uv {tokens[1]} install", tokens[3:]
+    if head in {"pip", "pip3"}:
+        index = _option_end(tokens, 1)
+        if tokens[index:index + 1] == ["install"]:
+            return f"{head} install", tokens[index + 1:]
+        return None
+    if re.fullmatch(r"python(?:\d+(?:\.\d+)*)?", head):
+        index = 1
+        while index < len(tokens) and tokens[index].startswith("-"):
+            if tokens[index] == "-m":
+                break
+            option = tokens[index]
+            index += 1
+            if option in {"-X", "-W"} and index < len(tokens):
+                index += 1
+        if tokens[index:index + 1] != ["-m"]:
+            return None
+        index = _option_end(tokens, index + 1)
+        if tokens[index:index + 1] != ["pip"]:
+            return None
+        index = _option_end(tokens, index + 1)
+        if tokens[index:index + 1] == ["install"]:
+            return f"{head} -m pip install", tokens[index + 1:]
+        return None
+    if head == "uv":
+        index = _option_end(tokens, 1)
+        if tokens[index:index + 1] == ["pip"]:
+            inner = _option_end(tokens, index + 1)
+            if tokens[inner:inner + 1] == ["install"]:
+                return "uv pip install", tokens[inner + 1:]
+            return None
+        if tokens[index:index + 1] == ["tool"]:
+            inner = _option_end(tokens, index + 1)
+            if tokens[inner:inner + 1] == ["install"]:
+                return "uv tool install", tokens[inner + 1:]
+            return None
+        return None
     if head == "uvx":
         return "uvx --with", tokens[1:]
     return None
@@ -126,7 +205,7 @@ def _install_specs(arguments: list[str], *, uvx: bool) -> list[str]:
                 if not separator and index < len(arguments):
                     value = arguments[index]
                     index += 1
-                if uvx and option in {"--with", "-w"} and value:
+                if uvx and option in {"--with", "-w", "--from"} and value:
                     specs.append(value)
                 if not uvx and option == "--from" and value:
                     specs.append(value)
@@ -160,6 +239,11 @@ def _install_tokens(line: str, *, dockerfile: bool) -> list[str]:
         if instruction is None:
             return []
         line = instruction[1].strip()
+        # Docker RUN flags such as `--mount=type=cache` precede the command.
+        parts = line.split(None, 1)
+        while parts and parts[0].startswith("--"):
+            line = parts[1] if len(parts) > 1 else ""
+            parts = line.split(None, 1)
         if line.startswith("["):
             try:
                 payload = json.loads(line)
@@ -168,10 +252,21 @@ def _install_tokens(line: str, *, dockerfile: bool) -> list[str]:
             return payload if isinstance(payload, list) and all(
                 isinstance(token, str) for token in payload
             ) else []
-    try:
-        return shlex.split(line, comments=True)
-    except ValueError:
-        return line.split()
+    return _split_shell(line)
+
+
+def _is_dockerfile(path: Path) -> bool:
+    return path.name == "Dockerfile" or path.name.startswith("Dockerfile.")
+
+
+def _task_sources(task_dir: Path) -> list[Path]:
+    """Return every Dockerfile and shell file the package builds or runs."""
+    sources = [
+        path
+        for path in task_dir.rglob("*")
+        if path.is_file() and (_is_dockerfile(path) or path.suffix == ".sh")
+    ]
+    return sorted(sources)
 
 
 def lint_installs(task_dir: Path) -> list[Finding]:
@@ -179,20 +274,17 @@ def lint_installs(task_dir: Path) -> list[Finding]:
     # Imported here: task_lint imports this module while it loads.
     from evallab.task_lint import Finding
 
-    dockerfiles = [task_dir / directory / "Dockerfile" for directory in ("environment", "tests")]
-    scripts = [
-        path
-        for path in sorted(task_dir.rglob("*.sh"))
-        if not any(part.startswith(".") for part in path.relative_to(task_dir).parts)
-    ]
     findings: list[Finding] = []
-    for path in [*dockerfiles, *scripts]:
-        if not path.is_file():
-            continue
-        dockerfile = path in dockerfiles
+    for path in _task_sources(task_dir):
+        dockerfile = _is_dockerfile(path)
         verifier = not dockerfile and path.is_relative_to(task_dir / "tests")
+        accepted = _FROZEN_UNPINNED.get(
+            (task_dir.name, path.relative_to(task_dir).as_posix()), frozenset()
+        )
         runtime_reported = False
-        for number, line in _logical_lines(path.read_text(encoding="utf-8", errors="replace")):
+        for number, line in _logical_lines(
+            path.read_text(encoding="utf-8", errors="replace")
+        ):
             commands = list(_shell_commands(_install_tokens(line, dockerfile=dockerfile)))
             unpinned: list[str] = []
             installers: list[str] = []
@@ -205,8 +297,9 @@ def lint_installs(task_dir: Path) -> list[Finding]:
                 if install is not None:
                     label, arguments = install
                     specs = [
-                        spec for spec in _install_specs(arguments, uvx=head == "uvx")
-                        if _unpinned_spec(spec)
+                        spec
+                        for spec in _install_specs(arguments, uvx=head == "uvx")
+                        if _unpinned_spec(spec) and spec not in accepted
                     ]
                     if specs:
                         installers.append(label)
@@ -214,9 +307,9 @@ def lint_installs(task_dir: Path) -> list[Finding]:
                 runtime_install |= head in {"apt-get", "uvx"} or install is not None
                 if head in {"curl", "wget"} and separator in {"|", "|&"}:
                     following = commands[index + 1][0] if index + 1 < len(commands) else []
-                    runtime_install |= bool(following) and PurePosixPath(following[0]).name in {
-                        "sh", "bash", "zsh", "dash", "ksh"
-                    }
+                    runtime_install |= bool(following) and PurePosixPath(
+                        following[0]
+                    ).name in {"sh", "bash", "zsh", "dash", "ksh"}
             if unpinned:
                 findings.append(
                     Finding(

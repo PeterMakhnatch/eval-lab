@@ -21,7 +21,15 @@
       0
     ],
     "tests/line/test_watch.py": [
-      84,
+      18,
+      0
+    ],
+    "tests/line/test_watch_review.py": [
+      23,
+      0
+    ],
+    "tests/line/test_watch_state.py": [
+      37,
       0
     ],
     "tests/test_attach.py": [

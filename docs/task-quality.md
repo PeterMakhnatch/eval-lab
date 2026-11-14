@@ -660,8 +660,18 @@ not name each declared artifact path as its own path; `artifacts-verified` when
 `tests/` is missing or no file under it names an artifact, a parent directory,
 or a path below it; and `verifier-reads-undeclared` when a tests file names an
 absolute path at or below an artifact's top directory (`/app` for `/app/x`) that
-is neither the artifact, above it, nor below it. These warnings leave the exit
-code at 0; other rules' errors still fail.
+is neither the artifact, above it, nor below it. A path at or below one the
+verifier image creates for itself is not a hidden read: the COPY/ADD
+destinations and the `mkdir`, `cp`, `mv`, `ln`, `install`, `touch`, and `tee`
+targets and output redirections of the `RUN` lines in the `Dockerfile*` files
+under `tests/`. Source operands and input redirections do not create paths.
+A created directory that holds a declared artifact does not count, because
+Harbor creates those parents to land the artifacts. Files under
+`tests/fixtures/` hold test data, so the paths they name are silent too. The
+imported Terminal-Bench packages keep 2 `verifier-reads-undeclared` findings,
+both in bun-sourcemap-leak's test_release.py, because a static rule cannot tell
+a string the test asserts is absent from a path the test reads. These warnings
+leave the exit code at 0; other rules' errors still fail.
 
 ## Retained packet and receipt readers
 

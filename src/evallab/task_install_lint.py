@@ -93,9 +93,9 @@ def _logical_lines(text: str) -> Iterator[tuple[int, str]]:
         yield start, pending
 
 
-def _split_shell(line: str) -> list[str]:
-    """Split a shell line, separating operators attached without spaces."""
-    lexer = shlex.shlex(line, posix=True, punctuation_chars=_SHELL_PUNCTUATION)
+def _split_shell(line: str, *, preserve_quotes: bool = False) -> list[str]:
+    """Split shell operators, optionally retaining quoted atoms for redirection checks."""
+    lexer = shlex.shlex(line, posix=not preserve_quotes, punctuation_chars=_SHELL_PUNCTUATION)
     lexer.whitespace_split = True
     lexer.commenters = "#"
     try:
@@ -246,7 +246,9 @@ def _unpinned_spec(spec: str) -> bool:
     return "/" not in spec
 
 
-def _install_tokens(line: str, *, dockerfile: bool) -> list[str]:
+def _install_tokens(
+    line: str, *, dockerfile: bool, preserve_quotes: bool = False
+) -> list[str]:
     if dockerfile:
         instruction = re.match(r"(?i)^RUN\s+(.*)$", line)
         if instruction is None:
@@ -265,7 +267,7 @@ def _install_tokens(line: str, *, dockerfile: bool) -> list[str]:
             return payload if isinstance(payload, list) and all(
                 isinstance(token, str) for token in payload
             ) else []
-    return _split_shell(line)
+    return _split_shell(line, preserve_quotes=preserve_quotes)
 
 
 def _is_dockerfile(path: Path) -> bool:

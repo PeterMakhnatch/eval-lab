@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate ``trials.csv`` and ``headroom.csv``: verifier runtime headroom.
+"""Regenerate verifier runtime headroom and per-test duration tables.
 
 Harbor wraps ``verifier.verify()`` in ``asyncio.wait_for(..., timeout=timeout_sec)``
 (``.venv/.../harbor/trial/trial.py:859``), but the trial's ``verifier`` timing
@@ -17,10 +17,11 @@ layout ``<date>/<job>/<trial>/result.json``), keeps every trial whose
 * ``exception_type``: ``exception_info.exception_type``
 
 ``headroom.csv`` aggregates one row per package against that package's
-``[verifier] timeout_sec`` on the checked-out revision.
+``[verifier] timeout_sec`` on the checked-out revision. ``tests.csv`` records
+each CTRF test and normalizes its recorded duration to seconds.
 
-``--check`` rebuilds both tables in memory and exits 1 on any drift from the
-committed CSV files.
+``--check`` rebuilds all three tables in memory and exits 1 on any drift from
+the committed CSV files.
 
     uv run python research/experiments/library-verifier-headroom/build.py
     uv run python research/experiments/library-verifier-headroom/build.py --check
@@ -39,7 +40,7 @@ import re
 import sys
 import tomllib
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from datetime import datetime
 from pathlib import Path
 
@@ -48,6 +49,7 @@ REPO_ROOT = HERE.parents[2]
 DEFAULT_TASKS_ROOT = REPO_ROOT / "library" / "tasks"
 TRIALS_NAME = "trials.csv"
 HEADROOM_NAME = "headroom.csv"
+TESTS_NAME = "tests.csv"
 DEFAULT_ROOT = Path.home() / "Developer" / "eval-lab-results"
 RESULTS_ROOT_ENV = "EVALLAB_RESULTS_ROOT"
 #: Published results are laid out ``<date>/<job>/<trial>``; other root entries are not trials.
@@ -98,6 +100,16 @@ HEADROOM_COLUMNS = (
     "exception_types",
     "task_path",
 )
+TEST_COLUMNS = (
+    "date",
+    "job",
+    "trial",
+    "package",
+    "test",
+    "status",
+    "duration_s",
+    "duration_source",
+)
 
 
 class BuildError(Exception):
@@ -108,7 +120,7 @@ def read_json(path: Path) -> dict:
     """Return the parsed object, or an empty object when absent or unreadable."""
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, UnicodeError, json.JSONDecodeError):
         return {}
     return value if isinstance(value, dict) else {}
 
@@ -249,11 +261,12 @@ def trial_row(
     }
 
 
-def trial_rows(root: Path, tasks: dict[str, dict]) -> list[dict[str, str]]:
-    """Rows for every published trial of a library package, in walk order."""
+def published_trials(
+    root: Path, tasks: dict[str, dict]
+) -> Iterator[tuple[str, str, Path, dict]]:
+    """Yield matched published trials in deterministic directory order."""
     if not root.is_dir():
         raise BuildError(f"results root not found: {root}")
-    rows: list[dict[str, str]] = []
     dates = sorted(
         path for path in root.iterdir() if path.is_dir() and DATE_DIR_RE.match(path.name)
     )
@@ -266,9 +279,65 @@ def trial_rows(root: Path, tasks: dict[str, dict]) -> list[dict[str, str]]:
                 if not result_path.is_file():
                     continue
                 result = read_json(result_path)
-                if result.get("task_name") not in tasks:
+                package = result.get("task_name")
+                if not isinstance(package, str) or package not in tasks:
                     continue
-                rows.append(trial_row(date_dir.name, job_dir.name, trial_dir, result, tasks))
+                yield date_dir.name, job_dir.name, trial_dir, result
+
+
+def trial_rows(root: Path, tasks: dict[str, dict]) -> list[dict[str, str]]:
+    """Rows for every published trial of a library package, in walk order."""
+    return [
+        trial_row(date, job, trial_dir, result, tasks)
+        for date, job, trial_dir, result in published_trials(root, tasks)
+    ]
+
+
+def ctrf_number(value: object) -> float | None:
+    """Accept only finite JSON numbers, excluding booleans and numeric strings."""
+    return finite(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+
+def ctrf_rows(date: str, job: str, trial_dir: Path, result: dict) -> list[dict[str, str]]:
+    """One row per CTRF test dictionary, with report-wide timestamp units."""
+    results = read_json(trial_dir / "verifier" / "ctrf.json").get("results")
+    if not isinstance(results, dict) or not isinstance(results.get("tests"), list):
+        return []
+    tests = [test for test in results["tests"] if isinstance(test, dict)]
+    summary = results.get("summary")
+    timestamps = [summary, *tests] if isinstance(summary, dict) else tests
+    scale = 1.0
+    if any(
+        abs(number) > 1e11
+        for item in timestamps
+        for key in ("start", "stop")
+        if (number := ctrf_number(item.get(key))) is not None
+    ):
+        scale = 1000.0
+    rows = []
+    for test in tests:
+        start = ctrf_number(test.get("start"))
+        stop = ctrf_number(test.get("stop"))
+        duration = ctrf_number(test.get("duration"))
+        source = ""
+        if start is not None and stop is not None and stop >= start:
+            duration = (stop - start) / scale
+            source = "start_stop"
+        elif duration is not None:
+            duration /= scale
+            source = "duration"
+        rows.append(
+            {
+                "date": date,
+                "job": job,
+                "trial": trial_dir.name,
+                "package": result["task_name"],
+                "test": test.get("name") if isinstance(test.get("name"), str) else "",
+                "status": test.get("status") if isinstance(test.get("status"), str) else "",
+                "duration_s": number_text(duration, places=6),
+                "duration_source": source,
+            }
+        )
     return rows
 
 
@@ -363,7 +432,7 @@ def check(targets: Sequence[tuple[Path, str]]) -> bool:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Build or check both tables. 0 = ok, 1 = drift, 2 = unusable inputs."""
+    """Build or check three tables. 0 = ok, 1 = drift, 2 = unusable inputs."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
         "--root",
@@ -381,13 +450,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--out-dir",
         type=Path,
         default=HERE,
-        help=f"directory for both CSVs (default: {HERE})",
+        help=f"directory for all three CSVs (default: {HERE})",
     )
-    parser.add_argument("--check", action="store_true", help="exit 1 if either CSV differs")
+    parser.add_argument("--check", action="store_true", help="exit 1 if any CSV differs")
     args = parser.parse_args(argv)
     try:
         tasks = load_tasks(args.tasks_root)
-        rows = trial_rows(args.root, tasks)
+        rows = []
+        tests = []
+        for date, job, trial_dir, result in published_trials(args.root, tasks):
+            rows.append(trial_row(date, job, trial_dir, result, tasks))
+            tests.extend(ctrf_rows(date, job, trial_dir, result))
         headroom = headroom_rows(rows, tasks)
     except BuildError as error:
         print(f"{'--check' if args.check else 'build'}: {error}", file=sys.stderr)
@@ -395,6 +468,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     outputs = (
         (args.out_dir / TRIALS_NAME, render(rows, TRIAL_COLUMNS)),
         (args.out_dir / HEADROOM_NAME, render(headroom, HEADROOM_COLUMNS)),
+        (args.out_dir / TESTS_NAME, render(tests, TEST_COLUMNS)),
     )
     if args.check:
         return 0 if check(outputs) else 1
@@ -402,7 +476,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     for target, text in outputs:
         target.write_text(text, encoding="utf-8")
     measured = sum(1 for row in rows if row["phase_s"])
-    print(f"wrote {TRIALS_NAME} and {HEADROOM_NAME}: {len(rows)} trials, {measured} with a phase")
+    print(
+        f"wrote {TRIALS_NAME}, {HEADROOM_NAME} and {TESTS_NAME}: "
+        f"{len(rows)} trials, {measured} with a phase, "
+        f"{len(headroom)} packages, {len(tests)} tests"
+    )
     return 0
 
 

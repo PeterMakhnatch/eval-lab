@@ -9,8 +9,11 @@ from __future__ import annotations
 import csv
 import importlib.util
 import json
+import shutil
 import sys
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 BUILDER = ROOT / "research/experiments/library-verifier-headroom/build.py"
@@ -86,7 +89,7 @@ def read_rows(path: Path) -> list[dict[str, str]]:
 
 
 def build_tables(build, tmp_path: Path, tasks: dict[str, float] | None = None):
-    """Build both CSVs from fixture inputs and return (trials, headroom)."""
+    """Build all three CSVs from fixture inputs and return (trials, headroom, out)."""
     root = tmp_path / "results"
     tasks_root = tmp_path / "tasks"
     root.mkdir(exist_ok=True)
@@ -256,24 +259,25 @@ def test_unlisted_and_missing_variants_are_excluded(tmp_path: Path) -> None:
     assert len(headroom) == len(build.PACKAGES)
 
 
-def test_check_passes_clean_and_fails_on_either_drift(tmp_path: Path) -> None:
+@pytest.mark.parametrize("filename", ["trials.csv", "headroom.csv", "tests.csv"])
+def test_check_passes_clean_and_fails_on_any_drift(tmp_path: Path, filename: str) -> None:
     build = load_builder()
     root = tmp_path / "results"
     add_trial(root, job="job-a", trial="trial-a", package=QUERY_OPTIMIZE)
     tasks_root = tmp_path / "tasks"
     write_tasks(build, tasks_root, {QUERY_OPTIMIZE: 1800.0})
     out = tmp_path / "out"
-    out.mkdir()
     argv = ["--root", str(root), "--tasks-root", str(tasks_root), "--out-dir", str(out)]
     assert build.main(argv) == 0
     assert build.main(["--check", *argv]) == 0
 
-    (out / "headroom.csv").write_text("drift\n", encoding="utf-8")
-    assert build.main(["--check", *argv]) == 1
-
-    assert build.main(argv) == 0
-    (out / "trials.csv").write_text("", encoding="utf-8")
-    assert build.main(["--check", *argv]) == 1
+    copied = tmp_path / "copied"
+    shutil.copytree(out, copied)
+    target = copied / filename
+    original = target.read_bytes()
+    target.write_bytes(bytes([original[0] ^ 1]) + original[1:])
+    assert build.main(["--check", *argv[:-1], str(copied)]) == 1
+    assert build.main(["--check", *argv]) == 0
 
 
 def test_missing_results_root_and_task_metadata_exit_2(tmp_path: Path) -> None:
@@ -294,3 +298,146 @@ def test_missing_results_root_and_task_metadata_exit_2(tmp_path: Path) -> None:
     assert (
         build.main(["--root", str(root), "--tasks-root", str(missing), "--out-dir", str(out)]) == 2
     )
+
+
+def test_ctrf_columns_and_one_row_per_test(tmp_path: Path) -> None:
+    build = load_builder()
+    trial = add_trial(
+        tmp_path / "results", job="job-a", trial="trial-a", package=QUERY_OPTIMIZE
+    )
+    tests = [
+        {"name": "timed", "status": "passed", "start": 10, "stop": 12.3456789, "duration": 99},
+        {"name": "fallback", "status": "failed", "start": 3, "stop": 2, "duration": 0.125},
+        {"name": 123, "status": None, "duration": 0},
+        None,
+        "not a test",
+    ]
+    (trial / "verifier" / "ctrf.json").write_text(
+        json.dumps({"results": {"tests": tests}}), encoding="utf-8"
+    )
+    _, _, out = build_tables(build, tmp_path)
+    rows = read_rows(out / "tests.csv")
+    assert (out / "tests.csv").read_text(encoding="utf-8").splitlines()[0] == (
+        "date,job,trial,package,test,status,duration_s,duration_source"
+    )
+    assert len(rows) == 3
+    assert tuple(rows[0]) == build.TEST_COLUMNS
+    assert rows[0] == {
+        "date": "2026-11-13",
+        "job": "job-a",
+        "trial": "trial-a",
+        "package": QUERY_OPTIMIZE,
+        "test": "timed",
+        "status": "passed",
+        "duration_s": "2.345679",
+        "duration_source": "start_stop",
+    }
+    assert [(row["duration_s"], row["duration_source"]) for row in rows[1:]] == [
+        ("0.125", "duration"),
+        ("0.0", "duration"),
+    ]
+    assert rows[2]["test"] == rows[2]["status"] == ""
+
+
+def test_ctrf_millisecond_report_yields_seconds(tmp_path: Path) -> None:
+    build = load_builder()
+    trial = add_trial(
+        tmp_path / "results", job="job-a", trial="trial-a", package=QUERY_OPTIMIZE
+    )
+    report = {
+        "results": {
+            "summary": {"start": 1700000000000, "stop": 1700000125040},
+            "tests": [
+                {
+                    "name": "timed",
+                    "start": 1700000000000,
+                    "stop": 1700000125040,
+                    "duration": 125040,
+                },
+                {"name": "fallback", "duration": 125040},
+            ],
+        }
+    }
+    (trial / "verifier" / "ctrf.json").write_text(json.dumps(report), encoding="utf-8")
+    _, _, out = build_tables(build, tmp_path)
+    rows = read_rows(out / "tests.csv")
+    assert [(row["duration_s"], row["duration_source"]) for row in rows] == [
+        ("125.04", "start_stop"),
+        ("125.04", "duration"),
+    ]
+
+
+@pytest.mark.parametrize("location", ["summary_start", "summary_stop", "test_start", "test_stop"])
+def test_ctrf_any_epoch_millisecond_timestamp_sets_report_scale(
+    tmp_path: Path, location: str
+) -> None:
+    build = load_builder()
+    trial = add_trial(
+        tmp_path / "results", job="job-a", trial="trial-a", package=QUERY_OPTIMIZE
+    )
+    owner, key = location.split("_")
+    summary = {}
+    tests = [{"name": "fallback", "duration": 125040}]
+    (summary if owner == "summary" else tests[0])[key] = -1700000000000
+    report = {"results": {"summary": summary, "tests": tests}}
+    (trial / "verifier" / "ctrf.json").write_text(json.dumps(report), encoding="utf-8")
+    _, _, out = build_tables(build, tmp_path)
+    assert read_rows(out / "tests.csv")[0]["duration_s"] == "125.04"
+
+
+def test_missing_ctrf_keeps_trial_and_emits_no_test_rows(tmp_path: Path) -> None:
+    build = load_builder()
+    add_trial(tmp_path / "results", job="job-a", trial="trial-a", package=QUERY_OPTIMIZE)
+    trials, _, out = build_tables(build, tmp_path)
+    assert len(trials) == 1
+    assert read_rows(out / "tests.csv") == []
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        b"{invalid",
+        b"\xff",
+        b"[]",
+        b'{"results": []}',
+        b'{"results": {}}',
+        b'{"results": {"tests": {}}}',
+        b'{"results": {"tests": null}}',
+    ],
+)
+def test_malformed_ctrf_keeps_trial_and_emits_no_test_rows(
+    tmp_path: Path, payload: bytes
+) -> None:
+    build = load_builder()
+    trial = add_trial(
+        tmp_path / "results", job="job-a", trial="trial-a", package=QUERY_OPTIMIZE
+    )
+    (trial / "verifier" / "ctrf.json").write_bytes(payload)
+    trials, _, out = build_tables(build, tmp_path)
+    assert len(trials) == 1
+    assert read_rows(out / "tests.csv") == []
+
+
+@pytest.mark.parametrize(
+    "timing",
+    [
+        {},
+        {"duration": float("inf"), "start": float("nan"), "stop": 3},
+        {"duration": "12.5", "start": True, "stop": False},
+        {"start": 2, "stop": 1},
+    ],
+)
+def test_ctrf_without_finite_duration_has_empty_duration_fields(
+    tmp_path: Path, timing: dict
+) -> None:
+    build = load_builder()
+    trial = add_trial(
+        tmp_path / "results", job="job-a", trial="trial-a", package=QUERY_OPTIMIZE
+    )
+    report = {"results": {"tests": [{"name": "unknown", "status": "skipped", **timing}]}}
+    (trial / "verifier" / "ctrf.json").write_text(json.dumps(report), encoding="utf-8")
+    _, _, out = build_tables(build, tmp_path)
+    rows = read_rows(out / "tests.csv")
+    assert len(rows) == 1
+    assert rows[0]["test"] == "unknown"
+    assert rows[0]["duration_s"] == rows[0]["duration_source"] == ""

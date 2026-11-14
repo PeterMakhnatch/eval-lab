@@ -1,4 +1,4 @@
-# Library verifier runtime headroom (HAR-428)
+# Library verifier runtime headroom (HAR-428 extended by HAR-429)
 
 Date: 2026-11-13. Cost: **$0**. **No trial was executed**: `build.py` is a
 read-only walk over published results under `~/Developer/eval-lab-results`
@@ -106,33 +106,97 @@ The results root as of 2026-11-13 records these exception types:
 `RuntimeError` 11, `AttributeError` 10, `RewardFileNotFoundError` 6,
 `EnvironmentStartTimeoutError` 2, `ValueError` 2. No verifier timeout.
 
+## `tests.csv`
+
+One row per test in `verifier/ctrf.json` at a matched trial directory.
+The snapshot contains **2921 rows from 322 trials**.
+The builder reads only `<date>/<job>/<trial>` directories with an exact package match in `result.json`.
+It excludes shallower and deeper layouts, including `tb4-hub`.
+
+| Column | Meaning |
+|---|---|
+| `date` | results date directory |
+| `job` | job directory name |
+| `trial` | trial directory name |
+| `package` | `result.json` `task_name` (exact match) |
+| `test` | test `name` from `results.tests` |
+| `status` | test `status` from the CTRF report |
+| `duration_s` | recorded test duration, normalized to seconds |
+| `duration_source` | `start_stop`, `duration`, or empty when timing is absent |
+
+The builder prefers numeric `stop - start` when `stop >= start` (`start_stop`).
+Otherwise, it uses numeric `duration` (`duration`).
+It uses a report-wide scale of 1000 if any summary or test `start` or `stop` has absolute value above `1e11`.
+It divides both timing sources by that scale.
+Otherwise, the scale is 1.
+Thus, reports with epoch-millisecond timestamps are divided by 1000.
+`pytest-json-ctrf` 0.3.5 writes seconds; the CTRF report written under pytest 9.1.1 uses epoch milliseconds.
+
+A missing or malformed CTRF report produces no test rows.
+A valid test with no recorded timing retains its row with empty `duration_s` and `duration_source`.
+Missing timing is not a zero duration.
+
+## Slowest verifier test per package
+
+For each package, select the test with the largest maximum `duration_s`.
+Break ties by lexicographic test name.
+For each trial with positive total recorded test duration, divide the selected test's duration by that total.
+The median of those trial shares is the median share below.
+Trials that lack the selected test, or have a zero total, do not enter the median.
+
+| Package | Slowest test | Max duration_s | Median share |
+|---|---|---|---|
+| `local-lab/event-summary` | `correctness` | 0.0 s | undefined |
+| `peter/release-branch-rescue` | `test_rescue.py::test_repo_security_invariants` | 0.089 s | 43.4% |
+| `peter/sheet-recalc` | `test_sheet.py::test_deep_chain_of_ten_thousand_cells` | 60.101 s | 0.8% |
+| `peter/sheet-recalc-cutoff` | `test_sheet.py::test_deep_chain_of_ten_thousand_cells` | 60.134 s | 0.9% |
+| `petermakhnatch/transaction-reconciliation` | `test_outputs.py::test_ledger_entries_are_reconciled_without_collateral_changes` | 0.021 s | 87.9% |
+| `terminal-bench/html-js-filter` | `test_outputs.py::test_filter_blocks_xss` | 125.899 s | 76.4% |
+| `terminal-bench/query-optimize` | `test_outputs.py::test_compare_golden_vs_my_sql_query_correctness` | 1412.152 s | 99.97% |
+
+Five packages have no published CTRF report:
+`deepplanning-v1/travel-lisbon-002`, `evallab/syn-funcdag-easy`,
+`evallab/syn-funcdag-hard`, `evallab/syn-funcdag-medium`, and
+`sierra-research/tau3-bench__tau3-retail-1`.
+They have no measured slowest test.
+
+The `event-summary` custom verifier records 0.0 s for all 4 tests.
+The name tie selects `correctness`, not `schema`; its median share is undefined because every trial total is 0.
+For transaction reconciliation, only **23 of 41** CTRF trials have positive totals.
+The other 18 trials do not enter its median share.
+
+For query-optimize, the correctness test peaks at 1412.152 s against a 1800 s verifier timeout, so 1800 / 1412.152 = 1.27; a host about 1.27x slower than the slowest published host would time out a correct answer.
+This is a speed-scaling estimate, not an observed timeout.
+This test runs the golden query and the task's original slow query and reads no agent output.
+See `library/tasks/query-optimize/tests/test_outputs.py:46-66`.
+
 ## Regenerate and check
 
 ```bash
-# rewrite trials.csv and headroom.csv from the default results root
-uv run python research/experiments/library-verifier-headroom/build.py
+# rewrite trials.csv, headroom.csv and tests.csv from the default results root
+uv run --no-sync python research/experiments/library-verifier-headroom/build.py
 
-# exit 0 when both CSVs reproduce; exit 1 on drift; exit 2 when inputs are unusable
-uv run python research/experiments/library-verifier-headroom/build.py --check
+# exit 0 when all three CSVs reproduce; exit 1 on drift; exit 2 when inputs are unusable
+uv run --no-sync python research/experiments/library-verifier-headroom/build.py --check
 
 # point at a copy of the results root and a fixture task tree
-uv run python research/experiments/library-verifier-headroom/build.py \
+uv run --no-sync python research/experiments/library-verifier-headroom/build.py \
   --root /path/to/eval-lab-results --tasks-root /path/to/tasks --out-dir /tmp/out
 ```
 
-`--check` compares both rebuilt CSVs byte-for-byte and prints a unified diff on
-drift, so a hand edit fails until the builder regenerates the files. The
-environment variable `EVALLAB_RESULTS_ROOT` sets the default root.
+`--check` compares all three rebuilt CSVs byte-for-byte and prints a unified diff on drift.
+A one-byte change to any CSV fails the check until the builder regenerates the files.
+The environment variable `EVALLAB_RESULTS_ROOT` sets the default root.
 
-`tests/test_library_verifier_headroom.py` covers the phase and pytest parsers,
-the timeout-exception count, the exclusion of
-`terminal-bench/break-filter-js-from-html`, the drift check and the unusable
-input paths with `tmp_path` fixtures; it never reads the real results root.
+`tests/test_library_verifier_headroom.py` uses `tmp_path` fixtures and never reads the real results root.
+It covers phase and pytest parsers, the timeout-exception count, and the exclusion of `terminal-bench/break-filter-js-from-html`.
+It also covers the three-CSV drift check and unusable input paths.
+The CTRF cases cover missing, malformed, and duration-less reports, both timestamp units, and duration-source precedence.
 
 ## Limits
 
-- The committed CSV is a snapshot of one results root. Newly published trials
-  change `trials.csv`, so `--check` fails until both files are regenerated.
+- The committed CSVs are a snapshot of one results root.
+  Newly published trials change the tables, so `--check` fails until all three files are regenerated.
 - `phase_s` is a wall-clock span around the verifier phase, not a measure of
   timed test work for separate-mode packages.
 - The only evidence for a near-timeout failure is a trial that raises

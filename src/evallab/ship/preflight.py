@@ -36,6 +36,43 @@ def fresh_delivery_command(ship: Ship, topic: Path | None = None, *, preflight_o
     return command
 
 
+def workflow_paths(pr: dict[str, Any]) -> list[str]:
+    return sorted({row["path"] for row in pr["files"] if row["path"].startswith(".github/workflows/")})
+
+
+def workflow_recovery(base: str) -> str:
+    reason = "'workflow file changed on main'"
+    return (f"Fix: in the topic run git merge origin/main, EVALLAB_PREPUSH_NEEDS_BASE={base} "
+            f"EVALLAB_PREPUSH_REASON={reason} make prepush, then git push "
+            f"(this is a needed commit: uv run --no-sync evallab ship check-push --needs-base {base} "
+            f"--reason {reason}), then wait for CI. Permanent fix (Peter): gh auth refresh -s workflow.")
+
+
+def inspect_workflow_scope(ship: Ship, pr: dict[str, Any]) -> None:
+    from evallab.ship import Blocked
+
+    paths = workflow_paths(pr)
+    if not paths or pr["state"] != "OPEN":
+        return
+    ship.run(["git", "fetch", "origin", f"pull/{ship.pr}/head"])
+    base = ship.run(["git", "rev-parse", "origin/main"]).stdout.strip()
+    branch_point = ship.run(["git", "merge-base", pr["headRefOid"], base]).stdout.strip()
+    changed = ship.run(["git", "diff", "--name-only", "--no-renames", "-z",
+                        branch_point, base, "--", *paths]).stdout.strip("\0")
+    if not changed:
+        return
+    auth = ship.gh("api", "-i", "user", check=False)
+    scopes = next((line.partition(":")[2].strip() for line in auth.stdout.splitlines()
+                   if line.lower().startswith("x-oauth-scopes:")), None)
+    readable = auth.returncode == 0 and scopes is not None
+    if readable and "workflow" in {scope.strip() for scope in scopes.split(",")}:
+        return
+    note = "" if readable else " Token scopes could not be read; treated as absent."
+    raise Blocked(f"Delivery preflight refused: main changed {changed.split(chr(0))[0]} after this branch point "
+                  "and the gh token has no workflow scope, so GitHub will refuse the squash merge "
+                  f"although checks are green. {workflow_recovery(base)}{note}")
+
+
 def inspect_preflight(ship: Ship, pr: dict[str, Any], *, preflight_only: bool = False) -> None:
     from evallab.ship import Blocked
 
@@ -105,4 +142,5 @@ def inspect_preflight(ship: Ship, pr: dict[str, Any], *, preflight_only: bool = 
                 name == tool_env or name.startswith(tool_env + "/") for name in unknown) else ""
             raise Blocked(f"Delivery preflight refused: ignored files in {tree}: "
                           f"{', '.join(quote(name) for name in unknown)}{known}; preserve them: {repair}")
+    inspect_workflow_scope(ship, pr)
     ship.save("delivery-preflight-passed")

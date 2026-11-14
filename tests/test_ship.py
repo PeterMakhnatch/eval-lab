@@ -80,6 +80,91 @@ def delivery(tmp_path, monkeypatch):
     return args, root, tree, state, git, change
 
 
+def workflow_pr(delivery, *, main_changed=True, touches=True):
+    args, root, tree, state, git, change = delivery
+    path = ".github/workflows/ci.yml"
+    for checkout in (root, tree):
+        (checkout / path).parent.mkdir(parents=True)
+    if main_changed:
+        (root / path).write_text("name: main\n")
+        git("add", path)
+        git("commit", "-m", "main workflow")
+        git("push", "origin", "main")
+    if touches:
+        (tree / path).write_text("name: topic\n")
+        git("add", path, cwd=tree)
+        git("commit", "-m", "topic workflow", cwd=tree)
+        git("push", "origin", "topic", cwd=tree)
+        head = git("rev-parse", "HEAD", cwd=tree)
+        git("update-ref", "refs/pull/42/head", head, cwd=root.parent / "origin.git")
+        pr = json.loads(state.read_text())["pr"]
+        pr.update(headRefOid=head, changedFiles=2)
+        pr["files"].append({"path": path})
+        change(pr=pr)
+    return git("rev-parse", "main")
+
+
+@pytest.mark.parametrize("preflight_only", [False, True])
+@pytest.mark.parametrize("main_changed,touches,scopes,exit_code,refused,unknown", [
+    (True, True, "X-OAuth-Scopes: repo", 0, True, False),
+    (False, True, "X-OAuth-Scopes: repo", 0, False, False),
+    (True, True, "x-oauth-scopes: repo, workflow", 0, False, False),
+    (True, False, "X-OAuth-Scopes: repo", 0, False, False),
+    (True, True, "HTTP/2.0 200 OK\n\n{}", 0, True, True),
+    (True, True, "X-OAuth-Scopes: repo, workflow", 1, True, True),
+])
+def test_workflow_scope_preflight(delivery, capsys, preflight_only, main_changed, touches,
+                                  scopes, exit_code, refused, unknown):
+    args, root, tree, state, _, change = delivery
+    base = workflow_pr(delivery, main_changed=main_changed, touches=touches)
+    args.preflight_only = preflight_only
+    change(scopes_output=scopes, scopes_exit=exit_code)
+    assert run_command(args, root) == int(refused)
+    output = capsys.readouterr().out
+    remote = json.loads(state.read_text())
+    if refused:
+        message = (
+            "Delivery preflight refused: main changed .github/workflows/ci.yml after this branch point "
+            "and the gh token has no workflow scope, so GitHub will refuse the squash merge although checks are green. "
+            f"Fix: in the topic run git merge origin/main, EVALLAB_PREPUSH_NEEDS_BASE={base} "
+            "EVALLAB_PREPUSH_REASON='workflow file changed on main' make prepush, then git push "
+            f"(this is a needed commit: uv run --no-sync evallab ship check-push --needs-base {base} "
+            "--reason 'workflow file changed on main'), then wait for CI. Permanent fix (Peter): gh auth refresh -s workflow."
+        )
+        if unknown:
+            message += " Token scopes could not be read; treated as absent."
+        receipt = args.state_dir / ("42-preflight.json" if preflight_only else "42.json")
+        assert json.loads(receipt.read_text())["error"] == message
+        assert f"ship blocked: {message}\n" in output
+        assert not any(call[0] == "run" or call[:2] == ["pr", "merge"] for call in remote["calls"])
+        assert tree.exists()
+    elif not preflight_only:
+        assert remote["merges"] == 1
+        assert not tree.exists()
+    else:
+        assert not remote.get("merges")
+        assert tree.exists()
+
+
+def test_workflow_merge_refusal_explains_recovery(delivery, capsys):
+    args, root, tree, state, _, change = delivery
+    base = workflow_pr(delivery, main_changed=False)
+    change(merge_refused=True)
+    assert run_command(args, root) == 1
+    message = (
+        "Remote PR is not MERGED with a merge commit. If main changed .github/workflows/ci.yml after this "
+        "branch point and the gh token has no workflow scope, GitHub will refuse the squash merge although checks are green. "
+        f"Fix: in the topic run git merge origin/main, EVALLAB_PREPUSH_NEEDS_BASE={base} "
+        "EVALLAB_PREPUSH_REASON='workflow file changed on main' make prepush, then git push "
+        f"(this is a needed commit: uv run --no-sync evallab ship check-push --needs-base {base} "
+        "--reason 'workflow file changed on main'), then wait for CI. Permanent fix (Peter): gh auth refresh -s workflow."
+    )
+    assert json.loads((args.state_dir / "42.json").read_text())["error"] == message
+    assert f"ship blocked: {message}\n" in capsys.readouterr().out
+    assert tree.exists()
+    assert not json.loads(state.read_text()).get("merges")
+
+
 def test_merge_remote_success_despite_gh_exit_and_resume(delivery):
     args, root, tree, state, git, _ = delivery
     assert run_command(args, root) == 0

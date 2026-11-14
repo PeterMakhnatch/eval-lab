@@ -188,6 +188,11 @@ After interruption, ship reuses a clean, inactive checkout with the recorded com
 It preserves dirty, changed, unknown, or active checkouts instead of deleting them.
 An interrupted gate or smoke can execute again. Make those commands safe to repeat.
 
+Preflight refuses a workflow PR when main changed the same file after the branch point and the token lacks `workflow` scope.
+If scopes cannot be read, preflight treats them as absent and says so.
+In the topic, merge `origin/main`, then use the printed needed-base `make prepush` command, push, and wait for CI.
+Peter can instead run `gh auth refresh -s workflow` for a permanent fix.
+
 ## Retirement safety
 
 Before the merge and before cleanup, ship checks every matching registered worktree.

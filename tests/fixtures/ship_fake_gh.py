@@ -15,7 +15,10 @@ output = ""
 if args[:2] == ["repo", "view"]:
     output = json.dumps({"nameWithOwner": "test/lab"})
 elif args[0] == "api":
-    if "--slurp" in args:
+    if args[1:] == ["-i", "user"]:
+        code = state.get("scopes_exit", 0)
+        output = state.get("scopes_output", "HTTP/2.0 200 OK\nX-OAuth-Scopes: repo\n\n{}")
+    elif "--slurp" in args:
         output = json.dumps([[{"filename": row["path"]} for row in state["pr"]["files"]]])
     elif "graphql" in args:
         output = json.dumps({"data": {"repository": {"pullRequest": {"timelineItems": {
@@ -64,6 +67,10 @@ elif args[:2] == ["pr", "view"]:
         view = {**view, "mergeable": "UNKNOWN"}
     output = json.dumps(view)
 elif args[:2] == ["pr", "merge"]:
+    if state.get("merge_refused"):
+        path.write_text(json.dumps(state))
+        print("refusing to allow an OAuth App to create or update workflow without workflow scope")
+        sys.exit(1)
     if "--match-head-commit" not in args or "--admin" in args:
         raise RuntimeError("unguarded merge")
     root = state["root"]

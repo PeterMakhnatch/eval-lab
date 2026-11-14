@@ -403,6 +403,12 @@ retained reward files with the pytest result instead. See
 [the ico-path-patch controls](../research/evidence/ico-path-patch-controls-20261114/README.md)
 and `bind-mount-uid-probe.log` beside that file.
 
+`evallab run` uses the task's declared `[agent] timeout_sec` when
+`--timeout-seconds` is omitted. The declaration must be an integral value from
+1 to 28,800 seconds; missing or invalid values require an explicit override.
+An explicit `--timeout-seconds` retains its existing meaning. Build and verifier
+deadlines, the phase allowance, and billable-run restrictions remain unchanged.
+
 ### Local Docker sandbox → host isolation
 
 Every ordinary `evallab` Docker launch selects

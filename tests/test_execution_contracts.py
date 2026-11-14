@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -73,6 +74,98 @@ def test_run_request_immutability_and_job_timeout(tmp_path: Path) -> None:
     assert req.job_timeout_seconds == 2_700
     with pytest.raises(AttributeError):
         req.name = "new-name"  # type: ignore[misc]
+
+
+@pytest.mark.parametrize("agent", ["oracle", "nop"])
+@pytest.mark.parametrize(
+    ("declaration", "override", "expected_timeout", "expected_multiplier"),
+    [
+        ("[agent]\ntimeout_sec = 7200\n", [], 7200, "1"),
+        ("[agent]\ntimeout_sec = 7200.0\n", [], 7200, "1"),
+        ("[agent]\ntimeout_sec = 7200\n", ["--timeout-seconds", "1800"], 1800, "0.25"),
+        ("", ["--timeout-seconds", "300"], 300, None),
+    ],
+)
+def test_run_cli_passes_native_or_explicit_agent_timeout_to_executor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    agent: str,
+    declaration: str,
+    override: list[str],
+    expected_timeout: int,
+    expected_multiplier: str | None,
+) -> None:
+    from evallab import execution_parser, results
+    from evallab.cli import run_cli
+    from evallab.queue import Executor
+
+    task = _task_dir(tmp_path)
+    (task / "task.toml").write_text(
+        declaration + "[environment]\nnetwork_mode = 'no-network'\n"
+    )
+    requests: list[RunRequest] = []
+
+    def execute_direct(request: RunRequest) -> Path:
+        requests.append(request)
+        return tmp_path / "runs" / "native-control"
+
+    monkeypatch.setattr(
+        Executor, "from_repo",
+        classmethod(lambda cls, root: SimpleNamespace(execute_direct=execute_direct)),
+    )
+    monkeypatch.setattr(results, "load_job", lambda path: None)
+    monkeypatch.setattr(execution_parser, "_print_summary", lambda jobs: None)
+
+    assert run_cli([
+        "run", "--task", "task", "--agent", agent, "--name", "native-control", *override,
+    ], workspace=tmp_path) == 0
+    assert len(requests) == 1
+    request = requests[0]
+    assert request.task == task
+    assert request.timeout_seconds == expected_timeout
+    assert request.trial_watchdog_seconds == expected_timeout + 600
+    command = build_command(request)
+    if expected_multiplier is None:
+        assert "--agent-timeout-multiplier" not in command
+    else:
+        assert command[command.index("--agent-timeout-multiplier") + 1] == expected_multiplier
+
+
+@pytest.mark.parametrize(
+    "declaration",
+    [
+        "",
+        "agent = 7200\n",
+        "[agent]\n",
+        "[agent]\ntimeout_sec = true\n",
+        '[agent]\ntimeout_sec = "7200"\n',
+        "[agent]\ntimeout_sec = 0\n",
+        "[agent]\ntimeout_sec = 1.5\n",
+        "[agent]\ntimeout_sec = nan\n",
+        "[agent]\ntimeout_sec = inf\n",
+        "[agent]\ntimeout_sec = 28801\n",
+    ],
+)
+def test_run_cli_refuses_missing_or_invalid_native_agent_timeout_before_executor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    declaration: str,
+) -> None:
+    from evallab.cli import run_cli
+    from evallab.queue import Executor
+
+    task = _task_dir(tmp_path)
+    (task / "task.toml").write_text(declaration)
+
+    def unexpected_executor(cls: type[Executor], root: Path) -> None:
+        pytest.fail("Invalid native timeout must not construct an executor")
+
+    monkeypatch.setattr(Executor, "from_repo", classmethod(unexpected_executor))
+    assert run_cli([
+        "run", "--task", "task", "--agent", "oracle", "--name", "native-control",
+    ], workspace=tmp_path) == 2
+    assert "otherwise pass --timeout-seconds" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize(

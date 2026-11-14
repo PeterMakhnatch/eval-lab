@@ -3,13 +3,13 @@ from __future__ import annotations
 
 import math
 import random
-import sys
 from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import length_metrics as lm  # noqa: E402
+with pytest.MonkeyPatch.context() as monkeypatch:
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parent))
+    import length_metrics as lm
 
 
 def row(key, task, y, score, chars=10, steps=1):

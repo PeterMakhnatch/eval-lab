@@ -900,17 +900,7 @@ def test_model_cli_guard_allows_fake_cli_in_tmp_path_through_each_launcher(
     assert marker.read_text() == "launched\n"
 
 
-# Temporary exceptions outside this lane's ownership. Each permits only 1 exact site,
-# not a whole file. Remove the entry when its owner scopes the operation.
-_HOST_STATE_EXCEPTIONS = {
-    ("tests/test_laminar_tracing.py", "server-poll", "threading.Thread(target=server.serve_forever, daemon=True)"),
-    ("tests/test_attach.py", "import-database", "_catalog_reachable()"),
-    (
-        "research/experiments/ov1104-detbench/test_length_metrics.py",
-        "import-path",
-        "sys.path.insert(0, str(Path(__file__).resolve().parent))",
-    ),
-}
+_HOST_STATE_EXCEPTIONS: set[tuple[str, str, str]] = set()
 
 
 def _host_state_violations(source: str) -> list[tuple[int, str, str, str]]:

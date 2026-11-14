@@ -28,21 +28,19 @@ from evallab.storage.attach import (
 )
 
 
-def _catalog_reachable(dsn: str | None = None) -> bool:
+@pytest.fixture
+def live_postgres_catalog() -> None:
+    """Connect only when the PostgreSQL integration case requests this fixture."""
     if os.environ.get("EVALLAB_RUN_POSTGRES_TESTS") != "1":
-        return False
+        pytest.skip("set EVALLAB_RUN_POSTGRES_TESTS=1 to run PostgreSQL integration tests")
     try:
         import psycopg
 
-        url = database_url_from_environment(dsn)
+        url = database_url_from_environment()
         with psycopg.connect(url, connect_timeout=1) as conn:
             conn.execute("SELECT 1")
-        return True
     except Exception:
-        return False
-
-
-_DSN_FOR_TEST = database_url_from_environment()
+        pytest.skip("requires live PostgreSQL")
 
 
 @pytest.fixture
@@ -590,10 +588,7 @@ def test_duckdb_z2_catalog_prefix_resolution_standalone(
         result.connection.close()
 
 
-@pytest.mark.skipif(
-    not _catalog_reachable(),
-    reason=f"requires live PostgreSQL {_DSN_FOR_TEST}",
-)
+@pytest.mark.usefixtures("live_postgres_catalog")
 def test_cross_zone_join_with_real_postgres(tmp_path: Path) -> None:
     derived = tmp_path / "derived"
     derived.mkdir()

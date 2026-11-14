@@ -60,6 +60,8 @@ _ALLOWED_EXTERNAL_WARNINGS = [
     ("unpinned-image", "foodstuff-beta-activity", "tests/Dockerfile"),
     ("unpinned-image", "ico-path-patch", "environment/Dockerfile"),
     ("unpinned-image", "ico-path-patch", "tests/Dockerfile"),
+    ("verifier-installs-agent-dependencies", "cargo-flight-dispatch", "tests/test.sh"),
+    ("verifier-installs-agent-dependencies", "cargo-flight-dispatch", "tests/test.sh"),
     ("verifier-network-download", "cargo-flight-dispatch", "tests/Dockerfile"),
     ("verifier-network-download", "foodstuff-beta-activity", "tests/Dockerfile"),
     ("verifier-reads-undeclared", "bun-sourcemap-leak", "tests/test_release.py"),

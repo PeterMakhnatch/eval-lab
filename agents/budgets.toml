@@ -6,7 +6,7 @@
 [budgets]
 "python-lines:src/evallab" = { limit = 181398, reason = "Baseline 177841 plus 3557 lines of slack", raised_by = "budget lane" }
 "python-lines:tests" = { limit = 179757, reason = "Baseline 176232 plus 3525 lines of slack", raised_by = "budget lane" }
-"python-lines:research" = { limit = 28772, reason = "Baseline 28207 plus 565 lines of slack", raised_by = "budget lane" }
+"python-lines:research" = { limit = 29621, reason = "HAR-437 adds a 345-line reward/CTRF contradiction scanner (29040 total; the previous 28772 limit had 77 lines of headroom)", raised_by = "FOREMAN_AGENT (HAR-437 run)" }
 "python-lines:library" = { limit = 18645, reason = "Baseline 18279 plus 366 lines of slack", raised_by = "budget lane" }
 "markdown-files:docs" = { limit = 24, reason = "Baseline 23 plus 1 file of slack", raised_by = "budget lane" }
 "markdown-files:agents" = { limit = 10, reason = "Baseline 9 plus 1 file of slack", raised_by = "budget lane" }

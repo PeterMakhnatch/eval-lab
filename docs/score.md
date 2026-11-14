@@ -109,3 +109,5 @@ Quote frozen preregistrations without changing decision rules after results.
 The card generator and LADDER frontend are retired. Preserve their historical receipts; use native approved specs for new execution.
 
 2026-11-11: Publish the combined current scoreboard. Keep hash guards, separate protocols, frozen QA populations, and operational limits.
+
+2026-11-14: Refresh the code pins only, after pull request #2228 changed one pinned module. The replay compared 272,240 scalar values and found no scientific difference. Only the 2 code-source hashes, the freeze identities and the measured timing fields changed; data, labels, cohorts, thresholds and the previous bundle are untouched.

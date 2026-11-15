@@ -299,6 +299,17 @@ A `tests/test_reward_readers_agree.py` case pins it for every trial shape.
 6. A trial with no selected reward file is unscored.
    So is a selected file with malformed or non-finite text.
 
+### Stored trial rewards
+
+`results.load_trial` keeps a `verifier_result.rewards` dimension only when the value is a number,
+not a boolean, and finite.
+Every kept dimension is a `float`.
+So `true`, `false`, `NaN`, and `Infinity` in raw `result.json` never enter `TrialRecord.rewards`
+or `primary_reward` (HAR-455).
+This rule matches `probe03.normalize_reward`.
+A reward of `-1` stays stored, so `primary_reward` keeps the exact captured value.
+The catalog queries filter `-1` and non-finite stored values at query time.
+
 The reward-report counts also share one rule.
 A non-empty `results.tests` list is counted per test.
 An empty or absent list uses numeric `results.summary.tests`, `passed`, and `failed`,

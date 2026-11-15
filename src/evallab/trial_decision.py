@@ -624,12 +624,22 @@ def render_decision_markdown(decision: dict[str, Any] | None) -> list[str]:
 
 
 def _reward_report_line(record: dict[str, Any] | None) -> str:
-    """Display the retained reward-report signals without deriving a verdict."""
+    """Display reward-report signals, including orphan files, without deriving a verdict."""
     if not isinstance(record, dict) or not record:
         return "- Reward report: none observed."
 
     def number_text(value: Any) -> str:
         return str(int(value)) if isinstance(value, float) and value.is_integer() else str(value)
+
+    if record.get("orphan"):
+        line = (
+            f"- Reward report: `orphan`; reward file `{number_text(record['reward_txt'])}` "
+            "with no captured reward after a trial exception"
+        )
+        counts = record.get("counts")
+        if isinstance(counts, dict):
+            line += f"; {counts.get('passed')}/{counts.get('tests')} passed"
+        return line + "."
 
     clauses = []
     classification = record.get("classification")

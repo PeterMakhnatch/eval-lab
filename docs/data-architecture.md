@@ -314,6 +314,8 @@ The module `src/evallab/reward_report.py` never imports research code.
 A mismatch means the effective reward differs from `verifier/reward.txt` by more than `1e-9`.
 A reward-file mismatch still produces a record with `classification: null` and `reason: ""`.
 A trial with no usable reward and no leftover reward file produces no record at all.
+An unscored reward, including `-1`, a boolean, and a non-finite value, never produces a
+mismatch record even when `verifier/reward.txt` holds a different finite value.
 An exception trial with no captured reward and finite `verifier/reward.txt` retains `orphan: true`,
 `reward: null`, `reward_source: exception_no_captured_reward`, `reward_txt`, and available `counts`.
 This tamper signal changes no score or count and emits `reward_report:orphan:<reward_txt>`, for example `reward_report:orphan:1`.

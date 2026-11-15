@@ -63,10 +63,13 @@ def classify(reward: float, counts: Mapping[str, int]) -> str:
 def assess(trial_dir: Path) -> dict[str, Any] | None:
     """Return evidence for a contradiction, reward mismatch, or orphan reward file."""
     try:
-        reward, _, source = probe03.read_reward(trial_dir)
+        reward, scored, source = probe03.read_reward(trial_dir)
     except (OSError, ValueError, RecursionError):
         return None
-    if reward is None:
+    if not scored or reward is None:
+        # An unscored reward never yields a mismatch or contradiction record,
+        # even when a reward file holds a different finite value. HAR-446 keeps
+        # a leftover verifier file as orphan evidence.
         if source != "exception_no_captured_reward":
             return None
         reward_txt = reward_file(trial_dir)

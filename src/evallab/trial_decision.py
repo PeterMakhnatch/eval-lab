@@ -3,7 +3,7 @@
 No new detector. The page reads the probe-03 outcome, the existing grader
 checks (literal source assertion, deliverable named by the verifier but
 absent from the instruction, setup/import crash), the process-job taint
-flags, and token-flow's last useful edit. ``rule_id`` and ``attribution``
+flags, the reward-report record, and token-flow's last useful edit. ``rule_id`` and ``attribution``
 are the probe-03 fields the frozen hand keys use. ``whose`` is a reading
 of that rule for the page: ``R-ENV-02`` is the task, even though probe-03
 attributes that rule to the harness.
@@ -22,6 +22,7 @@ from typing import Any
 
 from evallab.upstream_fetch import confirmed_fetch
 
+# HAR-447: reward_report is additive in facts, like HAR-156 stop_category; no schema bump.
 DECISION_SCHEMA = "trial_decision/v3"
 _EXCERPT_CHARS = 400
 #: HAR-119 published rule: 10 turns after the first confirm prompt, and at
@@ -245,6 +246,7 @@ def build_decision(
     calls: int | None = None,
     tokens: dict[str, Any] | None = None,
     counts: dict[str, Any] | None = None,
+    reward_report: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build the ``trial_decision/v3`` page for one trial directory."""
     from evallab import probe03
@@ -303,6 +305,7 @@ def build_decision(
                 for flag in attempts
             ],
             "verifier_message": _verifier_message(trial),
+            "reward_report": dict(reward_report) if isinstance(reward_report, dict) else None,
             "nop_same_crash": nop,
             "instruction_excerpt": _excerpt(instruction),
             "grader_gap": grader_gap,
@@ -568,6 +571,7 @@ def render_decision_markdown(decision: dict[str, Any] | None) -> list[str]:
             if facts.get("verifier_message")
             else "."
         ),
+        _reward_report_line(facts.get("reward_report")),
         (
             f"- Nop crash the same way: {_answer_words(nop.get('answer'))}. "
             f"{nop.get('reason')}"
@@ -617,6 +621,33 @@ def render_decision_markdown(decision: dict[str, Any] | None) -> list[str]:
         "",
     ]
     return lines
+
+
+def _reward_report_line(record: dict[str, Any] | None) -> str:
+    """Display the retained reward-report signals without deriving a verdict."""
+    if not isinstance(record, dict) or not record:
+        return "- Reward report: none observed."
+
+    def number_text(value: Any) -> str:
+        return str(int(value)) if isinstance(value, float) and value.is_integer() else str(value)
+
+    clauses = []
+    classification = record.get("classification")
+    counts = record.get("counts")
+    if classification and isinstance(counts, dict):
+        clause = f"`{classification}`; {counts.get('passed')}/{counts.get('tests')} passed"
+        if record.get("reason"):
+            clause += f" ({record['reason']})"
+        clauses.append(clause)
+    reward = number_text(record.get("reward"))
+    reward_txt = number_text(record.get("reward_txt"))
+    if record.get("mismatch"):
+        clauses.append(f"reward `{reward}` vs reward file `{reward_txt}` (mismatch)")
+    elif record.get("reward_txt") is not None:
+        clauses.append(f"reward `{reward}` matches reward file `{reward_txt}`")
+    elif record.get("reward") is not None:
+        clauses.append(f"reward `{reward}` from `{record.get('reward_source') or 'unknown'}`")
+    return "- Reward report: " + ("; ".join(clauses) or "none observed") + "."
 
 
 def _backticked(values: Any) -> str:

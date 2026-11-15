@@ -42,6 +42,7 @@ def add_trial(
     statuses: tuple[str, ...] | None = ("failed",),
     agent: str | None = None,
     model: str | None = None,
+    exception: bool = False,
 ) -> Path:
     trial_dir = root / date / job / trial
     verifier = trial_dir / "verifier"
@@ -49,6 +50,8 @@ def add_trial(
     result = {"task_name": task}
     if reward is not None:
         result["verifier_result"] = {"rewards": {"reward": reward}}
+    if exception:
+        result["exception_info"] = {"exception_type": "VerifierTimeoutError"}
     if agent is not None or model is not None:
         identity = {}
         if agent is not None:
@@ -244,6 +247,19 @@ def test_reward_txt_fallback_without_verifier_result(build, tmp_path: Path) -> N
     assert (row["reward"], row["reward_source"], row["reward_txt"]) == ("0.5", "reward_txt", "0.5")
     assert row["reason"] == "positive reward with no passed test (2 failed, 0 skipped)"
     assert row["classification"] == "forged"
+
+
+def test_exception_trial_does_not_count_leftover_reward_file(
+    build, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "results"
+    out = tmp_path / "out"
+    add_trial(root, reward=None, reward_txt="1", statuses=("failed",), exception=True)
+    assert build.main(["--root", str(root), "--out-dir", str(out)]) == 0
+    counters = capsys.readouterr().out.splitlines()[0]
+    assert "scanned=1" in counters
+    assert "with_reward=0" in counters
+    assert read_rows(out / "contradictions.csv") == []
 
 
 def test_result_reward_wins_but_disagreement_is_visible(build, tmp_path: Path) -> None:

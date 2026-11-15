@@ -276,7 +276,7 @@ Mixed malformed step IDs can therefore raise `TypeError`, including for unrelate
 ## Reward-report contradictions in processed trials
 
 `process-job` writes 1 `reward_report` record per trial.
-The value is `null` when the trial contradicts nothing.
+The value is `null` when the trial has no reward-report signal.
 Otherwise, the object contains `schema` (`evallab.reward_report/v1`), `classification`, `reason`,
 `mismatch`, `reward`, `reward_source`, `reward_txt`, and `counts`.
 `counts` contains `tests`, `passed`, `failed`, and `skipped`.
@@ -290,7 +290,11 @@ The module `src/evallab/reward_report.py` never imports research code.
 A mismatch means the effective reward differs from `verifier/reward.txt` by more than `1e-9`.
 A missing report or a report with no test list is not comparable and raises no classification flag.
 A reward-file mismatch still produces a record with `classification: null` and `reason: ""`.
-A trial with no usable reward produces no record at all.
+A trial with no usable reward and no leftover reward file produces no record at all.
+An exception trial with no captured reward and finite `verifier/reward.txt` retains `orphan: true`,
+`reward: null`, `reward_source: exception_no_captured_reward`, `reward_txt`, and available `counts`.
+This tamper signal changes no score or count and emits `reward_report:orphan:<reward_txt>`, for example `reward_report:orphan:1`.
+Without a reward file, `assess` still returns `None`.
 The classification flag is `reward_report:<classification>:<passed>/<tests>-passed`.
 For example, the flag is `reward_report:forged:0/19-passed`.
 The mismatch flag is `reward_report:mismatch:<reward>-vs-<reward_txt>`.

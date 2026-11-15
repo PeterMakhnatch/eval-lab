@@ -1902,6 +1902,31 @@ only). Before **every** call it re-checks the Codex 7-day quota via
 bound, not a bill). No paid model API is used; Modal cloud execution has its
 own explicit reservation gate described above.
 
+## Corpus reference audit (`evallab qa corpus`)
+
+`evallab qa corpus <corpus-root> --out <dir>` (`src/evallab/qa/corpus.py`) finds
+every `task.toml` under the root and runs each task's own `solution/solve.sh` once.
+Each run is one `ModalBackend.control(task, "oracle")` native Harbor trial under one
+run-wide `CloudSpendGate`, so `--max-usd` and `--approve` are required.
+No agent, model, candidate or mutation stage runs.
+
+| Class | Rule |
+|---|---|
+| `no_reference` | `solution/solve.sh` is missing, or it is the stub (sha256 prefix `4e25c8e51ff8`, or one `echo`/`printf` of `no solution written`); no trial runs |
+| `cannot_run` | The trial did not execute or measured no reward (build, timeout, container or script error) |
+| `reference_below_one` | Measured reward below 1 |
+| `clean` | Measured reward 1 |
+
+`audit.json` holds one row per task: `task` (path relative to the root), `package_digest`,
+`class`, `reward`, `status`, `seconds`, `log_excerpt` (at most 4000 characters) and
+`reference_digest`. `AUDIT.md` holds the dated table and the per-class counts.
+Both files are rewritten after every task. A task error becomes a `cannot_run` row and
+the run continues. An exhausted spend cap stops the run without a row for that task.
+An existing `audit.json` needs `--resume`, which keeps its rows and skips their tasks.
+`--limit N` runs at most N not-yet-audited tasks; `--task` selects by relative path or
+directory name. The last line is `N tasks: c clean, r reference_below_one, x cannot_run,
+n no_reference`.
+
 ## Scoring (`evallab qa task-score`)
 
 `score_findings` binds findings and reports by exact

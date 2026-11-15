@@ -1047,6 +1047,7 @@ def _render_job_markdown(report: dict[str, Any]) -> str:
         f"fail {summary.get('n_counted_fail')}, "
         f"excluded {summary.get('n_excluded')} ({summary.get('excluded_reasons') or {}})",
         f"- stop reasons: {summary.get('stop_reasons') or 'none'}",
+        f"- reward report: {summary.get('reward_report_flags') or {}}",
         *_job_limit_hit_lines({"job_limit_hit_summary": summary.get("limit_hit_summary")}),
         f"- tokens: step-sum used `{summary.get('tokens_used')}` "
         f"vs attributable attempted ceiling `{summary.get('tokens_attempted')}`",
@@ -1184,6 +1185,7 @@ def process_job(
     out_dir.mkdir(parents=True, exist_ok=True)
     repo_root = Path(root).resolve() if root is not None else job_path.parent
     from evallab.counts import find_label_root, summarize_counts
+    from evallab.reward_report import kind_counts
 
     label_root = find_label_root(repo_root) or find_label_root(job_path)
 
@@ -1341,6 +1343,9 @@ def process_job(
             "n_fail": sum(1 for record in scored if (record["reward"] or 0) < 1.0),
             "n_unscored": sum(1 for record in trial_reports if not record["scored"]),
             "stop_reasons": stop_histogram,
+            "reward_report_flags": kind_counts(
+                flag for record in trial_reports for flag in record["flags"]
+            ),
             "limit_hit_summary": job_limits,
             "tokens_used": sum(measured_used) if measured_used else None,
             "tokens_used_measured": len(measured_used),

@@ -578,6 +578,14 @@ A path may be one task or a collection root. Collection roots discover nested
 task packages at any depth; hidden directories are skipped, and a task's own
 subdirectories are never searched.
 
+The [task lint against executed health](../research/experiments/task-lint-vs-executed-health/README.md)
+join reports 314 findings on 95 tasks. It finds 0 lint codes that flag only clean
+tasks. `unpinned-image` and `verifier-isolation` are the 2 codes that fire on all
+95 tasks, and clean tasks carry the most findings. Lint findings are descriptive
+diagnostics. They are not keep, fix or discard predictions, and the counts do not
+measure executed task health. `src/evallab/dataset_audit_checks.py` owns that
+rule. Judge task health from executed evidence, not from a lint count.
+
 This command checks verifier separation, declared artifacts, solution presence,
 control expectation headers, and hidden inputs in Docker `COPY`/`ADD` operands.
 Operands are resolved against the task's `environment/` build context: a source

@@ -29,6 +29,25 @@
 - `cert/validation.json`: Original-grader Modal validation receipts for all 14 alternative solutions generated tonight across `000682`, `002139`, `000838`, and `002391`.
 - `cert/summary.json` and `cert/runs/*/certification.json`: Gate-by-gate certification receipts and served-model attestation across all 9 `certify-gold` runs.
 
+## Correction (HAR-448): A4 current-grading cells in the pooled attacker counts
+The `attacker vs original` column pools the `separate-verifier-v2` A1-A6
+current-grading cells. That receipt's A4 `cur` cells read 1 when
+`build_scorecard.py` ran; Harbor captured 0 for all four trials, and a
+background writer wrote the reward file later (HAR-441, HAR-448). Three
+pooled rows therefore count one attack success too many:
+
+| task | committed | corrected from captured rewards |
+|---|---|---|
+| 002552 | 25/25 | 24/25 |
+| 002391 | 20/21 | 19/21 |
+| 001809 | 11/12 | 10/12 |
+
+`research/experiments/separate-verifier-v2/README.md` now reports the captured
+rewards, the A4 mechanism, and these corrected values. `scorecard.md`,
+`scorecard.json`, and `headline.json` keep the pre-correction numbers: the
+builder and its `/private/tmp` inputs are archived, so regeneration is a
+separate change. Do not hand-edit these generated files.
+
 ## Worked Example: `format-code-task-000682` Original Grader Accepts a Broken Mutant (`call_drop`)
 In `format-code-task-000682` (Cloud Custodian SNS KMS filter and `set-encryption` action), STING operator `call_drop` at `c7n/resources/sns.py:316` replaces the `sns.set_topic_attributes(...)` call inside `SetEncryption.process` with `pass`:
 

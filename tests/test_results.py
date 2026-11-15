@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from evallab.results import discover_job_dirs, load_job
+from evallab.results import discover_job_dirs, load_job, load_trial
 
 
 def write_json(path: Path, value: object) -> None:
@@ -82,6 +82,57 @@ def test_load_job_indexes_trials_rewards_artifacts_and_files(tmp_path: Path) -> 
     kinds = {item.relative_path: item.kind for item in job.files}
     assert kinds["result.json"] == "result"
     assert kinds[f"{job.trials[0].name}/verifier/reward.json"] == "verifier_evidence"
+
+
+def _trial_with_rewards(root: Path, rewards: dict[str, object]) -> Path:
+    trial = root / "trial"
+    write_json(
+        trial / "result.json",
+        {
+            "trial_name": trial.name,
+            "task_name": "local-lab/sample-task",
+            "verifier_result": {"rewards": rewards},
+        },
+    )
+    return trial
+
+
+def test_load_trial_keeps_only_finite_non_boolean_rewards(tmp_path: Path) -> None:
+    """HAR-455: a boolean or non-finite raw reward is unscored, like process-job.
+
+    The trial result is written as raw JSON, not through a pydantic model,
+    because a model round-trip can coerce ``True`` to ``1.0``.
+    """
+    dropped = _trial_with_rewards(
+        tmp_path / "dropped",
+        {
+            "reward": True,
+            "false_flag": False,
+            "nan": float("nan"),
+            "infinity": float("inf"),
+        },
+    )
+    nan_primary = _trial_with_rewards(tmp_path / "nan", {"reward": float("nan")})
+    kept = _trial_with_rewards(
+        tmp_path / "kept",
+        {"reward": 0, "one": 1, "half": 0.5, "negative": -1},
+    )
+
+    record = load_trial(dropped)
+    assert record.rewards == {}
+    assert record.primary_reward is None
+
+    assert load_trial(nan_primary).primary_reward is None
+
+    record = load_trial(kept)
+    assert record.rewards == {
+        "reward": 0.0,
+        "one": 1.0,
+        "half": 0.5,
+        "negative": -1.0,
+    }
+    assert all(isinstance(value, float) for value in record.rewards.values())
+    assert record.primary_reward == 0.0
 
 
 def test_artifact_destination_cannot_escape_trial_directory(tmp_path: Path) -> None:

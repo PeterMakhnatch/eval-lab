@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -209,10 +210,15 @@ def load_trial(trial_dir: Path) -> TrialRecord:
     result = _load_object(trial_dir / "result.json")
     verifier_result = result.get("verifier_result") or {}
     raw_rewards = verifier_result.get("rewards") or {}
+    # HAR-455: mirror probe03.normalize_reward. A boolean or non-finite value is
+    # unscored, so it never becomes a reward dimension or primary_reward. Keep
+    # -1 stored; task_catalog filters it and non-finite values at query time.
     rewards = {
         str(name): float(value)
         for name, value in raw_rewards.items()
-        if isinstance(value, int | float)
+        if isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
     }
     return TrialRecord(
         path=trial_dir,

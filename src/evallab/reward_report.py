@@ -17,26 +17,12 @@ SCHEMA = "evallab.reward_report/v1"
 
 
 def ctrf_counts(trial_dir: Path) -> dict[str, int] | None:
-    """Count test objects in a non-empty retained CTRF test list."""
-    try:
-        tests = probe03._ctrf_tests(trial_dir)
-    except (OSError, ValueError, RecursionError):
+    """Count a retained CTRF report, preferring its test list over its summary."""
+    counts = probe03.ctrf_counts(trial_dir)
+    if counts is None:
         return None
-    if not isinstance(tests, list) or not tests:
-        return None
-    counts = {"tests": 0, "passed": 0, "failed": 0, "skipped": 0}
-    for test in tests:
-        if not isinstance(test, dict):
-            continue
-        counts["tests"] += 1
-        status = test.get("status")
-        if status == "passed":
-            counts["passed"] += 1
-        elif status in ("skipped", "pending"):
-            counts["skipped"] += 1
-        else:
-            counts["failed"] += 1
-    return counts
+    tests, passed, failed, skipped = counts
+    return {"tests": tests, "passed": passed, "failed": failed, "skipped": skipped}
 
 
 def reward_file(trial_dir: Path) -> float | None:

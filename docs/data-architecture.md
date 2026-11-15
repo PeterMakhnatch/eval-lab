@@ -280,6 +280,30 @@ The value is `null` when the trial has no reward-report signal.
 Otherwise, the object contains `schema` (`evallab.reward_report/v1`), `classification`, `reason`,
 `mismatch`, `reward`, `reward_source`, `reward_txt`, and `counts`.
 `counts` contains `tests`, `passed`, `failed`, and `skipped`.
+`reward_source` names `verifier_result`, `reward.json`, `reward.txt`, or `exception_no_captured_reward`.
+
+### Shared reward and report precedence
+
+`probe03.read_reward`, `qa.trace._rewards`, `reward_report.assess`, and the HAR-437 builder's
+`reward_values` share one fallback order.
+A `tests/test_reward_readers_agree.py` case pins it for every trial shape.
+
+1. A `result.json` `verifier_result.rewards.reward` value wins when that key exists.
+2. A present but invalid captured value is unscored and never falls back to a file.
+   Invalid means a boolean, a non-number, or a non-finite number.
+3. A captured `exception_info` with no captured reward is unscored.
+   Its verifier files remain evidence, not a score (HAR-446).
+4. Otherwise `verifier/reward.json` wins over `verifier/reward.txt`, as Harbor 0.24 does.
+   An unreadable selected file is unscored; the later file is not tried.
+5. A reward of `-1` is unscored from every source.
+6. A trial with no selected reward file is unscored.
+   So is a selected file with malformed or non-finite text.
+
+The reward-report counts also share one rule.
+A non-empty `results.tests` list is counted per test.
+An empty or absent list uses numeric `results.summary.tests`, `passed`, and `failed`,
+and derives skipped as `max(0, tests - passed - failed)`.
+A missing report or an unusable summary is not comparable and raises no classification flag.
 
 The rules mirror the HAR-437 scan in
 `research/experiments/reward-report-contradictions/build.py`.
@@ -288,7 +312,6 @@ The module `src/evallab/reward_report.py` never imports research code.
 `partial-credit` means `reward >= 1`, `passed > 0`, and `failed > 0`.
 `unknown` covers the remaining contradiction shapes.
 A mismatch means the effective reward differs from `verifier/reward.txt` by more than `1e-9`.
-A missing report or a report with no test list is not comparable and raises no classification flag.
 A reward-file mismatch still produces a record with `classification: null` and `reason: ""`.
 A trial with no usable reward and no leftover reward file produces no record at all.
 An exception trial with no captured reward and finite `verifier/reward.txt` retains `orphan: true`,

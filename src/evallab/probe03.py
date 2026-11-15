@@ -142,28 +142,39 @@ def normalize_reward(value: Any) -> tuple[float | None, bool]:
 
 
 def read_reward(trial_dir: Path) -> tuple[float | None, bool, str]:
-    """Return (reward, scored, source). Missing, -1, or a leftover verifier
-    reward file after a captured exception -> not scored."""
+    """Return (reward, scored, source) from one Harbor trial.
+
+    A captured result.json reward wins. A present but unusable captured reward
+    (a boolean, a non-number, or a non-finite number) is unscored and never
+    falls back to a file. Without one, Harbor 0.24 precedence applies:
+    verifier/reward.json, then verifier/reward.txt. A reward of -1 is unscored.
+    A captured exception without a reward leaves its files as evidence (HAR-446).
+    """
     result = _read_json(trial_dir / "result.json")
     verifier = result.get("verifier_result")
     verifier = verifier if isinstance(verifier, dict) else {}
     rewards = verifier.get("rewards")
     rewards = rewards if isinstance(rewards, dict) else {}
-    reward = rewards.get("reward", "MISSING")
-    source = "verifier_result"
-    if reward == "MISSING":
-        reward_txt = trial_dir / "verifier" / "reward.txt"
-        try:
-            reward = float(reward_txt.read_text(encoding="utf-8").strip())
-        except (OSError, ValueError):
-            return None, False, "missing"
-        # HAR-446: a raised trial that captured no reward leaves verifier files
-        # as evidence, not as a scored result.
+    if "reward" in rewards:
+        value, scored = normalize_reward(rewards.get("reward"))
+        return value, scored, "verifier_result"
+    # HAR-446: a raised trial that captured no reward leaves verifier files
+    # as evidence, not as a scored result.
+    reward_json = trial_dir / "verifier" / "reward.json"
+    if reward_json.is_file():
         if result.get("exception_info"):
             return None, False, "exception_no_captured_reward"
-        source = "reward.txt"
+        value, scored = normalize_reward(_read_json(reward_json).get("reward"))
+        return value, scored, "reward.json"
+    reward_txt = trial_dir / "verifier" / "reward.txt"
+    try:
+        reward = float(reward_txt.read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return None, False, "missing"
+    if result.get("exception_info"):
+        return None, False, "exception_no_captured_reward"
     value, scored = normalize_reward(reward)
-    return value, scored, source
+    return value, scored, "reward.txt"
 
 
 def _find_trials(root: Path, depth: int = 3) -> list[Path]:
@@ -1621,6 +1632,51 @@ def _ctrf_tests(trial_dir: Path, *, default_empty: bool = False) -> Any:
     if isinstance(tests, list):
         return tests
     return None
+
+
+def ctrf_counts(trial_dir: Path) -> tuple[int, int, int, int] | None:
+    """Return (tests, passed, failed, skipped) from verifier/ctrf.json, or None.
+
+    A non-empty test list is counted by status. An empty or absent list falls
+    back to the numeric ``results.summary`` counts, inferring skipped as
+    ``max(0, tests - passed - failed)``. Non-object reports and non-numeric
+    summary fields are not comparable.
+    """
+    try:
+        ctrf = json.loads((trial_dir / "verifier" / "ctrf.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    results = ctrf.get("results") if isinstance(ctrf, dict) else None
+    if not isinstance(results, dict):
+        return None
+    tests = results.get("tests")
+    if isinstance(tests, list) and tests:
+        total = passed = failed = skipped = 0
+        for test in tests:
+            if not isinstance(test, dict):
+                continue
+            total += 1
+            status = test.get("status")
+            if status == "passed":
+                passed += 1
+            elif status in ("skipped", "pending"):
+                skipped += 1
+            else:
+                failed += 1
+        return total, passed, failed, skipped
+    summary = results.get("summary")
+    if not isinstance(summary, dict):
+        return None
+    counts: list[int] = []
+    for key in ("tests", "passed", "failed"):
+        value = summary.get(key)
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return None
+        if not math.isfinite(float(value)):
+            return None
+        counts.append(int(value))
+    total, passed, failed = counts
+    return total, passed, failed, max(0, total - passed - failed)
 
 
 def _stdout_test_counts(stdout: str) -> tuple[int | None, int | None]:

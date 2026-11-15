@@ -18,8 +18,9 @@ Two codes flag only non-clean tasks, and they are narrow:
 
 Two codes fire on all 95 tasks, so they separate no executed class:
 `unpinned-image` and `verifier-isolation`.
-The clean class has the highest mean finding count, 3.96, because it has no `sources-parse`
-or `unpinned-clone` row and the same universal codes as every other task.
+The clean class has the highest mean finding count, 3.96.
+Its tasks carry the two universal codes like every other task, and 44 to 46 of the 49
+also carry the verifier network and install codes.
 This table gives no reason to expect the current lint set to find executed failures.
 A next lint investment must add checks that fire on failing tasks and stay quiet on clean
 tasks; the codes today do the opposite or nothing.

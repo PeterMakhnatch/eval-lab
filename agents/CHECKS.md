@@ -106,6 +106,18 @@ segments abort after two minutes; existing job caps are unchanged. On
 cancellation, inspect setup and checker/test durations separately before
 blaming a test hang.
 
+### Bounded test hangs
+
+HAR-444: on `cf1f55c`, shard 2 stalled without output in "Full test suite" and was cancelled after 14m51s.
+Its cancelled-job log was unavailable, so the test could not be named. A re-run passed, making the gate look flaky.
+Each test must fail by name with its stack within 300 s (`timeout = 300`, `timeout_method = "signal"`).
+This ceiling sits inside the 20-minute test-job cap. The slowest test measured on the runner takes 12.18 s, and a Docker-bound host test takes 116 s on a loaded laptop, so a slow host cannot turn the ceiling into a failure.
+A stall is a defect in the test or the code it calls, not a runner nuisance.
+Never cancel and re-run a stalled required check before capturing the test named by the timeout and its stack.
+A required check that fails once and passes on re-run remains an open defect until a named cause is recorded.
+`tests/test_test_hygiene.py` owns `unbounded-wait`: it rejects `.wait()` and `.communicate()` calls that pass no positional argument and no `timeout=`.
+It accepts a call inside the arguments of `asyncio.wait_for`, `asyncio.timeout`, `asyncio.timeout_at` or `anyio.fail_after` when that wrapper carries its own bound.
+
 Run focused checks or explicit premerge before pushing.
 
 ### Size limits

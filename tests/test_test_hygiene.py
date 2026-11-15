@@ -911,9 +911,8 @@ def test_model_cli_guard_allows_fake_cli_in_tmp_path_through_each_launcher(
 _HOST_STATE_EXCEPTIONS: set[tuple[str, str, str]] = set()
 
 
-def _host_state_violations(source: str) -> list[tuple[int, str, str, str]]:
-    """Inspect syntax only; never import a candidate or contact its database."""
-    tree = ast.parse(source)
+def _import_aliases(tree: ast.AST) -> dict[str, str]:
+    """Map local names to dotted import targets without importing anything."""
     aliases: dict[str, str] = {}
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
@@ -922,13 +921,39 @@ def _host_state_violations(source: str) -> list[tuple[int, str, str, str]]:
         elif isinstance(node, ast.ImportFrom) and node.module:
             for name in node.names:
                 aliases[name.asname or name.name] = f"{node.module}.{name.name}"
+    return aliases
+
+
+def _dotted_name(node: ast.AST, aliases: dict[str, str]) -> str:
+    if isinstance(node, ast.Name):
+        return aliases.get(node.id, node.id)
+    if isinstance(node, ast.Attribute):
+        return f"{_dotted_name(node.value, aliases)}.{node.attr}"
+    return ""
+
+
+def _configured_test_files(root: Path) -> set[Path]:
+    with (root / "pyproject.toml").open("rb") as stream:
+        options = tomllib.load(stream)["tool"]["pytest"]["ini_options"]
+    files: set[Path] = set()
+    for entry in options["testpaths"]:
+        path = root / entry
+        candidates = [path] if path.is_file() else path.rglob("*.py")
+        files.update(
+            candidate for candidate in candidates
+            if candidate.name == "conftest.py"
+            or any(fnmatch(candidate.name, pattern) for pattern in options.get("python_files", ("test_*.py", "*_test.py")))
+        )
+    return files
+
+
+def _host_state_violations(source: str) -> list[tuple[int, str, str, str]]:
+    """Inspect syntax only; never import a candidate or contact its database."""
+    tree = ast.parse(source)
+    aliases = _import_aliases(tree)
 
     def name(node: ast.AST) -> str:
-        if isinstance(node, ast.Name):
-            return aliases.get(node.id, node.id)
-        if isinstance(node, ast.Attribute):
-            return f"{name(node.value)}.{node.attr}"
-        return ""
+        return _dotted_name(node, aliases)
 
     def connects(call: ast.Call) -> bool:
         target = name(call.func)
@@ -1016,17 +1041,7 @@ def _host_state_violations(source: str) -> list[tuple[int, str, str, str]]:
 
 
 def _assert_scoped_host_state(root: Path) -> None:
-    with (root / "pyproject.toml").open("rb") as stream:
-        options = tomllib.load(stream)["tool"]["pytest"]["ini_options"]
-    files: set[Path] = set()
-    for entry in options["testpaths"]:
-        path = root / entry
-        candidates = [path] if path.is_file() else path.rglob("*.py")
-        files.update(
-            candidate for candidate in candidates
-            if candidate.name == "conftest.py"
-            or any(fnmatch(candidate.name, pattern) for pattern in options.get("python_files", ("test_*.py", "*_test.py")))
-        )
+    files = _configured_test_files(root)
     exceptions = set(_HOST_STATE_EXCEPTIONS)
     failures = []
     for path in sorted(files):
@@ -1096,3 +1111,87 @@ thread = Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01})
 text = "os.environ['DATABASE_URL'] = 'not executed'"
 """
     assert _host_state_violations(source) == []
+
+
+_BOUNDING_WRAPPERS = frozenset({"asyncio.wait_for", "asyncio.timeout", "asyncio.timeout_at", "anyio.fail_after"})
+
+
+def _unbounded_wait_violations(source: str) -> list[tuple[int, str, str]]:
+    """Reject `.wait()`/`.communicate()` without a bound; only wrapper arguments count as bounds."""
+    tree = ast.parse(source)
+    aliases = _import_aliases(tree)
+    calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)]
+    bounded: set[ast.AST] = set()
+    for call in calls:
+        wrapper = _dotted_name(call.func, aliases)
+        own_bound = any(keyword.arg == "timeout" for keyword in call.keywords) or (
+            wrapper != "asyncio.wait_for" and bool(call.args)
+        )
+        if wrapper in _BOUNDING_WRAPPERS and own_bound:
+            for argument in [*call.args, *(keyword.value for keyword in call.keywords)]:
+                bounded.update(ast.walk(argument))
+    violations: list[tuple[int, str, str]] = []
+    for call in calls:
+        target = _dotted_name(call.func, aliases)
+        if (
+            isinstance(call.func, ast.Attribute)
+            and call.func.attr in {"wait", "communicate"}
+            and not call.args
+            and not any(keyword.arg == "timeout" for keyword in call.keywords)
+            and call not in bounded
+            and target != "os.wait"
+            and target.rsplit(".", 1)[0] != "subprocess"
+        ):
+            violations.append((call.lineno, "unbounded-wait", ast.unparse(call)))
+    return violations
+
+
+def _assert_no_unbounded_waits(root: Path) -> None:
+    failures = [
+        f"{path.relative_to(root).as_posix()}:{line}: {rule}: {signature}"
+        for path in sorted(_configured_test_files(root))
+        for line, rule, signature in _unbounded_wait_violations(path.read_text(encoding="utf-8"))
+    ]
+    assert not failures, "\n".join(failures)
+
+
+def test_test_files_do_not_block_forever() -> None:
+    _assert_no_unbounded_waits(Path(__file__).resolve().parents[1])
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "process.wait()",
+        "process.communicate()",
+        "import asyncio\nawait asyncio.wait_for(event.wait())",
+        "from asyncio import wait_for as bounded\nawait bounded(event.wait())",
+    ],
+)
+def test_unbounded_wait_guard_rejects_seeded_violations(source: str, tmp_path: Path) -> None:
+    (line, rule, signature), *rest = _unbounded_wait_violations(source)
+    assert not rest and rule == "unbounded-wait" and line == len(source.splitlines())
+    _write_hygiene_tree(tmp_path, ["tests/test_seed.py"], testpaths=["tests"])
+    (tmp_path / "tests/test_seed.py").write_text(source, encoding="utf-8")
+    with pytest.raises(AssertionError) as caught:
+        _assert_no_unbounded_waits(tmp_path)
+    assert f"tests/test_seed.py:{line}: {rule}: {signature}" in str(caught.value)
+
+
+def test_unbounded_wait_guard_allows_bounded_forms() -> None:
+    source = """
+import asyncio
+from asyncio import wait_for as bounded
+import os as operating_system
+import subprocess as sp
+p.wait(timeout=5)
+e.wait(1)
+p.communicate(timeout=5)
+thread.join()
+operating_system.wait()
+sp.wait()
+fcntl.flock(fd, fcntl.LOCK_EX)
+await asyncio.wait_for(event.wait(), timeout=5)
+await bounded(event.wait(), timeout=5)
+"""
+    assert _unbounded_wait_violations(source) == []

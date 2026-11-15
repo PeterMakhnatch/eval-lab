@@ -744,7 +744,7 @@ def test_cancelling_agent_end_waits_for_observer_cleanup(tmp_path: Path, monkeyp
         async def delayed_stop(command: str, timeout_sec: int | None = None):
             if command.startswith("kill -TERM"):
                 stopping.set()
-                await allow_stop.wait()
+                await asyncio.wait_for(allow_stop.wait(), timeout=120)
             return await execute(command, timeout_sec)
 
         env.exec = delayed_stop
@@ -753,7 +753,7 @@ def test_cancelling_agent_end_waits_for_observer_cleanup(tmp_path: Path, monkeyp
         await _arrange(plugin, trial, event)
         poll = plugin._windows["trial-1"].poll_task
         closing = asyncio.create_task(_fire(trial, "agent-end", event))
-        await stopping.wait()
+        await asyncio.wait_for(stopping.wait(), timeout=120)
         closing.cancel()
         allow_stop.set()
         with pytest.raises(asyncio.CancelledError):

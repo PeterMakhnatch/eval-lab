@@ -121,7 +121,7 @@ def test_command_timeout_kills_and_reaps_the_real_child(
             if process is not None:
                 if process.returncode is None:
                     process.kill()
-                await process.wait()
+                await asyncio.wait_for(process.wait(), timeout=120)
 
     asyncio.run(run_command())
 

@@ -262,6 +262,10 @@ def no_network(event, args):
         # A forbidden connection therefore terminates this isolated fixture.
         os._exit(89)
 sys.addaudithook(no_network)
+import dotenv
+# The SDK reads DotEnv directly, bypassing PYTHON_DOTENV_DISABLED.
+# Isolate configuration discovery, not SDK instrumentation or native export.
+dotenv.find_dotenv = lambda *args, **kwargs: ''
 sink = {str(sink)!r}
 {textwrap.dedent(before_init)}
 runtime = tracing.initialize_tracing(
@@ -275,9 +279,11 @@ assert runtime.enabled, runtime.error_type
     }
     env["LMNR_PROJECT_API_KEY"] = "fixture-laminar-key"
     env["LITELLM_LOCAL_MODEL_COST_MAP"] = "True"
+    env["PYTHON_DOTENV_DISABLED"] = "true"
     result = subprocess.run(
         [sys.executable, "-I", "-c", textwrap.dedent(prelude) + textwrap.dedent(body)],
         env=env,
+        cwd=tmp_path,
         capture_output=True,
         text=True,
         timeout=20,
@@ -307,6 +313,8 @@ def _attribute(span, key):
 def test_actual_sdk_auto_openai_and_manual_native_spans_share_real_parent_session_and_metadata(
     tmp_path,
 ):
+    # Ambient dotenv files must not disable or reconfigure the real SDK.
+    (tmp_path / ".env").write_text("LMNR_DISABLE_TRACING=true\n", encoding="utf-8")
     result, sink = _sdk_process(
         tmp_path,
         """

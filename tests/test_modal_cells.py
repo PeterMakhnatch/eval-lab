@@ -191,8 +191,8 @@ def test_should_2_cross_process_same_cell(tmp_path: Path) -> None:
 
     p1 = subprocess.Popen([sys.executable, "-c", worker_code])
     p2 = subprocess.Popen([sys.executable, "-c", worker_code])
-    assert p1.wait() == 0
-    assert p2.wait() == 0
+    assert p1.wait(timeout=120) == 0
+    assert p2.wait(timeout=120) == 0
 
     calls = calls_file.read_text().strip().splitlines() if calls_file.exists() else []
     assert len(calls) == 1

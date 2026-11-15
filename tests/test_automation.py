@@ -41,7 +41,7 @@ def test_run_with_timeout_terminates_the_whole_child_tree(tmp_path: Path) -> Non
         try:
             shell = _spawn_process_tree(pid_file)
             spawned.extend([shell.pid, int(pid_file.read_text())])
-            shell.wait()  # Blocks until the expiry handler has killed the tree.
+            shell.wait(timeout=120)  # Blocks until the expiry handler has killed the tree.
         except Exception as exc:
             raise AssertionError("timeout must escape ordinary handlers") from exc
 

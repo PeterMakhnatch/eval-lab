@@ -639,6 +639,11 @@ def _reward_summary(published: Path) -> str:
     unscored = summary.get("n_unscored")
     if not isinstance(passed, int):
         return "unprocessed"
+    flags_map = summary.get("reward_report_flags")
+    if isinstance(flags_map, dict):
+        forged = flags_map.get("forged")
+        if isinstance(forged, int) and forged > 0:
+            return f"{passed} pass, {failed} fail, {unscored} unscored, forged {forged}"
     return f"{passed} pass, {failed} fail, {unscored} unscored"
 
 

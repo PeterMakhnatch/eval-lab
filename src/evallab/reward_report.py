@@ -7,7 +7,7 @@ This is evidence only: reward, scored, counts, and decision are never rewritten.
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -138,3 +138,14 @@ def flags(record: Mapping[str, Any]) -> list[str]:
             f"-vs-{_number_text(record['reward_txt'])}"
         )
     return result
+
+
+def kind_counts(flag_strings: Iterable[str]) -> dict[str, int]:
+    """Count reward-report flag kinds; sort keys for deterministic JSON and repr."""
+    counts: dict[str, int] = {}
+    for flag in flag_strings:
+        parts = flag.split(":", 2)
+        if len(parts) == 3 and parts[0] == "reward_report" and parts[1]:
+            kind = parts[1]
+            counts[kind] = counts.get(kind, 0) + 1
+    return {kind: counts[kind] for kind in sorted(counts)}

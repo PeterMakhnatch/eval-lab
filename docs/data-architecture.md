@@ -299,6 +299,11 @@ The classification flag is `reward_report:<classification>:<passed>/<tests>-pass
 For example, the flag is `reward_report:forged:0/19-passed`.
 The mismatch flag is `reward_report:mismatch:<reward>-vs-<reward_txt>`.
 For example, the flag is `reward_report:mismatch:0-vs-1`.
+The job summary counts these flags by kind in `summary.reward_report_flags`,
+a `{kind: count}` mapping; a job without flags stores `{}`.
+The job page prints the mapping once, and the INDEX Reward (raw) cell
+appends `forged N` when the stored forged count is above 0.
+Reports predating the field render the INDEX cell unchanged (HAR-237).
 The record and flags are evidence only.
 This check never rewrites `reward`, `scored`, `reward_source`, `counts`, or `decision`.
 The trial decision page copies the record into its Facts as an observed signal; counts and the verdict remain unchanged.

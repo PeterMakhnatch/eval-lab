@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from evallab.reward_report import assess, flags
+from evallab.reward_report import assess, flags, kind_counts
 
 
 def _write_trial(
@@ -15,9 +15,10 @@ def _write_trial(
     reward: float | None,
     statuses: list[str] | None = None,
     reward_txt: str | None = None,
+    name: str = "trial",
     exception: bool = False,
 ) -> Path:
-    trial = root / "trial"
+    trial = root / name
     trial.mkdir(parents=True)
     result: dict[str, Any] = {"task_name": "task", "trial_name": trial.name}
     if reward is not None:
@@ -188,3 +189,61 @@ def test_process_trial_adds_the_record_and_flag(tmp_path: Path) -> None:
     assert record["scored"] is True
     assert record["reward_source"] == "verifier_result"
     assert record["decision"] is None
+
+
+def test_kind_counts_accepts_new_kinds_and_sorts_keys() -> None:
+    flag_strings = [
+        "reward_report:new-kind:first:detail",
+        "reward_report:forged:0/2-passed",
+        "unrelated:flag",
+        "reward_report:new-kind:second",
+        "reward_report",
+        "reward_report:missing-detail",
+        "reward_report::detail",
+    ]
+
+    counts = kind_counts(iter(flag_strings))
+
+    assert counts == {"forged": 1, "new-kind": 2}
+    assert list(counts) == ["forged", "new-kind"]
+    assert kind_counts(iter(())) == {}
+
+
+def test_process_job_counts_reward_report_flags_and_renders_once(tmp_path: Path) -> None:
+    from evallab.process_job import process_job
+
+    job = tmp_path / "job"
+    _write_trial(
+        job, name="forged", reward=1, reward_txt="1", statuses=["failed"] * 19
+    )
+    _write_trial(
+        job, name="mismatch", reward=0.0, reward_txt="1", statuses=["failed"] * 11
+    )
+    output_dir = tmp_path / "out"
+
+    report = process_job(job, output_dir=output_dir, ingest=False, publish=False)
+
+    expected = {"forged": 1, "mismatch": 1}
+    assert report["summary"]["reward_report_flags"] == expected
+    saved = json.loads((output_dir / "job.json").read_text(encoding="utf-8"))
+    assert saved["summary"]["reward_report_flags"] == expected
+    assert json.loads(json.dumps(report))["summary"]["reward_report_flags"] == expected
+    markdown = (output_dir / "job.md").read_text(encoding="utf-8")
+    reward_lines = [
+        line for line in markdown.splitlines() if line.startswith("- reward report:")
+    ]
+    assert reward_lines == ["- reward report: {'forged': 1, 'mismatch': 1}"]
+
+
+def test_process_job_without_reward_report_flags_uses_empty_dict(tmp_path: Path) -> None:
+    from evallab.process_job import process_job
+
+    job = tmp_path / "job"
+    trial = _write_trial(job, reward=1)
+    assert not (trial / "verifier").exists()
+
+    report = process_job(job, output_dir=tmp_path / "out", ingest=False, publish=False)
+
+    assert report["summary"]["reward_report_flags"] == {}
+    markdown = (tmp_path / "out" / "job.md").read_text(encoding="utf-8")
+    assert markdown.splitlines().count("- reward report: {}") == 1

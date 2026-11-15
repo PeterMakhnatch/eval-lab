@@ -443,6 +443,45 @@ def _write_report(job: Path, summary: dict) -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("summary_extra", "suffix"),
+    [
+        ({}, ""),
+        ({"reward_report_flags": {"forged": 1}}, ", forged 1"),
+        ({"reward_report_flags": {"forged": 0}}, ""),
+        ({"reward_report_flags": {"forged": -1}}, ""),
+        ({"reward_report_flags": {"forged": "1"}}, ""),
+        ({"reward_report_flags": {"mismatch": 1}}, ""),
+        ({"reward_report_flags": None}, ""),
+    ],
+)
+def test_index_reward_report_flags(tmp_path: Path, summary_extra: dict, suffix: str) -> None:
+    """Preserve HAR-237 byte identity for reports predating reward_report_flags."""
+    home = tmp_path / "results"
+    published = home / "2026-09-30" / "HAR-452-reward-report"
+    summary = {"n_pass": 1, "n_fail": 0, "n_unscored": 0}
+    _write_report(published, summary)
+    (published / "provenance.json").write_text(
+        json.dumps({"card": "HAR-452", "repository": {"commit": "abc123"}}),
+        encoding="utf-8",
+    )
+    checkout = tmp_path / "checkout"
+    write_index(home, primary_checkout=checkout)
+    legacy = _index_bytes(home)
+    _write_report(published, summary | summary_extra)
+    write_index(home, primary_checkout=checkout)
+    expected = f"1 pass, 0 fail, 0 unscored{suffix}"
+    full = (home / "INDEX-all.md").read_text()
+    row = next(line for line in full.splitlines() if f"[run]({published})" in line)
+    assert f"| {expected} |" in row
+    if not suffix:
+        assert "forged" not in row
+    assert _index_bytes(home) == {
+        name: data.replace(b"| 1 pass, 0 fail, 0 unscored |", f"| {expected} |".encode())
+        for name, data in legacy.items()
+    }
+
+
 def test_index_shows_raw_pass_alongside_counted_exclusion(tmp_path: Path) -> None:
     """A raw pass excluded as copied_fix is visibly both: raw pass, counted excluded."""
     from evallab.results_home import _counts_summary

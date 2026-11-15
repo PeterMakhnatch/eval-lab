@@ -203,12 +203,13 @@ def add_task_commands(sub: Any) -> None:
 
 
 def add_corpus_command(sub: Any) -> None:
-    """Register the model-free, one-reference-run-per-task corpus audit."""
+    """Register the model-free oracle-and-nop corpus audit."""
     corpus = sub.add_parser(
         "corpus",
-        help="Model-free corpus audit: run each task's reference solution once on Modal",
-        description="Run every task's own solution/solve.sh once through the native Harbor "
-        "Modal trial path and classify it: clean, reference_below_one, cannot_run, no_reference.",
+        help="Model-free corpus audit: run each task's reference and a do-nothing control on Modal",
+        description="Run every task's own solution/solve.sh (oracle) and a do-nothing run (nop) "
+        "once each through the native Harbor Modal trial path and classify the task: "
+        "control_paid, reference_below_one, reference_unmeasured, cannot_run, no_reference, clean.",
     )
     corpus.add_argument("corpus_root", type=Path, help="Directory searched for task.toml files")
     corpus.add_argument("--out", type=Path, required=True, help="Writes audit.json and AUDIT.md")
@@ -217,7 +218,12 @@ def add_corpus_command(sub: Any) -> None:
         "--task", action="append", help="Only this task (relative path or directory name)"
     )
     corpus.add_argument(
-        "--resume", action="store_true", help="Keep audit.json rows and skip their tasks"
+        "--resume",
+        action="store_true",
+        help="Keep current audit.json rows and skip their tasks; re-run rows without a nop cell",
+    )
+    corpus.add_argument(
+        "--skip-controls", action="store_true", help="Run only the reference (oracle), not nop"
     )
     corpus.add_argument("--trial-timeout", type=int, default=1800)
     corpus.add_argument("--max-usd", type=float, help="Run-wide Modal reservation cap (not a bill)")

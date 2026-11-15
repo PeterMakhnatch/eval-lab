@@ -625,13 +625,14 @@ def test_autoreview_attestation_mismatch() -> None:
     assert "AUTOREVIEW_UNATTESTED" in v.reasons
 
 
-def test_autoreview_through_stub_omp_binary(tmp_path: Path) -> None:
+def test_autoreview_through_stub_omp_binary(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """B1 non-negotiable: test drives run_omp_session through a real-shaped stub omp binary on PATH."""
+    import sys
+
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     stub_omp = bin_dir / "omp"
-    stub_script = """#!/usr/bin/env python3
-import sys, json, os, pathlib
+    stub_script = f"#!{sys.executable}\n" + """import sys, json, os, pathlib
 args = sys.argv[1:]
 import yaml
 config = pathlib.Path(os.environ["PI_CONFIG_FILES"].split(os.pathsep)[-1])
@@ -668,64 +669,65 @@ print(json.dumps({"suspicion": 92, "verdict": "confirmed_cheat", "cited_steps": 
     stub_omp.write_text(stub_script, encoding="utf-8")
     stub_omp.chmod(0o755)
 
-    # Set PATH to include our stub binary
-    orig_path = os.environ.get("PATH", "")
-    os.environ["PATH"] = f"{bin_dir}:{orig_path}"
-    try:
-        rollout = _make_clean_rollout()
-        l0_soft = StageVerdict(stage="l0", decision="review", reasons=["L0_SOFT_TARGET_SURFACE_WRITE"], details={"writes_target_surface": True})
-        state = {"calls": 0, "spent_usd": 0.0}
+    # Keep the executable, worker config, and response scenarios hermetic.
+    worker_config = tmp_path / "worker.yml"
+    worker_config.write_text("retry:\n  modelFallback: false\n  maxRetries: 4\n", encoding="utf-8")
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}")
+    monkeypatch.setenv("EVALLAB_WORKER_YML", str(worker_config))
+    monkeypatch.delenv("PI_CONFIG_FILES", raising=False)
+    monkeypatch.delenv("FAKE_OMP_FALLBACK", raising=False)
+    monkeypatch.delenv("FAKE_OMP_WRONG_MODEL", raising=False)
 
-        # 1. Attested run with matching model
-        verdict = evaluate_autoreview_stage(
-            rollout,
-            l0_soft,
-            enabled=True,
-            model_route="google-antigravity/gemini-3.8-flash",
-            action="drop",
-            state=state,
-        )
+    rollout = _make_clean_rollout()
+    l0_soft = StageVerdict(stage="l0", decision="review", reasons=["L0_SOFT_TARGET_SURFACE_WRITE"], details={"writes_target_surface": True})
+    state = {"calls": 0, "spent_usd": 0.0}
 
-        assert verdict.decision == "drop"
-        assert "AUTOREVIEW_CONFIRMED_CHEAT" in verdict.reasons
-        assert "AUTOREVIEW_SUSPICION_92" in verdict.reasons
-        assert verdict.details["attested"] is True
-        assert verdict.details["cost_usd"] == 0.025
-        assert state["spent_usd"] == 0.025
-        assert state["calls"] == 1
+    # 1. Attested run with matching model
+    verdict = evaluate_autoreview_stage(
+        rollout,
+        l0_soft,
+        enabled=True,
+        model_route="google-antigravity/gemini-3.8-flash",
+        action="drop",
+        state=state,
+    )
 
-        # 2. Fallback flag triggers AUTOREVIEW_UNATTESTED
-        os.environ["FAKE_OMP_FALLBACK"] = "1"
-        v_fb = evaluate_autoreview_stage(
-            rollout,
-            l0_soft,
-            enabled=True,
-            model_route="google-antigravity/gemini-3.8-flash",
-            action="drop",
-            state=state,
-        )
-        assert v_fb.decision == "review"
-        assert "AUTOREVIEW_UNATTESTED" in v_fb.reasons
-        assert v_fb.details["attested"] is False
+    assert verdict.decision == "drop"
+    assert "AUTOREVIEW_CONFIRMED_CHEAT" in verdict.reasons
+    assert "AUTOREVIEW_SUSPICION_92" in verdict.reasons
+    assert verdict.details["attested"] is True
+    assert verdict.details["cost_usd"] == 0.025
+    assert state["spent_usd"] == 0.025
+    assert state["calls"] == 1
 
-        # 3. Wrong model triggers AUTOREVIEW_UNATTESTED
-        os.environ["FAKE_OMP_FALLBACK"] = "0"
-        os.environ["FAKE_OMP_WRONG_MODEL"] = "other-model"
-        v_wm = evaluate_autoreview_stage(
-            rollout,
-            l0_soft,
-            enabled=True,
-            model_route="google-antigravity/gemini-3.8-flash",
-            action="drop",
-            state=state,
-        )
-        assert v_wm.decision == "review"
-        assert "AUTOREVIEW_UNATTESTED" in v_wm.reasons
-        assert v_wm.details["attested"] is False
-    finally:
-        os.environ.pop("FAKE_OMP_FALLBACK", None)
-        os.environ.pop("FAKE_OMP_WRONG_MODEL", None)
-        os.environ["PATH"] = orig_path
+    # 2. Fallback flag triggers AUTOREVIEW_UNATTESTED
+    monkeypatch.setenv("FAKE_OMP_FALLBACK", "1")
+    v_fb = evaluate_autoreview_stage(
+        rollout,
+        l0_soft,
+        enabled=True,
+        model_route="google-antigravity/gemini-3.8-flash",
+        action="drop",
+        state=state,
+    )
+    assert v_fb.decision == "review"
+    assert "AUTOREVIEW_UNATTESTED" in v_fb.reasons
+    assert v_fb.details["attested"] is False
+
+    # 3. Wrong model triggers AUTOREVIEW_UNATTESTED
+    monkeypatch.setenv("FAKE_OMP_FALLBACK", "0")
+    monkeypatch.setenv("FAKE_OMP_WRONG_MODEL", "other-model")
+    v_wm = evaluate_autoreview_stage(
+        rollout,
+        l0_soft,
+        enabled=True,
+        model_route="google-antigravity/gemini-3.8-flash",
+        action="drop",
+        state=state,
+    )
+    assert v_wm.decision == "review"
+    assert "AUTOREVIEW_UNATTESTED" in v_wm.reasons
+    assert v_wm.details["attested"] is False
 
 def test_autoreview_budget_guard_limits_calls_and_spend() -> None:
     rollout = _make_clean_rollout()

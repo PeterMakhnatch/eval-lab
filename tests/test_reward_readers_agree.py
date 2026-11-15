@@ -60,6 +60,24 @@ SHAPES = (
         id="captured-minus-one",
     ),
     pytest.param(
+        {"result.json": _captured(-1), "verifier/reward.txt": "0"},
+        None,
+        None,
+        False,
+        id="captured-minus-one-with-different-file",
+    ),
+    pytest.param(
+        {
+            "result.json": {"trial_name": "trial", "verifier_result": {}},
+            "verifier/reward.json": {"reward": -1},
+            "verifier/reward.txt": "0",
+        },
+        None,
+        None,
+        False,
+        id="reward-json-minus-one-with-different-file",
+    ),
+    pytest.param(
         {"result.json": _captured(True), "verifier/reward.txt": "0"},
         None,
         None,

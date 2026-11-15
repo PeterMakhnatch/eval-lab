@@ -662,6 +662,19 @@ def _verify(
 ) -> Grade:
     """Run ``/tests/test.sh`` in container ``name`` and score ``/logs/verifier/reward.txt``."""
     try:
+        # HAR-449: match ref_subset_modal.ModalSandbox._grade's reward reset.
+        _check(
+            _docker(
+                "exec",
+                *_PATH_PIN,
+                *exec_options,
+                name,
+                "bash",
+                "-c",
+                "mkdir -p /logs/verifier && rm -f /logs/verifier/reward.txt /logs/verifier/reward.json",
+            ),
+            "clear the verifier reward files",
+        )
         result = _docker(
             "exec", *_PATH_PIN, *exec_options, name, "bash", "/tests/test.sh", timeout=timeout
         )

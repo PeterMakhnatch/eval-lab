@@ -55,6 +55,11 @@ from evallab.regrade import (
 from evallab.schemas import ContractModel
 
 SPEND_TAG = "2026-10-17-v7"
+
+# HAR-449: clear stale rewards before grading, as the Modal grader already does.
+CLEAR_VERIFIER_REWARDS = (
+    "mkdir -p /logs/verifier && rm -f /logs/verifier/reward.txt /logs/verifier/reward.json"
+)
 Stage = Literal["S0", "S1", "S2", "S3"]
 Verdict = Literal["pass", "fail", "unknown"]
 Status = Literal["measured", "ran_without_usable_result", "not_run"]
@@ -1502,6 +1507,12 @@ class HarborBackend:
                         check=True,
                         timeout=120,
                     )
+                    subprocess.run(
+                        ["docker", "exec", agent_name, "bash", "-c", CLEAR_VERIFIER_REWARDS],
+                        capture_output=True,
+                        text=True,
+                        timeout=60,
+                    )
                     v_done = subprocess.run(
                         [
                             "docker",
@@ -1741,6 +1752,12 @@ class HarborBackend:
                 check=True,
                 timeout=120,
             )
+        subprocess.run(
+            ["docker", "exec", verifier_name, "bash", "-c", CLEAR_VERIFIER_REWARDS],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
         v_done = subprocess.run(
             [
                 "docker",
@@ -2042,6 +2059,12 @@ class HarborBackend:
                     text=True,
                     check=True,
                     timeout=120,
+                )
+                subprocess.run(
+                    [*compose_cmd, "exec", "-T", "main", "bash", "-c", CLEAR_VERIFIER_REWARDS],
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
                 )
                 v_done = subprocess.run(
                     [

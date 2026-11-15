@@ -40,11 +40,13 @@ Job-level `result.json` files and deeper layouts are excluded, as in [HAR-429](.
 Unreadable or malformed JSON becomes an empty object.
 
 The reward comes first from `verifier_result.rewards.reward` in `result.json`.
-Otherwise, the builder uses `verifier/reward.txt`.
-That fallback stops when `result.json` holds `exception_info` and no captured reward.
+A present but invalid captured value (boolean, non-number, or non-finite) is unscored and never falls back to a file.
+That fallback also stops when `result.json` holds `exception_info` and no captured reward.
 Such a trial has no usable reward, and the builder names its source `exception_no_captured_reward`.
+Otherwise `verifier/reward.json` wins over `verifier/reward.txt`, as Harbor 0.24 does; an unreadable `reward.json` does not fall through to the text file.
+A reward of -1 from any source is unscored.
 A raised trial that captured no reward leaves verifier files as evidence, not as a scored result (HAR-446, HAR-450).
-The rule matches `read_reward` in `src/evallab/probe03.py`.
+The rule matches `read_reward` in `src/evallab/probe03.py`, the QA trace reader, and `reward_report`; `tests/test_reward_readers_agree.py` pins all four.
 On the 2026-11-15 root the builder and that reader disagree on 0 of 8534 trials.
 It rejects booleans, non-finite values, and malformed reward text.
 It always reads `reward.txt` when present, even when `result.json` supplies the reward.

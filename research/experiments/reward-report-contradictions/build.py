@@ -6,9 +6,11 @@ read-only, $0 scan makes that discrepancy reproducible across the published
 results root. It runs no trials, Docker commands, network requests, or model calls.
 
 Walk only sorted <YYYY-MM-DD>/<job>/<trial> directories with result.json.
-Prefer its finite numeric verifier_result.rewards.reward; otherwise use the
-finite verifier/reward.txt value only when no exception is captured (HAR-446).
-Always read reward.txt to expose disagreement.
+Prefer its finite numeric verifier_result.rewards.reward. A present but invalid
+captured reward (boolean, non-number, non-finite) is unscored and never falls
+back to a file. Otherwise a captured exception is unscored (HAR-446), and else
+verifier/reward.json wins over verifier/reward.txt, as in Harbor 0.24.
+A reward of -1 is unscored. Always read reward.txt to expose disagreement.
 Reject booleans, malformed values, and non-finite rewards. Invalid JSON is {}.
 
 For a non-empty results.tests list in verifier/ctrf.json, count test dictionaries:
@@ -177,7 +179,11 @@ def ctrf_counts(results: object) -> tuple[int, int, int, int] | None:
 def reward_values(trial_dir: Path, result: dict) -> tuple[float | None, str, float | None]:
     """Return (effective reward, source, reward.txt), preferring result.json.
 
-    A leftover reward file after a captured exception is evidence, not a reward (HAR-446).
+    A captured reward wins. A present but invalid captured reward is unscored
+    with no file fallback. Without a captured reward, ``verifier/reward.json``
+    precedes ``verifier/reward.txt`` (Harbor 0.24). A leftover file after a
+    captured exception is evidence, not a reward (HAR-446). A reward of -1 is
+    unscored.
     """
     try:
         reward_txt = finite((trial_dir / "verifier" / "reward.txt").read_text(encoding="utf-8"))
@@ -186,12 +192,21 @@ def reward_values(trial_dir: Path, result: dict) -> tuple[float | None, str, flo
     verifier = result.get("verifier_result")
     if isinstance(verifier, dict):
         rewards = verifier.get("rewards")
-        if isinstance(rewards, dict):
+        if isinstance(rewards, dict) and "reward" in rewards:
             reward = _json_number(rewards.get("reward"))
+            if reward == -1:
+                return None, "result", reward_txt
             if reward is not None:
                 return reward, "result", reward_txt
+            return None, "invalid_result", reward_txt
     if result.get("exception_info"):
         return None, "exception_no_captured_reward", reward_txt
+    reward_json_path = trial_dir / "verifier" / "reward.json"
+    if reward_json_path.is_file():
+        reward_json = _json_number(read_json(reward_json_path).get("reward"))
+        return (None if reward_json == -1 else reward_json), "reward_json", reward_txt
+    if reward_txt == -1:
+        return None, "reward_txt", reward_txt
     if reward_txt is not None:
         return reward_txt, "reward_txt", reward_txt
     return None, "", None

@@ -67,6 +67,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast, get_args
 
+from evallab.probe03 import normalize_reward
 from evallab.qa.models import (
     Category,
     Fault,
@@ -298,22 +299,30 @@ class Bundle:
 def _rewards(trial_dir: Path) -> dict[str, Any]:
     """Harbor verifier reward only; converter-written top-level fields are ignored.
 
-    A raised trial that captured no reward is unscored: its verifier files are
-    leftover evidence, not a recorded result (HAR-446).
+    Share ``probe03.read_reward`` precedence. A captured result.json reward
+    wins. A present but unusable captured reward, or a reward of -1, is unscored
+    and never falls back to a file. Without one, ``verifier/reward.json``
+    precedes ``verifier/reward.txt`` (Harbor 0.24). A raised trial that
+    captured no reward is unscored: its verifier files are leftover evidence,
+    not a recorded result (HAR-446).
     """
     result_path = trial_dir / "result.json"
     result: dict[str, Any] = {}
     if result_path.is_file():
         result = _read_json(result_path)
-        rewards = (result.get("verifier_result") or {}).get("rewards")
-        if isinstance(rewards, dict) and isinstance(rewards.get("reward"), int | float):
+        verifier = result.get("verifier_result")
+        rewards = verifier.get("rewards") if isinstance(verifier, dict) else None
+        if isinstance(rewards, dict) and "reward" in rewards:
+            value, scored = normalize_reward(rewards["reward"])
             return {
-                "value": float(rewards["reward"]),
+                "value": value if scored else None,
                 "rewards": rewards,
                 "source": "result.json:verifier_result.rewards",
             }
 
-    def recorded(value: float, payload: dict[str, Any], source: str) -> dict[str, Any]:
+    def recorded(
+        value: float | None, payload: dict[str, Any] | None, source: str
+    ) -> dict[str, Any]:
         if result.get("exception_info"):
             return {
                 "value": None,
@@ -325,16 +334,22 @@ def _rewards(trial_dir: Path) -> dict[str, Any]:
     reward_json = trial_dir / "verifier" / "reward.json"
     if reward_json.is_file():
         payload = _read_json(reward_json)
-        if isinstance(payload, dict) and isinstance(payload.get("reward"), int | float):
-            return recorded(float(payload["reward"]), payload, "verifier/reward.json")
+        payload = payload if isinstance(payload, dict) else {}
+        value, scored = normalize_reward(payload.get("reward"))
+        return recorded(value if scored else None, payload, "verifier/reward.json")
     reward_txt = trial_dir / "verifier" / "reward.txt"
     if reward_txt.is_file():
         try:
             value = float(reward_txt.read_text().strip())
         except ValueError:
             value = None
-        if value is not None:
-            return recorded(value, {"reward": value}, "verifier/reward.txt")
+        normalized, scored = normalize_reward(value)
+        if normalized is not None:
+            return recorded(
+                normalized if scored else None,
+                {"reward": normalized},
+                "verifier/reward.txt",
+            )
     return {"value": None, "rewards": None, "source": "none recorded"}
 
 

@@ -88,6 +88,23 @@ def _layout(root: Path) -> Path:
     return job
 
 
+def _report_decision(
+    path: Path, record: dict | None, *, reward: float = 1.0
+) -> dict:
+    """Minimal build_decision call whose facts carry a reward-report record."""
+    return build_decision(
+        path,
+        reward=reward,
+        scored=True,
+        outcome=None,
+        first_failure=None,
+        grader_evidence=None,
+        taint=[],
+        token_flow=None,
+        reward_report=record,
+    )
+
+
 def test_page_keeps_grader_alignment_as_opinion(tmp_path: Path) -> None:
     job = _layout(tmp_path)
     process_job(job, output_dir=tmp_path / "out", ingest=False, publish=False)
@@ -334,3 +351,150 @@ def test_echo_task_complete_is_a_completion_claim_loop(tmp_path: Path) -> None:
     assert kind["kind"] == "completion-claim"
     assert kind["claim_bearing_turns"] == 12
     assert kind["turns_after_prompt"] == 12
+
+
+def test_forged_reward_report_is_an_observed_fact(tmp_path: Path) -> None:
+    record = {
+        "schema": "evallab.reward_report/v1",
+        "classification": "forged",
+        "reason": "full reward with 19 failed tests",
+        "mismatch": False,
+        "reward": 1.0,
+        "reward_source": "verifier_result",
+        "reward_txt": 1.0,
+        "counts": {"tests": 19, "passed": 0, "failed": 19, "skipped": 0},
+    }
+    decision = _report_decision(tmp_path, record)
+
+    assert decision["schema"] == "trial_decision/v3"
+    assert decision["facts"]["reward_report"] == record
+    assert decision["facts"]["reward_report"] is not record
+    lines = render_decision_markdown(decision)
+    facts = lines[lines.index("### Facts") : lines.index("### Judgments")]
+    expected = (
+        "- Reward report: `forged`; 0/19 passed (full reward with 19 failed tests); "
+        "reward `1` matches reward file `1`."
+    )
+    assert [line for line in facts if line.startswith("- Reward report:")] == [expected]
+    verifier_index = next(
+        index for index, line in enumerate(facts) if line.startswith("- Verifier:")
+    )
+    assert facts[verifier_index + 1] == expected
+
+
+def test_partial_credit_reward_report_renders_exactly(tmp_path: Path) -> None:
+    record = {
+        "schema": "evallab.reward_report/v1",
+        "classification": "partial-credit",
+        "reason": "full reward with 4 failed tests",
+        "mismatch": False,
+        "reward": 1.0,
+        "reward_source": "verifier_result",
+        "reward_txt": 1.0,
+        "counts": {"tests": 6, "passed": 2, "failed": 4, "skipped": 0},
+    }
+    decision = _report_decision(tmp_path, record)
+
+    assert decision["facts"]["reward_report"] == record
+    assert (
+        "- Reward report: `partial-credit`; 2/6 passed (full reward with 4 failed tests); "
+        "reward `1` matches reward file `1`."
+    ) in render_decision_markdown(decision)
+
+
+def test_mismatch_only_reward_report_renders_exactly(tmp_path: Path) -> None:
+    record = {
+        "schema": "evallab.reward_report/v1",
+        "classification": None,
+        "reason": "",
+        "mismatch": True,
+        "reward": 0.0,
+        "reward_source": "verifier_result",
+        "reward_txt": 1.0,
+        "counts": None,
+    }
+    decision = _report_decision(tmp_path, record, reward=0.0)
+
+    assert decision["facts"]["reward_report"] == record
+    assert (
+        "- Reward report: reward `0` vs reward file `1` (mismatch)."
+    ) in render_decision_markdown(decision)
+
+
+def test_absent_reward_report_has_no_observed_signal(tmp_path: Path) -> None:
+    for record in (None, {}):
+        decision = _report_decision(tmp_path, record)
+
+        assert decision["facts"]["reward_report"] == record
+        assert "- Reward report: none observed." in render_decision_markdown(decision)
+
+
+def test_reward_report_without_reward_file_uses_observed_source(tmp_path: Path) -> None:
+    record = {
+        "schema": "evallab.reward_report/v1",
+        "classification": "forged",
+        "reason": "",
+        "mismatch": False,
+        "reward": 1.0,
+        "reward_source": "verifier_result",
+        "reward_txt": None,
+        "counts": {"tests": 19, "passed": 0, "failed": 19, "skipped": 0},
+    }
+    decision = _report_decision(tmp_path, record)
+
+    assert (
+        "- Reward report: `forged`; 0/19 passed; reward `1` from `verifier_result`."
+    ) in render_decision_markdown(decision)
+
+
+def test_process_job_writes_reward_report_facts_without_changing_counts(
+    tmp_path: Path,
+) -> None:
+    job = _layout(tmp_path)
+    trial = job / "trial-leak"
+    tests = [{"name": f"test_{index}", "status": "failed"} for index in range(19)]
+    (trial / "verifier" / "ctrf.json").write_text(
+        json.dumps({"results": {"tests": tests}}), encoding="utf-8"
+    )
+    (trial / "verifier" / "reward.txt").write_text("1", encoding="utf-8")
+    (trial / "verifier" / "result.json").write_text(
+        json.dumps({"reward": 1.0}), encoding="utf-8"
+    )
+    result_path = trial / "result.json"
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    result["verifier_result"] = {"rewards": {"reward": 1.0}}
+    result.pop("exception_info")
+    result_path.write_text(json.dumps(result), encoding="utf-8")
+
+    process_job(job, output_dir=tmp_path / "out", ingest=False, publish=False)
+
+    saved = json.loads(
+        (tmp_path / "out" / f"trial-{trial.name}.json").read_text(encoding="utf-8")
+    )
+    decision = saved["decision"]
+    record = saved["reward_report"]
+    assert record == {
+        "schema": "evallab.reward_report/v1",
+        "classification": "forged",
+        "reason": "full reward with 19 failed tests",
+        "mismatch": False,
+        "reward": 1.0,
+        "reward_source": "verifier_result",
+        "reward_txt": 1.0,
+        "counts": {"tests": 19, "passed": 0, "failed": 19, "skipped": 0},
+    }
+    assert decision["facts"]["reward_report"] == record
+    markdown = (tmp_path / "out" / f"trial-{trial.name}.md").read_text(encoding="utf-8")
+    facts = markdown.split("### Facts", 1)[1].split("### Counts", 1)[0]
+    assert (
+        "- Reward report: `forged`; 0/19 passed (full reward with 19 failed tests); "
+        "reward `1` matches reward file `1`."
+    ) in facts.splitlines()
+    assert facts.count("- Reward report:") == 1
+    assert decision["counts"] == render_counts(saved["counts"])
+    assert decision["counts"]["verdict"] == saved["counts"]["verdict"]
+    assert decision["counts"]["reasons"] == saved["counts"]["reasons"]
+    assert saved["reward"] == decision["reward"] == 1.0
+    assert saved["scored"] is decision["scored"] is True
+    assert saved["reward_source"] == "verifier_result"
+    assert "reward_report:forged:0/19-passed" in saved["flags"]

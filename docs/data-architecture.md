@@ -297,6 +297,7 @@ The mismatch flag is `reward_report:mismatch:<reward>-vs-<reward_txt>`.
 For example, the flag is `reward_report:mismatch:0-vs-1`.
 The record and flags are evidence only.
 This check never rewrites `reward`, `scored`, `reward_source`, `counts`, or `decision`.
+The trial decision page copies the record into its Facts as an observed signal; counts and the verdict remain unchanged.
 
 ## Catalog entities and joins
 

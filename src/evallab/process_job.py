@@ -647,6 +647,9 @@ def _attach_decision(record: dict[str, Any], trial_dir: Path) -> None:
             if isinstance(record.get("tokens_proxy"), dict)
             else None,
             counts=record.get("counts") if isinstance(record.get("counts"), dict) else None,
+            reward_report=record.get("reward_report")
+            if isinstance(record.get("reward_report"), dict)
+            else None,
         )
         decision_error = None
         # HAR-156: the execution lens rides along in the decision facts for

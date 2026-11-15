@@ -41,6 +41,12 @@ def score_command(args: argparse.Namespace, root: Path, **kwargs: Any) -> int:
     return command(args, root, **kwargs)
 
 
+def corpus_command(args: argparse.Namespace, root: Path, **kwargs: Any) -> int:
+    from evallab.qa.corpus import corpus_command as command
+
+    return command(args, root, **kwargs)
+
+
 def _cmd(args: argparse.Namespace, root: Path, **kwargs: Any) -> int:
     from evallab.qa.trace_cheap import _cmd as command
 
@@ -77,6 +83,7 @@ def build_qa_parser(commands: argparse._SubParsersAction) -> None:
     add_suite_command(sub)
 
     add_task_commands(sub)
+    add_corpus_command(sub)
 
 
     add_trace_cheap_commands(sub)
@@ -193,6 +200,41 @@ def add_task_commands(sub: Any) -> None:
         help="Metric appended to the shared scoreboard; JSON always reports both",
     )
     score.set_defaults(func=score_command)
+
+
+def add_corpus_command(sub: Any) -> None:
+    """Register the model-free oracle-and-nop corpus audit."""
+    corpus = sub.add_parser(
+        "corpus",
+        help="Model-free corpus audit: run each task's reference and a do-nothing control on Modal",
+        description="Run every task's own solution/solve.sh (oracle) and a do-nothing run (nop) "
+        "once each through the native Harbor Modal trial path and classify the task: "
+        "control_paid, reference_below_one, reference_unmeasured, cannot_run, no_reference, clean.",
+    )
+    corpus.add_argument("corpus_root", type=Path, help="Directory searched for task.toml files")
+    corpus.add_argument("--out", type=Path, required=True, help="Writes audit.json and AUDIT.md")
+    corpus.add_argument("--limit", type=int, help="Run at most N not-yet-audited tasks")
+    corpus.add_argument(
+        "--task", action="append", help="Only this task (relative path or directory name)"
+    )
+    corpus.add_argument(
+        "--resume",
+        action="store_true",
+        help="Keep current audit.json rows and skip their tasks; re-run rows without a nop cell",
+    )
+    corpus.add_argument(
+        "--skip-controls", action="store_true", help="Run only the reference (oracle), not nop"
+    )
+    corpus.add_argument("--trial-timeout", type=int, default=1800)
+    corpus.add_argument("--max-usd", type=float, help="Run-wide Modal reservation cap (not a bill)")
+    corpus.add_argument("--approve", help="Recorded approval text required for real Modal execution")
+    corpus.add_argument(
+        "--usd-per-execution",
+        type=float,
+        default=MODAL_USD_PER_ALLOCATION_UNIT,
+        help="Positive finite USD reservation estimate per allocation unit (default: %(default)s)",
+    )
+    corpus.set_defaults(func=corpus_command)
 
 
 def add_trace_cheap_commands(sub: Any) -> None:

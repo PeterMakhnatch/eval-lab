@@ -666,8 +666,7 @@ def test_shared_reward_and_agent_exit_across_consumers(tmp_path: Path) -> None:
             "counted_pass" if reward == 1.0 else "counted_fail"
         )
 
-
-    result["verifier_result"] = {}
+    result = {"trial_name": "trial", "verifier_result": {}}
     (trial / "result.json").write_text(json.dumps(result))
     (trial / "verifier").mkdir()
     (trial / "verifier" / "reward.txt").write_text("1.0")
@@ -675,3 +674,38 @@ def test_shared_reward_and_agent_exit_across_consumers(tmp_path: Path) -> None:
 
     (trial / "verifier" / "reward.txt").write_text("-1")
     assert probe03.read_reward(trial) == (-1.0, False, "reward.txt")
+
+
+def test_read_reward_does_not_score_leftover_reward_file_after_exception(tmp_path: Path) -> None:
+    from evallab.counts import classify_counts
+
+    trial = tmp_path / "trial"
+    (trial / "verifier").mkdir(parents=True)
+    (trial / "result.json").write_text(
+        json.dumps(
+            {
+                "trial_name": "trial",
+                "exception_info": {"exception_type": "RuntimeError"},
+                "verifier_result": {},
+            }
+        )
+    )
+    (trial / "verifier" / "reward.txt").write_text("1\n")
+
+    assert probe03.read_reward(trial) == (None, False, "exception_no_captured_reward")
+    counts = classify_counts(reward=None, scored=False)
+    assert counts["verdict"] == "excluded"
+    assert "infra" in counts["reasons"]
+
+    bare = tmp_path / "trial-no-file"
+    bare.mkdir()
+    (bare / "result.json").write_text(
+        json.dumps(
+            {
+                "trial_name": "trial-no-file",
+                "exception_info": {"exception_type": "RuntimeError"},
+                "verifier_result": {},
+            }
+        )
+    )
+    assert probe03.read_reward(bare) == (None, False, "missing")

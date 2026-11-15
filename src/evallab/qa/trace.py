@@ -296,8 +296,13 @@ class Bundle:
 
 
 def _rewards(trial_dir: Path) -> dict[str, Any]:
-    """Harbor verifier reward only; converter-written top-level fields are ignored."""
+    """Harbor verifier reward only; converter-written top-level fields are ignored.
+
+    A raised trial that captured no reward is unscored: its verifier files are
+    leftover evidence, not a recorded result (HAR-446).
+    """
     result_path = trial_dir / "result.json"
+    result: dict[str, Any] = {}
     if result_path.is_file():
         result = _read_json(result_path)
         rewards = (result.get("verifier_result") or {}).get("rewards")
@@ -307,15 +312,21 @@ def _rewards(trial_dir: Path) -> dict[str, Any]:
                 "rewards": rewards,
                 "source": "result.json:verifier_result.rewards",
             }
+
+    def recorded(value: float, payload: dict[str, Any], source: str) -> dict[str, Any]:
+        if result.get("exception_info"):
+            return {
+                "value": None,
+                "rewards": None,
+                "source": "none recorded: exception without captured reward",
+            }
+        return {"value": value, "rewards": payload, "source": source}
+
     reward_json = trial_dir / "verifier" / "reward.json"
     if reward_json.is_file():
         payload = _read_json(reward_json)
         if isinstance(payload, dict) and isinstance(payload.get("reward"), int | float):
-            return {
-                "value": float(payload["reward"]),
-                "rewards": payload,
-                "source": "verifier/reward.json",
-            }
+            return recorded(float(payload["reward"]), payload, "verifier/reward.json")
     reward_txt = trial_dir / "verifier" / "reward.txt"
     if reward_txt.is_file():
         try:
@@ -323,7 +334,7 @@ def _rewards(trial_dir: Path) -> dict[str, Any]:
         except ValueError:
             value = None
         if value is not None:
-            return {"value": value, "rewards": {"reward": value}, "source": "verifier/reward.txt"}
+            return recorded(value, {"reward": value}, "verifier/reward.txt")
     return {"value": None, "rewards": None, "source": "none recorded"}
 
 

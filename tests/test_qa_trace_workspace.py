@@ -11,6 +11,7 @@ from typing import Any
 
 import pytest
 
+from evallab.qa import trace
 from evallab.qa import trace_workspace as workspace
 from evallab.qa.trace import BUNDLE_SCHEMA, Bundle
 from evallab.task_variants import harbor_task_digest, task_directory_digest
@@ -49,6 +50,48 @@ def _trial(path: Path, package: Path | None = None) -> Path:
         result["config"] = {"task": {"path": str(package)}}
     _write(path / "result.json", json.dumps(result))
     return path
+
+
+def test_rewards_ignore_leftover_verifier_files_after_an_exception(tmp_path: Path) -> None:
+    trial = tmp_path / "trial"
+    _write(trial / "verifier/reward.txt", "1\n")
+    _write(trial / "verifier/reward.json", json.dumps({"reward": 1.0}))
+    _write(
+        trial / "result.json",
+        json.dumps(
+            {
+                "trial_name": "trial",
+                "exception_info": {"exception_type": "RuntimeError"},
+                "verifier_result": {},
+            }
+        ),
+    )
+
+    assert trace._rewards(trial) == {
+        "value": None,
+        "rewards": None,
+        "source": "none recorded: exception without captured reward",
+    }
+
+    (trial / "verifier/reward.json").unlink()
+    (trial / "verifier/reward.txt").unlink()
+    assert trace._rewards(trial) == {
+        "value": None,
+        "rewards": None,
+        "source": "none recorded",
+    }
+
+    _write(trial / "verifier/reward.txt", "1\n")
+    _write(
+        trial / "result.json",
+        json.dumps({"trial_name": "trial", "verifier_result": {}}),
+    )
+
+    assert trace._rewards(trial) == {
+        "value": 1.0,
+        "rewards": {"reward": 1.0},
+        "source": "verifier/reward.txt",
+    }
 
 
 def test_full_diff_beats_empty_agent_diff_and_preserves_kept_subset(tmp_path: Path) -> None:

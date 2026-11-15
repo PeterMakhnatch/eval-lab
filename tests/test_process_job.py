@@ -95,6 +95,41 @@ def test_process_job_writes_reports_and_flags_loops(tmp_path: Path) -> None:
     assert report["summary"]["ingest"] == "ingest disabled by caller"
 
 
+def test_exception_without_captured_reward_ignores_leftover_reward_file(tmp_path: Path) -> None:
+    job = tmp_path / "job"
+    trial = job / "trial-exc"
+    (trial / "agent").mkdir(parents=True)
+    (trial / "agent" / "trajectory.json").write_text(
+        json.dumps({"steps": []}), encoding="utf-8"
+    )
+    (trial / "result.json").write_text(
+        json.dumps(
+            {
+                "task_name": "task",
+                "trial_name": "trial-exc",
+                "exception_info": {"exception_type": "RuntimeError"},
+                "verifier_result": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (trial / "verifier").mkdir()
+    (trial / "verifier" / "reward.txt").write_text("1\n", encoding="utf-8")
+    out = tmp_path / "out"
+
+    report = process_job(job, output_dir=out, ingest=False, publish=False)
+
+    (row,) = report["trials"]
+    assert row["reward"] is None
+    assert row["verdict"] == "excluded"
+    assert "infra" in row["reasons"]
+    saved = json.loads((out / "trial-trial-exc.json").read_text(encoding="utf-8"))
+    assert saved["scored"] is False
+    assert saved["reward"] is None
+    assert saved["counts"]["verdict"] == "excluded"
+    assert "infra" in saved["counts"]["reasons"]
+
+
 def test_process_job_maps_diagnosis_modes(tmp_path: Path, monkeypatch) -> None:
     from evallab import trial_diagnosis
     from evallab.process_job import _process_trial

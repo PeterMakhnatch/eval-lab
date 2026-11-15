@@ -87,7 +87,9 @@ Adaptations (mechanical, no rule changes):
 * ``probe02.AGENT_SOURCES`` -> local ``AGENT_SOURCES`` (same value
   ``{"agent", "assistant"}``); ``probe02._read_json`` -> local
   ``_read_json`` (same ``{}``-on-failure semantics); ``probe02.read_reward``
-  -> local ``read_reward`` (verbatim); ``probe02.find_trials`` (nop
+  -> local ``read_reward`` (verbatim except the HAR-446 guard: an exception
+  without a captured reward never scores a leftover ``verifier/reward.txt``);
+  ``probe02.find_trials`` (nop
   cross-check only) -> local ``_find_trials`` (trial dirs carry
   ``result.json`` with ``trial_name``, depth-limited like probe-02).
 * The normalizer (``evallab.mimo_tool_calls.normalize_mimo_tool_calls``)
@@ -140,7 +142,8 @@ def normalize_reward(value: Any) -> tuple[float | None, bool]:
 
 
 def read_reward(trial_dir: Path) -> tuple[float | None, bool, str]:
-    """Return (reward, scored, source). Missing or -1 -> not scored."""
+    """Return (reward, scored, source). Missing, -1, or a leftover verifier
+    reward file after a captured exception -> not scored."""
     result = _read_json(trial_dir / "result.json")
     verifier = result.get("verifier_result")
     verifier = verifier if isinstance(verifier, dict) else {}
@@ -152,9 +155,13 @@ def read_reward(trial_dir: Path) -> tuple[float | None, bool, str]:
         reward_txt = trial_dir / "verifier" / "reward.txt"
         try:
             reward = float(reward_txt.read_text(encoding="utf-8").strip())
-            source = "reward.txt"
         except (OSError, ValueError):
             return None, False, "missing"
+        # HAR-446: a raised trial that captured no reward leaves verifier files
+        # as evidence, not as a scored result.
+        if result.get("exception_info"):
+            return None, False, "exception_no_captured_reward"
+        source = "reward.txt"
     value, scored = normalize_reward(reward)
     return value, scored, source
 

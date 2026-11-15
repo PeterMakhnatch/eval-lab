@@ -1930,7 +1930,7 @@ a task is not `clean` without its control.
 `class`, `seconds`, `log_excerpt` (at most 4000 characters, from the cell that decides the
 class: `nop` for `control_paid`, otherwise `oracle`), `oracle` and `nop` (each `reward`,
 `status`, `seconds`; `status` is `executed`, `failed`, `error`, `not_run` or `skipped`) and
-`reference_digest`. `AUDIT.md` holds the dated table (task, oracle reward, nop reward, class,
+`reference_digest`. The markdown table beside it (`<out>/AUDIT.md`) holds the dated table (task, oracle reward, nop reward, class,
 seconds) sorted `control_paid`, `reference_below_one`, `reference_unmeasured`,
 `cannot_run`, `no_reference`, `clean`, the per-class counts, the method and the exact
 command that reproduces the table. Both files are rewritten after every task.

@@ -456,19 +456,23 @@ def _write_report(job: Path, summary: dict) -> None:
     ],
 )
 def test_index_reward_report_flags(tmp_path: Path, summary_extra: dict, suffix: str) -> None:
-    """Preserve HAR-237 byte identity for reports predating reward_report_flags."""
+    """Preserve HAR-237 byte identity for reports predating reward_report_flags.
+
+    ``_LEGACY_INDEX`` pins bytes rendered by the premerge parent
+    ``bc186e4749a834302e009b780e54d14f070802cc``, so the absent-field case
+    compares this checkout's renderer against origin/main, not against
+    itself. ``{{HOME}}`` substitutes the resolved home path so the bytes
+    are machine-independent.
+    """
     home = tmp_path / "results"
     published = home / "2026-09-30" / "HAR-452-reward-report"
     summary = {"n_pass": 1, "n_fail": 0, "n_unscored": 0}
-    _write_report(published, summary)
+    _write_report(published, summary | summary_extra)
     (published / "provenance.json").write_text(
         json.dumps({"card": "HAR-452", "repository": {"commit": "abc123"}}),
         encoding="utf-8",
     )
     checkout = tmp_path / "checkout"
-    write_index(home, primary_checkout=checkout)
-    legacy = _index_bytes(home)
-    _write_report(published, summary | summary_extra)
     write_index(home, primary_checkout=checkout)
     expected = f"1 pass, 0 fail, 0 unscored{suffix}"
     full = (home / "INDEX-all.md").read_text()
@@ -478,7 +482,7 @@ def test_index_reward_report_flags(tmp_path: Path, summary_extra: dict, suffix: 
         assert "forged" not in row
     assert _index_bytes(home) == {
         name: data.replace(b"| 1 pass, 0 fail, 0 unscored |", f"| {expected} |".encode())
-        for name, data in legacy.items()
+        for name, data in _legacy_index(home).items()
     }
 
 
@@ -875,6 +879,21 @@ _AGENT = "evallab.harbor_terminus:SecretSafeTerminus2"
 
 def _index_bytes(home: Path) -> dict[str, bytes]:
     return {name: (home / name).read_bytes() for name in ("INDEX.md", "INDEX-all.md")}
+
+_LEGACY_INDEX_DIR = Path(__file__).parent / "fixtures" / "results_home_har452_legacy"
+
+
+def _legacy_index(home: Path) -> dict[str, bytes]:
+    """Pinned INDEX bytes from the premerge parent, home path templated.
+
+    The fixtures were rendered at bc186e4749a834302e009b780e54d14f070802cc
+    (see the fixture README); ``{{HOME}}`` takes this run's resolved home.
+    """
+    resolved = str(home.resolve()).encode()
+    return {
+        name: (_LEGACY_INDEX_DIR / name).read_bytes().replace(b"{{HOME}}", resolved)
+        for name in ("INDEX.md", "INDEX-all.md")
+    }
 
 
 def _rebuild(home: Path, checkout: Path) -> dict[str, bytes]:

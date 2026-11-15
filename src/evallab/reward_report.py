@@ -75,13 +75,28 @@ def classify(reward: float, counts: Mapping[str, int]) -> str:
 
 
 def assess(trial_dir: Path) -> dict[str, Any] | None:
-    """Return evidence only when a report contradiction or reward mismatch fires."""
+    """Return evidence for a contradiction, reward mismatch, or orphan reward file."""
     try:
         reward, _, source = probe03.read_reward(trial_dir)
     except (OSError, ValueError, RecursionError):
         return None
     if reward is None:
-        return None
+        if source != "exception_no_captured_reward":
+            return None
+        reward_txt = reward_file(trial_dir)
+        if reward_txt is None:
+            return None
+        return {
+            "schema": SCHEMA,
+            "classification": None,
+            "reason": "",
+            "mismatch": False,
+            "reward": None,
+            "reward_source": source,
+            "reward_txt": reward_txt,
+            "counts": ctrf_counts(trial_dir),
+            "orphan": True,
+        }
     counts = ctrf_counts(trial_dir)
     reward_txt = reward_file(trial_dir)
     reason = contradiction_reason(reward, counts) if counts is not None else ""
@@ -107,8 +122,10 @@ def _number_text(value: float) -> str:
 
 
 def flags(record: Mapping[str, Any]) -> list[str]:
-    """Return the contradiction flag before the optional reward mismatch flag."""
+    """Return orphan, contradiction, and reward mismatch flags in that order."""
     result: list[str] = []
+    if record.get("orphan"):
+        result.append(f"reward_report:orphan:{_number_text(record['reward_txt'])}")
     classification = record.get("classification")
     counts = record.get("counts")
     if classification is not None and counts is not None:

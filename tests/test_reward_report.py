@@ -16,12 +16,15 @@ def _write_trial(
     statuses: list[str] | None = None,
     reward_txt: str | None = None,
     name: str = "trial",
+    exception: bool = False,
 ) -> Path:
     trial = root / name
     trial.mkdir(parents=True)
     result: dict[str, Any] = {"task_name": "task", "trial_name": trial.name}
     if reward is not None:
         result["verifier_result"] = {"rewards": {"reward": reward}}
+    if exception:
+        result["exception_info"] = {"exception_type": "RuntimeError"}
     (trial / "result.json").write_text(json.dumps(result), encoding="utf-8")
     if statuses is not None or reward_txt is not None:
         verifier = trial / "verifier"
@@ -120,6 +123,42 @@ def test_missing_ctrf_is_not_comparable(tmp_path: Path) -> None:
 
 def test_missing_reward_is_not_a_contradiction(tmp_path: Path) -> None:
     trial = _write_trial(tmp_path, reward=None, statuses=["failed"] * 3)
+
+    assert assess(trial) is None
+
+
+def test_exception_with_leftover_reward_file_is_an_orphan(tmp_path: Path) -> None:
+    trial = _write_trial(
+        tmp_path, reward=None, reward_txt="1", statuses=["failed"], exception=True
+    )
+
+    record = assess(trial)
+
+    assert record is not None
+    assert record == {
+        "schema": "evallab.reward_report/v1",
+        "classification": None,
+        "reason": "",
+        "mismatch": False,
+        "reward": None,
+        "reward_source": "exception_no_captured_reward",
+        "reward_txt": 1.0,
+        "counts": {"tests": 1, "passed": 0, "failed": 1, "skipped": 0},
+        "orphan": True,
+    }
+    assert flags(record) == ["reward_report:orphan:1"]
+    assert json.loads(json.dumps(record)) == record
+
+
+def test_exception_without_reward_file_has_no_record(tmp_path: Path) -> None:
+    trial = _write_trial(tmp_path, reward=None, statuses=["failed"], exception=True)
+
+    assert assess(trial) is None
+    assert flags(assess(trial) or {}) == []
+
+
+def test_exception_with_nonfinite_reward_file_has_no_record(tmp_path: Path) -> None:
+    trial = _write_trial(tmp_path, reward=None, reward_txt="nan", exception=True)
 
     assert assess(trial) is None
 

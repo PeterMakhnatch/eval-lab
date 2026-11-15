@@ -1,13 +1,14 @@
 # Reward/report contradictions and reward-file mismatches (HAR-437, HAR-441)
 
-Date: 2026-11-14. Cost: **$0**. **No trial was executed**.
+Date: 2026-11-14; HAR-450 rerun on 2026-11-15. Cost: **$0**. **No trial was executed**.
 This is a read-only walk of published results under `~/Developer/eval-lab-results`.
 It uses no Docker, no network, and no model calls.
 
 ## The answer
 
-At generation time (2026-11-14, HAR-441 rerun), the scan reads **8533 trials**, including **2235 comparable trials** with a usable CTRF report (`tests > 0`).
-**8051 trials have a usable reward**.
+At generation time (2026-11-15, HAR-450 rerun), the scan reads **8534 trials**, including **2236 comparable trials** with a usable CTRF report (`tests > 0`).
+**8045 trials have a usable reward**.
+The exception rule leaves 7 more trials unscored; see [Exception trials without a captured reward](#exception-trials-without-a-captured-reward-har-450).
 A later run can read more trials if new results are published; a CSV row set changes only when a new trial contradicts its report or mismatches its retained reward file.
 [contradictions.csv](contradictions.csv) contains **90 contradictions**: **44 forged**, **46 partial-credit**, and **0 unknown**.
 The CSV contains **91 lines**, including its header, and **17799 bytes**.
@@ -40,6 +41,11 @@ Unreadable or malformed JSON becomes an empty object.
 
 The reward comes first from `verifier_result.rewards.reward` in `result.json`.
 Otherwise, the builder uses `verifier/reward.txt`.
+That fallback stops when `result.json` holds `exception_info` and no captured reward.
+Such a trial has no usable reward, and the builder names its source `exception_no_captured_reward`.
+A raised trial that captured no reward leaves verifier files as evidence, not as a scored result (HAR-446, HAR-450).
+The rule matches `read_reward` in `src/evallab/probe03.py`.
+On the 2026-11-15 root the builder and that reader disagree on 0 of 8534 trials.
 It rejects booleans, non-finite values, and malformed reward text.
 It always reads `reward.txt` when present, even when `result.json` supplies the reward.
 The CSV keeps that value in `reward_txt` and identifies the selected source in `reward_source`.
@@ -65,6 +71,29 @@ Its other columns are the directory names, reward values, test counts, reason, a
 Rows follow sorted date/job/trial order.
 Numbers use at most 6 decimal places, without trailing zeros; missing values are empty.
 The file uses LF line endings.
+
+## Exception trials without a captured reward (HAR-450)
+
+Harbor can raise an exception after the verifier wrote `verifier/reward.txt`.
+Such a trial captured no reward, so `result.json` has no `verifier_result.rewards.reward`.
+The retained file is execution evidence, not a score.
+The builder therefore returns no reward for it, as `process_job` and the QA trace reader do since HAR-446.
+On the 2026-11-15 root this rule changes exactly 7 trials.
+Each one has `exception_info`, a `verifier/reward.txt` of 1, and no `verifier/ctrf.json` report.
+
+| Date | Job | Trial | `verifier/reward.txt` | CTRF report |
+|---|---|---|---:|---|
+| 2026-10-09 | `unknown-tamper-001809-writer` | `tamper-001809-writer__xiXhCqC` | 1 | absent |
+| 2026-10-09 | `unknown-tamper-002552-writer` | `tamper-002552-writer__2vD2Txe` | 1 | absent |
+| 2026-11-02 | `HAR-255-har255-src-full` | `har255-src-full__AadHvzF` | 1 | absent |
+| 2026-11-02 | `HAR-257-har257-qo-hardened-full` | `har257-qo-hardened-full__Wdge7V8` | 1 | absent |
+| 2026-11-03 | `HAR-284-har-284-001671-subset1` | `har-284-001671-subset1__9HwnaAM` | 1 | absent |
+| 2026-11-03 | `HAR-284-har-284-002661-subset2` | `har-284-002661-subset2__Pm4ZbMN` | 1 | absent |
+| 2026-11-03 | `HAR-293-har-293-002661-subset2` | `har-293-002661-subset2__FRLjLSb` | 1 | absent |
+
+A builder that reads the leftover file counts `with_reward` as 8052 trials on this root.
+With the exception rule it counts 8045.
+None of the 7 trials has a comparable report, so neither CSV gains or loses a row.
 
 ## Contradiction and classification rules
 
@@ -298,7 +327,7 @@ python3 research/experiments/reward-report-contradictions/build.py --check
 The first command exits **0** with this output:
 
 ```text
-scanned=8533 comparable=2235 with_reward=8051 contradictions=90 forged=44 partial-credit=46 unknown=0 mismatches=5
+scanned=8534 comparable=2236 with_reward=8045 contradictions=90 forged=44 partial-credit=46 unknown=0 mismatches=5
 wrote contradictions.csv
 wrote reward-file-mismatches.csv
 ```
@@ -306,10 +335,14 @@ wrote reward-file-mismatches.csv
 The second command exits **0** with this output:
 
 ```text
-scanned=8533 comparable=2235 with_reward=8051 contradictions=90 forged=44 partial-credit=46 unknown=0 mismatches=5
+scanned=8534 comparable=2236 with_reward=8045 contradictions=90 forged=44 partial-credit=46 unknown=0 mismatches=5
 contradictions.csv: reproduces from the results root
 reward-file-mismatches.csv: reproduces from the results root
 ```
+
+The 2026-11-15 rerun used the second command on the default root.
+It exited **0**, printed `with_reward=8045`, and left both committed CSVs byte-identical.
+A builder without the exception rule prints `with_reward=8052` on the same root.
 
 A separate read-only CSV count confirmed the class, agent, task, date, reward-source, line, and byte counts above.
 It also checked unique row identities, each row's contradiction rule and classification, and each mismatch row's threshold and agent name.
@@ -326,7 +359,8 @@ The scan never writes to the results root.
 ## Limits
 
 - The CSVs are a snapshot of the results root on 2026-11-14.
-  Newly published trials make `--check` fail until regeneration.
+  The 2026-11-15 rerun still reproduces both files byte for byte, because the newer trial adds no row.
+  A newly published trial that contradicts its report or mismatches its reward file makes `--check` fail until regeneration.
 - Only the three-level date/job/trial layout is scanned.
   Deeper layouts and job-level copies are excluded.
 - Trials without a usable CTRF report are not comparable and are not rows.

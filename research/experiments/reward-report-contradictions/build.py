@@ -7,7 +7,8 @@ results root. It runs no trials, Docker commands, network requests, or model cal
 
 Walk only sorted <YYYY-MM-DD>/<job>/<trial> directories with result.json.
 Prefer its finite numeric verifier_result.rewards.reward; otherwise use the
-finite verifier/reward.txt value. Always read reward.txt to expose disagreement.
+finite verifier/reward.txt value only when no exception is captured (HAR-446).
+Always read reward.txt to expose disagreement.
 Reject booleans, malformed values, and non-finite rewards. Invalid JSON is {}.
 
 For a non-empty results.tests list in verifier/ctrf.json, count test dictionaries:
@@ -174,7 +175,10 @@ def ctrf_counts(results: object) -> tuple[int, int, int, int] | None:
 
 
 def reward_values(trial_dir: Path, result: dict) -> tuple[float | None, str, float | None]:
-    """Return (effective reward, source, reward.txt), preferring result.json."""
+    """Return (effective reward, source, reward.txt), preferring result.json.
+
+    A leftover reward file after a captured exception is evidence, not a reward (HAR-446).
+    """
     try:
         reward_txt = finite((trial_dir / "verifier" / "reward.txt").read_text(encoding="utf-8"))
     except (OSError, UnicodeError):
@@ -186,6 +190,8 @@ def reward_values(trial_dir: Path, result: dict) -> tuple[float | None, str, flo
             reward = _json_number(rewards.get("reward"))
             if reward is not None:
                 return reward, "result", reward_txt
+    if result.get("exception_info"):
+        return None, "exception_no_captured_reward", reward_txt
     if reward_txt is not None:
         return reward_txt, "reward_txt", reward_txt
     return None, "", None

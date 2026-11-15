@@ -421,6 +421,31 @@ def test_mismatch_only_reward_report_renders_exactly(tmp_path: Path) -> None:
     ) in render_decision_markdown(decision)
 
 
+def test_orphan_reward_report_is_an_observed_fact(tmp_path: Path) -> None:
+    record = {
+        "schema": "evallab.reward_report/v1",
+        "classification": None,
+        "reason": "",
+        "mismatch": False,
+        "reward": None,
+        "reward_source": "exception_no_captured_reward",
+        "reward_txt": 1.0,
+        "counts": {"tests": 1, "passed": 0, "failed": 1, "skipped": 0},
+        "orphan": True,
+    }
+    decision = _report_decision(tmp_path, record)
+
+    assert decision["facts"]["reward_report"] == record
+    assert decision["facts"]["reward_report"] is not record
+    expected = (
+        "- Reward report: `orphan`; reward file `1` with no captured reward "
+        "after a trial exception; 0/1 passed."
+    )
+    assert [
+        line for line in render_decision_markdown(decision) if line.startswith("- Reward report:")
+    ] == [expected]
+
+
 def test_absent_reward_report_has_no_observed_signal(tmp_path: Path) -> None:
     for record in (None, {}):
         decision = _report_decision(tmp_path, record)

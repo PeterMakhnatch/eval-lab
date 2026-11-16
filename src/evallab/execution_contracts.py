@@ -2404,12 +2404,17 @@ def build_command(
     command.extend(["--plugin", HARBOR_WATCH_HOOKS_PLUGIN])
     command.extend(["--plugin", HARBOR_FILE_ACCESS_PLUGIN])
     if request.verifier_repeat_n is not None:
+        # Harbor derives the verifier deadline from the task [verifier] timeout_sec
+        # and wraps the whole RepeatVerifier call, including all repeats, in it.
+        # The timeout multiplier must equal the repeat count (HAR-458).
         command.extend(
             [
                 "--verifier",
                 VERIFIER_IMPORT_PATH,
                 "--verifier-kwarg",
                 f"repeat_n={request.verifier_repeat_n}",
+                "--verifier-timeout-multiplier",
+                str(request.verifier_repeat_n),
             ]
         )
     if request.override_storage_mb is not None:

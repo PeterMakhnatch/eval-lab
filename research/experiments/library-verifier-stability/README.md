@@ -86,7 +86,10 @@ Each job requests `Executor.execute_direct(RunRequest(agent="oracle", environmen
 verifier_repeat_n=3, concurrency=1, attempts=1, ...), ingest=False)`.
 The campaign runs 1 job at a time through the default host-wide Docker FIFO.
 The active Harbor watchdog is 5,400 seconds per job. FIFO waiting is separate.
-No model, paid service, task change, or harness change forms part of this experiment.
+No model, paid service, source package edit, or harness edit forms part of this experiment.
+For `syn-funcdag-medium`, existing Docker runtime staging uses effective verifier networking `public` instead of requested `no-network`.
+`jobs.json` records `network_isolation_enforced=false` and reason `darwin-docker-cannot-enforce-no-network`.
+These results do not establish behavior under the requested network isolation.
 
 The [repeat verifier](../../../src/evallab/harbor_repeat_verifier.py) invokes the native verifier 3 times.
 All invocations use one final oracle state and the same verifier environment.

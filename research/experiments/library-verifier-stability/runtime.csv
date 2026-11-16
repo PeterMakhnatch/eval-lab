@@ -1,0 +1,4 @@
+package,job_path,trial,repeat_index,golden_median_s,solution_median_s,ratio,limit,comparison,error
+query-optimize,2026-11-16/HAR-457-har457-20261116-e75b174a-query-optimize-oracle-r3,har457-20261116-e75b174a-query-o__wmQ9nsp,0,0.951905125984922,0.9491043749731034,0.9970577414330858,1.05,within,none
+query-optimize,2026-11-16/HAR-457-har457-20261116-e75b174a-query-optimize-oracle-r3,har457-20261116-e75b174a-query-o__wmQ9nsp,1,0.9484294180292636,0.9482454999815673,0.9998060814603594,1.05,within,none
+query-optimize,2026-11-16/HAR-457-har457-20261116-e75b174a-query-optimize-oracle-r3,har457-20261116-e75b174a-query-o__wmQ9nsp,2,1.0118135010125116,1.0156408760230988,1.0037826882194765,1.05,within,none

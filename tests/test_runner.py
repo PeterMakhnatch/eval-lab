@@ -1727,6 +1727,37 @@ def test_nop_daytona_repeat_verifier_build_command(tmp_path: Path) -> None:
     assert "--model" not in command
 
 
+def test_repeat_verifier_scales_verifier_timeout_multiplier(tmp_path: Path) -> None:
+    """HAR-458: scale the shared verifier deadline only when repeat verification is enabled."""
+    task_dir = task(tmp_path)
+    request = RunRequest(
+        task=task_dir,
+        agent="nop",
+        name="mimo-nop-daytona-repeat",
+        jobs_dir=tmp_path / "runs",
+        environment="daytona",
+        timeout_seconds=10800,
+        verifier_repeat_n=3,
+    )
+    validate_request(request)
+    command = build_command(request)
+
+    assert command[command.index("--verifier-timeout-multiplier") + 1] == "3"
+
+    request = RunRequest(
+        task=task_dir,
+        agent="nop",
+        name="mimo-nop-daytona-no-repeat",
+        jobs_dir=tmp_path / "runs",
+        environment="daytona",
+        timeout_seconds=10800,
+    )
+    validate_request(request)
+    command = build_command(request)
+
+    assert "--verifier-timeout-multiplier" not in command
+
+
 def test_oracle_daytona_without_repeat_has_bounded_env_but_no_verifier_flags(
     tmp_path: Path,
 ) -> None:
@@ -1748,6 +1779,7 @@ def test_oracle_daytona_without_repeat_has_bounded_env_but_no_verifier_flags(
     assert command[command.index("--environment-kwarg") + 1] == "ttl_minutes=40"
     assert "--verifier" not in command
     assert "--verifier-kwarg" not in command
+    assert "--verifier-timeout-multiplier" not in command
 
 
 def test_nop_daytona_storage_override_build_command(tmp_path: Path) -> None:

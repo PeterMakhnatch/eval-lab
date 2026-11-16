@@ -1045,7 +1045,8 @@ harbor run --path <staged-task> --agent nop \
   --job-name <job> --jobs-dir runs/ \
   --n-concurrent 1 --n-attempts 1 \
   --verifier evallab.harbor_repeat_verifier:RepeatVerifier \
-  --verifier-kwarg repeat_n=3 -y
+  --verifier-kwarg repeat_n=3 \
+  --verifier-timeout-multiplier 3 -y
 ```
 
 `PYTHONPATH` must include Eval Lab's `src/` so the Harbor controller can
@@ -1057,6 +1058,11 @@ Repeat-verification audit for MiMo-V2.6 Harbor tasks: after the agent
 finishes, the task's own verifier runs **k times on the same final container
 state**, and every run is recorded. The trial reward is always the FIRST
 run's reward, so the audit never changes the result it measures.
+
+Harbor derives the verifier deadline from the task's `[verifier] timeout_sec`
+and applies it to the whole `RepeatVerifier` call, so all k reruns share one
+deadline. Eval Lab passes `--verifier-timeout-multiplier k` whenever
+`verifier_repeat_n` is set, so the deadline scales with the repeat count.
 
 ## Cost impact
 

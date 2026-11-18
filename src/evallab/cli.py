@@ -57,6 +57,7 @@ def parser() -> argparse.ArgumentParser:
     from evallab.execution_parser import register_parser as register_execution
     from evallab.failure_library.cli import build_failures_parser as register_failures
     from evallab.hardening_parser import register_parser as register_hardening
+    from evallab.jobs_parser import register_parser as register_jobs
     from evallab.laminar_parser import register_parser as register_laminar
     from evallab.line_parser import register_parser as register_line
     from evallab.operations_parser import register_parser as register_operations
@@ -82,6 +83,7 @@ def parser() -> argparse.ArgumentParser:
         register_trace,
         register_registry,
         register_hardening,
+        register_jobs,
         register_process_job,
         register_watch,
         register_reward_hack,

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import ast
 import json
+import os
 import shutil
+import subprocess
 from dataclasses import replace
 from pathlib import Path
 
@@ -15,10 +17,13 @@ from evallab.schemas import ExperimentSpec, ReferenceDeviation
 from evallab.setup_fingerprint import (
     build_intended_fingerprint,
     compare_fingerprint,
+    inspect_local_image,
     load_reference_profile,
+    lock_setup_fingerprint,
     read_serve_config,
     render_spec_preflight,
     resolve_repo_root,
+    task_base_images,
     trial_fingerprint,
     validate_mimo_setup,
 )
@@ -294,6 +299,244 @@ def test_modal_lock_mechanism_recorded(tmp_path: Path) -> None:
         "modal-agent-phase-outbound-allowlist"
     )
     assert intended["lock"]["mode"] == "locked"
+
+
+def write_base_image_task(tmp_path: Path) -> Path:
+    """Task whose agent image is multi-stage and whose verifier image is a tag."""
+    task = tmp_path / "base-image-task"
+    (task / "environment").mkdir(parents=True)
+    (task / "tests").mkdir()
+    (task / "environment" / "Dockerfile").write_text(
+        "# fixture agent image\n"
+        "FROM ubuntu:24.04 AS builder\n"
+        "RUN true\n"
+        "FROM builder AS final\n"
+        f"FROM ghcr.io/acme/tool@sha256:{'a' * 64}\n"
+    )
+    (task / "tests" / "Dockerfile").write_text("FROM --platform=linux/amd64 python:3.12\n")
+    return task
+
+
+def test_task_base_images_records_local_identity(tmp_path: Path) -> None:
+    task = write_base_image_task(tmp_path)
+    digest_ref = f"ghcr.io/acme/tool@sha256:{'a' * 64}"
+    available = {
+        "ubuntu:24.04": ("sha256:" + "1" * 64, "ubuntu@sha256:" + "2" * 64),
+        digest_ref: ("sha256:" + "3" * 64, digest_ref),
+        "python:3.12": ("sha256:" + "4" * 64, "python@sha256:" + "5" * 64),
+    }
+    seen: list[str] = []
+
+    def inspector(ref: str) -> tuple[str | None, str | None]:
+        seen.append(ref)
+        return available[ref]
+
+    records = task_base_images(task, inspector=inspector)
+    assert seen == ["ubuntu:24.04", digest_ref, "python:3.12"]
+    assert records == [
+        {
+            "dockerfile": "environment/Dockerfile",
+            "line": 2,
+            "ref": "ubuntu:24.04",
+            "image_id": "sha256:" + "1" * 64,
+            "repo_digest": "ubuntu@sha256:" + "2" * 64,
+            "reason": None,
+        },
+        {
+            "dockerfile": "environment/Dockerfile",
+            "line": 5,
+            "ref": digest_ref,
+            "image_id": "sha256:" + "3" * 64,
+            "repo_digest": digest_ref,
+            "reason": None,
+        },
+        {
+            "dockerfile": "tests/Dockerfile",
+            "line": 1,
+            "ref": "python:3.12",
+            "image_id": "sha256:" + "4" * 64,
+            "repo_digest": "python@sha256:" + "5" * 64,
+            "reason": None,
+        },
+    ]
+
+
+@pytest.mark.parametrize(
+    ("behaviour", "reason"),
+    [
+        ("absent", "not-local"),
+        ("docker-down", "docker-unavailable"),
+        ("timeout", "timeout"),
+        ("build-argument", "build-argument"),
+    ],
+)
+def test_task_base_images_records_probe_reason(
+    tmp_path: Path, behaviour: str, reason: str
+) -> None:
+    task = tmp_path / "task"
+    (task / "environment").mkdir(parents=True)
+    ref = "${BASE_IMAGE}" if behaviour == "build-argument" else "alpine:3.20"
+    (task / "environment" / "Dockerfile").write_text(f"FROM {ref}\n")
+    calls: list[str] = []
+
+    def inspector(value: str) -> tuple[str | None, str | None] | None:
+        calls.append(value)
+        if behaviour == "absent":
+            return None
+        if behaviour == "docker-down":
+            raise FileNotFoundError("docker: command not found")
+        if behaviour == "timeout":
+            raise subprocess.TimeoutExpired(["docker", "image", "inspect"], 5.0)
+        raise AssertionError(f"unexpected probe for {value}")
+
+    assert task_base_images(task, inspector=inspector) == [
+        {
+            "dockerfile": "environment/Dockerfile",
+            "line": 1,
+            "ref": ref,
+            "image_id": None,
+            "repo_digest": None,
+            "reason": reason,
+        }
+    ]
+    assert calls == ([] if behaviour == "build-argument" else [ref])
+
+
+def test_task_base_images_skips_stage_aliases_and_scratch(tmp_path: Path) -> None:
+    task = tmp_path / "task"
+    (task / "environment").mkdir(parents=True)
+    (task / "environment" / "Dockerfile").write_text(
+        "FROM alpine:3.20 AS base\nFROM base\nFROM scratch\n"
+    )
+    calls: list[str] = []
+
+    def inspector(ref: str) -> tuple[str | None, str | None]:
+        calls.append(ref)
+        return "sha256:" + "7" * 64, None
+
+    records = task_base_images(task, inspector=inspector)
+    assert [record["ref"] for record in records] == ["alpine:3.20"]
+    assert calls == ["alpine:3.20"]
+
+
+def test_task_base_images_joins_continuations_and_keeps_digest_ref(tmp_path: Path) -> None:
+    ref = f"ghcr.io/acme/base@sha256:{'b' * 64}"
+    task = tmp_path / "task"
+    (task / "environment" / "sub").mkdir(parents=True)
+    (task / "environment" / "sub" / "Dockerfile").write_text(
+        f"FROM \\\n  --platform=linux/amd64 \\\n  {ref}\n"
+    )
+    records = task_base_images(task, inspector=lambda value: ("sha256:" + "8" * 64, value))
+    assert len(records) == 1
+    assert records[0]["dockerfile"] == "environment/sub/Dockerfile"
+    assert records[0]["line"] == 1
+    assert records[0]["ref"] == ref
+    assert records[0]["repo_digest"] == ref
+
+
+def fake_docker(tmp_path: Path, body: str) -> tuple[Path, Path]:
+    """A fake ``docker`` on a PATH prefix that logs its argv to a file."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    script = bin_dir / "docker"
+    script.write_text("#!/bin/sh\n" + body)
+    script.chmod(0o755)
+    return bin_dir, tmp_path / "docker-argv"
+
+
+def test_inspect_local_image_runs_only_docker_image_inspect(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    image_id = "sha256:" + "a" * 64
+    digests = (
+        '["other.io/mirror@sha256:'
+        + "c" * 64
+        + '","ghcr.io/acme/base@sha256:'
+        + "b" * 64
+        + '"]'
+    )
+    bin_dir, argv_path = fake_docker(
+        tmp_path,
+        "printf '%s\\n' \"$@\" > \"$DOCKER_ARGV\"\n"
+        f"printf '%s\\n' '{image_id} {digests}'\n",
+    )
+    monkeypatch.setenv("DOCKER_ARGV", str(argv_path))
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+    assert inspect_local_image("ghcr.io/acme/base:24.04") == (
+        "sha256:" + "a" * 64,
+        "ghcr.io/acme/base@sha256:" + "b" * 64,
+    )
+    assert argv_path.read_text().splitlines() == [
+        "image",
+        "inspect",
+        "--format",
+        "{{.Id}} {{json .RepoDigests}}",
+        "ghcr.io/acme/base:24.04",
+    ]
+
+
+def test_inspect_local_image_reports_absent_image(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bin_dir, _ = fake_docker(
+        tmp_path,
+        "echo 'Error response from daemon: No such image: alpine:3.20' >&2\nexit 1\n",
+    )
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+    assert inspect_local_image("alpine:3.20") is None
+
+
+def test_inspect_local_image_reports_unavailable_daemon(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bin_dir, _ = fake_docker(
+        tmp_path,
+        "echo 'Cannot connect to the Docker daemon at unix:///var/run/docker.sock. "
+        "Is the docker daemon running?' >&2\nexit 1\n",
+    )
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+    with pytest.raises(OSError, match="Cannot connect"):
+        inspect_local_image("alpine:3.20")
+
+
+def test_intended_and_trial_fingerprint_record_base_image_reason(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, digest = make_repo_root(tmp_path, with_parser=True, task_id=TASK_ID)
+    task = root / "tasks" / TASK_ID
+    (task / "environment").mkdir()
+    (task / "environment" / "Dockerfile").write_text("FROM python:3.12-slim\n")
+
+    def unavailable(ref: str, *, timeout: float) -> tuple[str | None, str | None] | None:
+        raise FileNotFoundError("docker")
+
+    monkeypatch.setattr("evallab.setup_fingerprint.inspect_local_image", unavailable)
+    spec = make_spec(TASK_ID, digest)
+    intended = build_intended_fingerprint(
+        spec=spec,
+        task_dir=task,
+        model=MIMO_MODEL,
+        agent="terminus-2",
+        environment="daytona",
+        repo_root=root,
+    )
+    expected = [
+        {
+            "dockerfile": "environment/Dockerfile",
+            "line": 1,
+            "ref": "python:3.12-slim",
+            "image_id": None,
+            "repo_digest": None,
+            "reason": "docker-unavailable",
+        }
+    ]
+    assert intended["schema"] == "evallab.setup_fingerprint/v1"
+    assert intended["environment"]["base_images"] == expected
+    trial = tmp_path / "trial__base"
+    trial.mkdir()
+    assert trial_fingerprint(intended, trial)["environment"]["base_images"] == expected
+    locked = json.loads(lock_setup_fingerprint(make_request(root, TASK_ID, spec), repo_root=root))
+    assert "base_images" not in locked["environment"]
 
 
 def test_compare_skips_unsourced_reference_fields(tmp_path: Path) -> None:

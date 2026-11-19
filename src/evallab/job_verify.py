@@ -178,7 +178,9 @@ def _check_trial(report: JobReport, trial_dir: Path, result: dict[str, Any]) -> 
             trial=trial_name,
         )
 
-    if "reward" not in raw_rewards and file_rewards is None:
+    _check_seats(report, trial_name, result, scored)
+
+    if not raw_rewards and file_rewards is None:
         exception = result.get("exception_info")
         if isinstance(exception, dict) and exception.get("exception_type"):
             report.add(
@@ -195,6 +197,79 @@ def _check_trial(report: JobReport, trial_dir: Path, result: dict[str, Any]) -> 
                 trial=trial_name,
             )
     return scored
+
+
+def _check_seats(
+    report: JobReport,
+    trial_name: str,
+    result: dict[str, Any],
+    scored: dict[str, float],
+) -> None:
+    """Seat-trial integrity: roster agreement and per-seat evidence state.
+
+    A multi-agent (seat) trial records one ``seat_results`` entry per seat
+    and its roster in ``config.participants``. The trial reward alone hides
+    two quotability problems: a seat that errored beside a passing reward,
+    and a seat whose logs never reached the trial dir. Both stay visible
+    here without rewriting the reward.
+    """
+    config = result.get("config")
+    participants = config.get("participants") if isinstance(config, dict) else None
+    participant_seats = {
+        str(entry["seat"])
+        for entry in participants
+        if isinstance(entry, dict) and entry.get("seat")
+    } if isinstance(participants, list) else set()
+    seat_results = result.get("seat_results")
+    seats = seat_results if isinstance(seat_results, list) else []
+    if not participant_seats and not seats:
+        return
+    if participant_seats and not seats:
+        report.add(
+            "seat_results_missing",
+            BLOCK,
+            "config lists participants but result.json has no seat_results; "
+            "the seat runs are not recorded",
+            trial=trial_name,
+        )
+        return
+    seat_names = [str(seat.get("seat")) for seat in seats if isinstance(seat, dict)]
+    if len(seat_names) != len(set(seat_names)):
+        report.add(
+            "seat_duplicate",
+            BLOCK,
+            f"duplicate seat names in seat_results: {sorted(seat_names)}",
+            trial=trial_name,
+        )
+    if participant_seats and set(seat_names) != participant_seats:
+        report.add(
+            "seat_participant_mismatch",
+            BLOCK,
+            f"seat_results seats {sorted(set(seat_names))} do not match "
+            f"config participants {sorted(participant_seats)}",
+            trial=trial_name,
+        )
+    for seat in seats:
+        if not isinstance(seat, dict):
+            continue
+        name = str(seat.get("seat"))
+        exception = seat.get("exception_info")
+        if scored and isinstance(exception, dict) and exception.get("exception_type"):
+            report.add(
+                "seat_exception_beside_reward",
+                WARN,
+                f"seat {name!r} errored ({exception.get('exception_type')}) "
+                "beside a scored trial reward; quote the reward with this seat error",
+                trial=trial_name,
+            )
+        if seat.get("logs_downloaded") is False:
+            report.add(
+                "seat_logs_missing",
+                WARN,
+                f"seat {name!r} logs never reached the trial dir "
+                "(logs_downloaded is false); its trajectory is unavailable",
+                trial=trial_name,
+            )
 
 
 def _check_job_stats(

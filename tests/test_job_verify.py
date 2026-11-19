@@ -22,21 +22,25 @@ def _job(
     n_total: int = 1,
     stats_rewards: dict[str, Any] | None = None,
     trial_name: str = "task-a__abc1234",
+    seat_results: list[dict[str, Any]] | None = None,
+    participants: list[dict[str, Any]] | None = None,
 ) -> Path:
     job = root / "job"
     trial = job / trial_name
     rewards = {"reward": 1.0} if rewards is None else rewards
-    _write(
-        trial / "result.json",
-        {
-            "id": "trial-1",
-            "task_name": "task-a",
-            "trial_name": trial_name,
-            "task_checksum": "checksum-namespace-value",
-            "verifier_result": {"rewards": rewards},
-            "exception_info": None,
-        },
-    )
+    result: dict[str, Any] = {
+        "id": "trial-1",
+        "task_name": "task-a",
+        "trial_name": trial_name,
+        "task_checksum": "checksum-namespace-value",
+        "verifier_result": {"rewards": rewards},
+        "exception_info": None,
+    }
+    if seat_results is not None:
+        result["seat_results"] = seat_results
+    if participants is not None:
+        result["config"] = {"participants": participants}
+    _write(trial / "result.json", result)
     if file_rewards is not None:
         _write(trial / "verifier" / "reward.json", file_rewards)
     scored = stats_rewards if stats_rewards is not None else rewards
@@ -164,6 +168,81 @@ def test_exceptioned_trial_is_excluded_from_eval_count(tmp_path: Path) -> None:
     assert report.verdict == "pass"
     assert "reward_missing_exceptioned" in _codes(report)
     assert "job_stats_trial_count_desync" not in _codes(report)
+
+
+_SEATS = [{"seat": "p1"}, {"seat": "p2"}]
+
+
+def test_clean_seat_trial_passes(tmp_path: Path) -> None:
+    report = verify_job(
+        _job(
+            tmp_path,
+            seat_results=[
+                {"seat": "p1", "under_test": True, "logs_downloaded": True},
+                {"seat": "p2", "under_test": False, "logs_downloaded": True},
+            ],
+            participants=_SEATS,
+        )
+    )
+    assert report.verdict == "pass"
+    assert not [code for code in _codes(report) if code.startswith("seat_")]
+
+
+def test_seat_results_missing_blocks(tmp_path: Path) -> None:
+    report = verify_job(_job(tmp_path, participants=_SEATS))
+    assert report.verdict == "block"
+    assert "seat_results_missing" in _codes(report)
+
+
+def test_seat_participant_mismatch_blocks(tmp_path: Path) -> None:
+    report = verify_job(
+        _job(
+            tmp_path,
+            seat_results=[{"seat": "p1", "under_test": True}],
+            participants=_SEATS,
+        )
+    )
+    assert report.verdict == "block"
+    assert "seat_participant_mismatch" in _codes(report)
+
+
+def test_seat_exception_and_missing_logs_warn(tmp_path: Path) -> None:
+    report = verify_job(
+        _job(
+            tmp_path,
+            seat_results=[
+                {"seat": "p1", "under_test": True, "logs_downloaded": True},
+                {
+                    "seat": "p2",
+                    "under_test": False,
+                    "logs_downloaded": False,
+                    "exception_info": {"exception_type": "AgentTimeoutError"},
+                },
+            ],
+            participants=_SEATS,
+        )
+    )
+    assert report.verdict == "pass"
+    assert "seat_exception_beside_reward" in _codes(report)
+    assert "seat_logs_missing" in _codes(report)
+
+
+def test_per_seat_reward_keys_without_reward_key_pass(tmp_path: Path) -> None:
+    rewards = {"p1": 1.0, "p2": 0.0}
+    report = verify_job(
+        _job(
+            tmp_path,
+            rewards=rewards,
+            file_rewards=rewards,
+            seat_results=[
+                {"seat": "p1", "under_test": True},
+                {"seat": "p2", "under_test": True},
+            ],
+            participants=_SEATS,
+        )
+    )
+    assert report.verdict == "pass"
+    assert "reward_missing" not in _codes(report)
 
 
 def test_not_a_job_is_error(tmp_path: Path) -> None:

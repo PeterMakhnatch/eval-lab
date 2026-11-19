@@ -39,6 +39,9 @@ Exit codes: `0` pass, `1` block (do not quote a reward from a blocked job),
 | block | `job_unfinished`, `job_trial_count_invalid`, `job_stats_missing_evals` | Job record is incomplete |
 | warn | `reward_missing_exceptioned` | Trial exceptioned before grading; it has no quotable reward |
 | warn | `reward_file_orphan` | Only the verifier reward file holds a reward |
+| block | `seat_results_missing`, `seat_participant_mismatch`, `seat_duplicate` | Seat roster in config does not match recorded seat runs |
+| warn | `seat_exception_beside_reward` | A seat errored beside a scored trial reward |
+| warn | `seat_logs_missing` | A seat's logs never reached the trial dir (`logs_downloaded` is false) |
 | info | `pass_at_k_empty` | Harbor leaves `pass_at_k` empty for multi-dimension or non-binary rewards |
 | info | `task_digest_namespace` | Lock task digests, reported as opaque strings |
 

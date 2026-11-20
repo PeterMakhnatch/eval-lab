@@ -45,11 +45,13 @@ Exit codes: `0` pass, `1` block (do not quote a reward from a blocked job),
 | info | `pass_at_k_empty` | Harbor leaves `pass_at_k` empty for multi-dimension or non-binary rewards |
 | info | `task_digest_namespace` | Lock task digests, reported as opaque strings |
 
-Two rules need care:
+Three rules need care:
 
 - Harbor counts only scored trials in `stats.evals`. An exceptioned trial with
   no reward raises `n_total_trials` and `n_errored_trials` but no eval count.
   The verifier follows that rule; it does not flag the difference.
+- The verifier compares finite reward bucket keys by numeric value. For example,
+  `"1"` and `"1.0"` name the same bucket, but the trial lists must still match.
 - A trial `task_checksum` and a lock `task.digest` are different digest
   namespaces. They differ on the same trial. Never join or compare them.
 

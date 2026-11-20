@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from evallab.job_verify import exit_code, verify_job, verify_jobs
 
 
@@ -45,7 +47,7 @@ def _job(
         _write(trial / "verifier" / "reward.json", file_rewards)
     scored = stats_rewards if stats_rewards is not None else rewards
     reward_stats = {
-        str(name): {str(float(value)): [trial_name]}
+        str(name): {str(value): [trial_name]}
         for name, value in scored.items()
         if isinstance(value, (int, float)) and not isinstance(value, bool)
     }
@@ -93,6 +95,19 @@ def test_clean_job_passes(tmp_path: Path) -> None:
     assert exit_code(verify_jobs([report.path])) == 0
 
 
+@pytest.mark.parametrize(
+    ("reward", "stored_reward"),
+    [(1, 1), (1.0, 1), (1, 1.0), (0, -0.0), (10**20, 1e20), (2**53 + 1, 2**53 + 1)],
+)
+def test_equivalent_job_stats_reward_keys_pass(
+    tmp_path: Path, reward: int | float, stored_reward: int | float
+) -> None:
+    report = verify_job(
+        _job(tmp_path, rewards={"reward": reward}, stats_rewards={"reward": stored_reward})
+    )
+    assert report.verdict == "pass"
+
+
 def test_bool_reward_blocks(tmp_path: Path) -> None:
     report = verify_job(_job(tmp_path, rewards={"reward": True}, stats_rewards={}))
     assert report.verdict == "block"
@@ -119,9 +134,10 @@ def test_stale_verifier_file_blocks(tmp_path: Path) -> None:
     assert "reward_mismatch_result_vs_file" in _codes(report)
 
 
-def test_desynced_job_stats_block(tmp_path: Path) -> None:
+@pytest.mark.parametrize(("reward", "stored_reward"), [(1, 2), (2**53, 2**53 + 1)])
+def test_desynced_job_stats_block(tmp_path: Path, reward: int, stored_reward: int) -> None:
     report = verify_job(
-        _job(tmp_path, rewards={"reward": 1.0}, stats_rewards={"reward": 0.0})
+        _job(tmp_path, rewards={"reward": reward}, stats_rewards={"reward": stored_reward})
     )
     assert report.verdict == "block"
     assert "job_stats_reward_desync" in _codes(report)

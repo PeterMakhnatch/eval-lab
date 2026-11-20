@@ -30,6 +30,7 @@ from __future__ import annotations
 import json
 import math
 from dataclasses import dataclass, field
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
@@ -132,7 +133,9 @@ def _verifier_file_rewards(trial_dir: Path) -> tuple[dict[str, Any] | None, str 
     return None, None
 
 
-def _check_trial(report: JobReport, trial_dir: Path, result: dict[str, Any]) -> dict[str, float]:
+def _check_trial(
+    report: JobReport, trial_dir: Path, result: dict[str, Any]
+) -> dict[str, int | float]:
     """Check one indexed trial; return its scored rewards for the job roll-up."""
     trial_name = str(result.get("trial_name") or trial_dir.name)
     verifier_result = result.get("verifier_result")
@@ -140,11 +143,11 @@ def _check_trial(report: JobReport, trial_dir: Path, result: dict[str, Any]) -> 
     if not isinstance(raw_rewards, dict):
         raw_rewards = {}
 
-    scored: dict[str, float] = {}
+    scored: dict[str, int | float] = {}
     for name, value in sorted(raw_rewards.items()):
         problem = _reward_value_problem(value)
         if problem is None:
-            scored[str(name)] = float(value)
+            scored[str(name)] = value
         else:
             report.add(
                 problem,
@@ -203,7 +206,7 @@ def _check_seats(
     report: JobReport,
     trial_name: str,
     result: dict[str, Any],
-    scored: dict[str, float],
+    scored: dict[str, int | float],
 ) -> None:
     """Seat-trial integrity: roster agreement and per-seat evidence state.
 
@@ -272,10 +275,19 @@ def _check_seats(
             )
 
 
+def _reward_bucket_key(value: str) -> Decimal | str:
+    # Compare decimal spellings without rounding distinct rewards to the same float.
+    try:
+        number = Decimal(value)
+    except InvalidOperation:
+        return value
+    return number if number.is_finite() else value
+
+
 def _check_job_stats(
     report: JobReport,
     stats: dict[str, Any],
-    trial_rewards: dict[str, dict[str, float]],
+    trial_rewards: dict[str, dict[str, int | float]],
 ) -> None:
     evals = stats.get("evals")
     if not isinstance(evals, dict) or not evals:
@@ -283,7 +295,7 @@ def _check_job_stats(
         return
 
     stored_n_trials = 0
-    stored_reward_stats: dict[str, dict[str, list[str]]] = {}
+    stored_reward_stats: dict[str, dict[Decimal | str, list[str]]] = {}
     pass_at_k_empty = True
     for _eval_key, eval_stats in sorted(evals.items()):
         if not isinstance(eval_stats, dict):
@@ -302,7 +314,9 @@ def _check_job_stats(
             merged = stored_reward_stats.setdefault(str(dimension), {})
             for value, names in by_value.items():
                 if isinstance(names, list):
-                    merged.setdefault(str(value), []).extend(str(name) for name in names)
+                    merged.setdefault(_reward_bucket_key(str(value)), []).extend(
+                        str(name) for name in names
+                    )
 
     # Harbor counts only scored trials in stats.evals: an exceptioned trial
     # with no reward appears in n_total_trials/n_errored_trials but not in any
@@ -317,10 +331,12 @@ def _check_job_stats(
             f"recomputed {scored_trials} scored trials",
         )
 
-    recomputed: dict[str, dict[str, list[str]]] = {}
+    recomputed: dict[str, dict[Decimal | str, list[str]]] = {}
     for trial_name, rewards in trial_rewards.items():
         for dimension, value in rewards.items():
-            recomputed.setdefault(dimension, {}).setdefault(str(value), []).append(trial_name)
+            recomputed.setdefault(dimension, {}).setdefault(Decimal(str(value)), []).append(
+                trial_name
+            )
     for by_value in list(stored_reward_stats.values()) + list(recomputed.values()):
         for names in by_value.values():
             names.sort()
@@ -376,7 +392,7 @@ def verify_job(job_dir: Path) -> JobReport:
             "job_trial_count_invalid", BLOCK, f"n_total_trials is not an integer: {expected!r}"
         )
 
-    trial_rewards: dict[str, dict[str, float]] = {}
+    trial_rewards: dict[str, dict[str, int | float]] = {}
     seen_ids: dict[str, str] = {}
     for candidate in sorted(job_dir.iterdir()):
         if not candidate.is_dir():

@@ -1,9 +1,3 @@
-"""One module per command: configure(parser), build(args) -> dict, text(report) -> str, run(args) -> int.
-
-The command line (cli.py) finds every module of this package by name. A new command needs no
-other change.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -21,7 +15,6 @@ TIMEOUT_HELP = "multiply the task's agent timeout by X; verifier and build timeo
 
 
 def modules() -> list[tuple[str, ModuleType]]:
-    """Every command module, sorted by name."""
     names = sorted(info.name for info in pkgutil.iter_modules(__path__) if not info.name.startswith("_"))
     return [(name, importlib.import_module(f"{__name__}.{name}")) for name in names]
 
@@ -31,7 +24,6 @@ def emit(report: dict[str, Any], as_json: bool, text: Callable[[dict[str, Any]],
 
 
 def names(value: str | None) -> list[str]:
-    """A comma list as names, in order, without empty items."""
     return [name.strip() for name in (value or "").split(",") if name.strip()]
 
 
@@ -52,7 +44,6 @@ def positive_float(value: str) -> float:
 
 
 def add_run_options(parser: argparse.ArgumentParser) -> None:
-    """The options shared by the commands that start trials."""
     add = parser.add_argument
     add("--attempts", type=positive_int, default=1, metavar="K", help="trials for each task (default: 1)")
     add("--out", type=Path, metavar="DIR", help="output directory (default: under runs/)")

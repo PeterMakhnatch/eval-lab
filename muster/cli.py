@@ -1,5 +1,3 @@
-"""The `muster` command: one subcommand for each module in muster.commands."""
-
 from __future__ import annotations
 
 import argparse
@@ -17,11 +15,12 @@ def parser() -> argparse.ArgumentParser:
     root.add_argument("--version", action="version", version=f"muster {__version__}")
     subparsers = root.add_subparsers(dest="command", metavar="command", required=True)
     for name, module in commands.modules():
-        doc = (module.__doc__ or "").strip()
+        description = module.DESCRIPTION
+        assert description and description == description.strip()
         child = subparsers.add_parser(
             name,
-            help=doc.splitlines()[0] if doc else None,
-            description=doc or None,
+            help=description.splitlines()[0],
+            description=description,
             formatter_class=argparse.RawDescriptionHelpFormatter,
         )
         module.configure(child)
@@ -30,7 +29,6 @@ def parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Run one command. Unusable input gives a one-line message and status 3."""
     args = parser().parse_args(argv)
     try:
         return args.run(args)

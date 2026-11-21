@@ -1,9 +1,3 @@
-"""The only code that opens trial files (docs/DESIGN.md section 3).
-
-A directory that is not a readable seat trial becomes a `Problem`. Nothing here raises on bad
-input files, and nothing guesses a missing value.
-"""
-
 from __future__ import annotations
 
 import json
@@ -20,7 +14,6 @@ SEAT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
 
 
 def read_json(path: Path) -> tuple[Any, str | None]:
-    """The parsed JSON of a file, or (None, reason)."""
     try:
         return json.loads(path.read_text(encoding="utf-8")), None
     except OSError as error:
@@ -30,18 +23,12 @@ def read_json(path: Path) -> tuple[Any, str | None]:
 
 
 def load_trial(path: Path) -> SeatTrial | Problem:
-    """The seat trial in one trial directory."""
     path = Path(path)
     data, error = read_json(path / "result.json")
     return Problem(path, error) if error else _trial(path, data)
 
 
 def walk(root: Path) -> Iterator[SeatTrial | Problem]:
-    """Every seat trial or problem under a directory, in sorted order.
-
-    A trial directory is never searched for more trials. Job directories and directories whose
-    name starts with a dot (Harbor's caches) yield nothing themselves.
-    """
     root = Path(root)
     if not os.path.isdir(root):
         yield Problem(root, "not a directory")
@@ -50,29 +37,41 @@ def walk(root: Path) -> Iterator[SeatTrial | Problem]:
 
 
 def _scan(directory: Path) -> Iterator[SeatTrial | Problem]:
+    pending: list[Path | None] = [None, directory]
+    for current in iter(pending.pop, None):
+        assert current is not None
+        if current is not directory and (not os.path.isdir(current) or os.path.islink(current)):
+            continue
+        item, descend = _read_directory(current)
+        assert not isinstance(item, SeatTrial) or not descend
+        if item is not None:
+            yield item
+        if not descend:
+            continue
+        try:
+            children = sorted((child for child in current.iterdir() if not child.name.startswith(".")), reverse=True)
+        except OSError as error:
+            yield Problem(current, f"cannot list the directory: {error.strerror or error}")
+            continue
+        pending.extend(children)
+    assert not pending
+
+
+def _read_directory(directory: Path) -> tuple[SeatTrial | Problem | None, bool]:
     result = directory / "result.json"
     if os.path.isfile(result):
         data, error = read_json(result)
         if error:
-            yield Problem(directory, error)
-        elif isinstance(data, dict) and ("trial_name" in data or "seat_results" in data):
-            yield _trial(directory, data)
-            return
-        elif not (isinstance(data, dict) and ("n_total_trials" in data or "stats" in data)):
-            yield Problem(directory, "result.json is not a trial result")
+            return Problem(directory, error), True
+        if isinstance(data, dict) and ("trial_name" in data or "seat_results" in data):
+            return _trial(directory, data), False
+        if not (isinstance(data, dict) and ("n_total_trials" in data or "stats" in data)):
+            return Problem(directory, "result.json is not a trial result"), True
     elif os.path.isfile(directory / "config.json"):
         config, _ = read_json(directory / "config.json")
         if isinstance(config, dict) and "trial_name" in config and "task" in config:
-            yield Problem(directory, "trial has no result.json")
-            return
-    try:
-        children = sorted(child for child in directory.iterdir() if not child.name.startswith("."))
-    except OSError as error:
-        yield Problem(directory, f"cannot list the directory: {error.strerror or error}")
-        return
-    for child in children:
-        if os.path.isdir(child) and not os.path.islink(child):
-            yield from _scan(child)
+            return Problem(directory, "trial has no result.json"), False
+    return None, True
 
 
 def _trial(path: Path, data: Any) -> SeatTrial | Problem:
@@ -93,6 +92,7 @@ def _trial(path: Path, data: Any) -> SeatTrial | Problem:
         seats.append(run)
     if len({run.seat for run in seats}) != len(seats):
         return Problem(path, "seat_results names a seat twice")
+    assert len(seats) == len(seat_results)
     return SeatTrial(
         path=path,
         trial_name=trial_name,
@@ -111,11 +111,6 @@ def _trial(path: Path, data: Any) -> SeatTrial | Problem:
 
 
 def event_logs(trial: Path) -> dict[str, Path | None]:
-    """The world event logs of a trial directory.
-
-    `graded` is the copy that the verifier wrote next to the reward: the log that was graded.
-    `collected` is the task artifact, which Harbor collects before the verifier runs.
-    """
     graded = Path(trial) / "verifier" / "events.jsonl"
     artifacts = Path(trial) / "artifacts"
     collected = sorted(artifacts.rglob("events.jsonl")) if os.path.isdir(artifacts) else []
@@ -126,11 +121,12 @@ def event_logs(trial: Path) -> dict[str, Path | None]:
 
 
 def read_events(path: Path) -> tuple[list[dict] | None, str | None]:
-    """The events of a world log, or (None, reason). A line that is not an event, or a gap in `seq`, is a reason."""
     try:
         lines = Path(path).read_text(encoding="utf-8").splitlines()
     except OSError as error:
         return None, f"cannot read {Path(path).name}: {error.strerror or error}"
+    except UnicodeDecodeError:
+        return None, f"{Path(path).name} is not UTF-8 text"
     events: list[dict] = []
     for number, line in enumerate((line for line in lines if line.strip()), start=1):
         try:
@@ -144,7 +140,6 @@ def read_events(path: Path) -> tuple[list[dict] | None, str | None]:
 
 
 def _seat_run(trial: Path, item: Any, participants: dict[str, dict]) -> SeatRun | str:
-    """One seat's run, or the reason the record is unusable."""
     if not isinstance(item, dict):
         return "not a JSON object"
     seat, under_test = item.get("seat"), item.get("under_test")
@@ -185,7 +180,6 @@ def _participants(config: Any) -> dict[str, dict]:
 
 
 def _model(participant: dict, model_info: dict) -> str | None:
-    """The model as the participant names it, else as Harbor recorded it."""
     name, provider = _text(model_info.get("name")), _text(model_info.get("provider"))
     recorded = f"{provider}/{name}" if name and provider else name
     return _text(participant.get("model_name")) or recorded
@@ -200,7 +194,6 @@ def _policy(participant: dict) -> str | None:
 
 
 def _rewards(value: Any) -> dict[str, float]:
-    """Every finite numeric key the verifier wrote."""
     rewards: dict[str, float] = {}
     for key, item in _dict(value).items():
         number = _number(item)
@@ -210,7 +203,6 @@ def _rewards(value: Any) -> dict[str, float]:
 
 
 def _exception(info: Any) -> str | None:
-    """The exception type, or "unknown" when a record exists without one."""
     if info is None:
         return None
     return _text(_dict(info).get("exception_type")) or "unknown"

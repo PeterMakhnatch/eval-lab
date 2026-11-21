@@ -1,8 +1,3 @@
-"""Rosters and the control matrix (docs/DESIGN.md section 6).
-
-Pure: this module reads task files and builds data. It starts nothing.
-"""
-
 from __future__ import annotations
 
 import itertools
@@ -17,12 +12,12 @@ from typing import Any
 
 from muster.model import InputError
 
-ORACLE = "oracle"  # Harbor's oracle agent: runs solution/solve.sh in the seat
-NOP = "nop"  # Harbor's nop agent: does nothing
+ORACLE = "oracle"
+NOP = "nop"
 SCRIPT_AGENT = "muster.agents.script:ScriptAgent"
 NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
-SETUP_SEC = 360.0  # Harbor's default agent setup timeout
-NO_AGENT_TIMEOUT_SEC = 3600.0  # stands in for a task without [agent] timeout_sec
+SETUP_SEC = 360.0
+NO_AGENT_TIMEOUT_SEC = 3600.0
 
 
 def roster_key(assignment: Iterable[tuple[str, str]]) -> str:
@@ -31,8 +26,6 @@ def roster_key(assignment: Iterable[tuple[str, str]]) -> str:
 
 @dataclass(frozen=True)
 class Roster:
-    """One policy for every seat, in seat declaration order."""
-
     seats: tuple[str, ...]
     policies: tuple[str, ...]
 
@@ -49,12 +42,10 @@ class Roster:
         return tuple(zip(self.seats, self.policies, strict=True))
 
     def roster_key(self) -> str:
-        """ "p1=oracle,p2=nop": safe as a directory name."""
         return roster_key(self.items())
 
 
 def matrix(seats: Sequence[str], policies: Sequence[str], limit: int = 64) -> list[Roster]:
-    """Every roster over the policies. The last seat changes fastest."""
     if not seats or not policies:
         raise InputError("a matrix needs at least one seat and one policy")
     if len(set(policies)) != len(policies):
@@ -66,11 +57,12 @@ def matrix(seats: Sequence[str], policies: Sequence[str], limit: int = 64) -> li
             f"of {limit}: use fewer policies or raise --limit"
         )
     combinations = itertools.product(policies, repeat=len(seats))
-    return [Roster(tuple(seats), combination) for combination in combinations]
+    rosters = [Roster(tuple(seats), combination) for combination in combinations]
+    assert len(rosters) == count
+    return rosters
 
 
 def find_policy(name: str, policy_dirs: Sequence[Path]) -> Path:
-    """The first existing <dir>/<name>.sh, as an absolute path that keeps the file's name."""
     searched = [Path(directory) / f"{name}.sh" for directory in policy_dirs]
     for path in searched:
         if os.path.isfile(path):
@@ -82,10 +74,6 @@ SECRET_WORDS = ("KEY", "TOKEN", "SECRET", "PASSWORD", "CREDENTIAL")
 
 
 def policy_env(items: Sequence[str]) -> dict[str, str]:
-    """NAME=VALUE items as a dict, for the scripted policies of a matrix (for example a shorter wait).
-
-    The values are written to the job config, so a name that looks like a secret is refused.
-    """
     env: dict[str, str] = {}
     for item in items:
         name, sep, value = item.partition("=")
@@ -100,7 +88,6 @@ def policy_env(items: Sequence[str]) -> dict[str, str]:
 def participants(
     roster: Roster, policy_dirs: Sequence[Path], env: dict[str, str] | None = None
 ) -> list[dict[str, Any]]:
-    """The Harbor `participants` list of a roster. `env` goes to every oracle and scripted seat."""
     listed: list[dict[str, Any]] = []
     for seat, policy in roster.items():
         if policy in (ORACLE, NOP):
@@ -111,6 +98,7 @@ def participants(
         if env and policy != NOP:
             entry["env"] = dict(env)
         listed.append(entry)
+    assert len(listed) == len(roster.seats)
     return listed
 
 
@@ -124,10 +112,6 @@ def job_config(
     concurrency: int,
     timeout_multiplier: float | None,
 ) -> dict[str, Any]:
-    """A Harbor job config: every task with the same participants, on local Docker, removed after use.
-
-    `timeout_multiplier` scales the agent timeout only; verifier and build timeouts keep their values.
-    """
     config: dict[str, Any] = {
         "job_name": name,
         "jobs_dir": str(jobs_dir),
@@ -145,28 +129,24 @@ def job_config(
 
 @dataclass(frozen=True)
 class Task:
-    """What muster needs from a task's task.toml."""
-
     path: Path
-    name: str  # [task] name, else the directory name
-    seats: tuple[str, ...]  # [agents.<seat>] tables, in file order
+    name: str
+    seats: tuple[str, ...]
     under_test: tuple[bool, ...]
-    oracle_reward: float | None  # [metadata] oracle_reward
-    exploits: tuple[str, ...]  # [metadata] exploits
+    oracle_reward: float | None
+    exploits: tuple[str, ...]
     agent_timeout_sec: float | None
     verifier_timeout_sec: float
     build_timeout_sec: float
-    expected_findings: tuple[str, ...] = ()  # [metadata] expected_findings: codes that the design produces
+    expected_findings: tuple[str, ...] = ()
 
     def trial_budget_sec(self, timeout_multiplier: float | None) -> float:
-        """An upper limit for one trial: build, setup, play, verifier and 300 s of slack."""
         play = NO_AGENT_TIMEOUT_SEC if self.agent_timeout_sec is None else self.agent_timeout_sec
         play *= 1.0 if timeout_multiplier is None else timeout_multiplier
         return self.build_timeout_sec + SETUP_SEC + play + self.verifier_timeout_sec + 300.0
 
 
 def read_task(path: Path) -> Task:
-    """The seats and metadata of a seat task directory."""
     path = Path(os.path.abspath(path))
     try:
         data = tomllib.loads((path / "task.toml").read_text(encoding="utf-8"))
@@ -211,13 +191,11 @@ def read_task(path: Path) -> Task:
 def job_timeout_sec(
     tasks: Sequence[Task], attempts: int, concurrency: int, multiplier: float | None
 ) -> float:
-    """An upper limit for one Harbor job: the trial budgets, spread over the concurrent trials."""
     budgets = [task.trial_budget_sec(multiplier) for task in tasks]
     return sum(budgets) * attempts / concurrency + max(budgets) + 120.0
 
 
 def task_dirs(path: Path) -> list[Path]:
-    """One task directory, or the task directories directly inside a directory."""
     path = Path(path)
     if os.path.isfile(path / "task.toml"):
         return [path]
@@ -238,5 +216,5 @@ def _is_number(value: Any) -> bool:
     return isinstance(value, int | float) and not isinstance(value, bool) and math.isfinite(value)
 
 
-def _seconds(value: Any, default: float | None) -> float | None:
+def _seconds[Fallback: (float, None)](value: Any, default: Fallback) -> float | Fallback:
     return float(value) if _is_number(value) else default

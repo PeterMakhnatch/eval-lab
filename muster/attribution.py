@@ -1,20 +1,7 @@
-"""Control-matrix analysis (docs/DESIGN.md section 6).
-
-Pure: loaded trials and task facts in, a report dict out. The same input gives the same report.
-
-- Null policy: the policy that stands for "does nothing" in the rules. It is `nop`, unless the
-  caller names another one for a task whose verifier wants a record from every seat.
-- Score key: `reward` or `seat.<name>`. Other reward keys are diagnostics (section 4, rule 5).
-  They are in the tables, but `adversary-wins` and `decorative-seat` read score keys only.
-- Timeout: a trial with a valid reward whose only exceptions are AgentTimeoutError. In a roster
-  with a seat that is not `oracle` it is a normal outcome, because an oracle can wait for a
-  partner that never acts. In the all-oracle roster it is a `trial-error`.
-"""
-
 from __future__ import annotations
 
 import os
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 from statistics import fmean
 from typing import Any
@@ -27,7 +14,7 @@ from muster.roster import roster_key as name
 REWARD = "reward"
 TIMEOUT = "AgentTimeoutError"
 EPS = 1e-9
-SEVERITY = {  # the stable codes
+SEVERITY = {
     "unsolvable": "error",
     "free-pass": "error",
     "tested-seat-not-needed": "error",
@@ -38,8 +25,8 @@ SEVERITY = {  # the stable codes
     "trial-error": "warn",
 }
 
-Assignment = tuple[tuple[str, str], ...]  # (seat, policy) in seat declaration order
-Means = dict[Assignment, dict[str, float]]  # the mean of every reward key, for each roster
+Assignment = tuple[tuple[str, str], ...]
+Means = dict[Assignment, dict[str, float]]
 
 
 def analyze(
@@ -53,14 +40,6 @@ def analyze(
     attempts: int | None = None,
     expected_findings: Sequence[str] = (),
 ) -> dict[str, Any]:
-    """The attribution report of one control matrix.
-
-    `planned` lists the rosters of the matrix in order, each {"roster": key} with the optional
-    `returncode` and `timed_out` of its harbor run. `attempts` is the planned trials for each roster.
-    `expected_findings` are codes that the task's design produces on purpose ([metadata]
-    expected_findings), for example `tested-seat-not-needed` in a game where only 2 of 3 seats can score.
-    Their findings stay in the report with severity `expected` and do not count as errors or warnings.
-    """
     items = list(items)
     trials = sorted((i for i in items if isinstance(i, SeatTrial)), key=lambda t: (t.trial_name, str(t.path)))
     problems = [item for item in items if isinstance(item, Problem)]
@@ -75,7 +54,7 @@ def analyze(
 
     grouped: dict[Assignment, list[SeatTrial]] = {_parse(entry.get("roster"), seats): [] for entry in planned}
     n_planned = len(grouped)
-    for trial in sorted(trials, key=SeatTrial.roster_key):  # a stable sort: trial order stays in a roster
+    for trial in sorted(trials, key=SeatTrial.roster_key):
         grouped.setdefault(tuple((run.seat, run.label) for run in trial.seats), []).append(trial)
     rows = [_row(assignment, group) for assignment, group in grouped.items()]
     means = {a: {k: c["mean"] for k, c in r["rewards"].items()} for a, r in zip(grouped, rows, strict=True)}
@@ -83,32 +62,15 @@ def analyze(
     expected = 1.0 if oracle_reward is None else float(oracle_reward)
     findings, skipped = _rules(seats, rows, means, keys, expected, list(exploits), null)
 
-    def error(message: str) -> None:
-        findings.append({"code": "trial-error", "severity": "warn", "message": message})
-
-    for (assignment, group), row in zip(grouped.items(), rows, strict=True):
-        for trial in group:
-            unexpected = "timeout" if all(policy == ORACLE for _, policy in assignment) else None
-            if _outcome(trial) in ("error", unexpected):
-                types = {trial.exception, *(run.exception for run in trial.seats)} - {None}
-                what = ", ".join(sorted(types)) or "no valid reward"
-                error(f"Roster {row['roster']}: trial {trial.trial_name} has {what}.")
-    for row in rows[:n_planned]:
-        if attempts is not None and row["trials"] < attempts:
-            error(f"Roster {row['roster']} has {row['trials']} of {attempts} trials.")
     failures = [e for e in planned if e.get("timed_out") or e.get("returncode") not in (0, None)]
-    for entry in failures:
-        how = "did not end in time" if entry.get("timed_out") else f"ended with status {entry['returncode']}"
-        error(f"harbor {how} for roster {entry.get('roster')}.")
-    for problem in problems:
-        error(f"{_relative(problem.path, root)}: {problem.reason}.")
+    findings.extend(_trial_findings(grouped, rows, n_planned, attempts, failures, problems, root))
     declared = set(expected_findings)
     for finding in findings:
         if finding["code"] in declared and finding["code"] != "trial-error":
             finding["severity"] = "expected"
     return {
         "task": trials[0].task,
-        "task_checksums": sorted({trial.task_checksum for trial in trials if trial.task_checksum}),
+        "task_checksums": sorted({checksum for trial in trials if (checksum := trial.task_checksum)}),
         "seats": [{"seat": seat, "under_test": under_test} for seat, under_test in seats],
         "null_policy": null,
         "oracle_reward": expected,
@@ -128,8 +90,42 @@ def analyze(
     }
 
 
+def _trial_findings(
+    grouped: dict[Assignment, list[SeatTrial]],
+    rows: list[dict[str, Any]],
+    n_planned: int,
+    attempts: int | None,
+    failures: list[dict[str, Any]],
+    problems: list[Problem],
+    root: Path | None,
+) -> list[dict[str, Any]]:
+    assert 0 <= n_planned <= len(rows) == len(grouped)
+    findings: list[dict[str, Any]] = []
+
+    def warn(message: str) -> None:
+        findings.append({"code": "trial-error", "severity": "warn", "message": message})
+
+    for (assignment, group), row in zip(grouped.items(), rows, strict=True):
+        unexpected = "timeout" if all(policy == ORACLE for _, policy in assignment) else None
+        for trial in group:
+            if _outcome(trial) in ("error", unexpected):
+                types = {kind for run in trial.seats if (kind := run.exception) is not None}
+                if trial.exception is not None:
+                    types.add(trial.exception)
+                what = ", ".join(sorted(types)) or "no valid reward"
+                warn(f"Roster {row['roster']}: trial {trial.trial_name} has {what}.")
+    for row in rows[:n_planned]:
+        if attempts is not None and row["trials"] < attempts:
+            warn(f"Roster {row['roster']} has {row['trials']} of {attempts} trials.")
+    for entry in failures:
+        how = "did not end in time" if entry.get("timed_out") else f"ended with status {entry['returncode']}"
+        warn(f"harbor {how} for roster {entry.get('roster')}.")
+    for problem in problems:
+        warn(f"{_relative(problem.path, root)}: {problem.reason}.")
+    return findings
+
+
 def status(report: dict[str, Any]) -> int:
-    """The exit status of a report: 1 when a finding has severity error, else 0."""
     return 1 if report["errors"] else 0
 
 
@@ -149,7 +145,6 @@ def _relative(path: Path, root: Path | None) -> str:
 
 
 def _outcome(trial: SeatTrial) -> str:
-    """ok, timeout (see the module text) or error."""
     exceptions = {trial.exception, *(run.exception for run in trial.seats)} - {None}
     if not trial.reward_valid or not trial.rewards or exceptions - {TIMEOUT}:
         return "error"
@@ -157,11 +152,11 @@ def _outcome(trial: SeatTrial) -> str:
 
 
 def reward_means(trials: Sequence[SeatTrial]) -> tuple[int, dict[str, dict[str, Any]]]:
-    """The number of trials with a valid reward, and the mean of every reward key over them."""
     valid = [trial for trial in trials if trial.reward_valid and trial.rewards]
     rewards = {}
     for key in sorted({key for trial in valid for key in trial.rewards}):
         values = [trial.rewards[key] for trial in valid if key in trial.rewards]
+        assert 1 <= len(values) <= len(valid)
         rewards[key] = {"mean": fmean(values), "n": len(values), "values": values}
     return len(valid), rewards
 
@@ -181,13 +176,10 @@ def _row(assignment: Assignment, trials: list[SeatTrial]) -> dict[str, Any]:
 
 
 def _swap(assignment: Assignment, seat: str, policy: str) -> Assignment:
-    """The same roster with one seat's policy replaced."""
     return tuple((s, policy if s == seat else p) for s, p in assignment)
 
 
 def _effects(seats: list[tuple[str, bool]], means: Means, keys: list[str], null: str) -> list[dict[str, Any]]:
-    """For each reward key and seat: the mean over the rosters where the seat is oracle, minus the
-    mean over the same rosters with only that seat as the null policy (matched pairs)."""
     effects = []
     for key in keys:
         for seat, under_test in seats:
@@ -215,7 +207,6 @@ def _rules(
     exploits: list[str],
     null: str,
 ) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
-    """The findings of DESIGN section 6 on the rewards, and the rules that the data could not check."""
     findings: list[dict[str, Any]] = []
     skipped: list[dict[str, str]] = []
 
@@ -259,6 +250,28 @@ def _rules(
                 what = f"seat {seat} is {null} and seat.{seat} is {number(credit)}, above 0"
                 add("credit-leak", f"Roster {name(roster)}: {what}.", roster, seat=seat)
 
+    _check_policy_effects(seats, scored, score_keys, exploits, null, add, skip)
+
+    if not any(row["n"] > 1 for row in rows):
+        skip("not-deterministic", "no roster has 2 or more trials with a valid reward")
+    for row in rows:
+        for key, cell in row["rewards"].items():
+            if max(cell["values"]) - min(cell["values"]) > EPS or cell["n"] != row["n"]:
+                listed = ", ".join(number(value) for value in cell["values"])
+                what = f"{key} is {listed} in {row['n']} trials"
+                add("not-deterministic", f"Roster {row['roster']}: {what}.", key=key)
+    return findings, skipped
+
+
+def _check_policy_effects(
+    seats: list[tuple[str, bool]],
+    scored: Means,
+    score_keys: list[str],
+    exploits: list[str],
+    null: str,
+    add: Callable[..., None],
+    skip: Callable[[str, str], None],
+) -> None:
     for seat, _ in seats:
         families: dict[Assignment, list[dict[str, float]]] = {}
         for roster, values in scored.items():
@@ -281,28 +294,23 @@ def _rules(
         skip("adversary-wins", f"no roster with a score has an exploit policy ({', '.join(exploits)})")
     for roster, values in scored.items():
         for seat, policy in roster:
+            if policy not in used:
+                continue
             base = _swap(roster, seat, null)
             floor = scored.get(base)
-            if policy in used and floor is None:
+            if floor is None:
                 skip("adversary-wins", f"roster {name(roster)}: no score for {name(base)}")
-            for key in score_keys if policy in used and floor else []:
+                continue
+            for key in score_keys:
                 if key in values and key in floor and values[key] > floor[key] + EPS:
-                    what = f"{seat}={policy} gives {key} {number(values[key])}, above {number(floor[key])} with {seat}={null}"
+                    what = (
+                        f"{seat}={policy} gives {key} {number(values[key])}, "
+                        f"above {number(floor[key])} with {seat}={null}"
+                    )
                     add("adversary-wins", f"Roster {name(roster)}: {what}.", roster, seat=seat, key=key)
-
-    if not any(row["n"] > 1 for row in rows):
-        skip("not-deterministic", "no roster has 2 or more trials with a valid reward")
-    for row in rows:
-        for key, cell in row["rewards"].items():
-            if max(cell["values"]) - min(cell["values"]) > EPS or cell["n"] != row["n"]:
-                listed = ", ".join(number(value) for value in cell["values"])
-                what = f"{key} is {listed} in {row['n']} trials"
-                add("not-deterministic", f"Roster {row['roster']}: {what}.", key=key)
-    return findings, skipped
 
 
 def text(report: dict[str, Any]) -> str:
-    """The report as text: the roster table, the seat effects and the findings."""
     null, keys = report["null_policy"], report["reward_keys"]
     seats = ", ".join(s["seat"] + (" (under test)" if s["under_test"] else "") for s in report["seats"])
     lines = [

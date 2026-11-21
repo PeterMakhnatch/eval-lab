@@ -1,12 +1,3 @@
-"""Run every roster of a control matrix on one task, then print the attribution report.
-
-A roster gives every seat one policy. `oracle` and `nop` are Harbor's agents. Any other policy
-name x is the script x.sh, from <task>/policies or a --policy-dir, run by muster's ScriptAgent.
-Each roster is one Harbor job in <out>/<roster>/. The same command on the same --out runs only
-the trials that are missing. An interrupted trial stays (CancelledError) until its roster
-directory is removed.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -18,6 +9,14 @@ from typing import Any
 from muster import __version__, attribution, render, roster, runner
 from muster.commands import add_run_options, attribute, emit, names, now, positive_int
 from muster.model import InputError
+
+DESCRIPTION = """Run every roster of a control matrix on one task, then print the attribution report.
+
+A roster gives every seat one policy. `oracle` and `nop` are Harbor's agents. Any other policy
+name x is the script x.sh, from <task>/policies or a --policy-dir, run by muster's ScriptAgent.
+Each roster is one Harbor job in <out>/<roster>/. The same command on the same --out runs only
+the trials that are missing. An interrupted trial stays (CancelledError) until its roster
+directory is removed."""
 
 NULL_HELP = 'the policy that stands for "does nothing" in the rules (default: nop)'
 
@@ -52,13 +51,9 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
             raise InputError(f"{policy!r} is not one of the policies {', '.join(policies)}")
     out = Path(os.path.abspath(args.out or Path("runs") / f"{task.path.name}-matrix"))
     harbor = None if args.dry_run else runner.find_harbor(args.harbor)
-    shared = {"tasks": [task.path], "attempts": args.attempts, "concurrency": args.concurrency}
-    shared["timeout_multiplier"] = args.timeout_multiplier
-    configs = {
-        key: roster.job_config(name=key, jobs_dir=out / key / "jobs", participants=listed, **shared)
-        for key, listed in plans.items()
-    }
+    configs = _job_configs(args, task.path, out, plans)
     seats = [{"seat": s, "under_test": u} for s, u in zip(task.seats, task.under_test, strict=True)]
+    roster_entries: list[dict[str, Any]] = [{"roster": key} for key in configs]
     manifest: dict[str, Any] = {
         "muster": __version__,
         "task": {"path": str(task.path), "name": task.name, "checksum": None, "seats": seats}
@@ -74,7 +69,7 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
         "harbor": str(harbor) if harbor else None,
         "harbor_version": runner.harbor_version(harbor) if harbor else None,
         "dry_run": args.dry_run,
-        "rosters": [{"roster": key} for key in configs],
+        "rosters": roster_entries,
         "started_at": now(),
         "finished_at": None,
     }
@@ -85,12 +80,14 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
         return {"dry_run": True, "out": str(out), "task": task.name, "rosters": list(configs)} | {
             "trials": len(configs) * args.attempts
         }
+    assert harbor is not None
     timeout = roster.job_timeout_sec([task], args.attempts, args.concurrency, args.timeout_multiplier)
     for index, (key, config) in enumerate(configs.items()):
         print(f"muster: roster {index + 1} of {len(configs)}: {key}", file=sys.stderr, flush=True)
         outcome = runner.run_job(config, out / key, harbor, timeout_sec=timeout)
-        ended = {"returncode": outcome.returncode, "timed_out": outcome.timed_out}
-        manifest["rosters"][index].update(ended, seconds=round(outcome.seconds, 1))
+        roster_entries[index].update(
+            returncode=outcome.returncode, timed_out=outcome.timed_out, seconds=round(outcome.seconds, 1)
+        )
         _write(out, manifest)
     manifest["finished_at"] = now()
     _write(out, manifest)
@@ -102,6 +99,24 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
     manifest["task"]["checksum"] = checksums[0] if len(checksums) == 1 else None
     _write(out, manifest)
     return report
+
+
+def _job_configs(
+    args: argparse.Namespace, task: Path, out: Path, plans: dict[str, list[dict[str, Any]]]
+) -> dict[str, dict[str, Any]]:
+    tasks = [task]
+    return {
+        key: roster.job_config(
+            name=key,
+            jobs_dir=out / key / "jobs",
+            tasks=tasks,
+            participants=listed,
+            attempts=args.attempts,
+            concurrency=args.concurrency,
+            timeout_multiplier=args.timeout_multiplier,
+        )
+        for key, listed in plans.items()
+    }
 
 
 def text(report: dict[str, Any]) -> str:

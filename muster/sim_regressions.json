@@ -1,0 +1,72 @@
+[
+  {
+    "seed": 0,
+    "step": "regrade/missing-recorded-reward/json",
+    "invariant": "cli-documented-exit-code",
+    "detail": "got 0, expected 3",
+    "known": false
+  },
+  {
+    "seed": 0,
+    "step": "regrade/missing-recorded-reward/text",
+    "invariant": "cli-documented-exit-code",
+    "detail": "got 0, expected 3",
+    "known": false
+  },
+  {
+    "seed": 0,
+    "step": "regrade/sequence-gap/json",
+    "invariant": "cli-documented-exit-code",
+    "detail": "got 0, expected 3",
+    "known": false
+  },
+  {
+    "seed": 0,
+    "step": "regrade/sequence-gap/text",
+    "invariant": "cli-documented-exit-code",
+    "detail": "got 0, expected 3",
+    "known": false
+  },
+  {
+    "seed": 0,
+    "step": "regrade/malformed-json/json",
+    "invariant": "cli-documented-exit-code",
+    "detail": "got 0, expected 3",
+    "known": false
+  },
+  {
+    "seed": 0,
+    "step": "regrade/malformed-json/text",
+    "invariant": "cli-documented-exit-code",
+    "detail": "got 0, expected 3",
+    "known": false
+  },
+  {
+    "seed": 0,
+    "step": "regrade/invalid-encoding/json",
+    "invariant": "cli-never-raises-or-prints-traceback",
+    "detail": "UnicodeDecodeError: 'utf-8' codec can't decode byte 0xff in position 0: invalid start byte",
+    "known": false
+  },
+  {
+    "seed": 0,
+    "step": "regrade/invalid-encoding/text",
+    "invariant": "cli-never-raises-or-prints-traceback",
+    "detail": "UnicodeDecodeError: 'utf-8' codec can't decode byte 0xff in position 0: invalid start byte",
+    "known": false
+  },
+  {
+    "seed": 0,
+    "step": "events/invalid-encoding/json",
+    "invariant": "cli-never-raises-or-prints-traceback",
+    "detail": "UnicodeDecodeError: 'utf-8' codec can't decode byte 0xff in position 0: invalid start byte",
+    "known": false
+  },
+  {
+    "seed": 0,
+    "step": "events/invalid-encoding/text",
+    "invariant": "cli-never-raises-or-prints-traceback",
+    "detail": "UnicodeDecodeError: 'utf-8' codec can't decode byte 0xff in position 0: invalid start byte",
+    "known": false
+  }
+]

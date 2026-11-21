@@ -1,16 +1,3 @@
-"""Exact measures over one world's event log (docs/DESIGN.md, section 4).
-
-Pure functions: a list of events in, numbers out. No model reads any text. The measures work for every
-world built on the world kit, because they use only the kit's fields: `seq`, `t`, `seat`, `kind`,
-`method`, `status`, `ok`, `request`, `response`.
-
-Words:
-  action   an accepted POST that is not a message (an open, an answer, a take, a pledge, ...)
-  post     an accepted POST /msg
-  fetch    an accepted GET /msgs; its response says which messages the seat has now received
-  probe    a request for a route that the world does not have (status 404)
-"""
-
 import json
 from statistics import median
 
@@ -18,7 +5,6 @@ CHANNEL = ("msg", "msgs")
 
 
 def in_play(events: list[dict]) -> list[dict]:
-    """Seat events before the world closed, accepted or not."""
     played = []
     for event in events:
         if event.get("kind") == "admin.close" and event.get("ok"):
@@ -41,40 +27,28 @@ def _is_fetch(event: dict) -> bool:
 
 
 def _same_act(event: dict) -> str:
-    """Two actions are the same act when the kind and the request are equal."""
     return event["kind"] + " " + json.dumps(event.get("request"), sort_keys=True)
 
 
 def jain(values: list[float]) -> float | None:
-    """Jain's evenness index: 1 when all values are equal, 1/n when one value holds everything."""
     total, squares = sum(values), sum(value * value for value in values)
     if not values or squares == 0:
         return None
     return total * total / (len(values) * squares)
 
 
-def _received(played: list[dict]) -> dict[str, dict[int, float]]:
-    """For each seat: message id -> world time of the first fetch that returned it."""
+def _received(fetches: list[dict]) -> dict[str, dict[int, float]]:
     got: dict[str, dict[int, float]] = {}
-    for event in played:
-        if _is_fetch(event):
-            seen = got.setdefault(event["seat"], {})
-            for message in (event.get("response") or {}).get("messages") or []:
-                seen.setdefault(message["id"], event["t"])
+    for event in fetches:
+        seen = got.setdefault(event["seat"], {})
+        for message in (event.get("response") or {}).get("messages") or []:
+            seen.setdefault(message["id"], event["t"])
     return got
 
 
-def summarize(events: list[dict], seats: list[str] | None = None) -> dict:
-    """All measures for one trial. `seats` adds seats that never sent a request."""
-    played = in_play(events)
-    names = sorted(set(seats or []) | {event["seat"] for event in played})
-    start = played[0]["t"] if played else None
-    actions = [event for event in played if _is_action(event)]
-    posts = [event for event in played if _is_post(event)]
-    fetches = [event for event in played if _is_fetch(event)]
-    received = _received(played)
-
-    # Each message and each other seat: was it fetched, and how long after the post?
+def _message_delivery(
+    posts: list[dict], names: list[str], received: dict[str, dict[int, float]]
+) -> tuple[int, int, float | None]:
     lags, never_fetched, pairs = [], 0, 0
     for post in posts:
         message_id = post["response"]["id"]
@@ -87,8 +61,13 @@ def summarize(events: list[dict], seats: list[str] | None = None) -> dict:
                 never_fetched += 1
             else:
                 lags.append(fetched_at - post["t"])
+    assert pairs == never_fetched + len(lags)
+    return pairs, never_fetched, round(median(lags), 3) if lags else None
 
-    # Each action: how many messages of other seats existed that the actor had not yet received?
+
+def _unread_at_actions(
+    actions: list[dict], posts: list[dict], received: dict[str, dict[int, float]]
+) -> list[int]:
     unread = []
     for action in actions:
         seen = received.get(action["seat"], {})
@@ -101,13 +80,18 @@ def summarize(events: list[dict], seats: list[str] | None = None) -> dict:
                 and not (post["response"]["id"] in seen and seen[post["response"]["id"]] <= action["t"])
             )
         )
+    return unread
 
-    # A duplicate repeats the act of a different seat. It is informed when the actor had already
-    # received a message that the first actor posted after its own act.
+
+def _duplicate_actions(
+    actions: list[dict], posts: list[dict], received: dict[str, dict[int, float]]
+) -> tuple[int, int, bool]:
+    first_acts: dict[str, str] = {}
     first_actor: dict[str, dict] = {}
     duplicates = informed = 0
     for action in actions:
         act = _same_act(action)
+        first_acts.setdefault(action["seat"], act)
         first = first_actor.setdefault(act, action)
         if first["seat"] == action["seat"]:
             continue
@@ -122,11 +106,12 @@ def summarize(events: list[dict], seats: list[str] | None = None) -> dict:
         ):
             informed += 1
 
-    first_acts = {}
-    for action in actions:
-        first_acts.setdefault(action["seat"], _same_act(action))
-    acts = list(first_acts.values())
+    assert 0 <= informed <= duplicates <= len(actions)
+    acts = first_acts.values()
+    return duplicates, informed, len(acts) > len(set(acts))
 
+
+def _seat_measures(played: list[dict], names: list[str], start: float) -> dict:
     per_seat = {}
     for seat in names:
         own = [event for event in played if event["seat"] == seat]
@@ -140,7 +125,23 @@ def summarize(events: list[dict], seats: list[str] | None = None) -> dict:
             "last_at": round(own[-1]["t"] - start, 3) if own else None,
         }
 
+    return per_seat
+
+
+def summarize(events: list[dict], seats: list[str] | None = None) -> dict:
+    played = in_play(events)
+    names = sorted(set(seats or []) | {event["seat"] for event in played})
+    start = played[0]["t"] if played else 0.0
+    actions = [event for event in played if _is_action(event)]
+    posts = [event for event in played if _is_post(event)]
+    fetches = [event for event in played if _is_fetch(event)]
+    received = _received(fetches)
+    pairs, never_fetched, lag_median = _message_delivery(posts, names, received)
+    unread = _unread_at_actions(actions, posts, received)
+    duplicates, informed, identical_first = _duplicate_actions(actions, posts, received)
+    per_seat = _seat_measures(played, names, start)
     talk = len(posts) + len(fetches)
+    assert talk + len(actions) <= len(played) <= len(events)
     return {
         "seats": names,
         "requests": len(played),
@@ -159,12 +160,12 @@ def summarize(events: list[dict], seats: list[str] | None = None) -> dict:
         ),
         "message_pairs": pairs,
         "never_fetched": never_fetched,
-        "fetch_lag_median": round(median(lags), 3) if lags else None,
+        "fetch_lag_median": lag_median,
         "actions_with_unread": sum(1 for count in unread if count),
         "unread_at_action_mean": sum(unread) / len(unread) if unread else None,
         "duplicate_actions": duplicates,
         "informed_duplicates": informed,
-        "identical_first_action": len(acts) > len(set(acts)),
+        "identical_first_action": identical_first,
         "never_acted": [seat for seat in names if per_seat[seat]["actions"] == 0],
         "action_evenness": jain([float(per_seat[seat]["actions"]) for seat in names]),
         "per_seat": per_seat,

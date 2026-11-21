@@ -1,9 +1,3 @@
-"""ScriptAgent: a Harbor agent that runs one shell script in its seat.
-
-Harbor loads it through `import_path: "muster.agents.script:ScriptAgent"` with the kwarg `script`,
-the absolute host path of a bash script. This is the only muster module that imports harbor.
-"""
-
 from __future__ import annotations
 
 import json
@@ -17,18 +11,22 @@ from harbor.agents.capabilities import AgentCapabilities
 from harbor.agents.installed.base import NonZeroAgentExitCodeError
 from harbor.environments.base import BaseEnvironment
 from harbor.models.agent.context import AgentContext
-from harbor.models.trajectories import Agent, Observation, ObservationResult, Step, ToolCall, Trajectory
+from harbor.models.trajectories import (
+    Agent,
+    Observation,
+    ObservationResult,
+    Step,
+    ToolCall,
+    Trajectory,
+)
 
 from muster import __version__
 
-ATIF_VERSION = "ATIF-v1.7"  # the first version with llm_call_count, which marks a step without a model
-OUTPUT_LIMIT = 20_000  # characters of script output kept in the trajectory
+ATIF_VERSION = "ATIF-v1.7"
+OUTPUT_LIMIT = 20_000
 
 
 class ScriptAgent(BaseAgent):
-    """Runs one bash script in the seat, as the seat's Compose user, in its working directory,
-    with its Compose environment (SEAT, SEAT_TOKEN, WORLD) plus the participant's `env`."""
-
     capabilities = AgentCapabilities(atif=True)
     LOG_FILE = "script.txt"
 
@@ -52,7 +50,6 @@ class ScriptAgent(BaseAgent):
 
     @override
     async def setup(self, environment: BaseEnvironment) -> None:
-        """Upload the script into the seat's log directory and let the seat's user read it."""
         await environment.upload_file(self._script, self._target)
         result = await environment.exec(f"chmod a+rx {shlex.quote(self._target)}", user="root")
         if result.return_code != 0:
@@ -60,11 +57,6 @@ class ScriptAgent(BaseAgent):
 
     @override
     async def run(self, instruction: str, environment: BaseEnvironment, context: AgentContext) -> None:
-        """Run the script, keep its output in /logs/agent/script.txt and write trajectory.json.
-
-        The script writes to the log file, not to the exec stream, so it keeps running when Harbor
-        cancels the seat at the end of play. A non-zero exit raises NonZeroAgentExitCodeError.
-        """
         log = shlex.quote((self.environment_logs_dir / self.LOG_FILE).as_posix())
         command = f"bash {shlex.quote(self._target)} > {log} 2>&1; code=$?; cat {log}; exit $code"
         started = _now()
@@ -76,8 +68,9 @@ class ScriptAgent(BaseAgent):
         finally:
             try:
                 self._write_trajectory(instruction, command, started, exit_code, output)
-            except Exception as error:  # a cancelled run must stay cancelled
+            except Exception as error:
                 self.logger.error(f"ScriptAgent could not write trajectory.json: {error}")
+        assert output is not None
         if exit_code != 0:
             raise NonZeroAgentExitCodeError(
                 f"Script {self._script.name} exited with code {exit_code}\noutput: {output[-2000:]}"
@@ -86,7 +79,6 @@ class ScriptAgent(BaseAgent):
     def _write_trajectory(
         self, instruction: str, command: str, started: str, exit_code: int | None, output: str | None
     ) -> None:
-        """One user step with the instruction, one agent step with the command and its output."""
         extra: dict[str, object] = {"outcome": "cancelled", "finished_at": _now()}
         content = f"The run was cancelled before the script ended. Its output is in {self.LOG_FILE}."
         if exit_code is not None and output is not None:

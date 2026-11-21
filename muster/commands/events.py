@@ -1,9 +1,3 @@
-"""Exact measures over the world event logs of finished trials: who acted, who talked, who received what.
-
-Each directory is one arm. The table has one row for each arm, with means over its trials.
-No model reads any text: every number comes from the request log of the world.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -14,7 +8,11 @@ from muster import events, load, render
 from muster.commands import emit
 from muster.model import InputError, SeatTrial
 
-# (column, key in events.summarize, what the mean is taken over)
+DESCRIPTION = """Exact measures over the world event logs of finished trials: who acted, who talked, who received what.
+
+Each directory is one arm. The table has one row for each arm, with means over its trials.
+No model reads any text: every number comes from the request log of the world."""
+
 COLUMNS = (
     ("actions", "actions"),
     ("posts", "posts"),
@@ -61,7 +59,6 @@ def _number(value: Any) -> float | None:
 
 
 def measure(trial: SeatTrial) -> dict[str, Any] | None:
-    """The measures of one trial, from the graded log when it exists, else from the collected log."""
     logs = load.event_logs(trial.path)
     path = logs["graded"] or logs["collected"]
     if path is None:
@@ -83,6 +80,7 @@ def report(directories: list[Path]) -> dict[str, Any]:
             measures = measure(trial)
             if measures is not None:
                 rows.append({"trial": trial.trial_name, "task": trial.task, **measures})
+        assert len(rows) <= len(trials)
         means = {}
         for _, key in COLUMNS:
             values = [number for row in rows if (number := _number(row[key])) is not None]

@@ -1,11 +1,3 @@
-"""Run one roster of real agents on a task, or on every task of a directory, as one Harbor job.
-
-ROSTER.json is {"participants": [{"seat": "p1", "name": "terminus-2", "model_name": "..."}, ...]},
-or {"each": {...}} for the same settings in every seat. --out is an ordinary Harbor job directory.
-The config and harbor's output are next to it, as <out>.job.json and <out>.harbor.log.
-API keys come from the caller's environment. muster writes none of them to a file.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -20,9 +12,16 @@ from muster.commands import add_run_options, emit
 from muster.model import InputError, SeatTrial
 from muster.render import number, table
 
+DESCRIPTION = """Run one roster of real agents on a task, or on every task of a directory, as one Harbor job.
+
+ROSTER.json is {"participants": [{"seat": "p1", "name": "terminus-2", "model_name": "..."}, ...]},
+or {"each": {...}} for the same settings in every seat. --out is an ordinary Harbor job directory.
+The config and harbor's output are next to it, as <out>.job.json and <out>.harbor.log.
+API keys come from the caller's environment. muster writes none of them to a file."""
+
 SENSITIVE = re.compile(r"KEY|SECRET|TOKEN|PASSWORD|CREDENTIAL|AUTH", re.IGNORECASE)
 TEMPLATE = re.compile(r"\$\{[^}]+\}")
-SHOWN = ("seat", "name", "import_path", "model_name")  # the participant settings that a report shows
+SHOWN = ("seat", "name", "import_path", "model_name")
 
 
 def configure(parser: argparse.ArgumentParser) -> None:
@@ -34,7 +33,6 @@ def configure(parser: argparse.ArgumentParser) -> None:
 
 
 def participants(data: Any, seats: tuple[str, ...]) -> list[dict[str, Any]]:
-    """The Harbor `participants` list of a roster file, in seat order."""
     if not isinstance(data, dict) or ("participants" in data) == ("each" in data):
         raise InputError('the roster file needs "participants" or "each", and not both')
     each, listed = data.get("each"), data.get("participants")
@@ -64,6 +62,7 @@ def participants(data: Any, seats: tuple[str, ...]) -> list[dict[str, Any]]:
 
 def build(args: argparse.Namespace) -> dict[str, Any]:
     tasks = [roster.read_task(path) for path in roster.task_dirs(args.path)]
+    assert tasks
     for task in tasks:
         if set(task.seats) != set(tasks[0].seats):
             raise InputError(f"the tasks do not have the same seats: {tasks[0].path} and {task.path}")
@@ -95,7 +94,8 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
     outcome = runner.run_job(config, out.parent, harbor, timeout_sec=timeout, stem=f"{out.name}.")
     items = list(load.walk(out)) if os.path.isdir(out) else []
     trials = [item for item in items if isinstance(item, SeatTrial)]
-    valid, rewards = attribution.reward_means(trials)  # plain means: intervals and tests belong to tidegauge
+    valid, rewards = attribution.reward_means(trials)
+    assert 0 <= valid <= len(trials) <= len(items)
     return report | {
         "config": str(outcome.config),
         "log": str(outcome.log),

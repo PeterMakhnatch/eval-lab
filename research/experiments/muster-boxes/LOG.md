@@ -12,6 +12,15 @@ Times are New York time (ET). Newest entry first. Each entry says what is done a
 
 ## 2026-11-21
 
+**4:10 AM. Next real-agent experiment, proposed, not started (needs about $0.40 of DeepSeek budget).**
+`boxes` favors 1 agent, because 1 agent can hold the whole state. The pre-registered E4 (`ledger`, a hidden-
+profile task) tests the opposite case: each seat holds 1 of 3 warehouse ledgers, every item is in at least 2
+ledgers, and the first accepted answer is final. Arms `solo` (1 seat holds all 3 ledgers), `indep-3`,
+`team-3`, 10 instances x 2 attempts, the E1 roster. Primary effect: `solo` minus `team-3`, the cost of split
+information. Pass/fail test to fix before the run: the team pools well if `team-3` scores at least 2/3 of
+`solo` and the difference is resolved, and `premature` (an answer before every other seat's message was
+read) explains most team losses. I start it when the budget allows and Astra's claim is clear.
+
 **3:55 AM. tidegauge now lives in Eval Lab (`main` at `ee91f81ff`, $0).** Its GitHub repository was gone, and
 `~/Developer/tidegauge` was the only copy. Peter's rules put new systems in top-level Eval Lab packages.
 3 commits, landed with `make land` after `make gate` passed:

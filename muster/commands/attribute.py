@@ -1,8 +1,3 @@
-"""Read the jobs of a control matrix and print rewards, seat effects and findings.
-
-Exit status: 0 no finding with severity error, 1 at least one, 3 unusable input.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -16,7 +11,11 @@ from muster.commands import emit, names
 from muster.model import InputError, SeatTrial
 from muster.roster import NOP
 
-MANIFEST = "matrix.json"  # written by `muster matrix`; optional here
+DESCRIPTION = """Read the jobs of a control matrix and print rewards, seat effects and findings.
+
+Exit status: 0 no finding with severity error, 1 at least one, 3 unusable input."""
+
+MANIFEST = "matrix.json"
 
 text = attribution.text
 
@@ -34,7 +33,6 @@ def configure(parser: argparse.ArgumentParser) -> None:
 
 
 def report(directory: Path, exploits: Sequence[str] = (), null: str | None = None) -> dict[str, Any]:
-    """The attribution report of a matrix directory. Task facts come from its matrix.json when present."""
     directory = Path(directory)
     if not os.path.isdir(directory):
         raise InputError(f"{directory} is not a directory")

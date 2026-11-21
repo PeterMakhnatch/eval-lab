@@ -68,7 +68,6 @@ def parser() -> argparse.ArgumentParser:
     from evallab.results_parser import register_parser as register_results
     from evallab.reward_hack_parser import register_parser as register_reward_hack
     from evallab.score.parser import build_score_parser as register_score
-    from evallab.ship import register_parser as register_ship
     from evallab.tasks_parser import register_parser as register_tasks
     from evallab.trace_parser import register_parser as register_trace
     from evallab.view_parser import register_parser as register_view
@@ -97,7 +96,6 @@ def parser() -> argparse.ArgumentParser:
         register_failures,
         register_docker_lock,
         register_production,
-        register_ship,
     ):
         register(commands)
     return root

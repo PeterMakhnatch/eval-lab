@@ -1,32 +1,3 @@
-"""Per-trial treatment keys and capture records (HAR-93).
-
-A **treatment key** hashes every behaviour-relevant setting of one trial, read
-from the trial's own files: which task version it ran, where, with which agent
-and model weights, how the model was sampled, how the harness was configured,
-which tool-call parser sat between them, and which limits applied. Two trials
-may be pooled into one pass rate only if their setups agree field by field.
-``setup_key`` is the same hash without the task, so a cohort of tasks run
-under one setup shares a single ``setup_key``.
-
-A **capture record** says which evidence a trial left behind and how complete
-it is: trajectory head and continuation files, verifier output, rollout
-details, the proxy's per-call ledger, and whether the tokens the steps account
-for match the result totals and the ledger.
-
-Unknown is never zero: a value the trial's files cannot establish is ``None``
-and is listed in ``unknown_fields``. Settings that do not apply (a nop agent
-has no sampling) read :data:`NOT_APPLICABLE`.
-
-Code-derived fields (route sampling, serving pins, parser digest) are read at
-the Eval Lab commit recorded in ``lab-metadata.json``; a dirty or missing
-commit makes them unknown. Recording-only changes do not split a key: the
-repository commit itself is not a key field, source files are hashed as
-docstring-free ASTs, and ``harbor_terminus.py`` (which also writes the
-trajectory) is not hashed; the parser digest covers
-``src/evallab/mimo_tool_calls.py`` only. Field sources are documented in
-``docs/execution-tiers.md``.
-"""
-
 from __future__ import annotations
 
 import re

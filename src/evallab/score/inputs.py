@@ -32,7 +32,9 @@ def source(ref: dict, root: Path, *, optional: bool = False) -> Path:
     if not path.is_file() and optional:
         return path
     if digest(path) != ref["sha256"]:
-        raise ValueError(f"frozen input hash differs: {path}; refresh code pins with the uv run python command in docs/score.md#refresh-code-pins (never refresh data hashes)")
+        raise ValueError(
+            f"frozen input hash differs: {path}; verify changed source and preserve data pins"
+        )
     return path
 
 

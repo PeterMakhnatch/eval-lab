@@ -1,17 +1,3 @@
-"""Host-wide FIFO slot lock for shared local Docker (``evallab docker-lock``).
-
-Several agent tabs on one Mac share the local Docker daemon. This module
-provides an advisory, host-wide FIFO queue: cooperating callers enqueue and
-only the first ``slots`` entries run at once, in strict queue order. State
-lives in ``$EVALLAB_DOCKER_LOCK_DIR`` or ``~/.cache/evallab/docker-lock/`` so
-every process, tab, and worktree on the machine contends on the same files.
-
-Queue mutations are serialised with ``fcntl.flock`` on a mutex file and the
-queue file itself is replaced atomically. Entries whose pid is dead or whose
-heartbeat is older than the TTL are pruned, so a crashed holder cannot pin a
-slot forever. See ``docs/execution-tiers.md``.
-"""
-
 from __future__ import annotations
 
 import argparse

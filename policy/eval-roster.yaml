@@ -3,7 +3,7 @@
 # The values below remain unchanged for provenance; do not copy them into live
 # queue/canary settings merely to make the advisory roster comparison pass.
 # Current selections require Peter's explicit approval and the existing policy
-# gates. See agents/CONTEXT-HUB.md §7 for the reconciliation procedure.
+# gates.
 version: 1
 updated: 2026-09-03
 updated_by: peter

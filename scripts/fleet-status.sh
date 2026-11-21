@@ -6,13 +6,6 @@
 #
 #   scripts/fleet-status.sh
 #
-# Testability seams (tests/test_fleet_status.py): every external command and
-# path is overridable, so tests inject canned git/gh output and a fixture
-# repo — no host branches, no network, no gh auth.
-#   FLEET_GIT   git executable            (default: git)
-#   FLEET_GH    gh executable, "" = none  (default: gh)
-#   FLEET_ROOT  repository root           (default: script's parent repo)
-#   FLEET_STALE_HOURS  active-mission staleness threshold (default: 48)
 set -uo pipefail
 
 GIT="${FLEET_GIT:-git}"

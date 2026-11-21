@@ -1,30 +1,3 @@
-"""Live run monitoring for in-progress Harbor trials (Traces lane).
-
-Nothing reads traces while runs are in progress today: the per-call model
-proxy ledger lives in a private tempdir that is deleted after the run, and
-the runner only reads it once at the end. This watcher is strictly
-read-only -- it never touches ``runner.py``, the proxy, or any trial file.
-Terminus-2 rewrites ``agent/trajectory.json`` after every episode, so
-trajectories are live-readable; ``result.json`` appears only at the end.
-
-Signals reuse the existing deterministic detectors wherever possible:
-
-* upstream acquisition: :func:`evallab.upstream_fetch.assess_upstream_fetch`
-  plus :func:`~evallab.upstream_fetch.confirmed_fetch`;
-* repo edits: :func:`evallab.token_flow._is_edit`,
-  :func:`~evallab.token_flow._touched_paths` and
-  :func:`~evallab.token_flow._is_ephemeral_only` (imported, not copied, so
-  detector fixes flow through);
-* identical-command runs: per-step commands via
-  :func:`evallab.traj.extract_loop_step`, the same extractor the typed
-  trajectory outline uses.
-
-What this watcher cannot see (needs Engineering): per-LLM-call proxy usage
-(tokens, cost, model identity) while the run is in progress. The proxy
-ledger would have to be published to the trial dir -- e.g. an append-only
-``calls.jsonl`` -- for full proxy observability. See ``docs/live-watch.md``.
-"""
-
 from __future__ import annotations
 
 import argparse

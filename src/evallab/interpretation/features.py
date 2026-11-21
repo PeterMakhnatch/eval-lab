@@ -1,22 +1,3 @@
-"""Per-trial feature table: one deterministic row per Harbor trial.
-
-``evallab features`` reuses the existing detectors -- it implements no new
-detection logic of its own:
-
-* per-trial signals (:func:`evallab.live_watch.trial_signals`): steps,
-  episodes, token sums, first repo edit, upstream attempts, identical runs;
-* repo-edit detector (:mod:`evallab.token_flow`, via live_watch);
-* command verbs (the quote-aware segment/program splitters in this module);
-* loop onset (:func:`evallab.token_flow.analyze_token_flow`);
-* copy taint (:func:`evallab.copy_check.copy_check`) folded into the
-  :func:`evallab.counts.classify_counts` verdict;
-* stop reason (:func:`evallab.step_layers.classify_stop_reason`) with the
-  binding ceiling from :func:`evallab.probe03.ceiling_which`.
-
-Everything else in this module is mechanical projection (regexes over
-observation text are documented in ``docs/analysis-loop.md`` trust notes).
-"""
-
 from __future__ import annotations
 
 import csv

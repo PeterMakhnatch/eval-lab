@@ -14,14 +14,8 @@ streaming for evaluable workloads.
 - `containers/zai_secret_proxy.py`: Credential proxy runtime for ZAI workloads.
 
 ## Invariants or rules
-- Committed runtime definitions: Service container sources are committed, reviewed Platform definitions, not generated state (cited in `agents/STRUCTURE.md`).
 - Hidden verifier inputs: Do not place secret credentials, test suites, or solutions in an evaluated agent's environment image (cited in `AGENTS.md`).
-- Network isolation: Secret proxies isolate credentials across internal networks (cited in `docs/execution-tiers.md`).
-
-## Tests or checks
-- `uv run pytest tests/test_harbor_host_isolation.py`
-- `uv run pytest tests/test_state_events.py`
-- `uv run pytest tests/test_harbor_deepseek.py`
+- Secret proxies isolate credentials across internal networks.
 
 ## What not to add here
 - Do not store task-specific sandbox images or task definitions here; use `library/tasks/`.

@@ -1,39 +1,30 @@
-.PHONY: help sync check prepush premerge smoke smoke-ci db-up db-down db-init doctor controls ingest summarize loop line-replay line-gate
+.PHONY: help sync gate land smoke db-up db-down db-init doctor controls ingest summarize line-replay line-gate
 
 help:
 	@echo "sync       Install locked Python dependencies"
-	@echo "check      Run static gates only (no tests; not CI green)"
-	@echo "prepush    Before every push: automatic checkpoint, or TESTS='tests/test_foo.py [pytest args]' (not CI green)"
-	@echo "premerge   Explicit full Python 3.12 CI reproduction"
+	@echo "gate       Run local checks and deterministic simulation"
+	@echo "land       Rebase, run the gate, and push to main under the landing lock"
 	@echo "smoke      Run the full local doctor/Harbor/Postgres/Parquet/digest smoke"
-	@echo "smoke-ci   Run the Docker-free smoke subset with real queue and Parquet"
 	@echo "db-up      Start local PostgreSQL"
 	@echo "db-down    Stop local PostgreSQL (preserves volume)"
 	@echo "db-init    Apply the idempotent database schema"
 	@echo "controls   Run Oracle and no-op controls"
 	@echo "ingest     Ingest raw and curated Harbor jobs"
 	@echo "summarize  Print a Markdown result table"
-	@echo "loop       Run targeted tests for changed modules in the working tree"
 	@echo "line-replay Run the frozen replay-v1 assembly-line gate (exit 77 = data missing, skipped)"
-	@echo "line-gate   Compare base/head full DEV line; ARGS='--pr N --output PATH' (0 pass, 1 block, 2 error)"
+	@echo "line-gate  Compare base/head full DEV line; ARGS='--output PATH' (0 pass, 1 block, 2 error)"
 
 sync:
 	uv sync --frozen
 
-check:
-	scripts/premerge.sh --static
+gate:
+	scripts/gate
 
-prepush:
-	scripts/premerge.sh --focused $(TESTS)
-
-premerge:
-	scripts/premerge.sh
+land:
+	scripts/land
 
 smoke:
 	uv run python -m evallab.smoke
-
-smoke-ci:
-	uv run python -m evallab.smoke --docker-free
 
 db-up:
 	docker compose up -d postgres
@@ -55,9 +46,6 @@ ingest:
 
 summarize:
 	uv run evallab summarize runs research/evidence/runs
-
-loop:
-	uv run evallab registry devloop --run
 
 line-replay:
 	uv run python scripts/line-replay.py $(LINE_REPLAY_ARGS) $(if $(J3_CACHE),--j3-cache "$(J3_CACHE)") $(if $(GOODFIRE_REVIEW_FLOOR),--goodfire-review-floor "$(GOODFIRE_REVIEW_FLOOR)")

@@ -1,32 +1,3 @@
-"""Derived task variants with content-addressed lineage (schema ``evallab.task_variant/v1``).
-
-Every modified task — a GEPA/DSPy instruction rewrite, a hand fix of a broken
-verifier — becomes a *variant*: a full derived package plus a git-tracked
-lineage record linking it to its parent. The original task stays untouched and
-remains the control; the variant is the treatment.
-
-Storage split (see docs/task-quality.md and docs/data-architecture.md):
-
-- ``library/task-variants/<task_slug>/<digest12>.json`` — the lineage record,
-  git-tracked and reviewable. Small, because it stores only the *changed*
-  files inline.
-- ``<shared derived root>/task-store/variants/<task_slug>/<digest12>/`` — the
-  materialized package, rebuildable from the parent bytes plus the record, so
-  it is never edited in place and lives outside Git (all of ``derived/`` is
-  already gitignored).
-
-Integrity model: ``derive_task`` computes the variant package digest with
-``evallab.registry.task_directory_digest`` — the same authority
-``task_candidate`` and GEPA use. The record pins that digest plus per-file
-before/after digests; ``materialize`` proves the invariant (parent bytes +
-record files reproduce the digest exactly), and ``verify`` re-checks parent,
-files and package against bytes.
-
-Rejects: binary or >1 MiB changed files, symlinks anywhere in the parent,
-relative paths that escape the package, deletions of files the parent does
-not have, and no-op derivations (variant digest == parent digest).
-"""
-
 from __future__ import annotations
 
 import hashlib

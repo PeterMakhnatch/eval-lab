@@ -1,40 +1,3 @@
-"""CRAFT: the deterministic half of the task-corpus analyzer (WS-A).
-
-Purpose: make eval design patterns queryable. `craft scan` reads task
-directories and emits one `CraftRecord` per task to Parquet at
-`derived/parquet/craft/`, from which `sql/craft_views.sql` builds the DuckDB
-views the rest of WS-A/B/D consume.
-
-Three rules shape every decision in this module, and they outrank coverage:
-
-1. **Never guess a facet.** A field this module cannot establish from the bytes
-   on disk is `None`, and the record says which fields those were
-   (`unresolved_facets`) so a sparse column is legible instead of suspicious. A
-   confidently wrong facet distribution would be worse than a sparse one,
-   because the whole point of the corpus is to answer "what do these verifiers
-   actually do" without a human re-reading 551 task directories.
-2. **Structure, not text.** Verifier detection parses Python test modules with
-   `ast`, lexes shell verifiers with `shlex` (comments stripped, so a `pytest`
-   mentioned in a comment is not evidence), parses `package.json` as JSON, and
-   matches candidate reference artifacts against the actual `tests/` file
-   inventory. Substring search over source text is not used to decide a facet.
-3. **Read-only over the corpus.** Scanning never writes inside a scanned root,
-   and no task bytes are copied out: a record references its task by
-   `task_ref` plus `task_digest`, never by content.
-
-`craft classify` (the LLM facet pass) and `craft patterns` are deliberately not
-here. Classify submits through the queue and must carry `purpose="craft"` once
-`ExperimentSpec.purpose` becomes required (WS-E item 1); patterns depends on
-classify for several facets. See `docs/SYSTEM.md` for the facet-by-facet split
-between what this module determines and what genuinely needs the model.
-
-Entry point: `python -m evallab.craft scan --tb3` (or `--tb4` for the pinned
-v4.0.0 lane), `python -m evallab.craft plan --tb4` for the read-only
-migration inventory, and `python -m evallab.craft compile --tb4-root <v4>` for
-the executable pinned TB4 Harbor job plan. CLI wiring into `evallab craft ...`
-is described in `docs/SYSTEM.md`; use the standalone module entry above.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -74,9 +37,6 @@ FACETS_SCHEMA_VERSION = "craft/1"
 #: prompt context window limits when classify is extended to LLM passes.
 DEFAULT_BATCH_SIZE: int = 10
 
-#: Where the TB3 corpus lives on this workstation. Injectable (env var, then
-#: `--tb3-root`) because `agents/CHECKS.md` forbids tests that depend on a
-#: developer's host layout.
 TB3_ROOT_ENV = "EVALLAB_TB3_ROOT"
 DEFAULT_TB3_ROOT = Path("~/Developer/lab-extras/data/agent-evals/terminal-bench/tasks")
 
@@ -324,9 +284,6 @@ _LANGUAGE_BY_SUFFIX: dict[str, str] = {
     ".scss": "css",
 }
 
-#: Facets this module never fills, with the reason each is out of deterministic
-#: reach. Recorded on every row so the null is self-explaining in the data, not
-#: only in a document. Keep in sync with the table in `docs/SYSTEM.md`.
 LLM_ONLY_FACETS: dict[str, str] = {
     "instruction_style": (
         "rhetorical register (imperative|narrative|spec) is a judgement about "
@@ -344,25 +301,6 @@ LLM_ONLY_FACETS: dict[str, str] = {
 
 
 class CraftRecord(ContractModel):
-    """One task's deterministic facets.
-
-    Fields follow the CRAFT contract in `docs/SYSTEM.md`. Three columns extend
-    that list, each forced by rule 1 or rule 2 above and marked here:
-
-    - `verifier_signals` — the mechanism families actually observed. Without it,
-      `verifier_type` is an unsourced label, and the `unit_js` mechanism the
-      spec's enum cannot name would be invisible.
-    - `unresolved_facets` — which columns are null *because they are
-      undeterminable*, so `GROUP BY` can separate that from "absent from this
-      task". Rule 1 requires the record itself to say so.
-    - `base_image_pin` — how the environment's base image is referenced.
-      `pinned_deps` is one bit about package versions and cannot also carry it,
-      and reproducibility of the image is the question the column exists for.
-
-    There is deliberately no timestamp column: a scan-time field would change
-    every row on every run and destroy the idempotence guarantee.
-    """
-
     task_ref: str
     source_repo: str
     version: str | None = None

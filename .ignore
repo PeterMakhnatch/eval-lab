@@ -1,14 +1,11 @@
 # Archive directories excluded from default search. They remain readable
 # by direct path and searchable with ripgrep via --no-ignore.
-agents/archive/
-docs/archive/
 research/archive/
 
 # Sealed material (answer keys, TEST/held-out split files and rows derived from
 # them) is hidden from default agent searches (rg, fd, OMP grep/glob) so a broad
 # search cannot put it into a model's context. This is NOT an access control:
-# direct path reads, git and `rg --no-ignore` still reach it. `evallab.governance
-# check` fails when a tracked sealed path is not matched here (SEALED_PATH_RULES).
+# direct reads and --no-ignore still reach it. The local gate checks coverage.
 research/answer-keys/
 research/datasets/*/test.jsonl
 research/datasets/qa-trace-sft-v0/baseline-results.json

@@ -9,11 +9,8 @@ for systematic agent and task evaluation.
 - `grids/event-summary-elicitation.yaml`: Example elicitation experiment grid definition across task refs, agent controls, and preamble variations.
 
 ## Invariants or rules
-- Declared experiment inputs: `grids/` holds declared experiment grid specs defining axes, constraints, and budget ceilings (cited in `agents/STRUCTURE.md`).
 - Controlled expansion: Grid expansion respects defined constraints and daily budget unit ceilings.
 - One variable at a time: Grid specifications structure parameter variations systematically across tasks and models (cited in `AGENTS.md`).
-
-## Tests or checks
 
 ## What not to add here
 - Do not store expanded run manifests or raw evaluation outputs here; use `runs/` or `research/evidence/`.

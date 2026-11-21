@@ -431,14 +431,6 @@ class DigestRenderer:
         return database.canary_drift_observations(database_url_from_environment(), day)
 
     def _load_preflight(self) -> PreflightReport:
-        """The default preflight for this checkout, read from disk only.
-
-        The one clock read in the renderer, and the only reason it is here
-        rather than in `preflight.py`: staleness needs a `now`, and every test
-        injects `preflight_loader` to fix it (`agents/CHECKS.md`). Nothing in
-        this path opens a socket, spawns a process, or spends anything —
-        `provider_reported_exhaustion` reads the `Headroom` it is handed.
-        """
         return build_preflight_report(
             self.repo_root,
             now=datetime.now(UTC),

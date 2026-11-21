@@ -132,15 +132,6 @@ def canonical_grid_point_id(
     return f"sha256:{hashlib.sha256(encoded).hexdigest()}"
 
 
-#: Why a spec exists. Required on every ``ExperimentSpec``, because until now
-#: nothing recorded *intent*: the queue could be listed but never grouped,
-#: budgeted, or reasoned about by what the lab was trying to learn
-#: (``docs/SYSTEM.md``, "Experiment purpose"; the exact value set stays unchanged).
-#:
-#: The taxonomy is Peter's. Do not add a member to make a call site fit — an
-#: ill-fitting call site is a finding to report, because a purpose is read as
-#: research intent by ``evallab preflight`` and by purpose-scoped budgeting,
-#: and a value invented to silence a constructor quietly corrupts both.
 ExperimentPurpose = Literal[
     "baseline",
     "comparison",
@@ -749,14 +740,6 @@ class ExperimentMatrix(ContractModel):
     # Requiring the field here would invalidate all five committed matrices to
     # record a value no reader consults.
 
-    # A matrix is not built from ``ExperimentSpec`` — ``runner.request_from_matrix``
-    # expands it straight into ``RunRequest`` objects (``runner.py:710-716``), and
-    # ``runner.load_matrix`` validates it from its own file. So ``jobs_dir`` is
-    # declared twice, and every rule on it has to be applied twice or the two
-    # contracts drift. This class carried *no* path validation at all: it accepted
-    # ``/etc`` and ``../../escape``, which ``runner.py:716`` resolves outside the
-    # repository, against ``agents/WORKFLOW.md`` ("never point jobs_dir outside
-    # your worktree"). The shared validator closes that too.
     @field_validator("jobs_dir")
     @classmethod
     def jobs_dir_is_a_readable_root(cls, value: str) -> str:
@@ -844,7 +827,6 @@ class StandingApprovalsPolicy(ContractModel):
     #: reason code `subscription_quota_ceiling`, kept deliberately distinct from
     #: the provider's own `subscription_quota_exhausted` so `queue/reasons/`
     #: never records a lab policy as the provider's statement
-    #: (`docs/operations.md`; PR #70).
     #:
     #: `None` is the unset state and must stay loadable: this model forbids
     #: extras, and the committed YAML omits the key, so a non-optional field

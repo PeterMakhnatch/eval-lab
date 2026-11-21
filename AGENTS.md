@@ -1,98 +1,58 @@
 # Eval Lab instructions
 
-Eval Lab preserves immutable task versions and raw execution evidence.
-Use this path for a normal code change. Read only the selected domain manual.
+## Engineering rules
 
-## Change path
+- Do not write repository unit tests. Add deterministic simulation scenarios and invariants instead. Preserve benchmark graders and reference controls.
+- Use seeded, single-threaded simulation. Simulate time and randomness. Inject faults at external service boundaries. Record every failing seed and replay it in every gate.
+- Do not add code comments or docstrings. Keep functional directives, shebangs, and license notices. Express critical assumptions as assertions.
+- Use [TigerStyle](https://github.com/tigerbeetle/tigerbeetle/blob/main/docs/TIGER_STYLE.md). Assert preconditions, postconditions, and invariants. Bound loops and queues. Prefer simple control flow. New functions must have at most 70 lines.
+- Use the standard library or small in-repo code. Keep essential native and service dependencies. Get Peter's approval before adding a dependency. Keep hashes locked and apply the release-age delay.
+- No documentation directories, repository skill directories, or nested agent instructions. This file is the only agent-facing instruction file.
+- Put new systems and infrastructure in top-level packages in this repository, never in new repositories. Update the placement list when you add a root.
+- Use Python for application code, adapters, verifiers, and first-party task authoring. Shell, SQL, Dockerfiles, and configuration are allowed.
 
-Keep the primary checkout on `main`. Never edit or run checks from a dirty primary.
-Keep the controlling shell outside the topic worktree so ship can retire it.
-Replace the angle-bracket values before running these commands.
+## Change and land
 
-1. Fetch and create an owned topic worktree and a detached delivery worktree:
-   ```sh
-   git -C ~/Developer/eval-lab fetch origin
-   git -C ~/Developer/eval-lab worktree add -b <topic> ~/Developer/eval-lab/.worktrees/<topic> origin/main
-   git -C ~/Developer/eval-lab worktree add --detach ~/Developer/eval-lab/.worktrees/<topic>-delivery origin/main
-   ```
-2. Install an isolated locked environment in each worktree:
-   ```sh
-   cd <worktree> && uv sync --locked --no-group observability --group benchmarks --group inspect
-   ```
-   Run repository commands inside the owned worktree, not the primary checkout.
-3. Read the affected package instructions, then exactly 1 manual from the table below.
-   Core changes also read `src/evallab/AGENTS.md`. Read placement rules only when adding or moving files.
-4. Edit the scoped files and inspect their direct consumers. Stage and commit only your paths:
-   ```sh
-   git add -- <owned-paths>
-   git commit -m '<complete change summary>' -- <owned-paths>
-   ```
-5. Run the focused checkpoint before every push, then push 1 head per fix:
-   ```sh
-   make prepush TESTS='<affected test selectors>'
-   git push -u origin <topic>
-   ```
-   Without a selection, prepush selects affected tests. It checks committed HEAD; commit fixes before later checkpoints.
-6. Create the PR with its complete title and body once:
-   ```sh
-   uv run --no-sync evallab ship open --title-file <title-file> --body-file <body-file>
-   ```
-   Immediately run preflight from the detached delivery worktree:
-   ```sh
-   cd <delivery-worktree> && uv run --no-sync evallab ship <PR> --preflight-only
-   ```
-7. Add later evidence with a comment, then read exact-head CI before another push:
-   ```sh
-   uv run --no-sync evallab ship comment <PR> --body-file <evidence-file>
-   ```
-   Do not edit the title/body or update the base without a real need. See `agents/CHECKS.md`.
-   ```sh
-   gh pr checks <PR> --watch
-   ```
-   Every reported check must succeed. `agents/CHECKS.md` owns the gate contract and deterministic-test rules.
-8. Refresh the detached delivery worktree to `origin/main`, then run there:
-   ```sh
-   git fetch origin
-   git checkout --detach origin/main
-   uv sync --locked --no-group observability --group benchmarks --group inspect
-   uv run --no-sync evallab ship <PR> --no-rerun-failed-once --smoke 'uv run --locked evallab --version'
-   ```
-   Ship proves the merged revision and retires the topic. Remove the detached delivery worktree with plain Git.
-   A failed check or smoke remains author-owned work. See the delivery manual for recovery.
+1. Keep the primary checkout on `main`. Create an owned branch and Git worktree from current `origin/main`. Work only in that worktree.
+2. Run `make sync`. Edit only the assigned scope. Do not reset, stash, overwrite, or delete another writer's work.
+3. Run `make gate`. For a failing simulation seed, reproduce it with `uv run python -m evallab.sim check` and retain its regression entry.
+4. Commit only your changes. Run `make land` from the clean worktree. It serializes landing, rebases onto `origin/main`, runs the gate, and pushes to `main`.
 
-## Domain router
+On demand:
+- `scripts/gates/lessons` checks statistical evidence, lineage, and freshness.
+- `make line-replay` runs the frozen detector replay. For changes that affect Line decisions, run `make line-gate` with the private replay set. Missing data is not a pass. Use `make line-gate ARGS=--paths` for path discovery only.
+- `make smoke` checks the local services and execution path. `make controls` runs local Oracle and nop controls. Use both only in an owned environment.
+- `uv run python -m evallab.sim hunt --seconds N` searches for new failing seeds. Set a bounded time budget.
 
-Implementation paths in the second column start at `src/evallab/`.
-The table selects 1 manual, not every linked manual.
+## Placement and contracts
 
-| Domain | Implementation entry | Read |
-|---|---|---|
-| CLI and execution | `entry.py`, `cli.py`, `execution_contracts.py`, `runner.py`, `queue.py` | `docs/execution-tiers.md` |
-| Tasks and certification | `registry.py`, `task_lint.py`, `gold_certifier.py`, `qa/task.py` | `docs/task-quality.md` |
-| Evidence and storage | `evidence/atif.py`, `database.py`, `process_job.py`, `storage/paths.py` | `docs/data-architecture.md` |
-| Offline detection | `line/cli.py`, `line/core.py`, `hack_drop.py`, `trajectory_ir.py` | `docs/line.md` |
-| Online monitoring | `live_watch.py`, `production/monitor_worker.py`, `production/window_cascade.py` | `docs/live-watch.md` |
-| Gold and scoring | `gold/`, `failure_library/bank/`, `score/inputs.py`, `score/metrics.py` | `docs/score.md` |
-| Local checks and delivery | `devloop.py`, `ship/`, `scripts/premerge.sh` | `docs/ship.md` |
+- `src/` holds the platform. Register CLI routes in domain parser modules, not `cli.py`. Keep expensive imports in command handlers. Report usage errors without a traceback.
+- Keep existing module placement unless the change specifies a migration. Do not create parallel implementations in reserved namespaces.
+- `src/evallab/data/` contains small, immutable runtime assets. Do not store downloads or local state there.
+- `src/evallab/evidence/` validates ATIF and extracts deterministic facts. Never run models or interpret results there. Interpretation cites bounded, immutable evidence. Machine judgments are not acceptance decisions.
+- `src/evallab/schemas/` holds strict, side-effect-free contracts. Preserve persisted formats unless you explicitly version or migrate them. `sql/schema.sql` owns the catalog schema. Ingestion is deterministic and idempotent.
+- `src/evallab/storage/paths.py` owns storage paths and zones. Attachment and disposition give explicit reasons. Recovery records redact secrets before serialization and hashing; missing required evidence blocks certification.
+- `library/` holds versioned task supply. Never change registered task bytes or pinned verifier payloads in place. Make a new version. Preserve imported benchmark contracts.
+- `research/` holds studies and their provenance. Cite the source runs and corpus digest. Preserve frozen prompts, thresholds, labels, cohorts, and held-out exclusions unless the change explicitly authorizes them.
+- `policy/` holds operating policy and gate inputs. `scripts/` holds operator commands. `sql/` holds the schema and views. `containers/` holds service definitions.
+- `tools/` holds isolated, locked uv projects that the platform invokes as subprocesses. Do not import them into the platform. `authoring/` holds templates; `grids/` holds declared experiment inputs; `digests/` holds curated reports.
 
-Placement: `agents/STRUCTURE.md` owns repository buckets; `docs/SYSTEM.md` owns code and evidence boundaries.
-Coordination: `agents/WORKFLOW.md` owns handoffs; `agents/OWNERS.md` routes responsibility, not contact permission.
-Product orientation: `docs/NOW.md` is optional background, not another required code-change router.
-Pass the relevant rules explicitly to task workers. They do not inherit instruction bodies.
+## Execution and spend
 
-## Never
+- Read `task.toml`, `environment/Dockerfile`, and `policy/standing-approvals.yaml` before any trial. Check the task, harness, model, and backend together.
+- On Apple Silicon, tasks with GPUs or memory above the current Docker VM limit need a remote backend. An explicit `linux/amd64` image runs under emulation.
+- Treat tasks above 8 GiB of memory or at least 3 hours of agent time as local-heavy. Do not use them as canaries. Check actual capacity before dispatch.
+- Run free, bounded local Oracle and nop controls without model credentials. Oracle and nop measure validity, not model capability. Do not run local generative inference.
+- Get current authorization for paid calls, remote compute, shared service changes, task registration, and external publication. Credentials, old caps, and a successful land are not authorization. Do not relax the standing policy.
+- Use a bounded watchdog, exact resource limits, approved isolation, and a fresh workspace per trial. Do not retry on a different backend after execution starts.
+- For a paid campaign, use one persistent spend ledger and uniquely tagged owned resources. Reserve costs before allocation. Do not treat unknown billing or cleanup state as zero.
+- Pin the task version, agent/model, Harbor revision, and changed variable. Do not expose hidden tests, solutions, or sealed data to the evaluated agent.
+- Report missing rewards, timeouts, and infrastructure errors as unmeasured, not as reward zero. Do not start a paid run to verify a code change without approval.
 
-- Never reset, stash, overwrite, or delete another writer's changes or unique ignored evidence.
-  `docs/GENERATED-CACHE-POLICY.md` owns retention, including raw jobs, evidence CAS, queue events, backups, and drafts.
-- Never bypass CI or branch protection with `--admin`, a direct merge, or fabricated evidence.
-  Ship selects the base-owned Line DEV gate from `agents/ship-gates.toml`; missing replay data blocks delivery.
-- Never change frozen prompts, thresholds, Gold rows, score contracts, DEV decisions, or held-out exclusions without the assigned authority.
-  Do not open sealed held-out payloads or expose hidden tests and solutions to the evaluated agent.
-- Never treat credentials, an old cap, a merge, or an oracle/nop result as paid-run authority or model-capability proof.
-  Before a trial, read the execution manual's policy and selected backend/agent sections.
-  Peter controls paid calls, remote compute, shared-service changes, task registration, and external publication.
-  Do not loosen `policy/standing-approvals.yaml` or run local generative-model inference on Peter's laptop.
-- Never edit registered task bytes in place. Create a new version. Preserve imported benchmark contracts.
-- Never commit secrets, runtime credential databases, volumes, unredacted private prompts, or arbitrary large run directories.
-- Never add an incidental language or package migration. Application code, adapters, verifiers, and first-party task authoring use Python.
-  Shell, SQL, Dockerfiles, and configuration are allowed. Keep deterministic SQL ingestion and immutable raw source authority.
+## Evidence retention
+
+- Raw Harbor jobs, registered task versions, and promoted evidence are immutable. `evallab process-job` publishes finished jobs under `~/Developer/eval-lab-results/` outside worktrees.
+- Preserve unique raw jobs in `runs/`, durable blobs in `derived/evidence-cas/`, queue leases and append-only events in `queue/`, backups, and drafts. Ignored paths are not disposable.
+- Remove a projection only when the source bytes and exact regeneration procedure are available. Do not assume model judgments can be regenerated.
+- Never commit secrets, runtime credentials, volumes, unredacted private prompts, or arbitrary raw run directories. Put small approved immutable evidence under `research/evidence/`.
+- Retire a worktree only when it is clean, unlocked, inactive, and not in use by a service. Verify its commits and unique ignored evidence survive elsewhere. Never force removal or purge a whole evidence root.

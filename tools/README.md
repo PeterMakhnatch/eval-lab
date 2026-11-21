@@ -26,8 +26,6 @@ subdirectory pins its own dependencies with its own committed `uv.lock`.
   subprocess through `uv run --project <dir> --locked` only.
 - These projects are never workspace members of the root `pyproject.toml`;
   the root `uv.lock` must not change when one is added or relocked.
-- Adding a new toolchain here needs a bucket justification in
-  `agents/STRUCTURE.md`.
 
 ## Tests or checks
 

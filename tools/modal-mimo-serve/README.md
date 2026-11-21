@@ -1,6 +1,6 @@
 # tools/modal-mimo-serve
 
-Serves `XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B` on Modal with SGLang. Eval Lab reaches this backend through the host-side `mimo_selfhosted` proxy, using either Terminus-2 or Xiaomi's native `mimoagent` controller (see `docs/execution-tiers.md`).
+Serves `XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B` on Modal with SGLang. Eval Lab reaches this backend through the host-side `mimo_selfhosted` proxy, using either Terminus-2 or Xiaomi's native `mimoagent` controller.
 
 ## Source configuration
 
@@ -40,12 +40,6 @@ remote guard, detached watchdog and in-container kill, so the hold cannot
 extend past the admitted deadline. Use one owned campaign allocation, retain
 scale-to-zero after failure, and explicitly stop/verify zero on drain.
 Idle-window behavior through long tool gaps needs live measurement.
-
-The [HAR-192 design and cost table](../../docs/execution-tiers.md#cheap-campaign-execution-har-192-source-not-deployment)
-compare Runpod A100 + unchanged Daytona against Modal A100 + locked Docker on
-CCX63. Runpod's 100-second HTTP proxy is unsuitable for the native read timeout;
-the design uses authenticated direct TCP/SSH-to-loopback instead. The combined
-paid screen is capped at $2 and **has not run**. No serving deployment changed.
 
 The reference profile explicitly marks `server.reasoning_parser` **unsourced**:
 the upstream rollout configs name no server reasoning parser. The existing

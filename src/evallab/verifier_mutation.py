@@ -81,7 +81,6 @@ _CAPTURE_HOST = ("artifacts", "logs", "artifacts", "envcheck-capture")
 MAX_FILE_BYTES = 262_144
 #: Directory targets contribute at most this many files.
 MAX_FILES_PER_TARGET = 12
-#: ``run_matrix`` posture for local controls (docs/execution-tiers.md: <= 2 concurrent).
 MAX_WORKERS = 2
 
 _SKIP_PARTS = frozenset(

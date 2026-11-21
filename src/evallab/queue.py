@@ -201,17 +201,6 @@ def standing_rule_admits(rule: AutoRunRule, spec: ExperimentSpec) -> bool:
 # is the one-way link: the gate reads the measurement, shows it to whoever is
 # authorising, and refuses only what the *provider itself* says cannot run.
 #
-# Read `docs/quota-accounting.md`, "Intended integration, not performed here".
-# It names two traps and both are honoured below:
-#   1. `headroom.availability` is checked before any percentage is read, because
-#      an unavailable headroom carries `None` in every numeric field and reading
-#      `None` as "plenty left" reproduces the original defect in a new unit.
-#   2. `since()` drops trials with no recorded start, so a window count is a
-#      lower bound. Nothing here counts trials, precisely because a lower bound
-#      cannot support a ceiling that has to bind.
-
-#: Supplies the most recent provider quota snapshot. Injected, so the gate
-#: reads no filesystem and no clock of its own (`agents/CHECKS.md`).
 HeadroomReader = Callable[[], Headroom]
 
 QUOTA_READER_UNCONFIGURED_REASON = (
@@ -230,8 +219,6 @@ QUOTA_UNKNOWN_WARNING = (
     "before authorising."
 )
 
-#: Why a stale reading warns instead of refusing. Argued in
-#: `docs/operations.md`, "What the quota gate does and does not decide".
 QUOTA_STALENESS_NOTE = (
     "a stale reading warns; it never refuses. The reading exists only because a "
     "paid trial recorded it, so refusing on age would make the first paid run "
@@ -313,22 +300,6 @@ def provider_reported_exhaustion(headroom: Headroom) -> str | None:
 
 
 def lab_threshold_reached(headroom: Headroom, *, threshold: float | None) -> str | None:
-    """Whether a Sponsor-set `used_percent` threshold has been reached.
-
-    `threshold` is `StandingApprovalsPolicy.refuse_billable_at_used_percent`,
-    governed by `policy/standing-approvals.yaml` (currently committed at 80%,
-    raised from the original 60% baseline). It is passed in rather than read
-    here: the value is policy, and a function that loaded it itself would put a
-    filesystem read inside a pure predicate (`agents/CHECKS.md`,
-    deterministic-test rule).
-
-    Keyword-only on purpose. A positional float would let a future caller pass
-    the wrong number silently, and it makes every call site greppable.
-
-    Kept separate from :func:`provider_reported_exhaustion` so a lab policy is
-    never recorded as the provider's statement. Trap one is honoured here too:
-    `availability` is checked before `used_percent` is read.
-    """
     if threshold is None or headroom.availability != "observed":
         return None
     if quota_window_expired(headroom) or headroom.used_percent is None:

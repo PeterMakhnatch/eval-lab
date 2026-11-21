@@ -488,7 +488,7 @@ def drop_reason(path: str, hidden_paths: Collection[str]) -> str | None:
 # compared from the right at '/' or '.' boundaries (either side may carry an
 # extra prefix), plus exact class-chain and test-name agreement (parametrize
 # ids keep the @3 prefix rule). No @2/@3 symbol or template byte changes, so
-# @2/@3 records stay valid. See docs/mimo/separate-verifier.md.
+# @2/@3 records stay valid.
 
 #: Transform id recorded in lineage.
 
@@ -571,8 +571,7 @@ def collect_verifier_setup_files(parent_dir: Path | str) -> dict[str, bytes]:
 # build-env wrappers whose real command resolves only at grade time).
 #
 # Semantics change vs @2, so this is a new transform id; no @2 symbol or
-# template byte changes, and @2 records stay valid. See
-# docs/mimo/separate-verifier.md for the per-language table.
+# template byte changes, and @2 records stay valid.
 
 #: Transform id recorded in lineage.
 
@@ -650,10 +649,6 @@ def is_v3_new_infra(path: str, *, in_base: bool) -> bool:
     return any(rx.search(path) for rx in _V3_BUILD_OUTPUT_RES_COMPILED)
 
 
-#: Tracked configs reverted to BASE when the kept change's changed lines
-#: touch runner keys: (rule label, basenames, key regex). An honest fix
-#: never flips these keys (false positives measured against reference
-#: fixes; see docs/mimo/separate-verifier.md).
 V3_CONFIG_HUNK_RULES: tuple[tuple[str, tuple[str, ...], str], ...] = (
     (
         "package.json runner key",
@@ -701,11 +696,6 @@ def v3_config_revert_reason(path: str, changed_lines: str) -> str | None:
     return None
 
 
-#: Cross-language tamper signatures gated on added lines of the kept agent
-#: change (universal: any path). Extends :data:`TAMPER_SIGNATURES`; every
-#: entry is valid both as Python ``re`` and as ERE for the grader's
-#: embedded python gate. False positives measured against reference fixes
-#: (docs/mimo/separate-verifier.md).
 V3_TAMPER_SIGNATURES: tuple[str, ...] = TAMPER_SIGNATURES + (
     r"\bos\.Exit\s*\(",
     r"\bprocess\.exit\s*\(",
@@ -925,8 +915,6 @@ TRANSFORM_ID_V8 = "separate-verifier@8"
 #    the @6 fail-to-pass comparison over junit status maps. No junit
 #    cases, no reward. The shim also performs the ``TestCase.run``
 #    integrity check for pure-unittest commands.
-# No @2-@9 symbol or template byte changes. See
-# docs/mimo/separate-verifier.md.
 
 #: Transform id recorded in lineage.
 TRANSFORM_ID_V10 = "separate-verifier@10"

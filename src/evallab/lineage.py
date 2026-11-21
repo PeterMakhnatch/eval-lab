@@ -7,17 +7,27 @@ cycles, missing inputs, and unrecorded derivations.
 
 from __future__ import annotations
 
-import contextlib
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import duckdb
 import yaml
 
-from evallab.storage.attach import attach, parse_front_matter
+_FRONT_MATTER = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
+
+
+def _parse_front_matter(content: str) -> dict[str, Any] | None:
+    match = _FRONT_MATTER.match(content)
+    if match is None:
+        return None
+    try:
+        parsed = yaml.safe_load(match.group(1))
+    except yaml.YAMLError:
+        return None
+    return parsed if isinstance(parsed, dict) else None
 
 
 @dataclass(frozen=True)
@@ -43,8 +53,7 @@ def classify_zone(path_or_str: str | Path) -> str:
     - z1: Immutable evidence (runs/, research/evidence/, library/benchmarks/_trajectories/)
     - z2: PostgreSQL catalog
     - z3: Parquet analytics (derived/parquet/, derived/, *.parquet)
-    - z4: Knowledge docs (docs/, research/ (non-evidence), *.md)
-    - z5: Coordination (board/, agents/)
+    - z4: Knowledge (research other than evidence, *.md)
     - unknown: Fallback
     """
     p_str = path_or_str.as_posix() if isinstance(path_or_str, Path) else str(path_or_str)
@@ -65,24 +74,8 @@ def classify_zone(path_or_str: str | Path) -> str:
     if p_str.startswith("derived/") or "/derived/" in p_str or p_str.endswith(".parquet"):
         return "z3"
 
-    # Check Z4 (Knowledge / docs)
-    if (
-        p_str.startswith("docs/")
-        or "/docs/" in p_str
-        or p_str.startswith("research/")
-        or "/research/" in p_str
-        or p_str.endswith(".md")
-    ):
+    if p_str.startswith("research/") or "/research/" in p_str or p_str.endswith(".md"):
         return "z4"
-
-    # Check Z5 (Coordination)
-    if (
-        p_str.startswith("board/")
-        or "/board/" in p_str
-        or p_str.startswith("agents/")
-        or "/agents/" in p_str
-    ):
-        return "z5"
 
     if p_str.startswith("sql/") or "/sql/" in p_str or p_str.startswith("catalog/"):
         return "z2"
@@ -123,13 +116,11 @@ def resolve_target(
     target: str,
     repo_root: Path,
     explicit_derived: Path | None = None,
-    duckdb_conn: duckdb.DuckDBPyConnection | None = None,
 ) -> tuple[Path | None, str, str | None]:
     """Resolve a target path or ID to (resolved_path, zone, entity_id).
 
     1. Direct filesystem check relative to repo_root or explicit_derived or absolute.
-    2. DuckDB attach query for knowledge docs (z4) or derived tables (z3/z2).
-    3. Direct check under runs/ or research/evidence/runs/ for job/trial directories.
+    2. Direct check under runs/ or research/evidence/runs/ for job/trial directories.
     """
     # 1. Direct path check
     candidates = [
@@ -153,22 +144,6 @@ def resolve_target(
                         return c / sub, "z1", None
                 return c, "z1", None
 
-    # 2. Query DuckDB attached surface if available
-    if duckdb_conn is not None:
-        try:
-            # Query z4.front_matter by path or title
-            rows = duckdb_conn.execute(
-                "SELECT path FROM z4.front_matter WHERE path = ? OR title = ? LIMIT 1",
-                (target, target),
-            ).fetchall()
-            if rows and rows[0][0]:
-                doc_path = repo_root / rows[0][0]
-                if doc_path.is_file():
-                    return doc_path, "z4", None
-        except Exception:
-            pass
-
-    # 3. Z1 directory scan by job/trial ID
     z1_dirs = [
         repo_root / "runs" / target,
         repo_root / "research" / "evidence" / "runs" / target,
@@ -236,7 +211,7 @@ def read_artifact_inputs(
         except Exception as exc:
             return "unrecorded", [], f"unable to read markdown file: {exc}"
 
-        fm, _ = parse_front_matter(content)
+        fm = _parse_front_matter(content)
         if fm is None:
             return "unrecorded", [], "no front-matter in markdown artifact"
 
@@ -343,11 +318,10 @@ def _walk_lineage(
     ancestors: tuple[str, ...] = (),
     depth: int = 0,
     max_depth: int = 32,
-    duckdb_conn: duckdb.DuckDBPyConnection | None = None,
 ) -> LineageNode:
     """Recursively walk lineage of target, stopping at Zone 1 (immutable evidence)."""
     # 1. Target resolution
-    resolved_path, zone, _ = resolve_target(target, repo_root, explicit_derived, duckdb_conn)
+    resolved_path, zone, _ = resolve_target(target, repo_root, explicit_derived)
 
     rel_path = _rel_path(resolved_path, repo_root) if resolved_path is not None else None
     canonical_id = rel_path if rel_path is not None else target
@@ -458,7 +432,6 @@ def _walk_lineage(
             ancestors=next_ancestors,
             depth=depth + 1,
             max_depth=max_depth,
-            duckdb_conn=duckdb_conn,
         )
         child_nodes.append(child_node)
 
@@ -488,25 +461,11 @@ def resolve_lineage(
     explicit_derived: Path | None = None,
     max_depth: int = 32,
 ) -> LineageNode:
-    """Resolve the recursive lineage of an artifact down to Zone 1.
-
-    Returns the root LineageNode.
-    """
-    # Open DuckDB attach surface for query resolution (Z2/Z3/Z4)
-    attach_res = attach(repo_root=repo_root, explicit_derived=explicit_derived)
-    try:
-        return _walk_lineage(
-            target,
-            repo_root=repo_root,
-            explicit_derived=explicit_derived,
-            expected_digest=None,
-            ancestors=(),
-            depth=0,
-            max_depth=max_depth,
-            duckdb_conn=attach_res.connection,
-        )
-    finally:
-        with contextlib.suppress(Exception):
-            attach_res.connection.close()
+    return _walk_lineage(
+        target,
+        repo_root=repo_root,
+        explicit_derived=explicit_derived,
+        max_depth=max_depth,
+    )
 
 

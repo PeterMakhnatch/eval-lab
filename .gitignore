@@ -68,7 +68,6 @@ htmlcov/
 .idea/
 .vscode/
 
-# In-repo parallel worktrees (agents/WORKFLOW.md)
 .worktrees/
 
 # mimo-clean-census (2026-10-10): generated v2 lineage records under

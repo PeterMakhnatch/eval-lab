@@ -1,39 +1,3 @@
-"""`evallab preflight` — is it safe and sensible to run right now?
-
-The surface an operator (or the nightly, at tick start) reads *before* anything
-runs. Three questions, each answered from evidence already on disk:
-
-1. **Per-provider remaining quota.** Built from :mod:`evallab.quota`, one
-   reading per paid agent, because `codex` and `claude-code` are two separate
-   subscriptions and one account's headroom says nothing about the other's.
-   Both documented traps in `docs/operations.md` are honoured here:
-   ``availability`` is checked before ``remaining_percent`` is read, and an
-   unavailable reading prints UNKNOWN with the warning attached rather than a
-   blank that reads as room to spare.
-2. **The queue, grouped by purpose.** Every parsed `ExperimentSpec` carries its
-   required research purpose; legacy files that do not parse are reported as
-   unreadable rather than coerced into a fabricated bucket.
-3. **Power warnings.** Only for comparisons that are actually queued, computed
-   with `cohort.py`'s existing estimator. When nothing comparative is queued
-   this section says so instead of manufacturing a warning.
-
-Boundaries this module keeps, all load-bearing:
-
-- **No network, no subprocess, no credential store, no database, no paid call.**
-  Everything comes from Harbor job directories and `queue/<state>/*.json`.
-  The render path is deterministic over filesystem evidence and the supplied
-  instant.
-- **No clock read outside :func:`preflight_at_tick_start`.** `now` is injected
-  into :func:`build_preflight_report`, which is what makes staleness testable.
-- **Nothing here authorises anything.** The refusal sentence is supplied by the
-  caller through :data:`RefusalReader`; this module never decides admission,
-  and it never restates a lab policy as the provider's statement (#70).
-- **The module body imports nothing from `queue.py`.** `queue.py` is the core
-  and this is a surface, so the dependency may only point one way. The default
-  refusal reader is resolved by a deferred import at call time, which keeps the
-  one-line tick wiring in `Executor._tick_locked` free of an import cycle.
-"""
-
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Sequence
@@ -428,16 +392,6 @@ def build_preflight_report(
     useful_effect: float | None = None,
     diff_reader: Callable[[ExperimentSpec, Path], DiffPreview] = preview_spec_diff,
 ) -> PreflightReport:
-    """Everything preflight reports, from disk only.
-
-    `now` is injected rather than read: staleness is the whole point of the
-    quota block, and a surface that reads the clock cannot be tested against a
-    fixed one (`agents/CHECKS.md`).
-
-    `refusal` defaults to `queue.provider_reported_exhaustion`, resolved by a
-    deferred import so this module's body stays free of `queue.py`. Pass your
-    own reader to test the refusal path without standing up a queue.
-    """
     root = repo_root.resolve()
     roots = tuple(quota_roots) if quota_roots is not None else default_roots(root)
     reader = refusal if refusal is not None else _default_refusal()

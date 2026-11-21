@@ -1,21 +1,9 @@
-"""E04: unified DuckDB attach surface (Z2 + Z3 + Z4).
-
-One function returns a ready DuckDB connection with all available zones
-registered under a single namespace. Degrades honestly per T4 and preflight
-style: unavailable zones are reported with reason; usable connection is
-still returned.
-"""
-
 from __future__ import annotations
 
-import hashlib
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
 import duckdb
-import yaml
 
 from evallab.runner import database_url_from_environment
 from evallab.storage.parquet_compaction import PRIMARY_KEYS
@@ -25,90 +13,6 @@ from evallab.storage.paths import (
     derived_root_from_environment,
     discover_parquet_partitions,
 )
-
-VALID_STATUSES = ("living", "historical")
-FRONT_MATTER_PATTERN = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
-
-
-def repo_root() -> Path:
-    """Return the repository root for this checkout."""
-    return Path(__file__).resolve().parents[3]
-
-
-@dataclass(frozen=True)
-class DocMetadata:
-    """Metadata and content for a repository documentation file."""
-
-    path: str
-    title: str
-    status: str
-    audience: tuple[str, ...]
-    body: str
-    raw_content: str
-    content_digest: str
-
-
-def parse_front_matter(content: str) -> tuple[dict[str, Any] | None, str]:
-    """Extract YAML front-matter and body from markdown content."""
-    match = FRONT_MATTER_PATTERN.match(content)
-    if not match:
-        return None, content.strip()
-
-    front_matter_raw = match.group(1)
-    body = content[match.end() :].strip()
-
-    try:
-        parsed = yaml.safe_load(front_matter_raw)
-        if isinstance(parsed, dict):
-            return parsed, body
-    except Exception:
-        pass
-
-    return None, content.strip()
-
-
-def extract_title(body: str, fallback: str) -> str:
-    """Extract first markdown H1 header title or use fallback."""
-    for line in body.splitlines():
-        line = line.strip()
-        if line.startswith("# "):
-            return line[2:].strip()
-    return fallback
-
-
-def parse_doc(file_path: Path, root: Path | None = None) -> DocMetadata:
-    """Parse a single markdown documentation file into DocMetadata."""
-    resolved_root = root if root is not None else repo_root()
-    content = file_path.read_text(encoding="utf-8")
-    content_digest = f"sha256:{hashlib.sha256(content.encode('utf-8')).hexdigest()}"
-
-    fm, body = parse_front_matter(content)
-    rel_path = file_path.resolve().relative_to(resolved_root.resolve()).as_posix()
-    title = extract_title(body, file_path.stem.replace("-", " ").capitalize())
-
-    status = "unclassified"
-    audience: list[str] = []
-
-    if fm:
-        raw_status = str(fm.get("status", "")).strip().lower()
-        if raw_status in VALID_STATUSES:
-            status = raw_status
-
-        raw_audience = fm.get("audience", [])
-        if isinstance(raw_audience, str):
-            audience = [raw_audience.strip().lower()]
-        elif isinstance(raw_audience, (list, tuple)):
-            audience = [str(a).strip().lower() for a in raw_audience]
-
-    return DocMetadata(
-        path=rel_path,
-        title=title,
-        status=status,
-        audience=tuple(audience),
-        body=body,
-        raw_content=content,
-        content_digest=content_digest,
-    )
 
 
 @dataclass(frozen=True)
@@ -439,37 +343,6 @@ def _attach_z3(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
     return ZoneStatus("z3", True, detail=detail)
 
 
-def _attach_z4(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
-    docs_dir = root / "docs"
-    if not docs_dir.exists():
-        return ZoneStatus("z4", False, reason="docs directory does not exist", detail=str(docs_dir))
-    try:
-        conn.execute(
-            "CREATE OR REPLACE TABLE z4.front_matter "
-            "(path TEXT, title TEXT, status TEXT, audience TEXT[], generated_by TEXT)"
-        )
-        conn.execute("CREATE OR REPLACE VIEW front_matter AS SELECT * FROM z4.front_matter")
-        for md in docs_dir.rglob("*.md"):
-            try:
-                meta = parse_doc(md, root=root)
-                audience = list(meta.audience) if meta.audience else []
-                generated_by = None
-                raw = meta.raw_content
-                if "generated_by:" in raw:
-                    for line in raw.splitlines():
-                        if "generated_by:" in line:
-                            generated_by = line.split(":", 1)[1].strip().strip('"').strip("'")
-                            break
-                conn.execute(
-                    "INSERT INTO z4.front_matter VALUES (?, ?, ?, ?, ?)",
-                    (meta.path, meta.title, meta.status, audience, generated_by),
-                )
-            except Exception:
-                continue
-        return ZoneStatus("z4", True, detail=str(docs_dir))
-    except Exception as exc:
-        return ZoneStatus("z4", False, reason=f"{type(exc).__name__}: {exc}", detail=str(docs_dir))
-
 def _catalog_optional_tables() -> tuple[str, ...]:
     """Optional catalog view names from writer modules, not literals."""
     from evallab.task_catalog import (
@@ -583,12 +456,6 @@ def attach(
     explicit_derived: Path | None = None,
     environ: dict[str, str] | None = None,
 ) -> AttachResult:
-    """Return a DuckDB connection with available zones attached under one namespace.
-
-    Z2 uses postgres_scanner against DATABASE_URL.
-    Z3 registers views over hot + cold Parquet using derived_root_from_environment.
-    Z4 materializes front_matter table from docs/ using parse_doc.
-    """
     root = repo_root or Path.cwd()
     dsn = _postgres_dsn()
     derived = derived_root_from_environment(
@@ -598,13 +465,11 @@ def attach(
     conn = duckdb.connect(":memory:")
     try:
         conn.execute("CREATE SCHEMA IF NOT EXISTS z3")
-        conn.execute("CREATE SCHEMA IF NOT EXISTS z4")
         z2 = _attach_z2(conn, dsn)
         z3 = _attach_z3(conn, derived)
-        z4 = _attach_z4(conn, root)
         pair = _attach_task_catalog(conn, derived)
-        zones = (z2, z3, z4)
-        sql = build_sql_preamble(dsn, derived, root, catalog_pair=pair)
+        zones = (z2, z3)
+        sql = build_sql_preamble(dsn, derived, catalog_pair=pair)
         return AttachResult(conn, zones, sql)
     except Exception:
         conn.close()
@@ -612,14 +477,13 @@ def attach(
 
 
 def build_sql_preamble(
-    dsn: str, derived: Path, root: Path, *, catalog_pair: dict[str, Path] | None = None
+    dsn: str, derived: Path, *, catalog_pair: dict[str, Path] | None = None
 ) -> str:
     lines = [
         "INSTALL postgres_scanner;",
         "LOAD postgres_scanner;",
         f"ATTACH {_sql_string_literal(dsn)} AS z2 (TYPE postgres);",
         "CREATE SCHEMA IF NOT EXISTS z3;",
-        "CREATE SCHEMA IF NOT EXISTS z4;",
     ]
     discovery = discover_parquet_partitions(derived)
     for table in TABLES:
@@ -715,11 +579,6 @@ def build_sql_preamble(
         lines.append("CREATE OR REPLACE VIEW z3.v_traj_features AS SELECT * FROM z3.v_traj_features_v1;")
     except Exception:
         pass
-    lines.append(
-        "CREATE OR REPLACE TABLE z4.front_matter "
-        "(path TEXT, title TEXT, status TEXT, audience TEXT[], generated_by TEXT);"
-    )
-    lines.append("CREATE OR REPLACE VIEW front_matter AS SELECT * FROM z4.front_matter;")
     return "\n".join(lines)
 
 

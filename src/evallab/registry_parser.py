@@ -144,17 +144,6 @@ def _registry_audit_command(
     return 0 if report.passed else 1
 
 
-def _registry_devloop_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    del harbor
-    from evallab.devloop import run_devloop
-
-    return run_devloop(
-        root, since=args.since, run=args.run, as_json=args.json, checkpoint=args.checkpoint
-    )
-
-
 def register_parser(commands: argparse._SubParsersAction) -> None:
     registry = commands.add_parser(
         "registry",
@@ -304,30 +293,3 @@ def register_parser(commands: argparse._SubParsersAction) -> None:
         help="Emit audit report as JSON",
     )
     registry_audit.set_defaults(func=_registry_audit_command)
-
-
-    registry_devloop = registry_commands.add_parser(
-        "devloop",
-        help="Map working tree changes to affected test modules and run targeted pytest",
-    )
-    registry_devloop.add_argument(
-        "--since",
-        default="working",
-        help="Revision or baseline to diff against (default: working)",
-    )
-    registry_devloop.add_argument(
-        "--run",
-        action="store_true",
-        help="Execute the computed pytest command",
-    )
-    registry_devloop.add_argument(
-        "--json",
-        action="store_true",
-        help="Emit results as JSON",
-    )
-    registry_devloop.add_argument(
-        "--checkpoint",
-        action="store_true",
-        help="Run repository contracts and direct consumers; bounded local check, not CI green",
-    )
-    registry_devloop.set_defaults(func=_registry_devloop_command)

@@ -27,12 +27,6 @@ and analytical features.
 - Loop alignment requires valid, unanimous top-level HAR-119 loop-kind labels from at least two distinct raters in one unambiguous cohort. Disagreement, insufficient/invalid labels and prediction abstentions are separate; `eligibleN` is the accuracy denominator. HAR-109 hand labels and HAR-128 pass-cleanliness adjudications are coverage only, not loop truth.
 - Exemplar selection is deterministic, not representative sampling or causal attribution. Opinion anchors get source paths and hashes only when their exact ref resolves uniquely to a real native-pair ATIF step; ordinary passes are not failures, and task usability is not pass taint.
 
-## Tests or checks
-- `uv run pytest tests/test_z2_tables.py`
-- `uv run pytest tests/test_evidence_queries.py`
-- `uv run pytest tests/test_trace_join.py -k test_schema`
-- `uv run pytest tests/test_trajectory_queries.py`
-- `uv run pytest tests/test_trials_query.py tests/test_trial_posture.py` (census identity, projection gaps, and the six-clause legitimacy boundary)
 ## What not to add here
 - Do not store raw database dumps, snapshots, or Parquet binary files here; use `derived/`.
 - Do not add destructive DDL without explicit migration policies.

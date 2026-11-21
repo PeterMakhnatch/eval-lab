@@ -452,7 +452,6 @@ CORE_TOOL_PINS = {
     "docker-engine": "29.8.0",
     "docker-compose": "5.5.1",
     "omp": "18.18.8",
-    "gh": "2.96.0",
     "git": "2.50.1",
     "uv": "0.9.24",
     "keys-code-sha256": "c92060fa29987daf2490e0b69f86fbfa2bb6a45e304ef423cad2072e55e7ce3c",
@@ -595,7 +594,7 @@ def core_runtime_checks(
             version = importlib.metadata.version(package)
             return version == locked[package], f"installed={version} pin={locked[package]} (uv.lock)"
         probe(package, library_version)
-    for tool in ("omp", "gh", "git", "uv"):
+    for tool in ("omp", "git", "uv"):
         def cli_version(tool: str = tool) -> tuple[bool, str]:
             output = command([tool, "--version"])
             match = re.search(r"\d+\.\d+\.\d+", output)
@@ -751,33 +750,6 @@ def core_runtime_checks(
         )
     probe("keys", keys_presence)
 
-    def github() -> tuple[bool, str]:
-        result = run(
-            ["gh", "auth", "status"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            timeout=15, check=False,
-        )
-        if result.returncode:
-            return False, "auth=unavailable; branch protection visibility=MISSING"
-        rules = json.loads(command([
-            "gh", "api", "repos/PeterMakhnatch/eval-lab/rules/branches/main",
-        ]))
-        required = {
-            check["context"]
-            for rule in rules if rule.get("type") == "required_status_checks"
-            for check in rule.get("parameters", {}).get("required_status_checks", [])
-        }
-        if not {"quality-required", "typecheck-required"} <= required:
-            protection = json.loads(command([
-                "gh", "api", "repos/PeterMakhnatch/eval-lab/branches/main/protection/required_status_checks",
-            ]))
-            required.update(protection.get("contexts", []))
-            required.update(check["context"] for check in protection.get("checks", []))
-        ok = {"quality-required", "typecheck-required"} <= required
-        return ok, (
-            f"auth=True branch_rules_visible=True required_checks={','.join(sorted(required)) or 'MISSING'}; "
-            "pending/missing exact-head CI still blocks ship"
-        )
-    probe("github", github)
     probe("goodfire-data", lambda: retained_source_health(
         root, home=home, collections=("goodfire-reward-hack-data",),
     ))

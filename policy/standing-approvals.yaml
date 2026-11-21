@@ -4,9 +4,7 @@
 # other than oracle/nop) is refused by `PolicyGate.decide` before any standing
 # rule is consulted, and is admitted only against an authorisation recorded in
 # `queue/events.jsonl` by `uv run evallab approve <spec-id> --actor <you>`.
-# Adding a billable agent below therefore grants nothing; it only misstates
-# what this lab does. See docs/operations.md, "Paid execution requires a
-# recorded authorisation".
+# Adding a billable agent below grants nothing.
 #
 # Dollar ceilings constrain proposed execution; API-key trials spend actual
 # provider balance, while subscription-backed trials consume provider quota.

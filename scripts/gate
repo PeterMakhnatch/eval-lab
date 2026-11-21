@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+export UV_PYTHON=3.12
+
+uv sync --frozen
+uv run --no-sync ruff check .
+uvx ty@0.0.71 check src/ --output-format=concise
+uv run --no-sync python scripts/gates/sealed-search.py
+uv run --no-sync python -m compileall -q src scripts tools
+uv run --no-sync evallab registry audit --json
+uv run --no-sync python -m evallab.smoke --docker-free
+uv run --no-sync python -m evallab.sim check

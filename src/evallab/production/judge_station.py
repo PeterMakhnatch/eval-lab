@@ -70,7 +70,7 @@ DEFAULT_FINDINGS_DIR = Path.home() / ".local/state/evallab-prod-live/data-flywhe
 DEFAULT_S2_QUEUE = (
     Path.home() / "Developer/research-context/bridge/2026-10-30-factory/ds/raw/S2/judge-queue.jsonl"
 )
-GUIDE_PATH = Path(__file__).resolve().parents[3] / "docs" / "judge-guide.md"
+GUIDE_PATH = Path(__file__).resolve().parents[3] / "policy" / "judge-rubric.txt"
 
 
 class JudgeError(ValueError):

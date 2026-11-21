@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+require_clean() {
+  local status
+  status=$(git status --porcelain --untracked-files=all) || exit 1
+  if [[ -n "$status" ]]; then
+    printf 'land: commit or remove worktree changes before landing\n' >&2
+    exit 1
+  fi
+}
+
+require_clean
+lock="$HOME/.cache/evallab-land.lock"
+mkdir -p "$(dirname "$lock")"
+if command -v flock >/dev/null 2>&1; then
+  exec 9>"$lock"
+  if ! flock -w 600 9; then
+    printf 'land: could not acquire %s\n' "$lock" >&2
+    exit 1
+  fi
+else
+  lock_dir="$lock.d"
+  for ((waited = 0; ; waited++)); do
+    if mkdir "$lock_dir" 2>/dev/null; then
+      trap 'rmdir "$lock_dir"' EXIT
+      trap 'exit 130' INT
+      trap 'exit 143' TERM
+      trap 'exit 129' HUP
+      break
+    fi
+    if [[ ! -d "$lock_dir" || $waited -ge 600 ]]; then
+      printf 'land: could not acquire %s\n' "$lock_dir" >&2
+      exit 1
+    fi
+    sleep 1
+  done
+fi
+
+for ((attempt = 1; attempt <= 5; attempt++)); do
+  require_clean
+  git fetch origin main
+  git rebase origin/main
+  head=$(git rev-parse HEAD)
+  scripts/gate
+  require_clean
+  if [[ $(git rev-parse HEAD) != "$head" ]]; then
+    printf 'land: HEAD changed during the gate\n' >&2
+    exit 1
+  fi
+  if push=$(LC_ALL=C git push --porcelain origin HEAD:main 2>&1); then
+    printf '%s\n' "$push"
+    printf 'Landed %s\n' "$head"
+    exit 0
+  fi
+  printf '%s\n' "$push" >&2
+  if [[ "$push" != *'[rejected] (non-fast-forward)'* && "$push" != *'[rejected] (fetch first)'* ]]; then
+    exit 1
+  fi
+done
+printf 'land: main changed during all 5 push attempts\n' >&2
+exit 1

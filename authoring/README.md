@@ -12,11 +12,8 @@ used by the synthesis pipeline to generate evaluable tasks.
 
 ## Invariants or rules
 - Decoupled axes: Category, scenario, and difficulty files remain orthogonal data definitions.
-- Version-controlled templates: Authoring specifications are committed, reviewable seed material (cited in `agents/STRUCTURE.md`).
+- Authoring specifications are versioned seed material.
 - Anti-pattern enforcement: Tasks avoid artificial obscurity, unseeded flakiness, and oracle leakage.
-
-## Tests or checks
-- `uv run pytest tests/test_task_lint.py`
 
 ## What not to add here
 - Do not store generated tasks or proposals here; use `library/tasks/`.

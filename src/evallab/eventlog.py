@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import fcntl
+import json
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -34,17 +35,25 @@ def event_log_paths(path: Path) -> tuple[Path, ...]:
     )
 
 
+def event_line_complete(line: bytes) -> bool:
+    if line.endswith(b"\n"):
+        return True
+    try:
+        json.loads(line)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return False
+    return True
+
+
 def read_event_log_lines(path: Path) -> tuple[tuple[Path, int, str], ...]:
-    """Read one consistent retained event-log snapshot under a shared lock."""
     if not path.parent.is_dir():
         return ()
     lines: list[tuple[Path, int, str]] = []
     with event_log_lock(path, exclusive=False):
         for segment in event_log_paths(path):
-            lines.extend(
-                (segment, line_number, line)
-                for line_number, line in enumerate(
-                    segment.read_text().splitlines(), start=1
-                )
-            )
+            with segment.open("rb") as source:
+                for line_number, line in enumerate(source, start=1):
+                    if event_line_complete(line):
+                        text = line.removesuffix(b"\n").removesuffix(b"\r").decode()
+                        lines.append((segment, line_number, text))
     return tuple(lines)

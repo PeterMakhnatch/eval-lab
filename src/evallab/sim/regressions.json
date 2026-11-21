@@ -2,7 +2,6 @@
   {
     "found_at_utc": "2026-11-21T00:23:53.286663+00:00",
     "invariant": "event_ledger_matches_queue",
-    "known": true,
     "seed": 6318,
     "step": 52,
     "subsystem": "queue-execution"
@@ -10,7 +9,6 @@
   {
     "found_at_utc": "2026-11-21T00:23:54.374591+00:00",
     "invariant": "event_ledger_readable",
-    "known": true,
     "seed": 1514,
     "step": 48,
     "subsystem": "queue-execution"
@@ -18,7 +16,6 @@
   {
     "found_at_utc": "2026-11-21T00:26:23.975291+00:00",
     "invariant": "event_ledger_readable",
-    "known": true,
     "seed": 8660425413623680026,
     "step": 48,
     "subsystem": "queue-execution"

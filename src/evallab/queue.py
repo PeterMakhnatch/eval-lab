@@ -15,13 +15,13 @@ import threading
 import time
 from collections.abc import Callable, Iterable, Iterator, Sequence
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import contextmanager, suppress
+from contextlib import ExitStack, contextmanager, suppress
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from evallab import campaign_approval, database
 from evallab.campaign_execution import (
@@ -54,7 +54,7 @@ from evallab.dispatch_guards import (
     smoke_trial_blocks,
     wait_for_selfhosted_ready,
 )
-from evallab.eventlog import event_log_lock, read_event_log_lines
+from evallab.eventlog import event_line_complete, event_log_lock, read_event_log_lines
 from evallab.evidence.atif import IngestProjectionResult, ingest_and_project
 from evallab.evidence_store import EvidenceArchive, archive_evidence
 from evallab.execution_contracts import (
@@ -133,6 +133,7 @@ from evallab.schemas import (
     canonical_grid_point_id,
     effective_daily_cost_ceiling,
 )
+from evallab.storage.fs import fsync_directory
 from evallab.storage.paths import derived_root_from_environment
 
 QUEUE_STATES: tuple[QueueState, ...] = (
@@ -145,6 +146,7 @@ QUEUE_STATES: tuple[QueueState, ...] = (
     "done",
     "failed",
 )
+_TERMINAL_QUEUE_STATES: tuple[QueueState, ...] = ("rejected", "done", "failed")
 
 QUEUE_RESUMED_EVENT = "queue_resumed"
 DEFAULT_EVENTS_MAX_BYTES = 10 * 1024 * 1024
@@ -709,6 +711,11 @@ class QueueRuntime:
         os.utime(descriptor)
 
 
+class _TerminalTransition(BaseModel):
+    filename: str
+    event: QueueEvent
+
+
 class DirectoryQueue:
     def __init__(
         self,
@@ -727,6 +734,7 @@ class DirectoryQueue:
         self.events_max_bytes = events_max_bytes
         self.event_backups = event_backups
         self.runtime = QueueRuntime() if runtime is None else runtime
+        self._terminal_journal = root / ".terminal-transition.json"
         self.reasons_dir = root / "reasons"
         if create:
             self.ensure_directories()
@@ -848,13 +856,13 @@ class DirectoryQueue:
         source_state = source.parent.name
         if source_state not in QUEUE_STATES:
             raise ValueError(f"Unknown source queue state: {source_state}")
-        spec = self.load(source)
-        destination = self.state_dir(destination_state) / source.name
-        if destination.exists():
-            raise FileExistsError(f"Queue destination already exists: {destination}")
-        source.rename(destination)
-        self.append_event(
-            QueueEvent(
+        with event_log_lock(self.events_path, exclusive=True):
+            self._recover_terminal_transition_locked()
+            spec = self.load(source)
+            destination = self.state_dir(destination_state) / source.name
+            if destination.exists():
+                raise FileExistsError(f"Queue destination already exists: {destination}")
+            record = QueueEvent(
                 event_id=self.runtime.new_id(),
                 spec_id=str(spec.spec_id),
                 occurred_at=self.runtime.now(),
@@ -869,8 +877,57 @@ class DirectoryQueue:
                 approved_campaign_manifest_digest=approved_campaign_manifest_digest,
                 approved_campaign_spec_digest=approved_campaign_spec_digest,
             )
-        )
+            if destination_state in _TERMINAL_QUEUE_STATES:
+                intent = _TerminalTransition(filename=source.name, event=record)
+                self._write_terminal_intent(intent)
+                self._finish_terminal_transition(intent)
+            else:
+                source.rename(destination)
+                self._append_event_locked(record, terminal=False)
         return destination
+
+    def _write_terminal_intent(self, intent: _TerminalTransition) -> None:
+        assert not self._terminal_journal.exists()
+        temporary = self._terminal_journal.with_suffix(".tmp")
+        descriptor = os.open(
+            temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600
+        )
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(intent.model_dump_json(exclude_none=True).encode())
+            handle.flush()
+            os.fsync(handle.fileno())
+        temporary.replace(self._terminal_journal)
+        fsync_directory(self.root)
+
+    def _recover_terminal_transition(self) -> None:
+        with event_log_lock(self.events_path, exclusive=True):
+            self._recover_terminal_transition_locked()
+
+    def _recover_terminal_transition_locked(self) -> None:
+        try:
+            payload = self._terminal_journal.read_bytes()
+        except FileNotFoundError:
+            return
+        self._finish_terminal_transition(_TerminalTransition.model_validate_json(payload))
+
+    def _finish_terminal_transition(self, intent: _TerminalTransition) -> None:
+        event = intent.event
+        assert event.from_state is not None and event.to_state is not None
+        assert event.from_state != event.to_state and event.to_state in _TERMINAL_QUEUE_STATES
+        assert intent.filename and Path(intent.filename).name == intent.filename != ".."
+        source = self.state_dir(event.from_state) / intent.filename
+        destination = self.state_dir(event.to_state) / intent.filename
+        source_exists = source.is_file()
+        if source_exists == destination.is_file():
+            raise ValueError(f"Expected one terminal transition path for {event.spec_id}")
+        if source_exists:
+            self._append_event_locked(event, terminal=True)
+            fsync_directory(self.root)
+            source.rename(destination)
+        fsync_directory(destination.parent)
+        fsync_directory(source.parent)
+        self._terminal_journal.unlink()
+        fsync_directory(self.root)
 
     def write_reason(self, spec: ExperimentSpec, decision: PolicyDecision) -> Path:
         reason = QueueReason(
@@ -885,25 +942,64 @@ class DirectoryQueue:
         return path
 
     def append_event(self, event: QueueEvent) -> None:
-        payload = (event.model_dump_json(exclude_none=True) + "\n").encode()
         with event_log_lock(self.events_path, exclusive=True):
-            if (
-                self.events_path.is_file()
-                and self.events_path.stat().st_size > 0
-                and self.events_path.stat().st_size + len(payload) > self.events_max_bytes
-            ):
-                self._rotate_events()
-            descriptor = os.open(
-                self.events_path,
-                os.O_WRONLY | os.O_APPEND | os.O_CREAT,
-                0o600,
+            self._recover_terminal_transition_locked()
+            self._append_event_locked(event, terminal=False)
+
+    def _append_event_locked(self, event: QueueEvent, *, terminal: bool) -> None:
+        payload = (event.model_dump_json(exclude_none=True) + "\n").encode()
+        with ExitStack() as segments:
+            descriptor = self._open_event_segment()
+            segments.callback(os.close, descriptor)
+            size = self._repair_event_tail(descriptor)
+            offset = size - len(payload)
+            already_written = (
+                terminal
+                and offset >= 0
+                and (offset == 0 or os.pread(descriptor, 1, offset - 1) == b"\n")
+                and os.pread(descriptor, len(payload), offset) == payload
             )
-            try:
+            if not already_written:
+                if size and size + len(payload) > self.events_max_bytes:
+                    self._rotate_events()
+                    descriptor = self._open_event_segment()
+                    segments.callback(os.close, descriptor)
                 view = memoryview(payload)
-                while view:
-                    view = view[self.runtime.write_event(descriptor, view) :]
-            finally:
-                os.close(descriptor)
+                for _ in range(len(payload)):
+                    written = self.runtime.write_event(descriptor, view)
+                    assert 0 < written <= len(view)
+                    view = view[written:]
+                    if not view:
+                        break
+                assert not view
+            if terminal:
+                os.fsync(descriptor)
+
+    def _open_event_segment(self) -> int:
+        return os.open(self.events_path, os.O_RDWR | os.O_APPEND | os.O_CREAT, 0o600)
+
+    @staticmethod
+    def _repair_event_tail(descriptor: int) -> int:
+        size = os.fstat(descriptor).st_size
+        if size == 0 or os.pread(descriptor, 1, size - 1) == b"\n":
+            return size
+        offset = 0
+        for end in range(size, 0, -4096):
+            start = max(0, end - 4096)
+            block = os.pread(descriptor, end - start, start)
+            assert len(block) == end - start
+            newline = block.rfind(b"\n")
+            if newline >= 0:
+                offset = start + newline + 1
+                break
+        tail = os.pread(descriptor, size - offset, offset)
+        assert len(tail) == size - offset
+        if event_line_complete(tail):
+            written = os.write(descriptor, b"\n")
+            assert written == 1
+            return size + 1
+        os.ftruncate(descriptor, offset)
+        return offset
 
     def _rotate_events(self) -> None:
         oldest = self.events_path.with_name(f"{self.events_path.name}.{self.event_backups}")
@@ -3206,6 +3302,7 @@ class Executor:
         return self.queue.runtime.now() >= started + timedelta(seconds=timeout)
 
     def reconcile_running(self) -> None:
+        self.queue._recover_terminal_transition()
         for path, spec in self.queue.list_specs("running"):
             try:
                 self._validate_campaign_dispatch_spec(spec, source=path)

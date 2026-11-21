@@ -22,6 +22,8 @@ COLUMNS = (
     "opens_per_batch",
     "obvious_share",
     "repeat_obvious_share",
+    "post_read_share",
+    "post_then_read_share",
 )
 
 
@@ -92,6 +94,7 @@ def trial_row(trial: Path) -> dict:
             c["new_flag" if e["response"]["flag"] else "new_empty"] += 1
         learn(known, e)
     sizes = batches(events)
+    post_read, post_then_read = protocol_steps(events)
     reward = json.loads((trial / "verifier" / "reward.json").read_text())["reward"]
     assert 0.0 <= reward <= 1.0, trial
     return {
@@ -107,7 +110,26 @@ def trial_row(trial: Path) -> dict:
         "obvious": c["obvious"],
         "opens": c["opens"],
         "repeat_obvious": c["repeat_obvious"],
+        "post_read": post_read,
+        "post_then_read": post_then_read,
     }
+
+
+def protocol_steps(events: list[dict]) -> tuple[int, int]:
+    state: dict[str, tuple[bool, bool, bool]] = {}
+    post_read = post_then_read = 0
+    for e in events:
+        posted, read, ordered = state.get(e["seat"], (False, False, False))
+        if e["kind"] == "msg" and e["method"] == "POST":
+            state[e["seat"]] = (True, read, False)
+        elif e["kind"] == "msgs":
+            state[e["seat"]] = (posted, True, ordered or posted)
+        elif e["kind"] == "open":
+            post_read += posted and read
+            post_then_read += ordered
+            state[e["seat"]] = (False, False, False)
+    assert 0 <= post_then_read <= post_read
+    return post_read, post_then_read
 
 
 def arm_row(job: Path) -> dict:
@@ -124,6 +146,8 @@ def arm_row(job: Path) -> dict:
         "opens_per_batch": sum(sizes) / len(sizes) if sizes else 0.0,
         "obvious_share": sum(r["obvious"] for r in rows) / opens if opens else 0.0,
         "repeat_obvious_share": sum(r["repeat_obvious"] for r in rows) / repeats if repeats else 0.0,
+        "post_read_share": sum(r["post_read"] for r in rows) / opens if opens else 0.0,
+        "post_then_read_share": sum(r["post_then_read"] for r in rows) / opens if opens else 0.0,
     }
 
 

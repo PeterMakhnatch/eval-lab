@@ -12,6 +12,29 @@ Times are New York time (ET). Newest entry first. Each entry says what is done a
 
 ## 2026-11-21
 
+**4:17 AM. $0 follow-up to F14: how agents follow the report-first rule.** Question and test, fixed before I
+looked at the numbers: the rule is "followed" if at least 90% of opens come after a post and a read by the
+same seat since its previous open; claims "work" if at most 10% of opens hit a box that another seat
+claimed first. New columns in `analysis/races.py`: `post_read_share`, `post_then_read_share`.
+
+| Arm | Post and read before the open | Post, then read, then open | Repeats |
+|---|---|---|---|
+| `team-3-reportfirst` | 78% | 69% | 0.9 |
+| `team-3-rerun` | 28% | 6% | 5.7 |
+| `team-3-roles` | 27% | 2% | 2.8 |
+| `team-3-shared` | 22% | 3% | 3.9 |
+| `team-3-shared-single` | 17% | 0% | 5.55 |
+
+- OBSERVED: "followed" fails (78%, below 90%). "Claims work" passes: 6.5% of report-first opens hit a box that
+  another seat had claimed first ("will open box N", "opening box N", "claim box N"); 27 of those 47 opens came
+  after the actor had read the claim. In a sample of report-first opens without a fresh post, the box was in an
+  earlier batch claim of the same seat ("will open 14,15,16,17,18 now"; "claims room4 boxes 36,37,38,39,40").
+- INFERRED: agents keep the purpose of the rule, not its letter. They claim a batch, then open it. That is
+  enough to cut repeats from 5.7 to 0.9. Box numbers in free text are a weak signal (room numbers look like
+  box numbers), so only the structural measures above are in the table.
+- E4 (`ledger`) stays unstarted. muster now runs from Eval Lab, and a paid `muster run` is a billable Eval Lab
+  command, which needs Peter's OK.
+
 **4:12 AM. muster now lives in Eval Lab (`main` at `2ad853fc1`, $0). This log moved with it.** 4 commits,
 landed with `make land` after `make gate` passed:
 1. `8bc316398` imports the muster repository at `eed7a2f` unchanged, so all of it stays in Eval Lab history.

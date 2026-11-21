@@ -1,13 +1,3 @@
-"""F13: where the budget goes in E1 (boxes). Exact, from the graded event logs. No model, $0.
-
-Budget identity for each trial (all seats together):
-  budget = new flag opens + repeated opens + new empty opens + unused opens
-A repeated open is an open of a box that some seat had opened before. For each repeated open of another seat's
-box we also ask what the actor knew: had the first opener posted a message after its open and before the
-repeat? If yes, had the actor fetched it (informed), or not yet (in flight)? If no, the information never left
-the first opener (not sent).
-"""
-
 import json
 import os
 import sys
@@ -16,6 +6,15 @@ from statistics import fmean
 
 ROOT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("runs/e1")
 ARMS = ["solo-a", "solo-x3", "indep-3", "indep-3-salt", "indep-3-mixed", "team-3"]
+FROZEN_BUILD = Path(__file__).resolve().parents[4] / "muster" / "tasks" / "boxes" / "build"
+
+
+def task_dir(recorded: Path) -> Path:
+    if recorded.is_dir():
+        return recorded
+    frozen = FROZEN_BUILD / recorded.parent.name / recorded.name
+    assert frozen.is_dir(), recorded
+    return frozen
 
 
 def trials(arm):
@@ -39,12 +38,12 @@ def analyze(path, result):
             break
         if e["seat"] is not None:
             played.append(e)
-    task = Path(result["config"]["task"]["path"])
+    task = task_dir(Path(result["config"]["task"]["path"]))
     inst = json.loads((task / "environment" / "world" / "instance.json").read_text())
     budget = inst["budget"] * len(inst["seats"])
-    opened = {}  # box -> (seat, seq)
-    fetched = {}  # seat -> {message id: t}
-    posts = []  # (seq, t, seat, id)
+    opened = {}
+    fetched = {}
+    posts = []
     out = dict(
         new_flag=0,
         repeat=0,

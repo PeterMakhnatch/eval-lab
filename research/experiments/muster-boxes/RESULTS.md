@@ -1,8 +1,9 @@
 # muster results: more agents, talking, and the budget of 3
 
 Written 2026-11-21 for Peter. OBSERVED means a run or a file shows it. INFERRED means our reasoning.
-Each number comes from `docs/FINDINGS.md` (F11 to F17) and the dated entries in `experiments/LOG.md`.
-Run outputs stay outside Git, in `muster-runs/`.
+Each number comes from `FINDINGS.md` (F11 to F17) and the dated entries in `LOG.md`, both in this folder.
+Run outputs stay outside Git, in `muster-runs/`. Paths written before 2026-11-21 refer to the old muster
+repository: `docs/` and `experiments/` are now this folder, `tasks/` is `muster/tasks/`.
 
 ## Summary
 
@@ -26,8 +27,8 @@ are free. 1 open in a room shows what the room holds. Best play scores 1.0 with 
   20 trials per arm. F14: 3 attempts, 30 trials.
 - Statistics: `tidegauge compare` and `decompose`, 95% level. "Resolved" means that the interval excludes 0
   and the exact sign-flip test agrees (p < 0.05).
-- E1 and E2 were pre-registered in `experiments/PREREGISTRATION.md`. F14 to F17 were designed in
-  `experiments/LOG.md` before their first trial.
+- E1 and E2 were pre-registered in `PREREGISTRATION.md`. F14 to F17 were designed in `LOG.md` before their
+  first trial.
 - Every reward of every arm replays exactly from its event log (`muster regrade`). No API key is in the outputs.
 
 ## E1: more agents, or talking? (2026-11-19)

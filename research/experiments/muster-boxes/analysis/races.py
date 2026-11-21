@@ -1,6 +1,7 @@
 import json
 import sys
 from collections import Counter
+from itertools import pairwise
 from pathlib import Path
 from statistics import fmean
 
@@ -39,7 +40,7 @@ def batches(events: list[dict]) -> list[int]:
     sizes = []
     for seat_times in times.values():
         size = 1
-        for before, after in zip(seat_times, seat_times[1:]):
+        for before, after in pairwise(seat_times):
             if after - before < BATCH_GAP_SECONDS:
                 size += 1
             else:

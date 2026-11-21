@@ -2,6 +2,8 @@
 
 Dated observations from real runs on `olamlabs/harbor-multiagent` at commit `6aeb609e`, local Docker on macOS.
 OBSERVED means a run or a file shows it. INFERRED means our reasoning. Run outputs stay outside Git.
+Since 2026-11-21 muster lives in Eval Lab. Paths written earlier refer to the old muster repository:
+`docs/` and `experiments/` are now this folder, `tasks/` is `muster/tasks/`, `src/muster/` is `muster/`.
 
 ## F1. The upstream example pays a tested seat that did nothing (2026-11-19, $0)
 

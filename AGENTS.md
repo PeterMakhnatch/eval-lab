@@ -36,6 +36,7 @@ On demand:
 - `research/` holds studies and their provenance. Cite the source runs and corpus digest. Preserve frozen prompts, thresholds, labels, cohorts, and held-out exclusions unless the change explicitly authorizes them.
 - `policy/` holds operating policy and gate inputs. `scripts/` holds operator commands. `sql/` holds the schema and views. `containers/` holds service definitions.
 - `tools/` holds isolated, locked uv projects that the platform invokes as subprocesses. Do not import them into the platform. `authoring/` holds templates; `grids/` holds declared experiment inputs; `digests/` holds curated reports.
+- `tidegauge/` reads Harbor job directories and reports audits, scores with rerun and task error bars, paired comparisons, rank intervals, run plans, and team decompositions. It is standard library only, read only, makes no model or network call, and never imports Harbor or `evallab`. `src/` must not import it either; call it as `uv run tidegauge ...`. `tidegauge/stats.py` stays pure, and `tidegauge/load.py` and `tidegauge/atif.py` are the only modules that open Harbor files. `python -m tidegauge.sim check` replays its recorded seeds in the gate.
 
 ## Execution and spend
 

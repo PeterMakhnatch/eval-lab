@@ -124,3 +124,20 @@ service and nothing else. So a condition without a channel has no network path b
 - Arm order, so the most important arms run first: solo-a, indep-3, team-3, solo-x3, solo-b, indep-3-salt,
   indep-3-mixed. An arm that the cap stops is reported as incomplete. Design, metrics and analysis do not change.
 - The 2 trials of the stopped start at 11:04 AM ET are not part of any result.
+
+## Amendment 6 (10:58 AM ET, 2026-11-21, before any E4 trial): E4 `ledger` runs
+
+- Peter approved E4 ("run e4"). Balance before the runs: $4.69. Saturday, so DeepSeek bills off-peak.
+- **Arms:** `solo`, `indep-3`, `team-3` from `muster/tasks/ledger/build/`, 10 instances x 2 attempts = 60
+  scored trials. Roster `rosters/t2-deepseek-flash-plain.json` (the E1 roster). No change to the tasks.
+- **Pilot:** instance `i01`, 1 attempt for each arm, not scored. It checks the plumbing and the cost per trial.
+- **Cost guard:** the runs stop when the estimated real cost of E4 (pilot included) reaches $0.80.
+- **Runs:** at most 2 Docker trials at the same time, 1 trial at a time for each arm.
+- **Primary effect:** `solo` minus `team-3`, with a 95% interval from a paired bootstrap over the 10 instances
+  (10,000 resamples, seed 0). "Resolved" means the interval excludes 0.
+- **Test 1, does the team pool well?** Pass if the `team-3` mean is at least 2/3 of the `solo` mean.
+- **Test 2, what loses the team points?** Among `team-3` trials with reward below 1, count the trials with
+  `premature` = 1 (an answer before the messages of both other seats were read). "Premature answers explain the
+  losses" if they are at least half of those trials. The others are split into: no answer, a wrong sum after
+  all messages were read, and a better earlier attempt that was refused (`selection_gap` > 0).
+- **Check:** `indep-3` must score about 0. It cannot pool, so any reward above 0.2 in a trial is a leak to study.

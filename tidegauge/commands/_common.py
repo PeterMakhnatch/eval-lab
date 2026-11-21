@@ -1,5 +1,3 @@
-"""Arguments and helpers that every command shares."""
-
 from __future__ import annotations
 
 import argparse
@@ -10,7 +8,7 @@ from tidegauge import render
 from tidegauge.load import load_arms, rekey, split_arms
 from tidegauge.model import METRICS, Arm, Counting
 
-NAME_WIDTH = 44  # arm names in tables are cut to this width
+NAME_WIDTH = 44
 
 
 def add_common(parser: argparse.ArgumentParser, *, metric: bool = True) -> None:
@@ -48,7 +46,6 @@ def add_task_key(parser: argparse.ArgumentParser) -> None:
 
 
 def task_pattern(text: str | None) -> re.Pattern[str] | None:
-    """The pattern of ``--task-key``. A bad pattern is a ``ValueError``: exit status 3."""
     if text is None:
         return None
     try:
@@ -102,7 +99,6 @@ def counting_text(counting: Counting | str) -> str:
 
 
 def is_rate(metric: str) -> bool:
-    """Rewards are shown as percentages. Costs, tokens and seconds are plain numbers."""
     return metric not in METRICS or metric == "reward"
 
 
@@ -113,7 +109,6 @@ def _digits(metric: str) -> int:
 
 
 def value_format(metric: str) -> tuple[Callable[[float | None], str], Callable[[float | None], str], str]:
-    """``(value, difference, unit)`` formatters for a metric."""
     if is_rate(metric):
         return render.pct, render.pts, " pts"
     digits = _digits(metric)
@@ -128,7 +123,6 @@ def value_format(metric: str) -> tuple[Callable[[float | None], str], Callable[[
 
 
 def scope_text(metric: str, counting: Counting | str) -> str:
-    """Which trials the numbers cover, for the first line of a report."""
     if metric == "reward":
         return counting_text(counting)
     return "trials that record this metric"
@@ -139,7 +133,6 @@ def unsigned(text: str) -> str:
 
 
 def detectable_text(value: float | None, metric: str) -> str:
-    """A detectable difference without its sign. 2 rates cannot differ by more than 100 points."""
     if value is None:
         return "n/a"
     if is_rate(metric) and value > 1.0:
@@ -148,7 +141,6 @@ def detectable_text(value: float | None, metric: str) -> str:
 
 
 def findings_text(findings: Sequence[dict], *, severities: Sequence[str] = ("error", "warn")) -> str:
-    """One line per finding, from the dictionaries that ``Finding.as_dict`` makes."""
     lines = []
     for finding in findings:
         if finding["severity"] in severities:

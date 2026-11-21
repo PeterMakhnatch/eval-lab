@@ -1,5 +1,3 @@
-"""``tidegauge rank``: which positions in a ranking would survive a rerun?"""
-
 from __future__ import annotations
 
 import argparse
@@ -16,6 +14,7 @@ from tidegauge.commands._common import (
 )
 from tidegauge.model import Arm, Counting
 
+DESCRIPTION = """``tidegauge rank``: which positions in a ranking would survive a rerun?"""
 HELP = "rank many arms and show which ranks are separated from rerun noise"
 
 

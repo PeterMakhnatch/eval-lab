@@ -1,5 +1,3 @@
-"""Command line entry point."""
-
 from __future__ import annotations
 
 import argparse
@@ -27,7 +25,7 @@ def parser() -> argparse.ArgumentParser:
         child = sub.add_parser(
             name,
             help=module.HELP,
-            description=module.__doc__,
+            description=module.DESCRIPTION,
             formatter_class=argparse.RawDescriptionHelpFormatter,
         )
         module.configure(child)

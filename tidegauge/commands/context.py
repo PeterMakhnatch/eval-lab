@@ -1,16 +1,3 @@
-"""``tidegauge context``: where do the input tokens of an agent run go?
-
-An agent loop sends its whole context again with every model call. This command
-reads the ATIF trajectory of each trial (``agent/trajectory.json``) and splits
-the prompt tokens of each call in 2 parts: new tokens (the growth over the call
-before, ``fresh_tokens`` in the JSON report) and re-sent tokens (the rest).
-Context management and prompt caching can reduce only the re-sent part.
-The split uses token counts. It compares no text.
-
-A seat trial has 1 trajectory per seat (``seats/<seat>/agent/trajectory.json``).
-Its numbers add up the calls of its seats. Its peak is the largest prompt of 1 seat.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -25,16 +12,23 @@ from tidegauge.audit import SEVERITIES, Finding
 from tidegauge.commands._common import NAME_WIDTH, add_arms, add_task_key, findings_text, load
 from tidegauge.model import Arm, Trial
 
+DESCRIPTION = """``tidegauge context``: where do the input tokens of an agent run go?
+
+An agent loop sends its whole context again with every model call. This command
+reads the ATIF trajectory of each trial (``agent/trajectory.json``) and splits
+the prompt tokens of each call in 2 parts: new tokens (the growth over the call
+before, ``fresh_tokens`` in the JSON report) and re-sent tokens (the rest).
+Context management and prompt caching can reduce only the re-sent part.
+The split uses token counts. It compares no text.
+
+A seat trial has 1 trajectory per seat (``seats/<seat>/agent/trajectory.json``).
+Its numbers add up the calls of its seats. Its peak is the largest prompt of 1 seat.
+"""
 HELP = "show where the input tokens go: model calls, peak context, re-sent and cached shares, cost per pass"
 
-# A prompt below this share of the prompt before it is a context drop: prompts grow in a normal loop.
 DROP_BELOW = 0.5
-# Token sums that differ by more than this share are a finding: rounding stays far below 1%.
 USAGE_TOLERANCE = 0.01
 
-# An adapter that adds the cached tokens to a prompt count that already holds them leaves a mark:
-# prompt minus cached of one call equals the cached tokens of the next call. Above this share of
-# call pairs, the arm gets a finding.
 TWICE_SHARE = 0.9
 TWICE_TOLERANCE = 0.02
 
@@ -65,14 +59,12 @@ def configure(parser: argparse.ArgumentParser) -> None:
 
 
 def read_trial(trial: Trial) -> list[Trajectory | None]:
-    """The trajectory of each agent of a trial: 1 file, or 1 file per seat of a seat trial."""
     return [read_trajectory(trial.path / "seats" / seat) for seat in trial.seats] or [
         read_trajectory(trial.path)
     ]
 
 
 def state(trajectory: Trajectory | None) -> str:
-    """What 1 trajectory gives: ``usable``, ``missing``, ``unreadable`` or ``no-call-metrics``."""
     if trajectory is None:
         return "missing"
     if trajectory.problem:
@@ -81,18 +73,12 @@ def state(trajectory: Trajectory | None) -> str:
 
 
 def trial_state(trial: Trial, found: Sequence[Trajectory | None]) -> str:
-    """What the trajectories of a trial give. For a seat trial: the worst state of a seat that used a model.
-
-    A seat trial is usable only when every seat that used a model has usable calls: numbers that
-    cover a part of a team are not the numbers of the trial. A seat without a model needs no file.
-    """
     states = [state(trajectory) for trajectory in found]
     needed = [s for seat, s in zip(trial.seats, states, strict=False) if seat in trial.model_seats] or states
     return next((s for s in ("unreadable", "missing", "no-call-metrics") if s in needed), "usable")
 
 
 def usable_runs(found: Sequence[Trajectory | None]) -> list[Trajectory]:
-    """The trajectories with usable calls: 1 run per agent."""
     return [trajectory for trajectory in found if trajectory is not None and trajectory.calls]
 
 
@@ -109,34 +95,23 @@ def _median(values: Sequence[float]) -> float | None:
 
 
 def p90(values: Sequence[float]) -> float | None:
-    """90th percentile by linear interpolation between the sorted values. 1 value is its own percentile."""
     if len(values) < 2:
         return float(values[0]) if values else None
     return statistics.quantiles(values, n=10, method="inclusive")[-1]
 
 
 def _whole(parts: Sequence[float | None]) -> float | None:
-    """The sum of the parts, or ``None`` when a part is missing or 0."""
-    return sum(parts) if all(parts) else None
+    if not all(parts):
+        return None
+    return sum(part for part in parts if part is not None)
 
 
 def cost_of(trial: Trial, runs: Sequence[Trajectory]) -> float | None:
-    """Sum of the call costs when every call has one, else the trajectory total, else the cost in result.json.
-
-    A cost of 0 is read as not reported: Harbor's own agents write no cost when they do not know the price.
-    A seat trial adds up its seats when every seat gives a cost, else it takes the cost in result.json.
-    """
     costs = [_whole([call.cost_usd for call in run.calls]) or run.total_cost_usd for run in runs]
     return _whole(costs) or trial.cost_usd or None
 
 
 def trial_report(trial: Trial, found: Sequence[Trajectory | None]) -> dict:
-    """The numbers of 1 trial. A trial without usable calls has only the ``trajectory`` state.
-
-    A seat trial adds up the calls of its seats, and it has the state of each seat in ``seats``.
-    A pair of calls is 2 calls in a row of 1 agent. The first and the peak context are the
-    largest over the seats: each is the size of 1 prompt.
-    """
     row: dict = {
         "trial": trial.trial_name,
         "task": trial.task,
@@ -153,6 +128,7 @@ def trial_report(trial: Trial, found: Sequence[Trajectory | None]) -> dict:
     total = sum(call.prompt_tokens for call in calls)
     firsts = [run.calls[0].prompt_tokens for run in runs]
     fresh = sum(firsts) + sum(max(0, b.prompt_tokens - a.prompt_tokens) for a, b in pairs)
+    assert 0 <= fresh <= total
     reported = [call.cached_tokens for call in calls if call.cached_tokens is not None]
     cached = sum(reported) if reported else None
     output = [call.completion_tokens for call in calls if call.completion_tokens is not None]
@@ -175,13 +151,10 @@ def trial_report(trial: Trial, found: Sequence[Trajectory | None]) -> dict:
 
 
 def arm_report(name: str, rows: list[dict]) -> dict:
-    """The numbers of 1 arm. A share is pooled: sums of tokens over the usable trials, not a mean of shares."""
     usable = [row for row in rows if row["trajectory"] == "usable"]
     total = sum(row["input_tokens"] for row in usable)
     resent = total - sum(row["fresh_tokens"] for row in usable)
-    # A trial without cached tokens adds 0. The share is unknown only when no trial reports cached tokens.
     cached = [row["cached_tokens"] for row in usable if row["cached_tokens"] is not None]
-    # Cost per passed trial uses only the trials with a cost, in the sum and in the count of passed trials.
     priced = [row for row in usable if row["cost_usd"] is not None]
     passes = sum(1 for row in priced if row["passed"])
     seconds = [row["seconds_per_call"] for row in usable if row["seconds_per_call"] is not None]
@@ -208,15 +181,23 @@ def arm_report(name: str, rows: list[dict]) -> dict:
 def check_trajectories(
     name: str, read: Sequence[tuple[Trial, Sequence[Trajectory | None]]]
 ) -> Iterator[Finding]:
-    """Findings on the trajectories of 1 arm: files that give no numbers, and numbers that do not add up."""
     judged = [(trial, found, trial_state(trial, found)) for trial, found in read]
+    yield from _coverage_findings(name, judged)
+    usable = [(trial, usable_runs(found)) for trial, found, verdict in judged if verdict == "usable"]
+    yield from _usage_findings(name, usable)
+    yield from _cache_findings(name, usable)
+
+
+def _coverage_findings(
+    name: str, judged: Sequence[tuple[Trial, Sequence[Trajectory | None], str]]
+) -> Iterator[Finding]:
     states = Counter(verdict for _, _, verdict in judged)
     if states["missing"]:
         seats = any(trial.seats for trial, _, verdict in judged if verdict == "missing")
         yield Finding(
             "trajectory-missing",
             "note",
-            f"{states['missing']} of {len(read)} trials have no agent/trajectory.json"
+            f"{states['missing']} of {len(judged)} trials have no agent/trajectory.json"
             f"{' for 1 or more seats' if seats else ''}. {NOT_COVERED}",
             name,
             {"count": states["missing"]},
@@ -228,7 +209,7 @@ def check_trajectories(
         yield Finding(
             "trajectory-unreadable",
             "warn",
-            f"{states['unreadable']} of {len(read)} trials have a trajectory file that cannot be read as ATIF "
+            f"{states['unreadable']} of {len(judged)} trials have a trajectory file that cannot be read as ATIF "
             f"({shown}). {NOT_COVERED}",
             name,
             {
@@ -241,14 +222,15 @@ def check_trajectories(
         yield Finding(
             "no-call-metrics",
             "note",
-            f"{states['no-call-metrics']} of {len(read)} trials have an ATIF trajectory in which no model call "
+            f"{states['no-call-metrics']} of {len(judged)} trials have an ATIF trajectory in which no model call "
             f"reports prompt tokens. {NOT_COVERED}",
             name,
             {"count": states["no-call-metrics"]},
         )
-    usable = [(trial, usable_runs(found)) for trial, found, verdict in judged if verdict == "usable"]
+
+
+def _usage_findings(name: str, usable: Sequence[tuple[Trial, list[Trajectory]]]) -> Iterator[Finding]:
     sums = [sum(call.prompt_tokens for run in runs for call in run.calls) for _, runs in usable]
-    # A recorded total of 0 is read as not recorded, as the audit does. A team has a total when every seat has one.
     finals = [_whole([run.total_prompt_tokens for run in runs]) for _, runs in usable]
     totals = [(calls, final) for calls, final in zip(sums, finals, strict=True) if final]
     results = [
@@ -277,27 +259,29 @@ def check_trajectories(
                 "calls_share_of_result": held[1],
             },
         )
-    pairs = [
-        (a, b)
-        for _, runs in usable
-        for run in runs
-        for a, b in pairwise(run.calls)
-        if a.cached_tokens and b.cached_tokens
-    ]
-    twice = sum(
-        1
-        for a, b in pairs
-        if abs(a.prompt_tokens - a.cached_tokens - b.cached_tokens) <= TWICE_TOLERANCE * b.cached_tokens
-    )
-    if pairs and twice >= TWICE_SHARE * len(pairs):
+
+
+def _cache_findings(name: str, usable: Sequence[tuple[Trial, list[Trajectory]]]) -> Iterator[Finding]:
+    pairs = twice = 0
+    for _, runs in usable:
+        for run in runs:
+            for a, b in pairwise(run.calls):
+                before, after = a.cached_tokens, b.cached_tokens
+                if not before or not after:
+                    continue
+                pairs += 1
+                if abs(a.prompt_tokens - before - after) <= TWICE_TOLERANCE * after:
+                    twice += 1
+    assert 0 <= twice <= pairs
+    if pairs and twice >= TWICE_SHARE * pairs:
         yield Finding(
             "cached-counted-twice",
             "warn",
-            f"In {twice} of {len(pairs)} call pairs, prompt tokens minus cached tokens equal the cached tokens of the "
+            f"In {twice} of {pairs} call pairs, prompt tokens minus cached tokens equal the cached tokens of the "
             "next call. An adapter leaves this mark when it adds cached tokens to a prompt count that already holds "
             "them. The token figures of this arm can be about 2 times too high.",
             name,
-            {"pairs": len(pairs), "matching": twice},
+            {"pairs": pairs, "matching": twice},
         )
     over = [
         sum(1 for run in runs for call in run.calls if (call.cached_tokens or 0) > call.prompt_tokens)
@@ -325,7 +309,6 @@ def build(arms: list[Arm]) -> dict:
 
 
 def _tokens(value: float | None) -> str:
-    """A token count in short form: 950, 36.9k, 1.3M."""
     if value is None:
         return "n/a"
     for unit, size in (("G", 1e9), ("M", 1e6), ("k", 1e3)):

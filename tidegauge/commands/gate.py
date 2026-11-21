@@ -1,12 +1,3 @@
-"""``tidegauge gate``: a pass or fail decision for CI and for agent loops.
-
-Exit status: 0 = ok, 1 = regressed, 2 = undecided (run more trials), 3 = the data is not usable.
-
-For rewards the gate decides under both counting rules. When the rules disagree,
-the decision depends on how broken trials are counted, and the gate says
-undecided. Use --one-rule to decide with the --trials rule only.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -24,9 +15,17 @@ from tidegauge.commands._common import (
 )
 from tidegauge.model import Arm, Counting
 
+DESCRIPTION = """``tidegauge gate``: a pass or fail decision for CI and for agent loops.
+
+Exit status: 0 = ok, 1 = regressed, 2 = undecided (run more trials), 3 = the data is not usable.
+
+For rewards the gate decides under both counting rules. When the rules disagree,
+the decision depends on how broken trials are counted, and the gate says
+undecided. Use --one-rule to decide with the --trials rule only.
+"""
 HELP = "decide whether a candidate may replace a baseline (exit status for CI)"
 EXIT = {"ok": 0, "regressed": 1, "undecided": 2, "invalid": 3}
-MAX_PRACTICAL_ATTEMPTS = 200  # above this, the gate says that the arms are too close to separate
+MAX_PRACTICAL_ATTEMPTS = 200
 
 
 def configure(parser: argparse.ArgumentParser) -> None:
@@ -57,7 +56,6 @@ def configure(parser: argparse.ArgumentParser) -> None:
 
 
 def decide(low: float, high: float, margin: float, require_gain: bool) -> str:
-    """Decision from the interval of (candidate - baseline), where higher is better."""
     if require_gain:
         if low > 0:
             return "ok"
@@ -84,18 +82,16 @@ def _one(a: Arm, b: Arm, metric: str, counting: Counting, args: argparse.Namespa
         return out
     low, high = (-interval.high, -interval.low) if args.lower_is_better else (interval.low, interval.high)
     out["decision"] = decide(low, high, args.margin, args.require_gain)
-    # A decision that claims a difference also needs the test to agree. The exact tests protect the cases
-    # where few tasks show any trial noise, or few tasks differ, and the interval is too narrow.
     claims_difference = out["decision"] == "regressed" or (out["decision"] == "ok" and args.require_gain)
     p = c.rerun_p() if args.question == "rerun" else c.tasks_p()
     if claims_difference and (p is None or p >= 1.0 - args.level):
         out["decision"] = "undecided"
     if out["decision"] == "undecided":
         try:
-            p = stats.plan(a.outcomes(metric, counting), b.outcomes(metric, counting))
-        except ValueError:  # no task has 2 or more trials: no plan, and the decision stays undecided
+            plan = stats.plan(a.outcomes(metric, counting), b.outcomes(metric, counting))
+        except ValueError:
             return out
-        needed = p.attempts_for(abs(c.delta))
+        needed = plan.attempts_for(abs(c.delta))
         out["attempts_to_resolve"] = (
             needed if needed is not None and needed <= MAX_PRACTICAL_ATTEMPTS else None
         )

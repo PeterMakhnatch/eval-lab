@@ -1,13 +1,3 @@
-"""Read Harbor job directories into kernel objects.
-
-Only files that stock Harbor writes are read: each trial's ``result.json``, the
-job-level ``result.json`` and ``lock.json``, and the ``config.json`` of a trial
-that never finished. Harbor itself is not imported. The reader accepts every
-layout that Harbor has written since 2025, and the seat trials of the
-olamlabs/harbor-multiagent fork. It never raises on bad data: a file that it
-cannot use becomes a ``Problem`` on the arm.
-"""
-
 from __future__ import annotations
 
 import contextlib
@@ -25,29 +15,61 @@ from tidegauge.model import PHASES, Arm, Job, Problem, Trial
 
 _KEY_JUNK = re.compile(r"[^a-z0-9_-]+")
 
-# Exception types after which Harbor does not trust the reward. Copied from the
-# groups with ``has_valid_reward=False`` in Harbor 0.26.0,
-# src/harbor/models/trial/error_policy.py. Harbor reads an unknown type as valid.
-# The table is used only for results that do not store ``reward_valid``.
 INVALID_REWARD_EXCEPTIONS = frozenset(
-    """
-    EnvironmentStartTimeoutError SandboxBuildFailedError AgentSetupTimeoutError HealthcheckError
-    SandboxLikelyOutOfMemoryError MemoryLimitExceededError SSHAccessError GKEExecStreamClosedError
-    GKEPodNotFoundError RuntimeRequestError AddTestsDirError DownloadVerifierDirError
-    ApiError ApiRateLimitError ApiInternalServerError ApiOverloadedError ApiConnectionClosedError
-    ApiResponseStalledError UnknownApiError NetworkConnectionError ApiConnectionError ApiUsageLimitError
-    RateLimitError InternalServerError ServiceUnavailableError APIConnectionError APIError Timeout
-    UnsupportedModelParametersError BadRequestError UnprocessableEntityError UnsupportedParamsError
-    APIResponseValidationError BudgetExceededError VerifierTimeoutError RewardFileNotFoundError
-    RewardFileEmptyError VerifierOutputParseError
-    AgentAuthenticationError ModelNotFoundError ApiProviderResourceNotFoundError AuthenticationError
-    PermissionDeniedError NotFoundError ServiceOperationsUnsupportedError VercelScopeError
-    DspyImportError MissingExtraError RegradeError CancelledError
-    """.split()
+    (
+        "EnvironmentStartTimeoutError",
+        "SandboxBuildFailedError",
+        "AgentSetupTimeoutError",
+        "HealthcheckError",
+        "SandboxLikelyOutOfMemoryError",
+        "MemoryLimitExceededError",
+        "SSHAccessError",
+        "GKEExecStreamClosedError",
+        "GKEPodNotFoundError",
+        "RuntimeRequestError",
+        "AddTestsDirError",
+        "DownloadVerifierDirError",
+        "ApiError",
+        "ApiRateLimitError",
+        "ApiInternalServerError",
+        "ApiOverloadedError",
+        "ApiConnectionClosedError",
+        "ApiResponseStalledError",
+        "UnknownApiError",
+        "NetworkConnectionError",
+        "ApiConnectionError",
+        "ApiUsageLimitError",
+        "RateLimitError",
+        "InternalServerError",
+        "ServiceUnavailableError",
+        "APIConnectionError",
+        "APIError",
+        "Timeout",
+        "UnsupportedModelParametersError",
+        "BadRequestError",
+        "UnprocessableEntityError",
+        "UnsupportedParamsError",
+        "APIResponseValidationError",
+        "BudgetExceededError",
+        "VerifierTimeoutError",
+        "RewardFileNotFoundError",
+        "RewardFileEmptyError",
+        "VerifierOutputParseError",
+        "AgentAuthenticationError",
+        "ModelNotFoundError",
+        "ApiProviderResourceNotFoundError",
+        "AuthenticationError",
+        "PermissionDeniedError",
+        "NotFoundError",
+        "ServiceOperationsUnsupportedError",
+        "VercelScopeError",
+        "DspyImportError",
+        "MissingExtraError",
+        "RegradeError",
+        "CancelledError",
+    )
 )
 
-# Settings in a trial config that change what a score means. Each one is
-# reported only when it differs from Harbor's default.
 _DEFAULTS: dict[str, Any] = {
     "timeout_multiplier": 1.0,
     "agent_timeout_multiplier": None,
@@ -68,21 +90,11 @@ _DEFAULTS: dict[str, Any] = {
 
 
 def task_key(name: str) -> str:
-    """Canonical task key: the last path part, lower case, punctuation as ``-``.
-
-    Harbor writes the same task as ``regex-log`` or ``terminal-bench/regex-log``,
-    and a registry can rename ``install-windows-3.11`` to ``install-windows-3-11``.
-    """
     base = name.strip().rsplit("/", 1)[-1].lower()
     return _KEY_JUNK.sub("-", base).strip("-") or name
 
 
 def rekey(arm: Arm, pattern: re.Pattern[str]) -> Arm:
-    """``--task-key``: the task key of each trial is the first group of ``pattern`` in its task name.
-
-    Then names that hold a condition, such as ``flotilla/schedule-009-talk``, pair across arms. A trial
-    whose name does not match, or whose group is empty, keeps its key. Its ``key_matched`` is False.
-    """
     trials = []
     for trial in arm.trials:
         found = pattern.search(trial.task_name)
@@ -92,12 +104,11 @@ def rekey(arm: Arm, pattern: re.Pattern[str]) -> Arm:
 
 
 def _number(value: Any) -> float | None:
-    """A finite float, or ``None``. Booleans are not rewards."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
     try:
         return float(value) if math.isfinite(value) else None
-    except OverflowError:  # an integer too large for a float
+    except OverflowError:
         return None
 
 
@@ -131,7 +142,6 @@ def _rewards(result: Mapping[str, Any]) -> dict[str, float]:
     verifier = _mapping(result.get("verifier_result"))
     raw = verifier.get("rewards")
     if not isinstance(raw, Mapping):
-        # Harbor before the rewards mapping wrote one number.
         raw = {"reward": verifier.get("reward")}
     return {str(k): n for k, v in raw.items() if (n := _number(v)) is not None}
 
@@ -147,7 +157,6 @@ def _primary(rewards: Mapping[str, float], reward_key: str | None) -> float | No
 
 
 def _exceptions(result: Mapping[str, Any]) -> list[Mapping[str, Any]]:
-    """Trial-level exception first, then step and seat exceptions: Harbor's ``recorded_exceptions``."""
     found = [result.get("exception_info")]
     for key in ("step_results", "seat_results"):
         records = result.get(key)
@@ -157,7 +166,6 @@ def _exceptions(result: Mapping[str, Any]) -> list[Mapping[str, Any]]:
 
 
 def _valid(result: Mapping[str, Any], rewards: Mapping[str, float]) -> bool:
-    """Harbor's ``reward_valid``. Stored by Harbor 0.26; rebuilt for older results."""
     stored = result.get("reward_valid")
     if isinstance(stored, bool):
         return stored
@@ -172,18 +180,16 @@ def _valid(result: Mapping[str, Any], rewards: Mapping[str, float]) -> bool:
     return True
 
 
-USAGE = ("tokens_in", "tokens_cache", "tokens_out", "cost_usd")  # the usage fields of a ``Trial``
+USAGE = ("tokens_in", "tokens_cache", "tokens_out", "cost_usd")
 
 
 def _usage_of(context: Any) -> list[float | None]:
-    """The usage that 1 agent run reports, in the order of ``USAGE``."""
     keys = ("n_input_tokens", "n_cache_tokens", "n_output_tokens", "cost_usd")
     values = [_number(_mapping(context).get(key)) for key in keys]
     return [v if v is not None and v >= 0 else None for v in values]
 
 
 def _sum(values: Iterable[float | None]) -> float | None:
-    """The values that exist, added in order as Harbor adds them. ``None`` when no value exists."""
     total: float | None = None
     for value in values:
         if value is not None:
@@ -192,13 +198,12 @@ def _sum(values: Iterable[float | None]) -> float | None:
 
 
 def _usage_fields(totals: Sequence[float | None]) -> dict[str, Any]:
-    """The usage fields of a ``Trial``. A token count is a whole number."""
+    assert len(totals) == len(USAGE)
     pairs = zip(USAGE, totals, strict=True)
     return {key: v if v is None or key == "cost_usd" else int(v) for key, v in pairs}
 
 
 def _usage(result: Mapping[str, Any]) -> list[float | None]:
-    """Tokens and cost. A multi-step trial records them per step: add them up."""
     contexts = [result.get("agent_result")]
     if not isinstance(contexts[0], Mapping) and isinstance(result.get("step_results"), list):
         contexts = [_mapping(step).get("agent_result") for step in result["step_results"]]
@@ -207,7 +212,6 @@ def _usage(result: Mapping[str, Any]) -> list[float | None]:
 
 
 def _identity(info: Mapping[str, Any], config: Mapping[str, Any]) -> tuple[Any, str | None, Any]:
-    """Agent, agent version and model of 1 agent, from its ``agent_info`` and its config."""
     version = info.get("version")
     return (
         info.get("name") or config.get("name") or config.get("import_path"),
@@ -217,20 +221,10 @@ def _identity(info: Mapping[str, Any], config: Mapping[str, Any]) -> tuple[Any, 
 
 
 def _participants(config: Mapping[str, Any]) -> list[Mapping[str, Any]]:
-    """``config.participants`` of a seat trial: the agent, the model and the arguments of each seat."""
     return [p for p in config.get("participants") or [] if isinstance(p, Mapping)]
 
 
 def _team(result: Mapping[str, Any], config: Mapping[str, Any]) -> dict[str, Any]:
-    """The ``Trial`` fields that a seat trial sets. Empty for a trial with 1 agent.
-
-    The olamlabs/harbor-multiagent fork runs 1 agent per seat. ``seat_results`` holds 1 record
-    per seat in task order, with the usage and the exception of that seat. The top-level
-    ``agent_info`` names only the first seat under test, and ``config.agent`` never ran. So the
-    identity of the trial is its roster, 1 ``seat=value`` pair per seat. Usage is the sum over
-    the seats, and only when every seat that used a model reports the value: the sum over a
-    part of a team is not shown as the cost of the team.
-    """
     records = result.get("seat_results")
     records = records if isinstance(records, list) else []
     records = [r for r in records if isinstance(r, Mapping) and isinstance(r.get("seat"), str)]
@@ -240,7 +234,6 @@ def _team(result: Mapping[str, Any], config: Mapping[str, Any]) -> dict[str, Any
     configs = {p.get("seat"): p for p in _participants(config)}
     who = [_identity(_mapping(r.get("agent_info")), _mapping(configs.get(r["seat"]))) for r in records]
     usage = [_usage_of(r.get("agent_result")) for r in records]
-    # A seat used a model when its agent names one, or when it reports any usage.
     used = [w[2] is not None or any(v is not None for v in u) for w, u in zip(who, usage, strict=True)]
     totals: list[float | None] = []
     partial = []
@@ -273,7 +266,6 @@ def _conditions(config: Mapping[str, Any]) -> dict[str, Any]:
         value = _get(config, dotted)
         if value is not None and value != default:
             out[dotted] = value
-    # A seat trial has the arguments of each seat. Its ``config.agent`` never ran.
     kwargs = _get(config, "agent.kwargs")
     if seats := _participants(config):
         kwargs = {str(p.get("seat")): p["kwargs"] for p in seats if p.get("kwargs")}
@@ -285,10 +277,14 @@ def _conditions(config: Mapping[str, Any]) -> dict[str, Any]:
 def parse_trial(
     path: Path, result: Mapping[str, Any], reward_key: str | None = None, harbor_version: str | None = None
 ) -> Trial:
-    """Build a ``Trial`` from a parsed trial ``result.json``."""
     config = _mapping(result.get("config"))
     agent, version, model = _identity(_mapping(result.get("agent_info")), _mapping(config.get("agent")))
-    fields = {"agent": agent, "agent_version": version, "model": model, **_usage_fields(_usage(result))}
+    fields: dict[str, Any] = {
+        "agent": agent,
+        "agent_version": version,
+        "model": model,
+        **_usage_fields(_usage(result)),
+    }
     fields.update(_team(result, config))
     task_name = str(
         result.get("task_name") or _get(config, "task.name") or _get(config, "task.path") or path.name
@@ -336,7 +332,6 @@ def _is_trial_config(data: Any) -> bool:
 
 
 def _job(here: Path, result: Any) -> Job | None:
-    """A ``Job`` when this directory holds a job-level ``result.json``."""
     if not isinstance(result, Mapping) or "n_total_trials" not in result:
         return None
     version = None
@@ -351,11 +346,6 @@ def _job(here: Path, result: Any) -> Job | None:
 
 
 def walk(root: Path, reward_key: str | None = None) -> Iterator[Trial | Problem | Job]:
-    """Yield every job and trial under ``root``, in path order.
-
-    The walk does not go into a trial directory: an agent can leave thousands
-    of files there.
-    """
     versions: dict[Path, str | None] = {}
     for directory, subdirs, files in os.walk(root):
         subdirs[:] = sorted(d for d in subdirs if not d.startswith("."))
@@ -386,7 +376,6 @@ def walk(root: Path, reward_key: str | None = None) -> Iterator[Trial | Problem 
 
 
 def load_arm(path: str | os.PathLike[str], name: str | None = None, reward_key: str | None = None) -> Arm:
-    """Load every trial under ``path`` as one arm."""
     root = Path(path)
     if not root.is_dir():
         raise FileNotFoundError(f"not a directory: {root}")
@@ -404,7 +393,6 @@ def load_arm(path: str | os.PathLike[str], name: str | None = None, reward_key: 
 
 
 def parse_arm_spec(spec: str) -> tuple[str | None, str]:
-    """Split ``name=path``. A plain path has no name."""
     if "=" in spec and not os.path.exists(spec):
         name, _, path = spec.partition("=")
         return name, path
@@ -412,14 +400,12 @@ def parse_arm_spec(spec: str) -> tuple[str | None, str]:
 
 
 def load_arms(specs: list[str], reward_key: str | None = None) -> list[Arm]:
-    """Load one arm per argument. An argument is ``path`` or ``name=path``."""
     arms = []
     for spec in specs:
         name, path = parse_arm_spec(spec)
         arms.append(load_arm(path, name, reward_key))
     names = [arm.name for arm in arms]
     if len(set(names)) != len(names):
-        # Two paths with the same last part: fall back to the paths as given.
         arms = [
             Arm(parse_arm_spec(spec)[1], arm.trials, arm.problems, arm.jobs)
             for spec, arm in zip(specs, arms, strict=True)
@@ -428,7 +414,6 @@ def load_arms(specs: list[str], reward_key: str | None = None) -> list[Arm]:
 
 
 def split_arms(path: str | os.PathLike[str], reward_key: str | None = None) -> list[Arm]:
-    """Load each child directory of ``path`` that holds trials as its own arm."""
     root = Path(path)
     if not root.is_dir():
         raise FileNotFoundError(f"not a directory: {root}")

@@ -1,15 +1,3 @@
-"""Read Harbor's ATIF trajectory file: ``<trial dir>/agent/trajectory.json``.
-
-ATIF (Agent Trajectory Interchange Format, ATIF-v1.0 to ATIF-v1.8) lists the
-steps of one agent run. This reader keeps the usage numbers of each model call
-and the totals that the agent's adapter wrote. Every field is optional. The
-numbers are kept as reported: adapters count tokens in different ways. The
-reader never raises on bad data: a file that it cannot use gets a ``problem``.
-
-Only this 1 file is read. A continuation file and subagent trajectories are
-not followed; ``continued`` and ``subagents`` record that they exist.
-"""
-
 from __future__ import annotations
 
 import json
@@ -20,44 +8,39 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-LFS_HEAD = "version https://git-lfs"  # first words of a Git LFS pointer: the file itself is not there
+LFS_HEAD = "version https://git-lfs"
 
 
 @dataclass(frozen=True, slots=True)
 class Call:
-    """One model call: an agent step that reports its prompt tokens."""
-
     step_id: int | None
     timestamp: datetime | None
-    prompt_tokens: int  # every input token of the call, cached or not
+    prompt_tokens: int
     completion_tokens: int | None
-    cached_tokens: int | None  # the part of ``prompt_tokens`` that the provider read from its cache
+    cached_tokens: int | None
     cost_usd: float | None
-    llm_calls: int | None = None  # ``llm_call_count``: above 1, the step adds up several model calls
+    llm_calls: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class Trajectory:
-    """What 1 trajectory file gives: its model calls and the totals that the adapter wrote."""
-
     path: Path
-    problem: str | None = None  # why the file cannot be used; the other fields are then empty
-    schema_version: str | None = None  # kept as read
+    problem: str | None = None
+    schema_version: str | None = None
     agent: str | None = None
     agent_version: str | None = None
     model: str | None = None
-    n_steps: int = 0  # every step: system, user and agent
+    n_steps: int = 0
     calls: tuple[Call, ...] = ()
-    total_prompt_tokens: int | None = None  # the 4 totals are the adapter's ``final_metrics``
+    total_prompt_tokens: int | None = None
     total_completion_tokens: int | None = None
     total_cached_tokens: int | None = None
     total_cost_usd: float | None = None
-    continued: bool = False  # ``continued_trajectory_ref`` names a file with the rest of the run
-    subagents: int = 0  # trajectories in ``subagent_trajectories``; their calls are not read
+    continued: bool = False
+    subagents: int = 0
 
 
 def _amount(value: Any) -> float | None:
-    """A finite number that is not negative, or ``None``. Booleans are not numbers."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
     return float(value) if math.isfinite(value) and value >= 0 else None
@@ -73,7 +56,6 @@ def _text(value: Any) -> str | None:
 
 
 def _time(value: Any) -> datetime | None:
-    """An ISO 8601 time. A time without a zone is read as UTC, so every gap between 2 times exists."""
     try:
         parsed = datetime.fromisoformat(value)
     except (TypeError, ValueError):
@@ -86,16 +68,11 @@ def _mapping(value: Any) -> Mapping[str, Any]:
 
 
 def _call(step: Mapping[str, Any]) -> Call | None:
-    """The model call of a step, or ``None`` when the step is not a call of this run.
-
-    No prompt is empty: 0 prompt tokens means that the adapter did not report the usage.
-    A step marked ``is_copied_context`` repeats a call of an earlier session. Adapters
-    leave it out of ``final_metrics``, and so does this reader.
-    """
     metrics = _mapping(step.get("metrics"))
     prompt = _count(metrics.get("prompt_tokens"))
     if step.get("source") != "agent" or not prompt or step.get("is_copied_context") is True:
         return None
+    assert prompt > 0
     return Call(
         step_id=_count(step.get("step_id")),
         timestamp=_time(step.get("timestamp")),
@@ -108,7 +85,6 @@ def _call(step: Mapping[str, Any]) -> Call | None:
 
 
 def parse_trajectory(path: Path, data: Mapping[str, Any]) -> Trajectory:
-    """Build a ``Trajectory`` from a parsed ATIF file."""
     steps = data.get("steps")
     steps = [step for step in steps if isinstance(step, Mapping)] if isinstance(steps, list) else []
     agent, totals = _mapping(data.get("agent")), _mapping(data.get("final_metrics"))
@@ -131,7 +107,6 @@ def parse_trajectory(path: Path, data: Mapping[str, Any]) -> Trajectory:
 
 
 def read_trajectory(trial_dir: Path) -> Trajectory | None:
-    """The trajectory of one trial, or ``None`` when the trial has no trajectory file."""
     path = trial_dir / "agent" / "trajectory.json"
     try:
         with open(path, encoding="utf-8") as handle:

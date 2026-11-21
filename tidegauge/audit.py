@@ -1,16 +1,3 @@
-"""Checks that say whether the numbers in a set of trials can be trusted and compared.
-
-Each check is one small function that yields ``Finding`` objects. A check reads
-only the kernel objects and decides nothing with a model. To add a check, write
-the function and add it to ``ARM_CHECKS`` or ``PAIR_CHECKS``.
-
-Severity:
-
-* ``error``: the data is broken or incomplete in a way that changes the count.
-* ``warn``: the score depends on a choice or a condition that the reader must know.
-* ``note``: a fact about the data that is useful and is not a defect.
-"""
-
 from __future__ import annotations
 
 from collections import Counter
@@ -24,9 +11,7 @@ from tidegauge.model import Arm, Counting, Trial, distinct
 
 SEVERITIES = ("error", "warn", "note")
 
-# Harbor's built-in agents that do not attempt the task: the reference solution and the no-op.
 CONTROL_AGENTS = frozenset({"oracle", "nop"})
-# Trials without a valid reward become a warning when the 2 counting rules move the score this much.
 COUNTING_MATTERS = 0.005
 
 
@@ -53,20 +38,12 @@ def _top(counter: Counter[Any], limit: int = 5) -> str:
 
 
 def _share(part: int, whole: int) -> str:
+    assert 0 <= part <= whole
     return f"{part} of {whole} ({100 * part / whole:.1f}%)" if whole else f"{part} of 0"
 
 
 def _own(trial: Trial) -> str:
-    """The key of the task name itself. ``--task-key`` can give the variants of a task 1 key.
-
-    Variants differ in their files by design, so the checks across arms compare checksums by this key.
-    """
     return task_key(trial.task_name)
-
-
-# --------------------------------------------------------------------------- #
-# Checks on one arm
-# --------------------------------------------------------------------------- #
 
 
 def check_unreadable(arm: Arm) -> Iterator[Finding]:
@@ -154,15 +131,7 @@ def check_attempts(arm: Arm) -> Iterator[Finding]:
     if not counts:
         return
     if len(counts) > 1:
-        score = stats.score(arm.outcomes())
-        yield Finding(
-            "uneven-attempts",
-            "warn",
-            f"Tasks have different numbers of trials ({_top(counts)} as attempts ×tasks). "
-            f"The mean over tasks is {100 * score.mean:.1f}% and the mean over trials is {100 * score.micro:.1f}%.",
-            arm.name,
-            {"attempts": dict(counts), "macro": score.mean, "micro": score.micro},
-        )
+        yield _uneven_attempts(arm, counts)
     if max(counts) == 1:
         yield Finding(
             "single-attempt",
@@ -172,8 +141,29 @@ def check_attempts(arm: Arm) -> Iterator[Finding]:
         )
 
 
+def _uneven_attempts(arm: Arm, counts: Counter) -> Finding:
+    assert len(counts) > 1
+    outcomes = arm.outcomes()
+    message = f"Tasks have different numbers of trials ({_top(counts)} as attempts ×tasks)."
+    if not outcomes:
+        return Finding(
+            "uneven-attempts",
+            "warn",
+            f"{message} No trial has a valid reward, so the score has no mean.",
+            arm.name,
+            {"attempts": dict(counts), "macro": None, "micro": None},
+        )
+    score = stats.score(outcomes)
+    return Finding(
+        "uneven-attempts",
+        "warn",
+        f"{message} The mean over tasks is {100 * score.mean:.1f}% and the mean over trials is {100 * score.micro:.1f}%.",
+        arm.name,
+        {"attempts": dict(counts), "macro": score.mean, "micro": score.micro},
+    )
+
+
 def _is_control(agent: str | None) -> bool:
-    """A control agent, alone or in every seat of a roster such as ``p1=oracle,p2=nop``."""
     return isinstance(agent, str) and all(s.rpartition("=")[2] in CONTROL_AGENTS for s in agent.split(","))
 
 
@@ -344,9 +334,6 @@ def check_accounting(arm: Arm) -> Iterator[Finding]:
 
 
 def check_seat_errors(arm: Arm) -> Iterator[Finding]:
-    # A note, not a warning. Harbor already takes the reward away when a seat error spoils it
-    # (``reward_valid``). What stays is a failure of the agent itself, such as a timeout. The
-    # same failure of a single agent is not a warning either.
     hit = [t for t in arm.trials if t.seat_exceptions and t.reward is not None]
     if hit:
         errors = Counter(f"{seat} {error}" for t in hit for seat, error in t.seat_exceptions.items())
@@ -401,11 +388,6 @@ ARM_CHECKS: tuple[Callable[[Arm], Iterator[Finding]], ...] = (
     check_seat_errors,
     check_accounting,
 )
-
-
-# --------------------------------------------------------------------------- #
-# Checks on a pair of arms
-# --------------------------------------------------------------------------- #
 
 
 def check_task_sets(a: Arm, b: Arm) -> Iterator[Finding]:
@@ -509,7 +491,6 @@ def audit_pair(a: Arm, b: Arm) -> list[Finding]:
 
 
 def _groups(arms: Sequence[Arm], signature: Callable[[Arm], Any]) -> list[list[str]]:
-    """Arm names grouped by a signature, largest group first."""
     groups: dict[Any, list[str]] = {}
     for arm in arms:
         groups.setdefault(signature(arm), []).append(arm.name)
@@ -521,7 +502,6 @@ def _sizes(groups: list[list[str]]) -> str:
 
 
 def audit_group(arms: Sequence[Arm]) -> list[Finding]:
-    """Checks across many arms: do they all run the same tasks under the same conditions?"""
     findings = []
     checks = (
         (
@@ -562,7 +542,6 @@ def audit_group(arms: Sequence[Arm]) -> list[Finding]:
 
 
 def audit(arms: Sequence[Arm]) -> list[Finding]:
-    """All findings: each arm alone, then the pair (2 arms) or the group (3 or more arms)."""
     findings = [f for arm in arms for f in audit_arm(arm)]
     if len(arms) == 2:
         findings.extend(audit_pair(arms[0], arms[1]))

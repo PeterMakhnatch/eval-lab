@@ -1,5 +1,3 @@
-"""``tidegauge score``: the score of each arm with both of its error bars."""
-
 from __future__ import annotations
 
 import argparse
@@ -19,6 +17,7 @@ from tidegauge.commands._common import (
 )
 from tidegauge.model import Arm, Counting
 
+DESCRIPTION = """``tidegauge score``: the score of each arm with both of its error bars."""
 HELP = "score each arm, with rerun and task error bars"
 
 

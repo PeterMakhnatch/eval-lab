@@ -1,5 +1,3 @@
-"""``tidegauge plan``: how many trials does a comparison need?"""
-
 from __future__ import annotations
 
 import argparse
@@ -9,6 +7,7 @@ from tidegauge import render, stats
 from tidegauge.commands._common import add_common, detectable_text, load, value_format
 from tidegauge.model import Arm, Counting
 
+DESCRIPTION = """``tidegauge plan``: how many trials does a comparison need?"""
 HELP = "from pilot runs, say how many attempts per task a comparison needs"
 
 
@@ -39,6 +38,8 @@ def build(
     trials = [t for arm in arms for t in arm.trials]
     costs = [t.cost_usd for t in trials if t.cost_usd is not None]
     seconds = [s for t in trials if (s := t.metric("seconds")) is not None]
+    cost_per_trial = fmean(costs) if costs else None
+    seconds_per_trial = fmean(seconds) if seconds else None
     report = {
         "command": "plan",
         "metric": metric,
@@ -60,15 +61,15 @@ def build(
             for r in p.rows
         ],
         "floor_tasks": p.floor_tasks,
-        "cost_per_trial": fmean(costs) if costs else None,
-        "seconds_per_trial": fmean(seconds) if seconds else None,
+        "cost_per_trial": cost_per_trial,
+        "seconds_per_trial": seconds_per_trial,
         "cost_needed_per_arm": None,
         "hours_needed_per_arm": None,
     }
-    if needed and costs:
-        report["cost_needed_per_arm"] = needed * p.n_tasks * report["cost_per_trial"]
-    if needed and seconds:
-        report["hours_needed_per_arm"] = needed * p.n_tasks * report["seconds_per_trial"] / 3600.0
+    if needed and cost_per_trial is not None:
+        report["cost_needed_per_arm"] = needed * p.n_tasks * cost_per_trial
+    if needed and seconds_per_trial is not None:
+        report["hours_needed_per_arm"] = needed * p.n_tasks * seconds_per_trial / 3600.0
     return report
 
 

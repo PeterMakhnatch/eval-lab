@@ -1,8 +1,7 @@
-"""``tidegauge compare``: is the difference between 2 arms real?"""
-
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 
 from tidegauge import render, stats
 from tidegauge.audit import audit_arm, audit_pair
@@ -19,6 +18,7 @@ from tidegauge.commands._common import (
 )
 from tidegauge.model import Arm, Counting
 
+DESCRIPTION = """``tidegauge compare``: is the difference between 2 arms real?"""
 HELP = "compare a candidate arm with a baseline arm, task by task"
 
 
@@ -107,13 +107,49 @@ def build(a: Arm, b: Arm, metric: str, counting: Counting, level: float, alpha: 
     return report
 
 
+def _notes(report: dict, diff: Callable[[float | None], str], unit: str) -> list[str]:
+    rerun, tasks = report["rerun"], report["tasks"]
+    out = []
+    if tasks["se"] == 0.0:
+        out.append(
+            "the tasks interval has width 0 because every task gives the same difference: "
+            "more tasks can measure the spread between tasks"
+        )
+    if rerun["test"].startswith("permutation"):
+        out.append(
+            "rerun verdict: the trial noise of the 2 arms cannot be compared, so the test checks only "
+            '"no change on any task"'
+        )
+    left_out = report["tasks_only_baseline"] + report["tasks_only_candidate"]
+    if left_out:
+        out.append(
+            f"{left_out} tasks are left out: {report['tasks_only_baseline']} have counted trials only in the "
+            f"baseline and {report['tasks_only_candidate']} only in the candidate"
+        )
+    if rerun["detectable"] is None:
+        out.append("rerun noise is not measured: it needs 2 or more trials per task and trials that disagree")
+    else:
+        metric = report["metric"]
+        line = f"this design detects a true difference of about {detectable_text(rerun['detectable'], metric)}{unit} (rerun)"
+        if tasks["detectable"] is not None:
+            line += f" or {detectable_text(tasks['detectable'], metric)}{unit} (tasks)"
+        out.append(line)
+    alt = report["other_counting"]
+    if alt and (alt["verdict"] != rerun["verdict"] or abs(alt["difference"] - report["difference"]) >= 0.005):
+        out.append(
+            f"other counting rule ({counting_text(alt['trials'])}): difference {diff(alt['difference'])}{unit}, "
+            f"rerun verdict: {alt['verdict']}"
+        )
+    return out
+
+
 def text(report: dict, *, show_tasks: bool = False) -> str:
     value, diff, unit = value_format(report["metric"])
 
     def interval(pair: list[float] | None) -> str:
         if pair is None:
             return "n/a"
-        if is_rate(report["metric"]):  # a difference of 2 rates cannot leave -100 to +100 points
+        if is_rate(report["metric"]):
             pair = [max(-1.0, pair[0]), min(1.0, pair[1])]
         return f"{diff(pair[0])} to {diff(pair[1])}{unit}"
 
@@ -163,36 +199,7 @@ def text(report: dict, *, show_tasks: bool = False) -> str:
         f"{per['equal']} equal",
         f"tasks verdict: the paired t-test (p) and the sign-flip test (sign-flip p) must both give p < {report['alpha']:g}",
     ]
-    if tasks["se"] == 0.0:
-        out.append(
-            "the tasks interval has width 0 because every task gives the same difference: "
-            "more tasks can measure the spread between tasks"
-        )
-    if rerun["test"].startswith("permutation"):
-        out.append(
-            "rerun verdict: the trial noise of the 2 arms cannot be compared, so the test checks only "
-            '"no change on any task"'
-        )
-    left_out = report["tasks_only_baseline"] + report["tasks_only_candidate"]
-    if left_out:
-        out.append(
-            f"{left_out} tasks are left out: {report['tasks_only_baseline']} have counted trials only in the "
-            f"baseline and {report['tasks_only_candidate']} only in the candidate"
-        )
-    if rerun["detectable"] is None:
-        out.append("rerun noise is not measured: it needs 2 or more trials per task and trials that disagree")
-    else:
-        metric = report["metric"]
-        line = f"this design detects a true difference of about {detectable_text(rerun['detectable'], metric)}{unit} (rerun)"
-        if tasks["detectable"] is not None:
-            line += f" or {detectable_text(tasks['detectable'], metric)}{unit} (tasks)"
-        out.append(line)
-    alt = report["other_counting"]
-    if alt and (alt["verdict"] != rerun["verdict"] or abs(alt["difference"] - report["difference"]) >= 0.005):
-        out.append(
-            f"other counting rule ({counting_text(alt['trials'])}): difference {diff(alt['difference'])}{unit}, "
-            f"rerun verdict: {alt['verdict']}"
-        )
+    out.extend(_notes(report, diff, unit))
     if show_tasks:
         rows = [[task, diff(d)] for task, d in list(report["task_differences"].items())[:20] if d != 0]
         if rows:

@@ -1,0 +1,26 @@
+[
+  {
+    "seed": 18446744073709551615,
+    "step": "all-invalid/audit/text",
+    "invariant": "documented-exit",
+    "known": false
+  },
+  {
+    "seed": 18446744073709551615,
+    "step": "all-invalid/audit/json",
+    "invariant": "documented-exit",
+    "known": false
+  },
+  {
+    "seed": 18446744073709551615,
+    "step": "all-invalid/score/text",
+    "invariant": "documented-exit",
+    "known": false
+  },
+  {
+    "seed": 18446744073709551615,
+    "step": "all-invalid/score/json",
+    "invariant": "documented-exit",
+    "known": false
+  }
+]

@@ -1,8 +1,3 @@
-"""``tidegauge audit``: can these numbers be trusted and compared?
-
-Exit status: 0 = no error, 1 = at least 1 error (with --strict: or 1 warning).
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -12,6 +7,10 @@ from tidegauge.audit import SEVERITIES, audit, worst
 from tidegauge.commands._common import NAME_WIDTH, add_arms, add_common, findings_text, load
 from tidegauge.model import Arm
 
+DESCRIPTION = """``tidegauge audit``: can these numbers be trusted and compared?
+
+Exit status: 0 = no error, 1 = at least 1 error (with --strict: or 1 warning).
+"""
 HELP = "check that the trials are complete, valid and comparable"
 
 

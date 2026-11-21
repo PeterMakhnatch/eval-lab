@@ -42,7 +42,13 @@ fi
 for ((attempt = 1; attempt <= 5; attempt++)); do
   require_clean
   git fetch origin main
-  git rebase origin/main
+  if ! git merge-base --is-ancestor origin/main HEAD; then
+    if ! git rebase origin/main; then
+      git rebase --abort
+      printf 'land: rebase onto origin/main conflicts; resolve on your branch, then land again\n' >&2
+      exit 1
+    fi
+  fi
   head=$(git rev-parse HEAD)
   scripts/gate
   require_clean

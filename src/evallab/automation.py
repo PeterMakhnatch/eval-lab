@@ -588,8 +588,7 @@ def core_runtime_checks(
 
     lock = tomllib.loads((root / "uv.lock").read_text())
     locked = {package["name"]: package["version"] for package in lock["package"]}
-    for package in ("harbor", "psycopg", "duckdb", "pyarrow", "huggingface-hub",
-                    "pydantic", "pyyaml", "tomlkit"):
+    for package in ("harbor", "psycopg", "duckdb", "pyarrow", "pydantic", "pyyaml", "tomlkit"):
         def library_version(package: str = package) -> tuple[bool, str]:
             version = importlib.metadata.version(package)
             return version == locked[package], f"installed={version} pin={locked[package]} (uv.lock)"

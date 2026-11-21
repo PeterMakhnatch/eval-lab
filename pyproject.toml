@@ -10,18 +10,16 @@ license = "Apache-2.0"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "daytona>=0.210.0",
+    "daytona>=0.210.0,<1",
     # 2.0 rewrites the Python API and writes a one-way storage format that the
     # 1.5 checkouts still in use cannot read; migrate deliberately, not via lock refresh.
     "duckdb>=1.5.5,<2",
     "fastapi==0.141.1",
     # Native task execution is a core boundary, independent of trace export.
     "harbor[modal]==0.24.0",
-    "huggingface-hub>=1.29.0",
     "psycopg[binary]>=3.2,<4",
     "pyarrow>=25.0.1",
     "pydantic>=2.13.4",
-    "pytz>=2026.5",
     "pyyaml>=6.0.3",
     "tomlkit>=0.13,<1",
     "uvicorn>=0.54.0,<1",
@@ -37,31 +35,26 @@ evallab = "evallab.entry:main"
 
 [dependency-groups]
 benchmarks = [
-    "cryptography>=41,<51",
     "fastmcp==3.4.7",
 ]
 inspect = [
     "inspect-ai==0.3.276",
 ]
 dev = [
-    "pip==26.1.2",
-    "harbor-atif2otel>=0.1.0",
     "lmnr==0.7.64",
     "modal==1.6.2",
     "openai>=2,<3",
     "ruff>=0.12,<1",
 ]
 observability = [
-    "harbor-atif2otel>=0.1.0",
     "lmnr==0.7.64",
-    "opentelemetry-exporter-otlp>=1.38.0",
+    "opentelemetry-exporter-otlp-proto-common>=1.38.0",
     "opentelemetry-proto>=1.38.0",
     "opentelemetry-sdk>=1.38.0",
-    "openinference-instrumentation-dspy>=0.1.0",
-    "openinference-instrumentation-litellm>=0.1.0",
 ]
 
 [tool.uv]
+exclude-newer = "7 days"
 default-groups = ["dev"]
 
 [tool.hatch.build.targets.wheel]

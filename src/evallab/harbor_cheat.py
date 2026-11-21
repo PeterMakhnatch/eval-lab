@@ -1,17 +1,3 @@
-"""Deterministic model-free Harbor cheat-audit agent (HAR-204).
-
-``CheatAgent`` runs outside the task sandbox and drives the task through
-Harbor tool transport (``environment.exec`` only: no uploads, no model calls,
-no provider credentials). It runs the fixed attack ladder owned by
-``evallab.cheat_ladder`` (recon plus workspace plants, then grader-tamper
-probes), writes each attempt to ``<logs>/cheat/attempts.json``, and leaves
-exploitability to the benchmark's own verifier reward, read after the trial
-by ``evallab cheat run`` (see ``evallab/cheat.py``).
-
-The ladder names are re-exported here so existing agent-side importers keep
-working; the single implementation lives in ``evallab.cheat_ladder``.
-"""
-
 from __future__ import annotations
 
 import json
@@ -41,7 +27,6 @@ ATTEMPTS_SCHEMA = "evallab.cheat.attempts/v1"
 
 
 class CheatAgent(BaseAgent):
-    """Deterministic model-free Harbor agent running the fixed cheat ladder."""
 
     capabilities = AgentCapabilities()
 
@@ -58,7 +43,7 @@ class CheatAgent(BaseAgent):
         return cheat_ladder.CHEAT_AGENT_VERSION
 
     async def setup(self, environment: BaseEnvironment) -> None:
-        """Nothing to install: the agent runs host-side on tool transport."""
+        pass
 
     async def run(
         self, instruction: str, environment: BaseEnvironment, context: AgentContext

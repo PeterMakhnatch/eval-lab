@@ -1,5 +1,3 @@
-"""Pinned Harbor Hub / adapter-lane acquisition for library/benchmarks/."""
-
 from __future__ import annotations
 
 import hashlib
@@ -24,7 +22,7 @@ TREE_DIGEST_RE = re.compile(r"sha256:[0-9a-f]{64}")
 
 
 class FetchError(ValueError):
-    """User-facing fetch/audit refusal."""
+    pass
 
 
 @dataclass(frozen=True)

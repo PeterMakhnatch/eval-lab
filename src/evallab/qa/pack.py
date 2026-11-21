@@ -1,5 +1,3 @@
-"""Static regression-pack admission and native QA replay; inputs stay immutable."""
-
 from __future__ import annotations
 
 import ast
@@ -136,7 +134,6 @@ def _no_weakening(files: list[tuple[str | None, str, list[str]]], claim: str) ->
 
 
 def _assertions(path: Path) -> Counter[str]:
-    """Keep multiline assertions and assertion helpers intact, not just their first lines."""
     try:
         tree = ast.parse(path.read_text(encoding="utf-8"))
     except SyntaxError as exc:
@@ -199,7 +196,6 @@ def _apply(task: Path, patch: Path) -> None:
 
 
 def stage_fixed(task_dir: Path, patch: Path, dest: Path) -> Path:
-    """Apply a safe unified patch to a fresh copy, never to its source package."""
     task, patch, dest = Path(task_dir).resolve(), Path(patch).resolve(), Path(dest).resolve()
     pack = patch.parent.parent if patch.parent.name == "fix" else patch.parent
     _separate(dest, task, pack)
@@ -254,7 +250,6 @@ def _required(manifest: dict[str, Any], witness: str) -> set[str]:
 
 
 def validate_pack(pack_dir: Path, task_dir: Path) -> dict[str, Any]:
-    """Validate the complete pack, including an exact static patch application."""
     pack, task = Path(pack_dir).resolve(), Path(task_dir).resolve()
     _tree(pack)
     _tree(task)
@@ -398,7 +393,6 @@ def _measure(observation: Any, trial: Path, check: bool) -> tuple[Any, str | Non
 def replay(pack_dir: Path, task_dir: Path, *, plan: bool = False, environment: str = "modal",
            max_usd: float | None = None, approve: str | None = None, usd_per_execution: float = 0.0025,
            run_dir: Path | None = None, cells: Any = None, executor_factory: Any = None) -> dict[str, Any]:
-    """Replay selected cells with one spend gate and one fresh native trial per cell."""
     pack, task = Path(pack_dir).resolve(), Path(task_dir).resolve()
     if run_dir is not None:
         run_dir = Path(run_dir).resolve()
@@ -501,7 +495,6 @@ def replay(pack_dir: Path, task_dir: Path, *, plan: bool = False, environment: s
 
 
 def replay_command(args: Any, root: Path, **kwargs: Any) -> int:
-    """CLI callback; a partial or unmeasured replay never returns success."""
     def resolve(value: Any) -> Path:
         path = Path(value).expanduser()
         return path.resolve() if path.is_absolute() else (root / path).resolve()

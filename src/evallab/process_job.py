@@ -1,55 +1,3 @@
-"""Automatic processing for every landed Harbor job (HAR-107 slice A).
-
-One command -- ``evallab process-job <job_dir>`` -- runs the full
-post-finalize pipeline over a landed job directory and writes one run
-report per trial plus one job report into ``<job>/processed/`` (JSON plus
-a short markdown each)::
-
-    <job>/processed/trial-<trial_name>.json
-    <job>/processed/trial-<trial_name>.md
-    <job>/processed/job.json
-    <job>/processed/job.md
-
-The pipeline reuses existing code; this module adds no new detectors
-beyond wiring:
-
-* catalog ingest with cost from the proxy ledger: :func:`evallab.ledger.
-  build_cost_block` (source ``proxy_ledger_x_pinned_price``) for the job
-  block, split evenly across trials exactly like
-  :func:`evallab.database.trial_cost_columns`. Missing data is ``None``
-  with a reason, never 0. Historical billed-session receipts remain separate.
-* stitching: :mod:`evallab.step_layers` is the one shared stitching
-  library (``discover_trajectory_parts`` + ``stitch_steps`` +
-  ``coverage_record``). Token sums and step counts here come from its
-  stitched unique steps.
-* proxy usage: ``tokens_proxy`` comes only from the validated, settled
-  ledger, never Harbor's native totals. A job-level ledger is attributable
-  to a trial only when the job has exactly one trial; otherwise trial
-  usage stays unknown. ``tokens_native`` preserves Harbor's independent
-  counters, and ``tokens_steps`` remains the stitched-step sum.
-* detectors: :func:`evallab.trial_diagnosis.diagnose_trial` (failure-mode
-  taxonomy), :func:`evallab.traj.outline_trajectory` (loop suspicion,
-  error counts), and :mod:`evallab.probe03` (Traces probe-03 first-failure
-  and attribution tags, identical-command loops, completion handshake and
-  confirmation loops, wedged terminal, token-ceiling naming,
-  submit-contract and suspect-grader evidence).
-* taint candidates: a process-job flag (not a probe-03 rule) combining
-  the verifier's ``anti_hack_guard: REJECT`` line (pattern reused from
-  probe-03) with confirmed upstream acquisition via
-  :mod:`evallab.upstream_fetch`. Its canonical command matcher also serves
-  GEPA's separate attempt-based policy; failed and unknown attempts here are
-  retained as non-deciding facts, not copied-fix evidence.
-
-The trial markdown opens with a decision page
-(:mod:`evallab.trial_decision`). That page invents no label. It quotes
-the probe-03 outcome, the existing grader-gap checks, the taint flags,
-and token-flow's last useful edit, and says whose problem the rule is.
-``R-ENV-02`` reads as the task. A pass with confirmed acquisition or a guard
-reject is a taint candidate, not a coordinator ruling.
-
-The runner calls :func:`process_job` automatically when a job finalizes
-"""
-
 import datetime as _datetime
 import json
 from collections.abc import Iterable, Mapping, Sequence
@@ -57,11 +5,6 @@ from pathlib import Path
 from typing import Any
 
 PROCESS_JOB_SCHEMA = "process_job/v1"
-
-#: Remote-fetch detection lives in :mod:`evallab.upstream_fetch` (the
-#: canonical answer-leak guard, shared with GEPA scoring); process-job
-#: reuses it instead of a second detector. Only the verifier-side guard
-#: reject stays here.
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
@@ -73,14 +16,12 @@ def _read_json(path: Path) -> dict[str, Any] | None:
 
 
 def _iter_trial_dirs(job_dir: Path) -> list[Path]:
-    """Trial directories directly under a Harbor job directory, by name."""
     from evallab.model_capture import iter_trial_dirs
 
     return iter_trial_dirs(job_dir)
 
 
 def _trial_wall_hours(result: dict[str, Any]) -> tuple[float | None, str | None]:
-    """Trial wall time in hours from result.json, or (None, reason)."""
     started, finished = result.get("started_at"), result.get("finished_at")
     if not isinstance(started, str) or not isinstance(finished, str):
         return None, "result.json carries no started_at/finished_at pair"
@@ -105,10 +46,6 @@ def _trial_concurrency(result: dict[str, Any]) -> int:
 
 
 def _step_token_sums(steps: list[Any]) -> dict[str, Any]:
-    """Used prompt/completion sums over stitched unique steps.
-
-    Unmetered agent steps are counted, never zero-filled.
-    """
     prompt = completion = metered = unmetered = agent_steps = 0
     for step in steps:
         if not isinstance(step, dict):
@@ -148,11 +85,6 @@ def _step_token_sums(steps: list[Any]) -> dict[str, Any]:
 def _taint_flags(
     agent_seq: list[tuple[str, dict]], info: dict, trial_dir: Path
 ) -> list[dict[str, Any]]:
-    """Guard rejects plus outcome-assessed upstream-fetch attempt facts.
-
-    Counts and the decision page use only confirmed acquisitions. Command
-    attempts (including failed/unknown ones) remain visible without deciding.
-    """
     from evallab import probe03
     from evallab.copy_check import copy_check
     from evallab.upstream_fetch import assess_upstream_fetch
@@ -185,7 +117,6 @@ def _taint_flags(
 def _process_trial(
     trial_dir: Path, job_dir: Path, *, nop_runs_dir: str | None = None
 ) -> dict[str, Any]:
-    """One trial's run report record (JSON-serializable)."""
     from evallab import probe03
     from evallab.reward_report import assess as _assess_reward_report
     from evallab.reward_report import flags as _reward_report_flags
@@ -202,7 +133,6 @@ def _process_trial(
     agent_metadata = agent_result.get("metadata")
     agent_metadata = agent_metadata if isinstance(agent_metadata, dict) else {}
 
-    # Shared stitching library: parts -> unique steps -> coverage.
     agent_dir = trial_dir / "agent"
     parts = discover_trajectory_parts(agent_dir) if agent_dir.is_dir() else []
     docs: list[dict[str, Any]] = []
@@ -227,12 +157,9 @@ def _process_trial(
     )
     tokens_steps = _step_token_sums(unique_steps)
 
-    # Reward (probe-02 semantics via the probe03 port).
     reward, scored, reward_source = probe03.read_reward(trial_dir)
-    # HAR-440: retain reward/report contradiction evidence without changing scoring.
     reward_report = _assess_reward_report(trial_dir)
 
-    # First-failure + attribution tags (ported Traces probe-03 rules).
     try:
         analysis = probe03.analyze_trial_core(trial_dir, job_dir, nop_runs_dir=nop_runs_dir)
         analysis_error = None
@@ -240,7 +167,6 @@ def _process_trial(
         analysis = None
         analysis_error = f"{type(exc).__name__}: {exc}"
 
-    # Loop suspicion + outline counts (shared traj outline).
     try:
         from evallab.traj import outline_trajectory
 
@@ -267,7 +193,6 @@ def _process_trial(
         outline_record = None
         outline_error = f"{type(exc).__name__}: {exc}"
 
-    # Failure-mode taxonomy (existing deterministic diagnosis).
     try:
         from evallab.trial_diagnosis import diagnose_trial
 
@@ -292,8 +217,6 @@ def _process_trial(
         diagnosis_record = None
         diagnosis_error = f"{type(exc).__name__}: {exc}"
 
-    # Token-flow analysis (HAR-114): where the input-token budget goes.
-    # Best-effort like every other per-trial detector; never fails the job.
     try:
         from evallab.token_flow import analyze_token_flow
 
@@ -303,7 +226,6 @@ def _process_trial(
         token_flow = None
         token_flow_error = f"{type(exc).__name__}: {exc}"
 
-    # Taint candidates (process-job flag, not a probe-03 rule).
     if analysis is not None:
         taint = _taint_flags(analysis["agent_seq"], analysis["info"], trial_dir)
     else:
@@ -314,7 +236,6 @@ def _process_trial(
     if red_team is not None:
         taint.append(red_team)
 
-    # Stop reason and behavioral findings from the probe-03 analysis.
     if analysis is not None:
         stop_reason = analysis["stop_reason"]
         first_failure = analysis["first_failure"]
@@ -376,8 +297,6 @@ def _process_trial(
         loop_cost = None
         task_name = result.get("task_name") or "unknown"
         model_name = "unknown"
-    # Preserve probe-03's binding ceiling and confirmed-completion labels,
-    # while recognizing native harness stops and recorded final-turn flags.
     from evallab.step_layers import classify_stop_reason
 
     final_accepted: dict[str, Any] = {}
@@ -410,8 +329,6 @@ def _process_trial(
     ):
         stop_reason = shared_stop
 
-    # Cost: job ledger block split across trials happens at the job level;
-    # the per-trial record carries the proxy totals for reference.
     wall_hours, wall_reason = _trial_wall_hours(result)
     record: dict[str, Any] = {
         "schema": PROCESS_JOB_SCHEMA,
@@ -429,12 +346,12 @@ def _process_trial(
             "output_tokens": agent_result.get("n_output_tokens"),
             "source": "result.json#agent_result",
         },
-        "tokens_proxy": None,  # attached once the job ledger's scope is known
-        "tokens_attempted_proxy": None,  # attributable ledger ceiling, never a split
-        "cost_usd": None,  # filled at job level (ledger split)
-        "cost_attempted_usd": None,  # filled at job level (ledger split)
+        "tokens_proxy": None,
+        "tokens_attempted_proxy": None,
+        "cost_usd": None,
+        "cost_attempted_usd": None,
         "cost_source": "proxy_ledger_x_pinned_price",
-        "cost_reason": None,  # filled at job level (ledger reason)
+        "cost_reason": None,
         "trial_wall_hours": wall_hours,
         "trial_wall_reason": wall_reason,
         "trial_concurrency": _trial_concurrency(result),
@@ -467,18 +384,12 @@ def _process_trial(
             "diagnosis": diagnosis_error,
             "token_flow": token_flow_error,
         },
-        # Environment monitor evidence (trial/daytona-usage.json): None when
-        # the trial predates the monitor (or ran off-Daytona), never zero use.
         "daytona_usage": _read_json(trial_dir / "daytona-usage.json"),
     }
-    # HAR-156: execution lens shared with the interpretation run pages. Mapped
-    # from the probe-03 stop reason (ceiling:*, loop_break, agent_timeout, ...),
-    # never from the counts verdict.
     from evallab.step_layers import stop_category
 
     record["stop_category"] = stop_category(stop_reason)
 
-    # Flags: one short string per fired detector for the summary table.
     flags: list[str] = []
     if stop_reason is not None and stop_reason.startswith("ceiling:"):
         flags.append(f"token_ceiling:{stop_reason.partition(':')[2]}")
@@ -536,10 +447,6 @@ def _process_trial(
     if reward_report is not None:
         flags.extend(_reward_report_flags(reward_report))
     record["flags"] = flags
-    # The decision page is attached in process_job after counts land, via
-    # _attach_decision: one clean path with the real counts field, never a
-    # provisional page built without it. Direct _process_trial callers get
-    # decision None until attached.
     record["grader_evidence"] = (analysis or {}).get("grader_evidence") if analysis else None
     record["decision"] = None
     record["setup_deviations"] = _setup_deviations(job_dir)
@@ -547,7 +454,6 @@ def _process_trial(
 
 
 def _setup_deviations(job_dir: Path) -> list[dict[str, Any]]:
-    """Declared setup deviations from the batch fingerprint, if present."""
     try:
         payload = json.loads((Path(job_dir) / "setup-fingerprint.json").read_text(encoding="utf-8"))
     except (OSError, ValueError, UnicodeDecodeError):
@@ -561,7 +467,6 @@ def _setup_deviations(job_dir: Path) -> list[dict[str, Any]]:
 
 
 def _setup_deviation_lines(deviations: list[dict[str, Any]] | None) -> list[str]:
-    """One run-page line per declared setup deviation (HAR-149)."""
     if not deviations:
         return []
     lines = ["- setup deviations (declared vs the named reference):"]
@@ -571,7 +476,6 @@ def _setup_deviation_lines(deviations: list[dict[str, Any]] | None) -> list[str]
 
 
 def _watch_job_lines(report: dict[str, Any]) -> list[str]:
-    """Live-watch alert section for the job page (HAR-162; [] when clean)."""
     from evallab import auto_watch as _auto_watch
 
     watch = report.get("watch") or {}
@@ -582,13 +486,6 @@ def _watch_job_lines(report: dict[str, Any]) -> list[str]:
 
 
 def _job_task_identity(job_dir: Path) -> dict[str, Any | None]:
-    """Canonical task identity for counts, read once per job.
-
-    ``experiment-spec.json`` carries the optional ``task_id`` (explicit
-    canonical identity; avoids variant display-name aliases) and
-    ``task_package_digest``. Either may be absent on older jobs: counts
-    then keeps its legacy policy and reports the ledger unmatched.
-    """
     spec = _read_json(job_dir / "experiment-spec.json") or {}
     digest = spec.get("task_package_digest")
     task_id = spec.get("task_id")
@@ -607,7 +504,6 @@ def _attach_trial_counts(
     label_root: Path | None,
     task_identity: dict[str, Any | None],
 ) -> dict[str, Any]:
-    """Attach counts with the canonical task identity (HAR-131 cutover)."""
     from evallab.counts import attach_counts
 
     return attach_counts(
@@ -620,7 +516,6 @@ def _attach_trial_counts(
 
 
 def _attach_decision(record: dict[str, Any], trial_dir: Path) -> None:
-    """Build the trial-decision page in place, after counts are attached."""
     from evallab.trial_decision import build_decision
 
     try:
@@ -652,9 +547,6 @@ def _attach_decision(record: dict[str, Any], trial_dir: Path) -> None:
             else None,
         )
         decision_error = None
-        # HAR-156: the execution lens rides along in the decision facts for
-        # readers correlating stops with outcomes. Counts are untouched: the
-        # page still renders HAR-78's verdict from the counts field as-is.
         decision = record.get("decision")
         if isinstance(decision, dict) and isinstance(decision.get("facts"), dict):
             decision["facts"]["stop_category"] = record.get("stop_category")
@@ -665,7 +557,6 @@ def _attach_decision(record: dict[str, Any], trial_dir: Path) -> None:
 
 
 def _jsonable(value: Any) -> Any:
-    """Convert info-keyed structures to JSON-serializable values."""
     if isinstance(value, dict):
         return {str(key): _jsonable(val) for key, val in value.items()}
     if isinstance(value, (list, tuple)):
@@ -676,11 +567,6 @@ def _jsonable(value: Any) -> Any:
 
 
 def _job_limit_hit_lines(record: dict[str, Any]) -> list[str]:
-    """The job's limit-hit share on a run page, or [] before the rollup lands.
-
-    Records built by direct ``_process_trial`` callers carry no job rollup;
-    those pages render no share line rather than a guessed one.
-    """
     summary = record.get("job_limit_hit_summary")
     if not isinstance(summary, dict):
         return []
@@ -709,12 +595,6 @@ def _daytona_block(snapshot: Mapping[str, Any], key: str) -> Mapping[str, Any]:
 
 
 def _daytona_latest_snapshot(usage: Mapping[str, Any]) -> tuple[Mapping[str, Any], str]:
-    """Latest capacity snapshot and which evidence field it came from.
-
-    Prefers the disappearance-time current usage, then the last monitor
-    sample, then the admission snapshot: the reading closest to the trial's
-    end names the pressure the trial actually ran under.
-    """
     disappearance = usage.get("disappearance")
     if isinstance(disappearance, Mapping):
         current = disappearance.get("current_usage")
@@ -747,12 +627,6 @@ def _daytona_pressure_note(snapshot: Any) -> str:
 
 
 def render_daytona_usage_lines(usage: dict[str, Any] | None) -> list[str]:
-    """Human-visible Daytona capacity section, or [] when no evidence exists.
-
-    Missing evidence stays missing: dimensions without data render as
-    unavailable, never zero. A disappearance beside recent near-limit
-    pressure is capacity correlation, never a confirmed provider cause.
-    """
     if not isinstance(usage, dict):
         return []
     snapshot, provenance = _daytona_latest_snapshot(usage)
@@ -858,7 +732,6 @@ def _table(headers: Sequence[str], rows: Iterable[Sequence[Any]]) -> list[str]:
 
 
 def _render_trial_markdown(record: dict[str, Any]) -> str:
-    """Short markdown run report for one trial, decision page first."""
     from evallab.trial_decision import render_decision_markdown
 
     outcome = record.get("outcome_failure") or {}
@@ -876,7 +749,6 @@ def _render_trial_markdown(record: dict[str, Any]) -> str:
             f"- reward: `{record['reward']}` (scored={record['scored']}, {record['reward_source']})",
             _counts_line(record),
             f"- stop reason: `{record['stop_reason']}`",
-            # HAR-156: execution lens, separate from the counts verdict above.
             f"- stop category: `{record.get('stop_category') or 'unknown'}`"
             " (how the run ended; the counts verdict above is unchanged)",
             _tokens_line(record),
@@ -914,10 +786,7 @@ def _render_trial_markdown(record: dict[str, Any]) -> str:
         lines.append(
             "- processing gaps: " + "; ".join(f"{key}: {val}" for key, val in errors.items())
         )
-    # Absent evidence renders nothing (pre-monitor trials unchanged).
     lines.extend(render_daytona_usage_lines(record.get("daytona_usage")))
-    # HAR-162: dispatch-attached watch alerts for this trial; records built
-    # before the rollup carry none and render unchanged.
     from evallab import auto_watch as _auto_watch
 
     lines.extend(
@@ -930,7 +799,6 @@ def _render_trial_markdown(record: dict[str, Any]) -> str:
 
 
 def _counts_line(record: dict[str, Any]) -> str:
-    """Counts verdict. The reward line above it is not rewritten."""
     counts = record.get("counts") or {}
     reasons = ", ".join(counts.get("reasons") or []) or "none"
     return f"- counts: `{counts.get('verdict')}` ({reasons})"
@@ -960,7 +828,6 @@ def _cost_line(record: dict[str, Any]) -> str:
 
 
 def _job_ledger_block(job_dir: Path) -> dict[str, Any]:
-    """Job-level cost block from the proxy ledger (cost-at-finalize shape)."""
     from evallab.ledger import build_cost_block
 
     lab = _read_json(job_dir / "lab-metadata.json") or {}
@@ -983,7 +850,6 @@ def _job_ledger_block(job_dir: Path) -> dict[str, Any]:
 
 
 def _trial_proxy_tokens(totals: dict[str, Any], n_trials: int) -> dict[str, Any]:
-    """Attribute settled job usage without pretending it was metered per trial."""
     tokens: dict[str, Any] = {
         "input_tokens": None,
         "output_tokens": None,
@@ -1010,12 +876,6 @@ def _trial_proxy_tokens(totals: dict[str, Any], n_trials: int) -> dict[str, Any]
 
 
 def _session_spend_suffix(summary: dict[str, Any]) -> str | None:
-    """Allocated billed-GPU + Daytona estimate suffix, or None without receipt.
-
-    Prefers the billed-session allocation when present. An unknown Daytona
-    estimate renders the GPU share plus unknown sandbox: never a false full
-    total and never a fallback to the legacy wall-time estimate.
-    """
     allocation = summary.get("session_spend")
     if not isinstance(allocation, dict):
         return None
@@ -1034,7 +894,6 @@ def _session_spend_suffix(summary: dict[str, Any]) -> str | None:
 
 
 def _render_job_markdown(report: dict[str, Any]) -> str:
-    """Short markdown job report with the per-trial summary table."""
     summary = report.get("summary") or {}
     allocated = _session_spend_suffix(summary)
     lines = [
@@ -1075,7 +934,6 @@ def _render_job_markdown(report: dict[str, Any]) -> str:
 def _project_job(
     job_path: Path, parquet_root: Path, *, database_url: str | None = None, root: Path | None = None
 ) -> dict[str, Any]:
-    """Build native projections once, with optional canonical catalog ingestion."""
     from dataclasses import replace
 
     from evallab.evidence.atif import ingest_and_project, project_jobs
@@ -1134,30 +992,6 @@ def process_job(
     publication_card: str | None = None,
     parquet_root: str | Path | None = None,
 ) -> dict[str, Any]:
-    """Process a landed Harbor job directory.
-
-    Writes per-trial and job reports under ``output_dir`` (default
-    ``<job>/processed/``) and ingests the job into the catalog unless
-    ``ingest`` is False. Returns the JSON-serializable job report.
-    Catalog and projection failures propagate; report-only processing remains explicit.
-
-    ``session_spend`` is an optional billed-session receipt
-    (``evallab.session_spend/v1`` JSON). When given, the receipt is
-    loaded and validated via
-    :func:`evallab.spend_day.session_spend_for_job` BEFORE any report
-    is written or any publication replaced, and the computed allocation
-    is stored in ``report['summary']['session_spend']``. Settled proxy
-    cost/tokens are never overwritten and no per-trial GPU share is
-    invented. Reprocessing after the bills land requires passing the receipt again.
-
-    ``publication_card`` is an explicit publish-time HAR issue assignment
-    for jobs whose frozen name/question_ref has none; native inputs stay intact.
-
-    ``parquet_root`` opts into the local, catalog-free ATIF/facts and HAR-159
-    feature projection. It uses the existing Parquet layout and propagates
-    projection failures; callers can preserve existing reports by choosing a
-    temporary ``output_dir``. Neither this option nor its producers run models.
-    """
     job_path = Path(job_dir).resolve()
     if not job_path.is_dir():
         raise ValueError(f"Not a job directory: {job_dir}")
@@ -1202,28 +1036,20 @@ def process_job(
 
     trial_reports: list[dict[str, Any]] = []
     task_identity = _job_task_identity(job_path)
-    # HAR-162: alerts the dispatch-attached watch wrote while the job ran.
-    # Read once here; absent watch output keeps every page byte-identical.
     from evallab import auto_watch as _auto_watch
 
     job_watch_alerts = _auto_watch.read_watch_alerts(job_path)
-    # HAR-174: acks ride along so pages mark covered alerts; absent ack
-    # output keeps every page byte-identical.
     job_watch_acks = _auto_watch.read_watch_acks(job_path)
     job_watch_alerts = _auto_watch.annotate_alerts_with_acks(job_watch_alerts, job_watch_acks)
     for trial_path in trials:
         record = _process_trial(trial_path, job_path, nop_runs_dir=nop_runs_dir)
         trial_result = _read_json(trial_path / "result.json") or {}
         record["tokens_proxy"] = _trial_proxy_tokens(totals, len(trials))
-        # Job ledger split across trials (same convention as
-        # database.trial_cost_columns: daily sums still equal the ledger).
         record["cost_usd"] = job_cost / n_trials if isinstance(job_cost, (int, float)) else None
         record["cost_attempted_usd"] = (
             job_attempted / n_trials if isinstance(job_attempted, (int, float)) else None
         )
         record["cost_reason"] = block.get("reason")
-        # Attempted ceiling includes settled usage and unresolved reservations.
-        # Like settled tokens, a job ledger is attributable only for one trial.
         used_input = (totals.get("used") or {}).get("input_tokens")
         used_output = (totals.get("used") or {}).get("output_tokens")
         if (
@@ -1246,8 +1072,6 @@ def process_job(
         ]
         trial_reports.append(record)
 
-    # HAR-156: the job rollup lands before any page is written, so every run
-    # page carries the job's limit-hit share next to its own stop category.
     from evallab.step_layers import limit_hit_summary
 
     job_limits = limit_hit_summary(record.get("stop_reason") for record in trial_reports)
@@ -1262,8 +1086,6 @@ def process_job(
             _render_trial_markdown(record), encoding="utf-8"
         )
 
-    # Job aggregates. Unknown stays unknown: sums cover only trials that
-    # measured a value, with an explicit measured count.
     scored = [record for record in trial_reports if record["scored"]]
     measured_cost = [
         record["cost_usd"]
@@ -1365,14 +1187,7 @@ def process_job(
     if projection is not None:
         report["summary"]["projection"] = projection
     if allocation is not None:
-        # Computed job-scope value only: settled proxy cost/tokens above
-        # are untouched and no per-trial GPU share is invented.
         report["summary"]["session_spend"] = allocation
-    # The job report lands in out_dir BEFORE the publish copies the tree:
-    # publish_job snapshots the source, so publishing first would copy a
-    # processed/ without job.json and the INDEX row would read "unprocessed".
-    # With a custom output_dir the fresh out_dir pages are passed as the
-    # processed report root, so the published snapshot shows the new outcome.
     report["results_home"] = None
     (out_dir / "job.json").write_text(
         json.dumps(_jsonable(report), indent=2, sort_keys=True) + "\n", encoding="utf-8"

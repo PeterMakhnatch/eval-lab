@@ -1,10 +1,3 @@
-"""Local web page for the judge station: stdlib HTTP, one page, no network, no models.
-
-The server binds 127.0.0.1 only, rejects other Host headers (DNS rebinding), requires a
-per-process token on every POST, and serves a strict content-security policy. All trace text
-reaches the page as JSON and is placed with ``textContent``, never as HTML.
-"""
-
 from __future__ import annotations
 
 import html
@@ -20,20 +13,12 @@ from urllib.parse import parse_qs, urlparse
 from evallab.production.judge_station import JudgeError, Station
 
 MAX_BODY = 64 * 1024
-#: The guide file ends with operator notes (commands, queue and file names). The page serves only
-#: what comes before this heading: names of queues and files must not reach the judge early.
 OPERATOR_HEADING = "## Running the station"
 
 
 def guide_for_page(text: str) -> str:
-    """The judge-facing part of the guide."""
     cut = text.find(f"\n{OPERATOR_HEADING}")
     return text if cut == -1 else text[: cut + 1]
-
-
-# --------------------------------------------------------------------------- #
-# the guide: a tiny, escaping markdown renderer (headings, lists, quotes, code)
-# --------------------------------------------------------------------------- #
 
 
 def _inline(text: str) -> str:
@@ -113,10 +98,6 @@ def render_markdown(source: str) -> str:
     close_list()
     return "\n".join(out)
 
-
-# --------------------------------------------------------------------------- #
-# the page
-# --------------------------------------------------------------------------- #
 
 PAGE = r"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>Judge station</title>
@@ -396,18 +377,13 @@ init().catch(e=>{$("cardp").textContent=String(e)});
 """
 
 
-# --------------------------------------------------------------------------- #
-# the server
-# --------------------------------------------------------------------------- #
-
-
 def make_handler(
     station: Station, token: str, nonce: str, hosts: set[str]
 ) -> type[BaseHTTPRequestHandler]:
     class Handler(BaseHTTPRequestHandler):
         server_version = "judge-station"
 
-        def log_message(self, format: str, *args: Any) -> None:  # keep the terminal quiet
+        def log_message(self, format: str, *args: Any) -> None:
             return
 
         def _send(self, status: int, body: bytes, kind: str) -> None:

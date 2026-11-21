@@ -8,7 +8,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-#: Ordered output columns. Step-anchored values carry their own ``*_step`` id.
 COLUMNS: tuple[str, ...] = (
     "trial",
     "job",
@@ -47,7 +46,6 @@ COLUMNS: tuple[str, ...] = (
 
 _BASH_FUNCTIONS = frozenset({"bash_command", "bash", "shell", "exec"})
 
-#: Job/trial name segments that name an experiment arm (best effort).
 KNOWN_ARMS = frozenset(
     {
         "gepa",
@@ -61,21 +59,16 @@ KNOWN_ARMS = frozenset(
     }
 )
 
-#: ``pytest`` invocation in command text (word match; ``pytest-`` plugins count).
 _PYTEST_CMD_RE = re.compile(r"(?<![\w-])pytest(?![\w-])", re.IGNORECASE)
 
-#: A pytest terminal summary bar: ``=== 3 failed, 12 passed in 4.2s ===``.
 _PYTEST_BAR_RE = re.compile(r"(?m)^=.*(?:passed|failed|error).*=$")
 
-#: ``12 passed``, ``3 failed``, ``1 error`` tokens inside a test observation.
 _PYTEST_COUNT_RE = re.compile(
     r"(\d+)\s+(failed|passed|skipped|errors?|xfailed|xpassed|warnings?)", re.IGNORECASE
 )
 
-#: Traceback marker for the ``n_exceptions`` column.
 _TRACEBACK_RE = re.compile(r"Traceback \(most recent call last\)")
 
-#: Tool-error output markers for the ``n_errors`` column.
 _ERROR_RE = re.compile(
     r"(?m)^(E |FAILED |ERROR )"
     r"|Traceback \(most recent call last\)"
@@ -99,7 +92,6 @@ def _read_json(path: Path) -> dict[str, Any]:
 
 
 def _task_id(result: dict[str, Any], trial_name: str) -> str:
-    """Task id from ``task_name``, never the ``task_id`` dict (QUIRKS Q23)."""
     name = result.get("task_name")
     if isinstance(name, str) and name.strip():
         return name.strip().rsplit("/", 1)[-1]
@@ -151,7 +143,6 @@ def _observation_text(step: dict[str, Any]) -> str:
     )
 
 
-# Shell words that only prefix a command and never name the program.
 _WRAPPERS = frozenset({"sudo", "doas", "env", "nice", "nohup", "time", "timeout", "stdbuf"})
 _ASSIGN_RE = re.compile(r"(?m)^\s*([A-Za-z_]\w*)\s*=\s*(?:Path\(\s*)?['\"]([^'\"]+)['\"]")
 _DURATION_RE = re.compile(r"^\d+(?:\.\d+)?[smhd]?$")
@@ -159,11 +150,6 @@ _HEREDOC_RE = re.compile(r"<<-?\s*['\"]?(\w+)['\"]?")
 
 
 def _strip_heredocs(command: str) -> str:
-    """Drop heredoc bodies; they are the model's own text, not commands.
-
-    A fix pasted inside ``python - <<'EOF' ... EOF`` cites URLs in comments.
-    Those are not fetches, so the body is removed before any scanning.
-    """
     lines = command.split("\n")
     kept: list[str] = []
     terminator: str | None = None
@@ -182,11 +168,6 @@ def _strip_heredocs(command: str) -> str:
 
 
 def _raw_segments(command: str) -> list[str]:
-    """Split on ``&&``/``||``/``;``/newline, but not inside quotes.
-
-    A joined step (``python3 -c "...; ..." ; curl URL``) is several commands.
-    The semicolon inside the Python string is not a command boundary.
-    """
     text = _strip_heredocs(command)
     parts: list[str] = []
     buf: list[str] = []
@@ -227,10 +208,6 @@ def _raw_segments(command: str) -> list[str]:
 
 
 def _segments(command: str) -> list[list[str]]:
-    """Tokenize each command segment, heredoc bodies removed.
-
-    Unparseable segments fall back to whitespace tokens.
-    """
     segments: list[list[str]] = []
     for raw in _raw_segments(command):
         try:
@@ -243,11 +220,6 @@ def _segments(command: str) -> list[list[str]]:
 
 
 def _program(tokens: list[str]) -> tuple[str, list[str]] | None:
-    """First real program of a segment, past env assignments, wrappers, and durations.
-
-    ``timeout 10 curl URL`` names ``curl``: the duration is an argument of the
-    wrapper, not the program that fetched.
-    """
     index = 0
     while index < len(tokens):
         token = tokens[index]
@@ -267,7 +239,6 @@ def _program(tokens: list[str]) -> tuple[str, list[str]] | None:
 
 
 def _tool_verbs(agent_steps: list[dict[str, Any]]) -> dict[str, int]:
-    """Bash command verbs (quote-aware) plus ``@tool`` tallies for the rest."""
     from evallab.token_flow import _step_calls
 
     counts: dict[str, int] = {}
@@ -298,12 +269,6 @@ def _tool_verbs(agent_steps: list[dict[str, Any]]) -> dict[str, int]:
 def _test_stats(
     agent_steps: list[dict[str, Any]],
 ) -> tuple[int, int | None, int | None, int | None]:
-    """``(n_runs, passed, failed, last_step)`` over agent-side pytest runs.
-
-    A step is a test run when its command invokes ``pytest`` or its
-    observation carries a pytest summary bar. Counts come from
-    ``N passed/failed/...`` tokens in test-step observations only.
-    """
     from evallab.token_flow import _step_calls
 
     n_runs = 0
@@ -329,7 +294,6 @@ def _test_stats(
 
 
 def _error_stats(agent_steps: list[dict[str, Any]]) -> tuple[int, int]:
-    """``(n_errors, n_exceptions)``: steps with error output / tracebacks."""
     n_errors = n_exceptions = 0
     for step in agent_steps:
         obs = _observation_text(step)
@@ -343,7 +307,6 @@ def _error_stats(agent_steps: list[dict[str, Any]]) -> tuple[int, int]:
 
 
 def _final_claim(agent_steps: list[dict[str, Any]]) -> bool | None:
-    """Whether the final agent step carries a completion claim."""
     if not agent_steps:
         return None
     from evallab.token_flow import _step_calls
@@ -362,7 +325,6 @@ def _stop_and_limit(
     job_dir: Path,
     agent_steps: list[dict[str, Any]],
 ) -> tuple[str | None, str | None]:
-    """``(stop_reason, limit_hit)`` via the shared classifier + ceilings."""
     from evallab.probe03 import ceiling_which
     from evallab.step_layers import classify_stop_reason
 
@@ -393,11 +355,6 @@ def _stop_and_limit(
 def _diff_stats(
     trial_dir: Path, agent_steps: list[dict[str, Any]]
 ) -> tuple[int | None, list[str], str]:
-    """``(diff_lines, files_touched, diff_source)`` for the final diff.
-
-    Prefers the harness-recorded ``verifier/agent.diff``; otherwise falls
-    back to the union of edit-step touched paths (no line count available).
-    """
     diff_path = trial_dir / "verifier" / "agent.diff"
     try:
         text = diff_path.read_text(encoding="utf-8", errors="replace")
@@ -430,7 +387,6 @@ def _diff_stats(
 
 
 def trial_features(job_dir: Path, trial_dir: Path) -> dict[str, Any]:
-    """One deterministic feature row for a single trial directory."""
     import json as _json
 
     from evallab.copy_check import copy_check
@@ -535,7 +491,6 @@ def trial_features(job_dir: Path, trial_dir: Path) -> dict[str, Any]:
 
 
 def write_features(rows: list[dict[str, Any]], out: Path) -> tuple[Path, Path]:
-    """Write ``<out>.parquet`` plus a ``<out>.csv`` sibling; return both."""
     import pyarrow as pa
 
     from evallab.evidence.parquet_io import write_table_atomic

@@ -17,7 +17,6 @@ from evallab.storage.paths import (
 
 @dataclass(frozen=True)
 class ZoneStatus:
-    """Outcome for one storage zone."""
 
     name: str
     attached: bool
@@ -27,7 +26,6 @@ class ZoneStatus:
 
 @dataclass(frozen=True)
 class AttachResult:
-    """Result of building the unified attach surface."""
 
     connection: duckdb.DuckDBPyConnection
     zones: tuple[ZoneStatus, ...]
@@ -140,7 +138,6 @@ def _z3_select_sql(
 
 
 def _sql_string_literal(value: str) -> str:
-    """Return *value* as a safely quoted SQL string literal."""
     return "'" + value.replace("'", "''") + "'"
 
 
@@ -149,7 +146,6 @@ def _postgres_dsn() -> str:
 
 
 def postgres_identity(dsn: str) -> str:
-    """Return a PostgreSQL target label without its user/password fields."""
     try:
         from psycopg.conninfo import conninfo_to_dict
 
@@ -280,8 +276,6 @@ def _attach_semantic_comparison(
         conn.execute(f"CREATE OR REPLACE VIEW v_semantic_vs_mechanical AS {comparison}")
         conn.execute(f"CREATE OR REPLACE VIEW z3.v_semantic_vs_mechanical AS {z3_comparison}")
     except Exception:
-        # A discovered file can still be malformed or use an older schema. Do not
-        # expose a partial or guessed comparison in that case.
         empty = _empty_semantic_comparison_sql()
         conn.execute(f"CREATE OR REPLACE VIEW v_semantic_vs_mechanical AS {empty}")
         conn.execute(f"CREATE OR REPLACE VIEW z3.v_semantic_vs_mechanical AS {empty}")
@@ -344,7 +338,6 @@ def _attach_z3(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
 
 
 def _catalog_optional_tables() -> tuple[str, ...]:
-    """Optional catalog view names from writer modules, not literals."""
     from evallab.task_catalog import (
         EXPLOITS_TABLE,
         EXPLOITS_TABLE_FILENAME,
@@ -383,7 +376,6 @@ def _empty_view_sql() -> str:
 
 
 def _attach_task_catalog(conn: duckdb.DuckDBPyConnection, derived: Path) -> dict[str, Path]:
-    """Register catalog views and return their pinned treatment/capture paths."""
     from evallab.task_catalog import (
         EXPLOITS_TABLE,
         STABILITY_TABLE,
@@ -406,10 +398,6 @@ def _attach_task_catalog(conn: duckdb.DuckDBPyConnection, derived: Path) -> dict
         if name not in (TREATMENT_TABLE, CAPTURE_TABLE)
         and (catalog / f"{name}.parquet").is_file()
     }
-    # One resolution pins both views to a single generation: {} when nothing
-    # is published (optional-absence), ValueError on a corrupt or incomplete
-    # pair — never a silent empty or split-generation read. No legacy
-    # fixed-path fallback here; table_paths owns the migration inputs.
     pair = table_paths(catalog)
     if pair:
         present |= {TREATMENT_TABLE, CAPTURE_TABLE}
@@ -521,8 +509,6 @@ def build_sql_preamble(
         if name not in (TREATMENT_TABLE, CAPTURE_TABLE)
         and (catalog / f"{name}.parquet").is_file()
     }
-    # Same single-generation pin as the live views; a corrupt or incomplete
-    # pair refuses here rather than emitting a stale or empty preamble.
     pair = table_paths(catalog) if catalog_pair is None else catalog_pair
     if pair:
         present |= {TREATMENT_TABLE, CAPTURE_TABLE}

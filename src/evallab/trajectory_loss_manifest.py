@@ -1,12 +1,3 @@
-"""Trajectory Loss Manifest and Fidelity Auditor (P1).
-
-Provides an immutable, declared per-field loss manifest for ATIF and Harbor
-trajectory specifications. Ensures all fields (including reasoning_content,
-reasoning_tokens, token IDs, logprobs, sampling parameters, and sample index)
-are tracked with explicit preservation status, storage tier, and non-lossy
-provenance guarantees.
-"""
-
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
@@ -25,7 +16,6 @@ FieldStorageTier = Literal[
 
 @dataclass(frozen=True)
 class FieldLossEntry:
-    """Declared preservation status and target storage tier for one schema field."""
 
     field_path: str
     status: FieldPreservationStatus
@@ -38,21 +28,17 @@ class FieldLossEntry:
 
 @dataclass(frozen=True)
 class LossManifest:
-    """Declared loss manifest specification for a trajectory schema version."""
 
     schema_version: str
     declared_fields: dict[str, FieldLossEntry]
     created_at: str
 
     def get_entry(self, field_path: str) -> FieldLossEntry | None:
-        """Get the declared loss entry for a given field path."""
         return self.declared_fields.get(field_path)
-
 
 
 @dataclass(frozen=True)
 class TrajectoryFieldAudit:
-    """Audit result for a single field in a specific trajectory instance."""
 
     field_path: str
     present_in_raw: bool
@@ -66,7 +52,6 @@ class TrajectoryFieldAudit:
 
 @dataclass(frozen=True)
 class TrajectoryLossReport:
-    """Comprehensive loss and fidelity audit report for a trajectory."""
 
     trajectory_id: str | None
     source_path: str | None
@@ -81,7 +66,6 @@ class TrajectoryLossReport:
     evaluated_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert the report into a clean JSON-serializable dictionary."""
         return {
             "trajectory_id": self.trajectory_id,
             "source_path": self.source_path,
@@ -97,9 +81,7 @@ class TrajectoryLossReport:
         }
 
 
-# Canonical declared manifest for ATIF-v1.7 and Harbor trials
 _ATIF_DECLARED_FIELDS: dict[str, FieldLossEntry] = {
-    # Root level fields
     "root.schema_version": FieldLossEntry(
         field_path="root.schema_version",
         status="preserved",
@@ -247,7 +229,6 @@ _ATIF_DECLARED_FIELDS: dict[str, FieldLossEntry] = {
         is_lossless=True,
         description="Custom root metadata",
     ),
-    # Step level fields
     "step.step_id": FieldLossEntry(
         field_path="step.step_id",
         status="preserved",
@@ -602,7 +583,6 @@ _ATIF_DECLARED_FIELDS: dict[str, FieldLossEntry] = {
 
 
 def get_declared_loss_manifest(schema_version: str = "ATIF-v1.7") -> LossManifest:
-    """Return the declared loss manifest for the requested ATIF schema version."""
     return LossManifest(
         schema_version=schema_version,
         declared_fields=dict(_ATIF_DECLARED_FIELDS),
@@ -615,11 +595,6 @@ def audit_trajectory_loss(
     source_path: str | None = None,
     manifest: LossManifest | None = None,
 ) -> TrajectoryLossReport:
-    """Audit a raw trajectory JSON structure against the declared loss manifest.
-
-    Verifies that every present field is declared, tracks lossless preservation,
-    and identifies any undeclared fields or non-lossless mutations.
-    """
     active_manifest = manifest or get_declared_loss_manifest(
         str(raw_atif_data.get("schema_version") or "ATIF-v1.7")
     )
@@ -636,7 +611,6 @@ def audit_trajectory_loss(
         )
     )
 
-    # 1. Audit root fields
     for key, value in raw_atif_data.items():
         if key in ("agent", "steps", "final_metrics"):
             continue
@@ -658,7 +632,6 @@ def audit_trajectory_loss(
         else:
             undeclared.append(field_path)
 
-    # 2. Audit agent subfields
     agent_val = raw_atif_data.get("agent")
     if isinstance(agent_val, dict):
         for k, v in agent_val.items():
@@ -680,7 +653,6 @@ def audit_trajectory_loss(
             else:
                 undeclared.append(field_path)
 
-    # 3. Audit final_metrics subfields
     fm_val = raw_atif_data.get("final_metrics")
     if isinstance(fm_val, dict):
         for k, v in fm_val.items():
@@ -702,7 +674,6 @@ def audit_trajectory_loss(
             else:
                 undeclared.append(field_path)
 
-    # 4. Audit step subfields
     steps = raw_atif_data.get("steps")
     if isinstance(steps, list):
         seen_step_fields: set[str] = set()
@@ -740,7 +711,6 @@ def audit_trajectory_loss(
                     else:
                         undeclared.append(step_path)
 
-            # Step metrics
             s_metrics = step.get("metrics")
             if isinstance(s_metrics, dict):
                 for mk, mv in s_metrics.items():
@@ -766,7 +736,6 @@ def audit_trajectory_loss(
                         else:
                             undeclared.append(m_path)
 
-            # Tool calls
             t_calls = step.get("tool_calls")
             if isinstance(t_calls, list):
                 for tc in t_calls:
@@ -796,7 +765,6 @@ def audit_trajectory_loss(
                                 else:
                                     undeclared.append(tc_path)
 
-            # Observation results
             obs_results = step.get("observation_results")
             if not isinstance(obs_results, list) and isinstance(step.get("observation"), dict):
                 obs_results = step["observation"].get("results")

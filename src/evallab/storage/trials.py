@@ -1,43 +1,3 @@
-"""Transient DuckDB trial census (HAR-178).
-
-One in-memory ``trials`` view over local Harbor runs: every trial found
-under the main/worktree runs and jobs roots -- finished, infra, and
-unfinished -- left-joined to its existing per-native-pair projections.
-No new persistent store, no network, no PostgreSQL.
-
-The view DDL lives once in ``sql/trials.sql`` (loaded here as the actual
-statement, following the ``database.py`` SQL-asset convention). Pipeline
-order matters at census scale: cheap discovery first, dedupe by native
-pair second, full posture/projection reads only for survivors.
-
-* Identity is the native ``(job_id, trial_id)`` pair. The per-trial
-  ``result["config"]["job_id"]`` (correct even under aggregate hardlink
-  viewers) precedes the parent job directory id; the parent id is the
-  legacy fallback. Copies sharing a pair dedupe to one row, preferring
-  the recorded ``trial_uri`` original, then the canonical parent match
-  outside viewer overlays, then scan-root precedence. Same names with
-  distinct ids stay distinct rows. Incomplete trials keep a row with
-  stable path identity and nullable ids; unknown or unsafe ids never
-  reach projection paths or the filesystem.
-* Discovery reads only small metadata. Traversal prunes under recognized
-  trials; dot bookkeeping and symlinked directories are never descended.
-* Facts come from existing parquet via
-  ``storage.paths.discover_parquet_partitions``: hot files addressed per
-  pair, other supported layouts (job, revision, cold-*) joined natively
-  on ``(job_id, trial_id)`` in one query per table. Per-pair rows are
-  validated (trial_facts exactly one, reward names unique, features one
-  row; a present-but-empty reward file is a valid unscored trial, while
-  a file with only foreign rows is not a present projection).
-* Gaps use the existing deterministic producers in memory only. A read never
-  writes Parquet, catalogs, reports, or the source evidence. Unavailable
-  evidence remains null with an explicit projection error.
-* Posture and cut-short come straight from
-  ``evallab.interpretation.trial_posture`` (pinned dependency, direct
-  calls); ``reward`` is the exact ``reward`` dimension with a
-  ``primary_reward`` fallback, integrity/gated strictly theirs, and
-  stop/copy from the stored HAR-159 features.
-"""
-
 from __future__ import annotations
 
 import contextlib
@@ -72,7 +32,6 @@ _TRIALS_SQL = (
 
 
 def contamination_arrow_table(repo: Path) -> pa.Table:
-    """Contamination-audit labels as a typed table (empty when never audited)."""
     labels = load_labels(repo).values()
     schema = pa.schema(
         [(name, pa.bool_() if name == "cheat_prompted" else pa.string()) for name in CONTAMINATION_COLUMNS]
@@ -81,8 +40,6 @@ def contamination_arrow_table(repo: Path) -> pa.Table:
         [{name: row.get(name) for name in CONTAMINATION_COLUMNS} for row in labels], schema=schema
     )
 
-#: Non-hot layouts joined natively for the fact tables (features are hot-only:
-#: their rows carry names, not native ids, so only the per-pair path binds them).
 _JOIN_LAYOUTS = ("job", "revision", "cold-table", "cold-day", "directory", "root")
 
 _FACT_TABLES = ("trial_facts", "reward_facts")
@@ -102,17 +59,10 @@ def _read_json_object(path: Path) -> dict[str, Any] | None:
 
 
 def _is_trial_result(payload: dict[str, Any]) -> bool:
-    """A real trial result, regardless of job completion or ATIF presence."""
     return "task_name" in payload and "trial_name" in payload
 
 
 def _is_job_shape(payload: dict[str, Any]) -> bool:
-    """A job directory, finished or still running.
-
-    Unfinished native jobs (timestamp names carrying ``__``, with
-    ``config.json``) must descend to their trials, never be mistaken for
-    a trial themselves: ``finished_at`` is completion evidence, not shape.
-    """
     return "n_total_trials" in payload and "stats" in payload
 
 
@@ -132,11 +82,6 @@ def _hook_trials(job_dir: Path, cache: dict[str, dict[str, Any]]) -> dict[str, A
 def _discover_inventory(
     roots: Sequence[Path],
 ) -> tuple[list[dict[str, Any]], list[str]]:
-    """Cheap trial inventory; returns ``(rows, unreadable_result_json_paths)``.
-
-    Prunes under recognized trials, never descends dot bookkeeping or
-    symlinked directories, and never aborts on malformed evidence.
-    """
     inventory: list[dict[str, Any]] = []
     seen: set[str] = set()
     counted_bad: set[str] = set()
@@ -175,7 +120,7 @@ def _discover_inventory(
                             "root_index": root_index,
                         }
                     )
-                continue  # prune: trial contents are never trials
+                continue
             if resolved != resolved_root and not (
                 isinstance(payload, dict) and _is_job_shape(payload)
             ):
@@ -196,7 +141,7 @@ def _discover_inventory(
                                 "root_index": root_index,
                             }
                         )
-                    continue  # prune under a recognized (incomplete) trial
+                    continue
             try:
                 children = sorted(resolved.iterdir())
             except OSError:
@@ -221,7 +166,6 @@ def _discover_inventory(
 
 
 def _safe_identity(value: Any) -> str | None:
-    """A native id safe to interpolate into a ``job_id=``/``trial_id=`` path."""
     if not isinstance(value, str) or not value:
         return None
     if value in (".", ".."):
@@ -236,7 +180,6 @@ def _safe_identity(value: Any) -> str | None:
 def _native_ids(
     row: dict[str, Any], parent_cache: dict[str, dict[str, Any]]
 ) -> tuple[str | None, str | None, str | None, bool]:
-    """``(job_id, trial_id, parent_job_id, unsafe)``; config precedes parent id."""
     result = row.get("result") or {}
     trial_id = _safe_identity(result.get("id"))
     unsafe = "id" in result and trial_id is None and result.get("id") is not None
@@ -253,7 +196,6 @@ def _native_ids(
 
 
 def _uri_path(result: dict[str, Any] | None) -> Path | None:
-    """The recorded original trial location, when it parses as a file URI."""
     uri = (result or {}).get("trial_uri")
     if not isinstance(uri, str):
         return None
@@ -279,14 +221,7 @@ def _viewer_marked(job_dir: Path, trial_dir: Path) -> bool:
 
 
 def _dedupe_inventory(inventory: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Dedupe physical copies by native pair, preferring the recorded original.
-
-    Unknown or unsafe ids keep stable path identity and are never merged.
-    Survivors carry ``job_id``, ``trial_id``, ``parent_job_id``, and
-    ``unsafe_identity`` keys.
-    """
     parent_cache: dict[str, dict[str, Any]] = {}
-    # Published copies repeat the same URI; resolve it once per lookup, not copy.
     uri_cache: dict[str, Path | None] = {}
     for row in inventory:
         job_id, trial_id, parent_job_id, unsafe = _native_ids(row, parent_cache)
@@ -327,7 +262,6 @@ def _dedupe_inventory(inventory: Sequence[dict[str, Any]]) -> list[dict[str, Any
 
 
 def _read_hot_file(path: Path) -> tuple[str, list[dict[str, Any]], str | None]:
-    """Read one hot parquet file: ``(status, rows, error)``."""
     try:
         rows = pq.ParquetFile(path).read().to_pylist()
     except Exception as exc:  # noqa: BLE001 -- malformed projections are row errors
@@ -338,12 +272,6 @@ def _read_hot_file(path: Path) -> tuple[str, list[dict[str, Any]], str | None]:
 def _validate_table_rows(
     table: str, all_rows: list[dict[str, Any]], pair_rows: list[dict[str, Any]]
 ) -> tuple[str, Any, str | None]:
-    """Validate native-bound rows: ``(status, payload, error)``.
-
-    A present-but-empty reward file is a valid unscored trial; a file with
-    only foreign rows is not a present projection; conflicting pair rows
-    are explicit errors, never silent first-picks.
-    """
     if table == "trial_facts":
         if not all_rows or not pair_rows:
             return "absent", None, None
@@ -369,7 +297,6 @@ def _validate_table_rows(
 def _hot_partitions(
     hot: HotPartitions, target_root: Path, table: str, job_id: str, trial_id: str
 ) -> list[ParquetPartition]:
-    """Prefer the selected store without rescanning the entire Parquet lake."""
     path = trial_parquet_path(target_root, job_id, trial_id, table)
     candidates = hot.get((table, job_id, trial_id), [])
     target = (
@@ -389,11 +316,6 @@ def _join_fact_rows(
     table: str,
     pairs: Sequence[tuple[str, str]],
 ) -> tuple[dict[tuple[str, str], list[dict[str, Any]]], str | None]:
-    """One native join per fact table over the non-hot supported layouts.
-
-    Returns ``(rows_by_pair, error)``; any failure yields ``({}, error)``
-    for info-level reporting, never per-row contamination.
-    """
     found: dict[tuple[str, str], list[dict[str, Any]]] = {}
     if not pairs:
         return found, None
@@ -462,12 +384,6 @@ def _pick_table(
     trial_id: str,
     source_mtime: float | None,
 ) -> tuple[Any, bool, list[str], list[str]]:
-    """Validated per-pair payload: ``(payload|None, fresh, problems, notes)``.
-
-    Hot copies are tried in disco order (shared target first); the first
-    valid copy wins and rot in losing copies stays store-level notes. Only
-    an unresolved table yields per-row problems.
-    """
     notes: list[str] = []
     for partition in _hot_partitions(hot, target_root, table, job_id, trial_id):
         status, all_rows, error = _read_hot_file(partition.path)
@@ -528,12 +444,6 @@ def _resolve_projections(
     target_root: Path,
     cold: dict[str, dict[tuple[str, str], list[dict[str, Any]]]],
 ) -> tuple[dict[str, Any], set[str], list[str], list[str]]:
-    """Validated fact/feature values with trust and problem sets.
-
-    Returns ``(values, trusted_tables, problems, notes)``. ``trusted``
-    holds tables with freshness-proven data (fresh hot files or
-    lake-joined rows); only those survive a failed backfill as valid.
-    """
     values: dict[str, Any] = {
         "reward": None,
         "integrity": None,
@@ -590,7 +500,6 @@ def _resolve_projections(
 
 
 def _null_untrusted(values: dict[str, Any], trusted: set[str]) -> None:
-    """Drop projection values without freshness proof before raw reconstruction."""
     if "trial_facts" not in trusted:
         values["primary_reward"] = None
     if "reward_facts" not in trusted:
@@ -604,7 +513,6 @@ def _null_untrusted(values: dict[str, Any], trusted: set[str]) -> None:
 def _read_only_projection(
     row: dict[str, Any], values: dict[str, Any], trusted: set[str]
 ) -> str | None:
-    """Fill cache gaps with the same deterministic producers, in memory only."""
     from evallab.interpretation.features import trial_features
     from evallab.results import load_trial
 
@@ -636,26 +544,6 @@ def connect_trials(
     derived_root: Path | None = None,
     task_names: Sequence[str] | None = None,
 ) -> tuple[duckdb.DuckDBPyConnection, dict[str, Any]]:
-    """Build the transient ``trials`` view; the caller closes the connection.
-
-    ``roots=None`` scans the main/worktree roots; an explicit ``roots``
-    (even empty) is the whole selection. ``derived_root`` overrides the
-    projection roots, otherwise reads span the existing derived roots.
-    Keep ``info`` alive while the connection is open (it holds the
-    registered Arrow tables).
-
-    An ``audit`` relation exposes the existing derived ``audit.parquet``
-    projection (missing file = a typed empty relation; a corrupt file is
-    a visible error, never empty success). It is registered even when no
-    native trial exists, so ``SELECT ... FROM audit`` works audit-only.
-    A ``contamination`` relation holds the contamination-audit labels
-    (``evallab.contamination``; one row per audited agent pass, keyed by
-    ``trial``), so census queries can drop passes the audit calls cheats.
-
-    ``task_names`` restricts the native task names before projection work.
-    Cache gaps are projected transiently from the same raw evidence producers,
-    with unavailable evidence left null. Persistent ingestion is explicit.
-    """
     repo = Path(repo_root).resolve()
     scan_roots = [_resolve(repo, Path(p)) for p in roots] if roots is not None else list(trials_roots(repo))
     target_root = derived_root_from_environment(repo, explicit=derived_root)

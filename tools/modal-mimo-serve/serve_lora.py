@@ -1,28 +1,3 @@
-"""LoRA-enabled twin of ``serve.py`` for paired evals of trained adapters.
-
-One SGLang server serves the base model and one or more PEFT LoRA adapters,
-each under its own model name (SGLang's ``<base>:<adapter>`` request syntax,
-``serving_base.py`` ``_resolve_lora_path`` at v0.5.20):
-
-- ``XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B`` -> base weights;
-- ``XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:<adapter>`` -> base + that adapter.
-
-Everything else is ``serve.py``'s: the same SGLang image digest, weights
-revision, GPU, context length, reasoning parser, CUDA-graph batch size, API
-key secret and scale-to-zero policy. The only additions are the LoRA flags
-and the read-only adapter volume. It deploys as its own Modal app, so the
-production ``evallab-mimo-v26-9b`` deployment is never touched.
-
-The adapters are chosen at deploy time and baked into the app, as
-comma-separated ``<name>=<volume-relative adapter dir>`` pairs::
-
-    EVALLAB_MIMO_LORAS=<name>=<run>/adapter[,<name>=<run>/adapter...] \\
-      uv run --project tools/modal-mimo-serve --locked \\
-        modal deploy tools/modal-mimo-serve/serve_lora.py
-    uv run --project tools/modal-mimo-serve --locked \\
-        modal app stop evallab-mimo-v26-9b-lora
-"""
-
 from __future__ import annotations
 
 import os
@@ -44,14 +19,12 @@ if serve.WINDOW is not None:
 APP_NAME = "evallab-mimo-v26-9b-lora"
 SFT_VOLUME_NAME = "evallab-mimo-v26-9b-sft"
 SFT_ROOT = Path("/sft")
-#: Upper bound for the adapter's rank; SGLang sizes its LoRA memory pool by it.
 MAX_LORA_RANK = 64
 
 LORAS_ENV = os.environ.get("EVALLAB_MIMO_LORAS", "")
 
 
 def parse_loras(spec: str) -> dict[str, str]:
-    """``name=rel[,name=rel...]`` -> {adapter name: volume-relative adapter dir}."""
     loras: dict[str, str] = {}
     for part in spec.split(","):
         name, _, rel = part.partition("=")
@@ -79,7 +52,6 @@ app = modal.App(APP_NAME)
 
 
 def lora_command(api_key: str, adapters: dict[str, Path]) -> list[str]:
-    """``serve.py``'s launch command plus the LoRA flags, nothing else."""
     return serve.sglang_command(api_key) + [
         "--enable-lora",
         "--lora-paths",
@@ -88,7 +60,6 @@ def lora_command(api_key: str, adapters: dict[str, Path]) -> list[str]:
         str(MAX_LORA_RANK),
         "--max-loras-per-batch",
         str(len(adapters)),
-        # Fail loudly if any adapter key does not map onto the served model.
         "--lora-strict-loading",
     ]
 

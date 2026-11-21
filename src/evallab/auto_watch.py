@@ -1,20 +1,3 @@
-"""Per-job live-watch supervision for queue dispatch (HAR-162).
-
-Dispatch starts a watch for every agent job and stops it when the job
-reaches a terminal state. The watch reads trial trajectories, the proxy
-ledger and the Harbor hook journal (``<job>/watch/hooks.jsonl``, written by
-:mod:`evallab.harbor_watch_hooks` inside the Harbor process) and writes
-under ``<job>/watch/`` -- never into trial directories. A lifecycle hook
-record triggers a pass immediately instead of at the next interval.
-
-The watch only records alerts. It does not request or apply trial stops.
-
-Model-free agents (``nop``, ``oracle``) are skipped: they have no model
-behavior to watch. A watcher that fails to start or crashes never fails
-the job; the failure is recorded as a ``watcher_error`` alert in the
-same ``alerts.jsonl`` the job page renders.
-"""
-
 from __future__ import annotations
 
 import contextlib
@@ -36,12 +19,8 @@ ACKS_FILENAME = "acks.jsonl"
 NOTIFIED_FILENAME = ".lin_notified.json"
 WATCHER_ERROR_RULE = "watcher_error"
 
-#: Agents without model behavior; dispatch never watches them.
 MODEL_FREE_AGENTS = frozenset({"nop", "oracle"})
 
-#: Alert rules eligible for ``lin comment`` notification. Stall, infra
-#: spike, and spend are the operator-actionable subset; repetition,
-#: budget burn, and the integrity rules stay on the job page only.
 CRITICAL_RULES = frozenset(
     {
         "stalled",
@@ -64,12 +43,10 @@ _active_handles: set[int] = set()
 
 
 def should_watch(agent: str | None) -> bool:
-    """Whether dispatch attaches a watch for ``agent`` (never model-free)."""
     return str(agent or "") not in MODEL_FREE_AGENTS
 
 
 def active_watch_count() -> int:
-    """Live supervised watches (test seam for the exits-on-terminal proof)."""
     with _active_lock:
         return len(_active_handles)
 
@@ -90,7 +67,6 @@ def _untrack(handle: WatchHandle) -> None:
 
 @dataclass
 class WatchHandle:
-    """One supervised per-job watch (background thread plus final pass)."""
 
     job_dir: Path
     out_dir: Path
@@ -107,8 +83,6 @@ class WatchHandle:
 
 
 def _default_run_watch(*, runs_dirs: list[Path], out_dir: Path) -> dict[str, Any]:
-    # Imported here so tests can stub ``evallab.live_watch.run_watch``
-    # and so this module stays cheap to import from the executor.
     from evallab.live_watch import WatchThresholds, run_watch
 
     return run_watch(
@@ -129,12 +103,6 @@ def start_auto_watch(
     run_watch_fn: Callable[..., Any] | None = None,
     notify_runner: Callable[..., Any] | None = None,
 ) -> WatchHandle | None:
-    """Start the per-job watch; ``None`` when skipped (model-free agents).
-
-    Never raises: a start failure returns a handle carrying
-    ``start_error`` so :func:`stop_auto_watch` can record it and still
-    run the final pass.
-    """
     if not should_watch(agent):
         return None
     job_dir = Path(jobs_dir) / job_name
@@ -171,7 +139,6 @@ def start_for_request(
     run_watch_fn: Callable[..., Any] | None = None,
     notify_runner: Callable[..., Any] | None = None,
 ) -> WatchHandle | None:
-    """Attach to a queue :class:`RunRequest` (duck-typed; never raises)."""
     try:
         if not enabled:
             return None
@@ -213,13 +180,6 @@ def stop_auto_watch(
     run_watch_fn: Callable[..., Any] | None = None,
     notify_runner: Callable[..., Any] | None = None,
 ) -> dict[str, Any]:
-    """Stop the watch, run the final pass, notify; never raises.
-
-    Covers every terminal path (success, failure, cancel): the caller
-    holds this in a ``finally`` around the Harbor run. The final
-    synchronous pass guarantees alerts land even for jobs faster than
-    one background interval.
-    """
     if handle is None:
         return {"watched": False}
     if handle.stopped:
@@ -258,8 +218,6 @@ def _supervise(handle: WatchHandle) -> None:
         offset = _journal_size(journal)
         last_pass = time.monotonic()
         while not handle.stop_event.wait(poll):
-            # A trial lifecycle hook (start, phase change, end) triggers a pass now;
-            # log-chunk records alone wait for the regular interval.
             offset, lifecycle = _new_lifecycle_events(journal, offset)
             if lifecycle or time.monotonic() - last_pass >= interval:
                 _pass_and_maybe_notify(handle)
@@ -279,7 +237,6 @@ def _journal_size(path: Path) -> int:
 
 
 def _new_lifecycle_events(journal: Path, offset: int) -> tuple[int, bool]:
-    """``(new_offset, saw_event)`` for hook records appended since ``offset``."""
     size = _journal_size(journal)
     if size <= offset:
         return size, False
@@ -338,7 +295,6 @@ def _record_notice(handle: WatchHandle, message: str) -> None:
 
 
 def read_watch_alerts(job_dir: Path | str) -> list[dict[str, Any]]:
-    """Parsed ``<job>/watch/alerts.jsonl`` rows (best-effort; never raises)."""
     try:
         lines = (
             (Path(job_dir) / WATCH_DIRNAME / ALERTS_FILENAME)
@@ -361,7 +317,6 @@ def read_watch_alerts(job_dir: Path | str) -> list[dict[str, Any]]:
 
 
 def read_watch_acks(job_dir: Path | str) -> list[dict[str, Any]]:
-    """Parsed ``<job>/watch/acks.jsonl`` rows (best-effort; never raises)."""
     try:
         lines = (
             (Path(job_dir) / WATCH_DIRNAME / ACKS_FILENAME).read_text(encoding="utf-8").splitlines()
@@ -389,13 +344,6 @@ def write_watch_ack(
     reason: str,
     now: datetime | None = None,
 ) -> dict[str, Any]:
-    """Acknowledge one alert kind for a job (HAR-174).
-
-    Appends one record to ``<job>/watch/acks.jsonl``; ``alerts.jsonl`` is
-    never edited or deleted. Raises ``ValueError`` for an unknown job, a
-    missing or blank actor or reason, or a rule with no row in that job's
-    alerts.
-    """
     job_path = Path(job_dir)
     if not job_path.is_dir():
         raise ValueError(f"unknown job: {job_dir}")
@@ -429,7 +377,6 @@ def write_watch_ack(
 
 
 def covering_ack(alert: dict[str, Any], acks: list[dict[str, Any]]) -> dict[str, Any] | None:
-    """The ack covering one alert row, or ``None`` (HAR-174)."""
     trial = str(alert.get("trial"))
     rule = str(alert.get("rule"))
     fallback: dict[str, Any] | None = None
@@ -451,7 +398,6 @@ def covering_ack(alert: dict[str, Any], acks: list[dict[str, Any]]) -> dict[str,
 def annotate_alerts_with_acks(
     alerts: list[dict[str, Any]], acks: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
-    """Copy of ``alerts`` marking rows an ack covers (HAR-174)."""
     if not acks:
         return [dict(alert) for alert in alerts]
     annotated: list[dict[str, Any]] = []
@@ -467,7 +413,6 @@ def annotate_alerts_with_acks(
 
 
 def summarize_watch_alerts(alerts: list[dict[str, Any]]) -> dict[str, Any]:
-    """Counts plus the latest high-severity rule (``None`` when clean)."""
     critical = [alert for alert in alerts if alert.get("severity") == "high"]
     rules = sorted({str(alert.get("rule")) for alert in alerts if alert.get("rule")})
     return {
@@ -479,7 +424,6 @@ def summarize_watch_alerts(alerts: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def watch_status_suffix(job_dir: Path | str) -> str | None:
-    """One-line ``evallab status`` suffix for a running job, or ``None``."""
     alerts = read_watch_alerts(job_dir)
     summary = summarize_watch_alerts(alerts)
     if summary["n_alerts"] == 0:
@@ -502,7 +446,6 @@ def watch_status_suffix(job_dir: Path | str) -> str | None:
 
 
 def format_watch_lines(alerts: list[dict[str, Any]], *, trial: str | None = None) -> list[str]:
-    """Markdown ``## Live watch alerts`` section for in-memory alert rows."""
     if trial is not None:
         alerts = [alert for alert in alerts if str(alert.get("trial")) == trial]
     if not alerts:
@@ -551,7 +494,6 @@ def _maybe_notify(
     notify_runner: Callable[..., Any] | None = None,
     alerts: list[dict[str, Any]] | None = None,
 ) -> bool:
-    """Post new critical alerts to the card; each rule at most once per job."""
     if not handle.notify_enabled or not handle.linear_card:
         return False
     rows = alerts if alerts is not None else read_watch_alerts(handle.job_dir)

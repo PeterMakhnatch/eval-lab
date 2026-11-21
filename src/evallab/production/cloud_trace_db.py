@@ -1,15 +1,3 @@
-"""Queryable task/defect/trace projections backed by PostgreSQL or local SQLite.
-
-Raw evidence stays in a SHA-256 CAS; these tables retain searchable, lossless text
-and explicit provenance, not inferred labels. A verified query means the supplied
-receipt explicitly has status ``confirmed`` or ``verified``. This store does not
-replace the verifier or grant training/export admission to held-out tasks.
-
-:class:`CloudTraceRetriever` reads the projection back for agent prompts: it ranks
-dev-split issues with their recorded trace evidence, refuses every reported split
-and held-out cohort, and supports leave-one-out exclusion.
-"""
-
 from __future__ import annotations
 
 import bisect
@@ -62,22 +50,12 @@ _SEARCH_COLUMNS = {
     "agent_traces": ("trace_id", "run_id", "model_id", "outcome"),
     "trace_steps": ("role", "tool_name", "command_or_action", "content_text", "observation_preview"),
 }
-# A tsvector is limited to 1 MiB regardless of the underlying TEXT/CAS capacity.
-# Bound only the accelerated representation; overflow searches parse all text.
 _POSTGRES_VECTOR_SOURCE_BYTES = 65_536
-# Derived read structures (FTS rowid postings, step rowid ranges) reused while
-# a SQLite database is unchanged; the oldest entry is evicted beyond this count.
-# One similar-example retrieval reads a conjunction plus four per-term postings
-# per query term, the step ranges and evidence sets; 64 keeps a query of up to
-# 14 terms from evicting the step ranges and postings it reads again.
 _READ_MEMO_ENTRIES = 64
 _JSON_COLUMNS = {
     "metadata_json", "verified_receipt_json", "flags_json", "flagged_passage_steps", "evidence_steps",
     "run_ids", "label_rates", "provenance_json",
 }
-#: Run Atlas ``run-facets/v1``: one model-filled form per run. ``run_id`` is the
-#: run's ``agent_traces.trace_id``; ``source``, ``split`` and ``outcome`` are
-#: copied from the database on write, never taken from the record.
 RUN_FACETS_VERSION = "run-facets/v1"
 _FACET_ENUMS: dict[str, tuple[str, ...]] = {
     "tests": ("untouched", "read", "modified", "deleted", "replaced"),
@@ -95,12 +73,10 @@ _FACET_RECORD_FIELDS = (
 _FACET_COLUMNS = (
     "run_id", "task_id", *_FACET_DATABASE_FIELDS, *_FACET_RECORD_FIELDS[1:],
 )
-#: Run Atlas ``run-clusters/v1``: a three-level hierarchy over faceted runs.
 RUN_CLUSTERS_VERSION = "run-clusters/v1"
 _CLUSTER_COLUMNS = (
     "cluster_id", "name", "level", "parent", "run_ids", "centroid_text", "size", "label_rates",
 )
-#: Fields ``search_runs`` filters on, with their accepted values (``None``: any nonempty text).
 _FACET_FILTERS: dict[str, tuple[Any, ...] | None] = {
     "outcome": _FACET_OUTCOMES, **_FACET_ENUMS,
     **{field: (False, True) for field in _FACET_BOOLEANS},
@@ -109,14 +85,8 @@ _FACET_FILTERS: dict[str, tuple[Any, ...] | None] = {
 _FACET_SIMILARITY_FIELDS = (
     "outcome", "tests", "eval_awareness", "shortcut", *_FACET_BOOLEANS, "suspicion",
 )
-#: ``trace-findings/v1`` (see ``trace_findings.py``): one record per run, detector, detector version and reader.
 TRACE_FINDING_VERDICTS = ("alarm", "clear", "abstain", "unknown")
 TRACE_FINDING_KINDS = ("cheat", "loop", "runaway", "latency", "infra", "other")
-# Evidence trust, strongest first. Tier 1: container-verified differentials
-# (qualified repairs, differentially replayed witnesses, maintainer fixes).
-# Tier 2: consensus-labeled evidence (unanimous judge votes with passage-level
-# spans, human-verified runs). Tier 3: unverified leads, the default for any row
-# whose writer does not declare a tier; retrieval omits it unless requested.
 TRUST_TIERS = ("tier1_container_verified", "tier2_consensus_labeled", "tier3_provisional")
 PROVISIONAL_TIER = TRUST_TIERS[-1]
 _TRUST_RANK = {tier: rank for rank, tier in enumerate(TRUST_TIERS)}
@@ -144,7 +114,6 @@ def _json_value(value: Any, *, nullable: bool = False) -> Any:
         return None
     if not isinstance(value, (dict, list)):
         raise ValueError("JSON fields must contain an object or array")
-    # Validate nested values and detach them from the caller's mutable record.
     return json.loads(_json_text(value))
 
 
@@ -175,7 +144,6 @@ def _trust_tier(value: Any) -> str:
 
 
 def _passage_steps(value: Any) -> list[int]:
-    """Distinct step indices of labeled passage spans, stored ascending."""
     if isinstance(value, str):
         value = json.loads(value)
     if not isinstance(value, (list, tuple)):
@@ -187,11 +155,6 @@ def _passage_steps(value: Any) -> list[int]:
 
 
 def _run_facet(record: Any) -> dict[str, Any]:
-    """Validate one ``run-facets/v1`` record; keys outside the schema are dropped.
-
-    The record's own ``source``/``split``/``outcome`` are kept only so the writer
-    can count disagreements with the database values that replace them.
-    """
     if not isinstance(record, Mapping):
         raise ValueError("record must be a JSON object")
     missing = set(_FACET_RECORD_FIELDS) - record.keys()
@@ -226,17 +189,12 @@ def _run_facet(record: Any) -> dict[str, Any]:
 
 
 def _reward_outcome(reward: float | None) -> str:
-    """A run's facet ``outcome`` from its recorded verifier reward."""
     if reward is None:
         return "unknown"
     return "pass" if reward >= 1 else "fail" if reward <= 0 else "unknown"
 
 
 def _facet_filters(facets: Any) -> list[tuple[str, list[Any]]]:
-    """Validated ``(field, accepted values)`` pairs; a scalar accepts that one value.
-
-    Unknown fields and values are errors, so a typo never reads as "no runs".
-    """
     if not isinstance(facets, Mapping):
         raise ValueError("facets must map a field to a value or a collection of values")
     filters = []
@@ -262,11 +220,6 @@ def _facet_filters(facets: Any) -> list[tuple[str, list[Any]]]:
 
 
 def _run_cluster(cluster: Mapping[str, Any]) -> dict[str, Any]:
-    """Validate one ``run-clusters/v1`` record's own fields.
-
-    Other keys (build, embedder, seed, samples...) are kept verbatim as the
-    cluster's ``provenance_json``; a stated ``cluster_version`` must be v1.
-    """
     extra = {key: value for key, value in cluster.items() if key not in _CLUSTER_COLUMNS}
     if extra.get("cluster_version", RUN_CLUSTERS_VERSION) != RUN_CLUSTERS_VERSION:
         raise ValueError(f"cluster_version must be {RUN_CLUSTERS_VERSION}")
@@ -311,7 +264,6 @@ def _record(record: Mapping[str, Any], columns: Sequence[str], defaults: Mapping
 
 
 class S3CompatibleCAS:
-    """Immutable local bundles addressed by their SHA-256 digest."""
 
     def __init__(
         self,
@@ -353,28 +305,22 @@ class S3CompatibleCAS:
                 temporary.unlink(missing_ok=True)
 
     def put_bytes(self, data: bytes) -> str:
-        """Store exact bytes, returning their backend-independent CAS URI."""
         digest = hashlib.sha256(data).hexdigest()
         self._mirror(data, digest)
         return f"cas://sha256/{digest}"
 
     def get_bytes(self, uri: str) -> bytes:
-        """Read and verify full bytes; missing objects and file errors propagate."""
         digest = self._digest(uri)
         path = self.local_directory / "sha256" / digest
         return self._verify(path.read_bytes(), digest)
 
     def put_bundle(self, bundle: Mapping[str, Any] | Sequence[Any]) -> str:
-        """Store a deterministic JSON bundle; use put_bytes for tar/other binaries."""
         return self.put_bytes(_json_text(bundle).encode("utf-8"))
 
     def get_bundle(self, uri: str) -> Any:
         return json.loads(self.get_bytes(uri))
 
 
-# Retrieval hydrates step flags as raw text in schema column order; only the
-# steps screened for return are decoded. PostgreSQL JSONB is cast back to text
-# (the driver would decode it eagerly), keyed by ``CloudTraceDatabase._postgres``.
 _RAW_FLAG_STEP_COLUMNS = {
     postgres: ", ".join(
         f"s.{column}{'::text' if postgres else ''} AS flags_text" if column == "flags_json" else f"s.{column}"
@@ -384,18 +330,10 @@ _RAW_FLAG_STEP_COLUMNS = {
 
 
 _PASSAGE_POSITIVE = re.compile(r'"passage_positive"\s*:\s*true')
-#: Steps kept on each side of a labeled passage step in a returned window.
 PASSAGE_WINDOW_RADIUS = 3
 
 
 def _step_marks(flags: Any) -> tuple[bool, bool]:
-    """``(named_flag, passage_positive)`` for one step's stored flags.
-
-    A list holds flag names, so a nonempty list flags the step. An object is
-    source metadata (provenance, publisher passage records) and flags nothing,
-    except the LB-3 passage mark ``passage_positive: true``. The text is decoded
-    only when that mark appears.
-    """
     if flags is None:
         return False, False
     if not isinstance(flags, str):
@@ -411,11 +349,6 @@ def _step_marks(flags: Any) -> tuple[bool, bool]:
 
 
 def _step_flag(flags: Any, step_index: int, labeled: Collection[int]) -> tuple[bool, bool]:
-    """``(passage, flagged)`` for one step of a trace with ``labeled`` passage steps.
-
-    A trace's labeled passage steps are authoritative; a trace without them
-    falls back to its steps' LB-3 passage marks.
-    """
     named, positive = _step_marks(flags)
     passage = step_index in labeled if labeled else positive
     return passage, named or passage
@@ -424,8 +357,6 @@ def _step_flag(flags: Any, step_index: int, labeled: Collection[int]) -> tuple[b
 def _with_feature_flags(
     example: RetrievedExample, trace_steps: Sequence[Mapping[str, Any]] | None,
 ) -> RetrievedExample:
-    """Attach fired trace feature flags, as step indices, over every step of the
-    example's trace; positions in the step-ordered input map back to indices."""
     if trace_steps is None:
         return example
     ordered = sorted(trace_steps, key=lambda row: row["step_index"])
@@ -442,17 +373,6 @@ def _contains(postings: array[int], rowid: int) -> bool:
 
 
 class CloudTraceDatabase:
-    """Thread-safe synchronous projection, with explicit atomic ingestion methods.
-
-    ``database`` accepts a PostgreSQL URL, SQLite URL, or local path. When omitted,
-    ``EVALLAB_CLOUD_DATABASE_URL`` takes precedence over ``DATABASE_URL``; missing
-    configuration is an error, never an accidental local cloud replacement.
-    SQLite uses FTS5 with a literal-AND query, falling back to escaped LIKE when
-    FTS5 is unavailable (or ``sqlite_fts=False`` for deterministic local tests).
-    ``read_only=True`` opens an existing store without creating, migrating,
-    indexing or rebuilding anything: SQLite uses ``mode=ro`` and PostgreSQL a
-    read-only session; search support is whatever the store already has.
-    """
 
     def __init__(
         self, database: str | Path | None = None, *, sqlite_fts: bool = True, read_only: bool = False,
@@ -511,7 +431,6 @@ class CloudTraceDatabase:
             self._connection.close()
 
     def _execute(self, query: str, parameters: Sequence[Any] = ()) -> Any:
-        # All query text/identifiers are internal constants; values are always bound.
         return self._connection.execute(query.replace("?", "%s") if self._postgres else query, parameters)
 
     @contextmanager
@@ -584,15 +503,11 @@ class CloudTraceDatabase:
                     self._migrate_search_vector(table, vector)
                 if self._postgres and not self._exists(f"{table}_search"):
                     self._execute(f"CREATE INDEX {table}_search ON {table} USING GIN(search_vector)")
-            # Additive migration for stores created before trust tiers: existing
-            # rows take the provisional default until a tier is assigned.
             for table, columns in trust_columns.items():
                 present = self._column_names(table)
                 for name, definition in columns:
                     if name not in present:
                         self._execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
-            # Run Atlas facets: derived, model-filled forms keyed by trace; no
-            # full-text index, since they are filtered by field, not searched.
             checks = {
                 field: " OR ".join(f"{field} = '{value}'" for value in values)
                 for field, values in (*_FACET_ENUMS.items(), ("outcome", _FACET_OUTCOMES))
@@ -663,8 +578,6 @@ class CloudTraceDatabase:
         return {row[1] for row in self._execute(f"PRAGMA table_info({table})")}
 
     def _exists(self, name: str) -> bool:
-        # PostgreSQL's CREATE INDEX IF NOT EXISTS still locks the target table.
-        # Reconnecting while writers ingest must not acquire those DDL locks.
         return self._execute("SELECT to_regclass(?)", (name,)).fetchone()[0] is not None
 
     def _migrate_search_vector(self, table: str, expression: str) -> None:
@@ -677,9 +590,6 @@ class CloudTraceDatabase:
         ).fetchone()
         if row and "octet_length(" in row[0] and f"<={_POSTGRES_VECTOR_SOURCE_BYTES}" in row[0].replace(" ", ""):
             return
-        # PostgreSQL 15/16 cannot SET EXPRESSION on generated columns. Rebuild
-        # only this derived column/index, under the existing schema lock; never
-        # drop source text, trace rows, or dependencies with CASCADE.
         self._execute(f"ALTER TABLE {table} DROP COLUMN IF EXISTS search_vector")
         self._execute(
             f"ALTER TABLE {table} ADD COLUMN search_vector TSVECTOR "
@@ -717,7 +627,6 @@ class CloudTraceDatabase:
         self, table: str, rows: Sequence[Mapping[str, Any]], keys: Sequence[str], *,
         preserve: Sequence[str] = (),
     ) -> None:
-        """Upsert ``rows`` in order with one statement; every row has ``rows[0]``'s columns."""
         if not rows:
             return
         columns = list(rows[0])
@@ -740,8 +649,6 @@ class CloudTraceDatabase:
         self._connection.cursor().executemany(query.replace("?", "%s") if self._postgres else query, values)
 
     def _stored_steps(self, pairs: Iterable[tuple[str, int]]) -> set[tuple[str, int]]:
-        """Which ``(trace_id, step_index)`` pairs name stored steps: one index probe per distinct pair."""
-        # A stored step index is a 64-bit integer at most; larger ones cannot match.
         wanted = sorted({(trace_id, index) for trace_id, index in pairs if index < 2**63})
         if not wanted:
             return set()
@@ -760,7 +667,6 @@ class CloudTraceDatabase:
         }
 
     def upsert_task(self, task: Mapping[str, Any]) -> None:
-        """Replace a task's searchable record without modifying immutable CAS bytes."""
         row = _record(task, _TASK_COLUMNS, {
             "original_grader_digest": None, "repaired_grader_digest": None,
             "cas_uri": None, "metadata_json": {},
@@ -774,7 +680,6 @@ class CloudTraceDatabase:
             self._upsert("corpus_tasks", row, ("task_id",))
 
     def upsert_task_issue(self, issue: Mapping[str, Any]) -> None:
-        """Insert or replace an issue; an omitted ``trust_tier`` keeps the stored tier."""
         row = _record(issue, _ISSUE_COLUMNS, {
             "status": "provisional", "witness_digest": None, "original_reward": None,
             "repaired_reward": None, "citation_file": None, "citation_line": None,
@@ -818,12 +723,6 @@ class CloudTraceDatabase:
     def upsert_trace(
         self, trace: Mapping[str, Any], *, steps: Sequence[Mapping[str, Any]] | None = None,
     ) -> None:
-        """Atomically replace trace metadata and, if supplied, its complete step set.
-
-        Omitted ``trust_tier``/``flagged_passage_steps`` keep their stored values
-        (provisional and empty for a new trace). Flagged passage steps must name
-        steps of this trace.
-        """
         row = _record(trace, _TRACE_COLUMNS, {
             "outcome": "unknown", "reward": None, "is_exploit": False,
             "is_task_defect_fail": False, "step_count": 0, "raw_cas_uri": None,
@@ -850,8 +749,6 @@ class CloudTraceDatabase:
                 raise ValueError("flagged_passage_steps must name supplied steps")
         _integer(row["step_count"], "step_count")
         with self._transaction(write=True):
-            # Preserve the existing count inside ON CONFLICT, not with a racy
-            # read-before-write that could overwrite a concurrent step replacement.
             preserve = ("step_count",) if step_rows is None and "step_count" not in trace else ()
             preserve += tuple(
                 field for field in ("trust_tier", "flagged_passage_steps") if field not in trace
@@ -875,13 +772,6 @@ class CloudTraceDatabase:
         self, *, issues: Mapping[str, str] | None = None,
         traces: Mapping[str, Mapping[str, Any]] | None = None,
     ) -> dict[str, int]:
-        """Atomically set trust on existing rows, touching no other column.
-
-        ``issues`` maps issue IDs to tiers; ``traces`` maps trace IDs to
-        ``{"trust_tier": ..., "flagged_passage_steps": [...]}`` (steps default
-        to none). Unknown IDs or steps abort the whole assignment. Returns the
-        number of rows whose stored trust changed.
-        """
         issue_rows = [(_trust_tier(tier), _text(issue_id, "issue_id")) for issue_id, tier in (issues or {}).items()]
         trace_rows = []
         for trace_id, value in (traces or {}).items():
@@ -924,16 +814,6 @@ class CloudTraceDatabase:
         self, records: Iterable[Any], *, registry: CorpusRegistry | None = None,
         allowed_task_ids: Collection[str] | None = None,
     ) -> dict[str, Any]:
-        """Store valid ``run-facets/v1`` records of admitted runs; refuse the rest.
-
-        Registry admission is recomputed inside the write snapshot.
-        ``allowed_task_ids`` can further restrict it, never grant admission.
-        ``run_id`` must name a stored trace whose task is admitted, and every
-        ``evidence_steps`` entry one of its stored steps;
-        ``source``, ``split`` and ``outcome`` are copied from the database. A
-        later valid record for a run supersedes an earlier one. Refused records
-        are counted by reason (with up to 20 examples) and never partially stored.
-        """
         reasons: dict[str, int] = {}
         examples: list[dict[str, Any]] = []
 
@@ -1007,19 +887,6 @@ class CloudTraceDatabase:
         self, clusters: Sequence[Mapping[str, Any]], *, registry: CorpusRegistry | None = None,
         allowed_task_ids: Collection[str] | None = None, drop_unfaceted: bool = False,
     ) -> dict[str, int]:
-        """Atomically replace the whole ``run-clusters/v1`` hierarchy.
-
-        Each cluster has ``cluster_id``, ``name``, ``level`` (1-3), ``parent``
-        (``None`` exactly at level 1, otherwise a cluster one level up whose runs
-        include all of this cluster's), ``run_ids`` (distinct runs with stored
-        facets whose current tasks are registry-admitted DEV), ``centroid_text``,
-        ``size`` (``len(run_ids)``) and optional ``label_rates`` (filled only at
-        scoring time). ``allowed_task_ids`` only narrows admission. Any invalid
-        cluster keeps the stored hierarchy. With ``drop_unfaceted``, member runs
-        lacking stored facets of an admitted DEV trace are removed instead of
-        refused: sizes are recomputed, clusters left empty disappear, and
-        ``dropped_runs``/``dropped_clusters`` are returned.
-        """
         rows: dict[str, dict[str, Any]] = {}
         for cluster in clusters:
             row = _run_cluster(cluster)
@@ -1067,7 +934,7 @@ class CloudTraceDatabase:
                         del rows[cluster_id]
                         dropped_clusters += 1
             self._execute("DELETE FROM run_clusters")
-            for level in (1, 2, 3):  # parents precede children for the foreign key
+            for level in (1, 2, 3):
                 for row in rows.values():
                     if row["level"] == level:
                         self._upsert("run_clusters", row, ("cluster_id",))
@@ -1079,15 +946,6 @@ class CloudTraceDatabase:
         allowed_task_ids: Collection[str] | None = None, sealed_task_ids: Iterable[str] = (),
         limit: int | None = None,
     ) -> list[dict[str, Any]]:
-        """Admitted ``run-facets/v1`` records matching every filter, most suspicious first.
-
-        ``facets`` maps ``outcome``, ``tests``, ``eval_awareness``, the three
-        booleans, ``suspicion``, ``source``, ``split`` or ``facet_model`` to one
-        value or a collection of accepted values. Registry admission, current
-        trace ownership and facet reads share one snapshot. An optional
-        ``allowed_task_ids`` only narrows admission; an empty scope reads no
-        facet columns. Records naming a sealed identity are withheld.
-        """
         filters = _facet_filters({} if facets is None else facets)
         if limit is not None:
             _integer(limit, "limit", minimum=1)
@@ -1100,12 +958,6 @@ class CloudTraceDatabase:
         allowed_task_ids: Collection[str] | None = None, run_ids: Collection[str] | None = None,
         limit: int | None = None, admission: tuple[Sequence[str], set[str]] | None = None,
     ) -> tuple[list[dict[str, Any]], set[str]]:
-        """``search_runs`` rows for validated ``filters``, with the sealed identities that screened them.
-
-        The caller owns the snapshot, so admission, facet reads and the returned seals agree.
-        ``run_ids`` only narrows the runs read, never grants admission; ``admission`` is the caller's
-        ``retriever._admitted_ids()`` from the same snapshot, when it already holds it.
-        """
         admitted, sealed_ids = admission if admission is not None else retriever._admitted_ids()
         allowed = frozenset(admitted)
         if allowed_task_ids is not None:
@@ -1145,11 +997,6 @@ class CloudTraceDatabase:
         return [decode_row(columns, values) for values in cursor.fetchall()]
 
     def row_counts(self) -> dict[str, int]:
-        """Exact live row counts per projection table, with no search/admission filter.
-
-        Receipts compare these before and after an ingestion so a reader can tell
-        what an expansion actually added instead of trusting per-source tallies.
-        """
         with self._transaction():
             return {
                 table: self._execute(f"SELECT count(*) FROM {table}").fetchone()[0]
@@ -1192,7 +1039,6 @@ class CloudTraceDatabase:
         self, table: str, alias: str, query: str, terms: Sequence[str],
         parameters: list[Any], *, conjunction: bool = True,
     ) -> str:
-        """One document predicate shared by storage search and prompt retrieval."""
         if not terms:
             return "1 = 1"
         if not conjunction and len(terms) > 1:
@@ -1201,7 +1047,6 @@ class CloudTraceDatabase:
             ) + ")"
         if self._postgres:
             parameters.extend((query, query))
-            # Parse oversized documents without constructing an oversized vector.
             return f"""(
                 {alias}.search_vector @@ plainto_tsquery('english', ?)
                 OR ({alias}.search_vector IS NULL AND (
@@ -1228,7 +1073,6 @@ class CloudTraceDatabase:
     def _task_id_scope(
         self, column: str, task_ids: Collection[str] | Collection[int], parameters: list[Any],
     ) -> str:
-        """Bind exact raw IDs (or step indices) in one read-only predicate, without parameter-count limits."""
         values = list(task_ids)
         parameters.append(values if self._postgres else _json_text(values))
         if self._postgres:
@@ -1239,14 +1083,6 @@ class CloudTraceDatabase:
         self, query: str, *, defect_class: str | None = None, tool_name: str | None = None,
         only_verified: bool = False, allowed_task_ids: Collection[str] | None = None,
     ) -> list[dict[str, Any]]:
-        """Return matching traces with their task, all issue statuses, and full steps.
-
-        Terms match within any task, issue, trace, or individual step document.
-        Blank queries list traces; punctuation-only queries match nothing. Filters
-        are bound parameters, and tool matching is exact, not substring matching.
-        ``allowed_task_ids`` scopes SQL before hydration; ``None`` retains the
-        legacy unrestricted query, while an empty collection reads no bodies.
-        """
         if allowed_task_ids is not None and not allowed_task_ids:
             return []
         terms = re.findall(r"\w+", query, flags=re.UNICODE)
@@ -1284,7 +1120,6 @@ class CloudTraceDatabase:
         self, task_id: str | None = None, *, direction: str | None = None,
         confirmed_only: bool = True, allowed_task_ids: Collection[str] | None = None,
     ) -> list[dict[str, Any]]:
-        """Return issue/task evidence, scoped before hydration when IDs are supplied."""
         if direction is not None and direction not in _DIRECTIONS:
             raise ValueError("invalid issue direction")
         if allowed_task_ids is not None and not allowed_task_ids:
@@ -1309,23 +1144,12 @@ class CloudTraceDatabase:
             return issues
 
     def change_token(self) -> tuple[int, int] | None:
-        """A token that changes on every committed write to this SQLite file; None on PostgreSQL.
-
-        ``data_version`` moves on commits by other connections and ``total_changes`` on this
-        connection's own, so a value derived under one token is current while the token is equal.
-        PostgreSQL has no equivalent cheap token.
-        """
         if self._postgres:
             return None
         with self._lock:
             return self._execute("PRAGMA data_version").fetchone()[0], self._connection.total_changes
 
     def _read_memo(self, key: tuple[Any, ...], build: Callable[[], Any]) -> Any:
-        """Reuse a derived read structure while this SQLite database is unchanged.
-
-        Caller holds a read transaction; any committed write discards every entry. PostgreSQL
-        always rebuilds.
-        """
         token = self.change_token()
         if token is None:
             return build()
@@ -1341,7 +1165,6 @@ class CloudTraceDatabase:
         return value
 
     def _postings(self, table: str, terms: Sequence[str]) -> array[int]:
-        """Ascending rowids of one FTS5 literal-AND match, the set ``_search_match`` tests."""
         expression = " AND ".join('"' + term + '"' for term in terms)
         return self._read_memo(("postings", table, expression), lambda: array("q", map(
             itemgetter(0), self._execute(
@@ -1351,7 +1174,6 @@ class CloudTraceDatabase:
         )))
 
     def _evidence_task_ids(self, tiers: Collection[str]) -> frozenset[str]:
-        """Tasks holding a confirmed issue or any trace at one of ``tiers``."""
         values = tuple(sorted(tiers))
 
         def build() -> frozenset[str]:
@@ -1367,7 +1189,6 @@ class CloudTraceDatabase:
         return self._read_memo(("evidence_tasks", values), build)
 
     def _step_ranges(self) -> dict[str, tuple[int, int]]:
-        """Each trace's lowest and highest step rowid; every step lies inside its range."""
         return self._read_memo(("step_ranges",), lambda: {
             trace_id: (low, high) for trace_id, low, high in self._execute(
                 "SELECT trace_id, min(rowid), max(rowid) FROM trace_steps GROUP BY trace_id"
@@ -1377,13 +1198,6 @@ class CloudTraceDatabase:
     def _step_task_ids(
         self, task_ids: Collection[str], terms: Sequence[str], *, conjunction: bool,
     ) -> set[str]:
-        """Tasks with an assistant/tool step document matching the FTS5 predicate.
-
-        Only postings inside the scoped traces' rowid ranges are candidates, and
-        each task's candidates are role-checked in widening rounds, so a common
-        term stops at a task's first qualifying step instead of reading every
-        matching step. A task leaves the rounds only when found or exhausted.
-        """
         parameters: list[Any] = []
         scope = self._task_id_scope("task_id", task_ids, parameters)
         ranges = self._step_ranges()
@@ -1408,8 +1222,6 @@ class CloudTraceDatabase:
                 rowid for rowids in pending.values() for rowid in rowids[offset:offset + width]
             ])]
             scope = self._task_id_scope("a.task_id", task_ids, parameters)
-            # A range can hold another trace's steps; the join reports the
-            # step's actual task, which must itself be in scope.
             found.update(row[0] for row in self._execute(
                 "SELECT DISTINCT a.task_id FROM json_each(?) j "
                 "CROSS JOIN trace_steps s ON s.rowid = j.value "
@@ -1428,7 +1240,6 @@ class CloudTraceDatabase:
     def _retrieval_task_ids(
         self, task_ids: list[str], query: str, terms: Sequence[str], *, conjunction: bool = True,
     ) -> list[str]:
-        """Find matching admitted identities before hydrating any large text."""
         if not terms:
             return task_ids
         found: set[str] = set()
@@ -1468,13 +1279,6 @@ class CloudTraceDatabase:
         query: str, terms: Sequence[str], *, confirmed_only: bool = False,
         columns: str | None = None,
     ) -> list[dict[str, Any]]:
-        """Read admitted evidence with native term-match strength for ranking.
-
-        Caller holds a read transaction. Identifiers are internal constants and
-        values are bound. Unconfirmed issue text is neither fetched nor searched.
-        With FTS5, ``query_match`` counts the terms whose rowid postings contain
-        the row, the same per-term predicate the SQL score evaluates.
-        """
         if not values:
             return []
         postings = [self._postings(table, (term,)) for term in terms] if self._fts else None
@@ -1508,14 +1312,6 @@ class CloudTraceDatabase:
     def _retrieval_step_bounds(
         self, trace_ids: Collection[str], terms: Sequence[str],
     ) -> dict[str, int]:
-        """Per-trace upper bound of step term matches, without reading step bodies.
-
-        Every role is counted, so this bounds the assistant/tool strength that
-        ranking uses; callers use it to order expansion, never to select
-        evidence. Traces without steps are absent. With FTS5 each term counts
-        its postings inside the trace's rowid range, which contains every step
-        of the trace, so the count can only exceed the true match count.
-        """
         if not trace_ids or not terms:
             return {}
         if self._fts:
@@ -1546,9 +1342,6 @@ class CloudTraceDatabase:
         }
 
 
-# Identity-only emergency guard for packaged runtimes without corpus indices.
-# Without a registry no dataset is admitted; these permanent seals also prevent
-# queries from carrying known held-out names into a future prompt path.
 _PROTECTED_TASKS_FROZEN = frozenset((
     "atrx-vep-crispr", "batched-eval-parity", "biped-contact-dynamics", "bun-sourcemap-leak",
     "coq-block-bound", "cumulative-layout-shift", "data-anonymization", "embedding-drift-monitor",
@@ -1586,13 +1379,7 @@ _RETRIEVAL_CARDS_HEADER = "## Playbook Cards from Cloud Trace DB"
 _RETRIEVAL_CARDS_EXPAND = (
     "Each card is a summary. Expand a card's pointer only when you need its full steps."
 )
-#: ``format_retrieval_prompt_block`` renderings, fullest first.
 FORMAT_MODES = ("full", "compact_cards")
-#: Example fields that name the source benchmark, the split or the label an example
-#: was published with. The structured example (``to_dict``, ``provenance``) keeps
-#: them for consumers that read fields; neither rendered form (``full`` lines and
-#: ``compact_cards``) prints them. Task, trace and issue identifiers, trust tier,
-#: instruction and outcome are still rendered, and an identifier can embed a dataset name.
 _PROMPT_WITHHELD_PROVENANCE = frozenset({"dataset_id", "split", "label_categories", "receipt_status"})
 _REGISTRY_LOAD_ERRORS = (OSError, ValueError, KeyError, TypeError, csv.Error)
 _STEP_ROLE_RANK = {"assistant": 0, "tool": 1}
@@ -1610,14 +1397,6 @@ def admitted_cloud_task_ids(
     identities: Iterable[Mapping[str, Any]], *, registry: CorpusRegistry,
     sealed_task_ids: Iterable[str] = (),
 ) -> frozenset[str]:
-    """Admit raw task IDs from identity-only rows and a loaded split authority.
-
-    This is the shared structured gate for retrieval and actor projection. It
-    performs no I/O and never reads task content. All seven projection keys are
-    required, including explicit nulls for absent digests and metadata identity.
-    Permanent TEST seals apply even when ``sealed_task_ids`` is omitted.
-    SQLite ``Row`` objects are supported through their mapping-like interface.
-    """
     if not isinstance(registry, CorpusRegistry) or not registry.has_assignment_authority():
         return frozenset()
     seals = {
@@ -1678,7 +1457,6 @@ def admitted_cloud_task_ids(
 
 
 def _literal_alternation(values: Sequence[str]) -> str:
-    """Factor shared literal prefixes, avoiding a scan of every seal per character."""
     if not values:
         return r"(?!)"
     prefix = os.path.commonprefix((values[0], values[-1]))
@@ -1703,7 +1481,6 @@ _WORD_RUN = re.compile(r"[-./0-9:@_a-z]+")
 
 @lru_cache(maxsize=8)
 def _sealed_split(identities: frozenset[str]) -> tuple[re.Pattern[str], re.Pattern[str]]:
-    """``_sealed_pattern`` split into identities made only of ``_WORD_CHARS`` and all others."""
     values = sorted(value for value in identities if value)
     words = [value for value in values if _WORD_CHARS.issuperset(value)]
     others = [value for value in values if not _WORD_CHARS.issuperset(value)]
@@ -1711,12 +1488,6 @@ def _sealed_split(identities: frozenset[str]) -> tuple[re.Pattern[str], re.Patte
 
 
 def _sealed_texts(texts: Sequence[str], identities: frozenset[str]) -> list[bool]:
-    """``CloudTraceRetriever._sealed_text`` of each text against ``_sealed_pattern(identities)``, in one pass.
-
-    An identity made only of ``_WORD_CHARS`` can occur only inside one maximal run of those
-    characters, so it is searched once per distinct run across all texts instead of at every
-    offset of every text; the remaining identities are searched in each whole text.
-    """
     words, others = _sealed_split(identities)
     folded = [text.casefold() for text in texts]
     runs = [_WORD_RUN.findall(text) for text in folded]
@@ -1728,7 +1499,6 @@ def _sealed_texts(texts: Sequence[str], identities: frozenset[str]) -> list[bool
 
 
 def decode_row(columns: Sequence[str], values: Sequence[Any]) -> dict[str, Any]:
-    """One stored row as the read API serves it: JSON columns parsed, flags as ``bool``."""
     row = dict(zip(columns, values, strict=True))
     row.pop("search_vector", None)
     for field in _JSON_COLUMNS & row.keys():
@@ -1741,7 +1511,6 @@ def decode_row(columns: Sequence[str], values: Sequence[Any]) -> dict[str, Any]:
 
 
 def base_seals(sealed_task_ids: Iterable[str] = ()) -> set[str]:
-    """Base retriever seals, including bare names of protected and explicitly sealed IDs."""
     return {
         identity.casefold()
         for task_id in (*_PROTECTED_TASKS_FROZEN, *sealed_task_ids)
@@ -1751,7 +1520,6 @@ def base_seals(sealed_task_ids: Iterable[str] = ()) -> set[str]:
 
 
 def registry_seals(registry: CorpusRegistry, sealed_ids: Iterable[str]) -> set[str]:
-    """``sealed_ids`` plus every identity the registry seals, casefolded."""
     return set(sealed_ids) | {
         identity.strip().casefold() for identity in registry.sealed_identifiers() if identity.strip()
     }
@@ -1760,11 +1528,6 @@ def registry_seals(registry: CorpusRegistry, sealed_ids: Iterable[str]) -> set[s
 def unadmitted_seals(
     identities: Iterable[Mapping[str, Any]], admitted: Collection[str], sealed_ids: Iterable[str],
 ) -> set[str]:
-    """``sealed_ids`` plus the id and bare name of every identity row the gate did not admit.
-
-    The one seal set that screens served facet records, shared by ``CloudTraceRetriever`` and the
-    exporters that read facets outside a ``CloudTraceDatabase``.
-    """
     seals = set(sealed_ids)
     for row in identities:
         if row["task_id"] not in admitted:
@@ -1777,7 +1540,6 @@ def unadmitted_seals(
 
 
 def served_facet_rows(rows: Sequence[dict[str, Any]], sealed_ids: Iterable[str]) -> list[dict[str, Any]]:
-    """Facet records (as ``decode_row`` serves them) that do not name any sealed identity."""
     withheld = _sealed_texts([_json_text(row) for row in rows], frozenset(sealed_ids))
     return [row for row, hidden in zip(rows, withheld, strict=True) if not hidden]
 
@@ -1788,12 +1550,6 @@ def _clip(text: str, limit: int) -> str:
 
 
 def _bounded_quality_evidence(value: Any) -> dict[str, Any] | None:
-    """Whitelist a source-labelled explanation and an attested retained diff.
-
-    File-manifest digests identify the actual original/repaired grader inputs;
-    they are not reward evidence or model-output attestations. The full diff
-    digest is checked before taking an explicitly marked presentation prefix.
-    """
     if not isinstance(value, Mapping):
         return None
     digest = value.get("source_sha256")
@@ -1836,7 +1592,6 @@ def _bounded_quality_evidence(value: Any) -> dict[str, Any] | None:
 
 @dataclass(frozen=True)
 class RetrievedStep:
-    """Compatibility view of a real recorded step, not journal interpretation."""
 
     step_index: int
     role: str
@@ -1846,7 +1601,6 @@ class RetrievedStep:
     flagged: bool = False
 
     def prompt_line(self) -> str:
-        # Role and tool name are stored text: a bracket in either must not end the label early.
         role, tool = (None if value is None else value.replace("[", "(").replace("]", ")") for value in (self.role, self.tool_name))
         label = f"step {self.step_index} [{role}" + (
             f":{tool}]" if tool else "]"
@@ -1862,11 +1616,6 @@ class RetrievedStep:
 
 @dataclass(frozen=True)
 class RetrievedExample:
-    """One evidence model for worker and issue-filtered retrieval consumers.
-
-    The nested records preserve audit provenance; the flat fields and ``steps``
-    expose the same stored claims to existing issue-oriented callers.
-    """
 
     kind: str | None = None
     task_id: str = ""
@@ -1891,9 +1640,6 @@ class RetrievedExample:
     outcome: str | None = None
     steps: tuple[RetrievedStep, ...] = ()
     trust_tier: str | None = None
-    # Fired trace feature flags (routing leads, not verdicts) mapped to the
-    # step indices where they fire, over the whole chosen trace; ``None``
-    # without a trace.
     feature_flags: dict[str, list[int]] | None = None
 
     def __post_init__(self) -> None:
@@ -1928,7 +1674,6 @@ class RetrievedExample:
 
     @property
     def pointer(self) -> str | None:
-        """Where :meth:`CloudTraceRetriever.expand_pointer` finds this example's evidence."""
         if self.trace_id:
             indices = [step["step_index"] for step in self.trace_steps]
             span = f":{min(indices)}-{max(indices)}" if indices else ""
@@ -1936,8 +1681,6 @@ class RetrievedExample:
         return None if self.issue_id is None else f"issue:{self.issue_id}"
 
     def card_lines(self, position: int) -> list[str]:
-        """A compact playbook card: mechanism, trust, up to three flagged lines,
-        how the evidence was verified, and a pointer to expand on demand."""
         mechanism = (
             f"{self.defect_class} ({self.direction})" if self.defect_class
             else f"trace ({self.outcome})" if self.outcome not in (None, "", "unknown") else "unlabeled"
@@ -1982,11 +1725,6 @@ class RetrievedExample:
 def format_retrieval_prompt_block(
     examples: Sequence[RetrievedExample], max_chars: int = 2400, *, format_mode: str = "full",
 ) -> str:
-    """One deterministic formatter, flattening fields and dropping whole lines.
-
-    ``format_mode`` is ``full`` (every retrieved field and step) or
-    ``compact_cards`` (one short playbook card per example).
-    """
     _integer(max_chars, "max_chars")
     if format_mode not in FORMAT_MODES:
         raise ValueError(f"format_mode must be one of {', '.join(FORMAT_MODES)}")
@@ -2010,13 +1748,6 @@ def format_retrieval_prompt_block(
 
 
 class CloudTraceRetriever:
-    """Read-only, fail-closed retrieval for worker- and issue-oriented callers.
-
-    Admission precedes content reads, including per-key split assignments. An
-    omitted registry loads ``CorpusRegistry()``. If its indices are unavailable
-    or invalid, the frozen permanent seals still reject queries, but no dataset
-    is admitted: database DEV labels alone cannot establish a safe split.
-    """
 
     def __init__(
         self, database: CloudTraceDatabase, *, registry: CorpusRegistry | None = None,
@@ -2055,8 +1786,6 @@ class CloudTraceRetriever:
             else "CASE WHEN json_valid(metadata_json) "
             "THEN json_type(metadata_json, '$.item_id') ELSE 'invalid' END"
         )
-        # Only the identity read is reused while the database is unchanged; the
-        # registry decides admission afresh on every call.
         identities = [dict(row) for row in database._read_memo(("admission_identities",), lambda: tuple(
             database._rows(
                 "SELECT task_id, dataset_id, split, original_grader_digest, repaired_grader_digest, "
@@ -2079,7 +1808,6 @@ class CloudTraceRetriever:
         return "sha256:" + hashlib.sha256(value.encode("utf-8")).hexdigest()
 
     def _step_evidence(self, step: Mapping[str, Any]) -> dict[str, Any]:
-        """The returned, bounded view of one decoded step."""
         return {
             "trace_id": self._identity(step["trace_id"]),
             **{field: step[field] for field in ("step_index", "observation_cas_uri")},
@@ -2091,7 +1819,6 @@ class CloudTraceRetriever:
         }
 
     def _issue_evidence(self, issue: Mapping[str, Any]) -> dict[str, Any]:
-        """The returned, bounded view of one confirmed issue."""
         return {
             field: self._identity(issue[field]) if field in {"issue_id", "witness_digest"}
             else self._snippet(issue[field]) if field in {
@@ -2105,7 +1832,6 @@ class CloudTraceRetriever:
         }
 
     def _guarded_text(self, row: Mapping[str, Any]) -> str:
-        """Screen only bounded fields that can be returned, plus full identities."""
         projected = {}
         for name, value in row.items():
             if name == "verified_receipt_json":
@@ -2161,7 +1887,6 @@ class CloudTraceRetriever:
         )
         if not strength and terms:
             return None
-        # Stronger trust is chosen first; facets break ties before the old evidence order.
         relevant_issues.sort(key=lambda row: (
             _TRUST_RANK[row["trust_tier"]], -row["query_match"], row["issue_id"],
         ))
@@ -2182,8 +1907,6 @@ class CloudTraceRetriever:
         tier = min(_TRUST_RANK[row["trust_tier"]] for row in (issue, trace) if row is not None)
         selected_steps = []
         passage_window = False
-        # Feature flags need no read: the caller computes them only for
-        # returned examples, from the chosen trace's already-hydrated steps.
         trace_rows = None if trace is None else steps.get(trace["trace_id"], [])
         if trace is not None:
             trace_steps = [
@@ -2191,8 +1914,6 @@ class CloudTraceRetriever:
             ]
 
             def screened(step: dict[str, Any]) -> dict[str, Any] | None:
-                # Only evidence that can be returned is screened, and raw
-                # flags are decoded only here.
                 decoded = {
                     "flags_json" if name == "flags_text" else name:
                     json.loads(value) if name == "flags_text" else value
@@ -2200,10 +1921,6 @@ class CloudTraceRetriever:
                 }
                 return None if self._sealed_text(self._guarded_text(decoded), sealed) else decoded
 
-            # A trace with labeled passage steps returns one window: its
-            # best-matching unsealed passage step with up to
-            # PASSAGE_WINDOW_RADIUS steps on each side, never setup steps
-            # far from the passage.
             for anchor in sorted((step for step in trace_steps if step["passage"]), key=lambda row: (
                 -row["query_match"], _STEP_ROLE_RANK.get(row["role"], 2), row["step_index"],
             )):
@@ -2232,9 +1949,6 @@ class CloudTraceRetriever:
             selected_steps.sort(key=lambda row: row["step_index"])
         issue_evidence = None if issue is None else self._issue_evidence(issue)
         if kind == "task_quality" and issue_evidence is not None and issue is not None:
-            # Hydrate only this selected issue's supplement, never arbitrary
-            # task metadata or another issue's body. Identity admission and
-            # ordinary issue screening have already completed.
             expression = (
                 "metadata_json -> 'task_quality_evidence' -> ?"
                 if self.database._postgres else
@@ -2281,8 +1995,6 @@ class CloudTraceRetriever:
             "flagged_step_indices": [
                 step["step_index"] for step in selected_steps if step["flagged"]
             ],
-            # Publisher label categories (e.g. Goodfire consensus); provisional unless
-            # ``receipt_status`` says otherwise.
             "label_categories": [
                 self._snippet(category) for category in categories[:8]
                 if isinstance(category, str) and category.strip()
@@ -2346,13 +2058,6 @@ class CloudTraceRetriever:
         return tier, similarity, strength, example, trace_rows
 
     def failed_run_summary(self, task_id: str) -> dict[str, Any] | None:
-        """Read one same-task DEV failure, admitting identities before any text.
-
-        This is diagnostic evidence, not a task-defect verdict. Prefer an
-        explicitly labelled task-defect failure, then a stable trace id. Only
-        bounded tool observations are returned: no commands, submission scripts,
-        assistant reasoning, issue answers, or CAS hydration.
-        """
         task_id = _text(task_id, "task_id")
         name = CorpusRegistry.task_name(task_id)
         database = self.database
@@ -2395,7 +2100,6 @@ class CloudTraceRetriever:
         self, admitted: Sequence[str], sealed: re.Pattern[str],
         filters: Sequence[tuple[str, list[Any]]], cluster_id: str | None, like_run_id: str | None,
     ) -> tuple[dict[str, dict[str, Any]], dict[str, int], str | None]:
-        """Matching facets and similarity scores inside the caller's admission snapshot."""
         database = self.database
         refused = ValueError("like_run_id must name an admitted trace with stored facets")
         if not admitted:
@@ -2406,8 +2110,6 @@ class CloudTraceRetriever:
             return {}, {}, None
         parameters: list[Any] = []
         scope = database._task_id_scope("a.task_id", admitted, parameters)
-        # Cluster sizes and membership must depend only on this admitted
-        # projection, before the query's hard filters narrow the candidates.
         facets = {
             row["run_id"]: row for row in database._rows(
                 "SELECT f.*, a.trust_tier AS trace_trust_tier "
@@ -2463,19 +2165,6 @@ class CloudTraceRetriever:
         include_provisional: bool = False, facets: Mapping[str, Any] | None = None,
         cluster_id: str | None = None, like_run_id: str | None = None,
     ) -> list[RetrievedExample]:
-        """Return confirmed issues or explicitly labelled/flagged stored traces.
-
-        Examples rank by trust tier, facet similarity to ``like_run_id`` (when
-        supplied), lexical strength, then task identity. Facets and cluster
-        membership hard-filter the trace evidence; any Atlas argument requires
-        a matching trace, even for issue-led queries, and permits an empty query.
-        Every Atlas argument (``facets``, ``cluster_id``, ``like_run_id``) also
-        requires ``exclude_task_ids`` to name the task under audit: an Atlas
-        query ranks by run similarity, so nothing else keeps the caller's own
-        task out of its evidence. The like-run must be admitted and faceted;
-        its own task is excluded. Tier-3 provisional evidence is omitted unless
-        requested explicitly.
-        """
         if not isinstance(include_provisional, bool):
             raise ValueError("include_provisional must be a boolean")
         allowed = set(TRUST_TIERS) if include_provisional else set(TRUST_TIERS[:-1])
@@ -2528,9 +2217,6 @@ class CloudTraceRetriever:
                 and (not trace_backed or task_id in matching_tasks)
             ]
             candidates = database._retrieval_task_ids(admitted, query, terms)
-            # When fewer than top_k matching tasks hold returnable evidence,
-            # every kind (issue-led included) widens to documents matching any
-            # term. Widening never leaves the admitted, Atlas-filtered task pool.
             eligible = 0
             if candidates:
                 eligible_tasks = {
@@ -2579,10 +2265,6 @@ class CloudTraceRetriever:
                     issues_by_task.setdefault(issue["task_id"], []).append(issue)
             for trace in traces:
                 traces_by_task.setdefault(trace["task_id"], []).append(trace)
-            # Screening and step hydration only remove evidence. Each task's
-            # (tier, -similarity, -strength, identity) bound must therefore never
-            # be outranked by its example. Expand best-first until no remaining
-            # task can outrank top_k, using precomputed facet similarity bounds.
             bounded = []
             for task in tasks:
                 task_id = task["task_id"]
@@ -2603,8 +2285,6 @@ class CloudTraceRetriever:
             ):
                 batch = [task_id for _, _, _, task_id in bounded[position:position + top_k]]
                 position += len(batch)
-                # Unreturned metadata is not hydrated, and step flags stay raw
-                # text: only the screened/returned steps are decoded in _example.
                 hydrated = database._retrieval_matches(
                     "corpus_tasks", "t", "task_id", batch, query, terms,
                     columns="t.task_id, t.dataset_id, t.instruction_text, t.cas_uri",
@@ -2656,11 +2336,6 @@ class CloudTraceRetriever:
         traces: Sequence[Mapping[str, Any]], step_bounds: Mapping[str, int],
         issue_kind: str | None, *, facet_similarities: Mapping[str, int], trace_backed: bool,
     ) -> tuple[int, int, int]:
-        """Optimistic tier, facet similarity and lexical strength for ``_example``.
-
-        Misalignment relevance needs a flagged step, so any trace with steps
-        is counted as possibly relevant. The sentinel tier means no example.
-        """
         relevant_issues = [
             issue for issue in issues
             if issue["status"] == "confirmed"
@@ -2681,9 +2356,6 @@ class CloudTraceRetriever:
         trace_tier = min(
             (_TRUST_RANK[trace["trust_tier"]] for trace in relevant_traces), default=len(TRUST_TIERS),
         )
-        # A strong issue can mask a screened trace's downgrade in trust. Bound
-        # every trace's similarity in that case, since the next-best trace may
-        # be more similar while the example's issue keeps its original tier.
         issue_keeps_tier = any(_TRUST_RANK[issue["trust_tier"]] <= trace_tier for issue in relevant_issues)
         similarity = max((
             facet_similarities.get(trace["trace_id"], 0) for trace in relevant_traces
@@ -2699,26 +2371,11 @@ class CloudTraceRetriever:
     def format_for_prompt(
         examples: Sequence[RetrievedExample], *, format_mode: str = "full",
     ) -> str:
-        """Use the same bounded formatter as issue-oriented callers.
-
-        ``format_mode="compact_cards"`` renders one short playbook card per
-        example; its ``expand`` pointer is hydrated by :meth:`expand_pointer`.
-        """
         return format_retrieval_prompt_block(examples, format_mode=format_mode)
 
     def expand_pointer(
         self, pointer: str, *, include_provisional: bool = False, max_steps: int = 20,
     ) -> dict[str, Any]:
-        """Hydrate one card's ``expand`` pointer under retrieval's own rules.
-
-        ``trace:<id>:<first>-<last>`` returns that trace's recorded non-user
-        steps in the range (at most ``max_steps``, from ``first``), with the same
-        bounded fields and ``flagged`` marks as retrieval; ``trace:<id>``
-        starts at step 0. ``issue:<id>`` returns one confirmed issue. The task
-        must be admitted DEV, the row's tier returnable, and every returned row
-        free of sealed identities. Anything else raises ``ValueError`` without
-        saying whether the row exists.
-        """
         pointer = _text(pointer, "pointer")
         if not isinstance(include_provisional, bool):
             raise ValueError("include_provisional must be a boolean")
@@ -2742,15 +2399,11 @@ class CloudTraceRetriever:
             sealed = _sealed_pattern(frozenset(sealed_ids))
             if self._sealed_text(pointer, sealed):
                 raise ValueError("pointer contains a sealed task identity")
-            # Admission and trust are decided from identity columns alone, with
-            # the admitted-task scope inside the query: no body column of any
-            # row is read before that row is known to be returnable.
             parameters: list[Any] = []
             scope = database._task_id_scope("task_id", admitted, parameters)
             head = f"SELECT {key}, task_id, trust_tier FROM {table} WHERE {scope}{confirmed}"
             heads = database._rows(f"{head} AND {key} = ?", [*parameters, identity])
             if not heads and re.fullmatch(r"sha256:[0-9a-f]{64}", identity):
-                # Overlong identities are shown as their SHA-256 reference.
                 heads = [row for row in database._rows(head, parameters) if self._identity(row[key]) == identity]
             if len(heads) != 1 or heads[0]["trust_tier"] not in allowed:
                 raise refused
@@ -2792,11 +2445,6 @@ class CloudTraceRetriever:
     def search_runs(
         self, facets: Mapping[str, Any] | None = None, *, limit: int | None = 50,
     ) -> list[dict[str, Any]]:
-        """``CloudTraceDatabase.search_runs`` over admitted DEV runs only.
-
-        Admission is decided before any facet is read; a record that names a
-        sealed identity is dropped, so fewer than ``limit`` may return.
-        """
         return self.database.search_runs(
             facets, registry=self.registry, sealed_task_ids=self._sealed_ids, limit=limit,
         )

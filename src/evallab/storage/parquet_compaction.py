@@ -1,14 +1,3 @@
-"""Deterministic Parquet compaction engine (WS-E item 4).
-
-Consolidates uncompacted granular partitions from `derived/parquet/job_id=*/` into
-closed-day partition layout `derived/parquet/compact/dt=YYYY-MM-DD/*.parquet` (one
-file per table per day).
-
-Retains per-trial granular partitions for recent days (default 7 days) for fine-grained
-debugging, while pruning older granular partitions after compaction and validation.
-Enforces zero row loss and exact schema integrity before and after writes.
-"""
-
 from __future__ import annotations
 
 PRIMARY_KEYS: dict[str, tuple[str, ...]] = {

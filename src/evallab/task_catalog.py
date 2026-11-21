@@ -1,5 +1,3 @@
-"""Stored task-catalog schemas and read-only outcome views."""
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -14,8 +12,6 @@ STABILITY_TABLE_FILENAME = STABILITY_PARQUET_FILENAME
 STABILITY_TABLE = Path(STABILITY_TABLE_FILENAME).stem
 EXPLOITS_TABLE_FILENAME = EXPLOITS_PARQUET_FILENAME
 EXPLOITS_TABLE = Path(EXPLOITS_TABLE_FILENAME).stem
-
-
 
 
 TASK_SOURCES_SCHEMA = pa.schema(
@@ -93,20 +89,7 @@ TASK_LINEAGE_SCHEMA = pa.schema(
 )
 
 
-
-
 def task_outcomes_sql(trials: str = "trial_facts", versions: str = "task_versions") -> str:
-    """Per task-version x backend x agent/model outcome rollup (Harbor digest join).
-
-    The legacy ``n_infra`` column means unscored (missing, nonfinite, or -1
-    reward), not that an agent exception necessarily caused infrastructure
-    failure. A scored exception remains in the pass-rate denominator.
-    Wilson 95% interval is computed on scored attempts only.
-    ``backend`` is ``COALESCE(environment_type, 'unknown')``:
-    local and cloud trials never pool into one row. Old trial_facts
-    partitions without ``environment_type`` read as ``'unknown'`` through
-    ``union_by_name``.
-    """
     inner = f"""
         SELECT
             v.task_version_digest AS task_version_digest,
@@ -175,26 +158,6 @@ def task_audit_sql(
     has_qualification: bool = False,
     has_findings: bool = True,
 ) -> str:
-    """One row per task version x backend x agent/model with verdict and eligibility.
-
-    Missing stability/exploit tables yield null columns, never guessed
-    values; eligibility is then false with a reason. Split assignment
-    (train|heldout) is applied at export time, so the view stays
-    split-agnostic and ``train_eligible`` here means learnable, stable, and
-    free of confirmed exploits.
-
-    With ``has_qualification``, the latest qualification trial per
-    (task version, backend) joins on both keys: a version whose latest
-    trial on that backend is ``broken`` is train-ineligible with reason
-    ``broken on <backend>``. ``inconclusive`` (backend-quota) trials never
-    mark a task broken. The join is one-to-one per audit row, never fanout.
-
-    With ``has_findings``, an ``error``-severity row in the catalog
-    ``task_findings`` table (curated defects under
-    ``library/task-findings/``) makes the version train-ineligible with
-    reason ``finding: <rule>``, whatever the backend. This is a hard
-    defect, so it takes precedence over every other ineligibility reason.
-    """
     from evallab.task_qualification import TABLE as QUALIFICATION_TABLE_DEFAULT
 
     stability_table = stability or STABILITY_TABLE

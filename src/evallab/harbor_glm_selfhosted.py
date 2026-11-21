@@ -1,12 +1,3 @@
-"""GLM self-hosted and fine-tuned credential isolation for Harbor's mini-swe-agent adapter.
-
-Harbor 0.22 MiniSweAgent copies ``model_connection.env`` into ``exec_as_agent``,
-and ``BaseInstalledAgent._exec`` logs that mapping. Docker serializes the
-same mapping into compose exec argv. This wrapper never places the GLM self-hosted
-provider key in that environment. Model transport connects to the OpenAI-compatible
-self-hosted endpoint validated from GLM_SELFHOSTED_BASE_URL.
-"""
-
 from __future__ import annotations
 
 import os
@@ -78,7 +69,6 @@ def _scrubbed_connection_env(
 
 
 class SecretSafeGlmSelfhostedMiniSweAgent(MiniSweAgent):
-    """MiniSweAgent that talks to a self-hosted or fine-tuned GLM endpoint without exposing secrets."""
 
     def __init__(self, *args: Any, model_name: str | None = None, **kwargs: Any) -> None:
         if model_name is not None:

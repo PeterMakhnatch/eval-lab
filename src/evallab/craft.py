@@ -24,71 +24,37 @@ from evallab.execution_contracts import DEEPSEEK_MODEL_SELECTOR, TERMINUS_AGENT,
 from evallab.schemas import ContractModel
 from evallab.storage.paths import derived_root_from_environment
 
-#: A shell assignment, used to surface the value a verifier binds to a name.
-#: `(?!=)` keeps `pkg==1.2.3` out: that is a pinned package, not an assignment.
 _ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=(?!=)(?P<value>.*)$", re.DOTALL)
 
-#: Bumped whenever a facet's *meaning* or extraction rule changes, so a row
-#: written by an older scanner is never silently compared with a newer one.
 FACETS_SCHEMA_VERSION = "craft/1"
 
-#: Number of tasks processed per classification batch.
-#: Bounded at 10 to balance grouping efficiency against memory overhead and
-#: prompt context window limits when classify is extended to LLM passes.
 DEFAULT_BATCH_SIZE: int = 10
 
 TB3_ROOT_ENV = "EVALLAB_TB3_ROOT"
 DEFAULT_TB3_ROOT = Path("~/Developer/lab-extras/data/agent-evals/terminal-bench/tasks")
 
-#: `source_repo` for the in-repository corpus. TB3 reports the name recorded in
-#: its own `dataset.toml`, falling back to this shape when that file is absent.
 LIBRARY_SOURCE_REPO = "eval-lab/library"
 TB3_FALLBACK_SOURCE_REPO = "terminal-bench/terminal-bench"
 
-#: Where the TB4 corpus lives on this workstation. Injectable (env var, then
-#: `--tb4-root`), exactly like the TB3 lane, but pointed at a checkout pinned
-#: to the `v4.0.0` release tag (commit ``452bf30``). The on-disk TB3 checkout at
-#: `~/Developer/lab-extras/data/agent-evals/terminal-bench/tasks` stays untouched: dual-version
-#: coexistence is intentional, and a TB3 scan must keep producing the 74-task
-#: `terminal-bench-3` corpus unchanged.
 TB4_ROOT_ENV = "EVALLAB_TB4_ROOT"
 DEFAULT_TB4_ROOT = Path("~/Developer/lab-extras/data/agent-evals/terminal-bench-4/tasks")
 
-#: Pinned TB4 release identity. `v4.0.0` is an immutable release tag (commit
-#: ``452bf30``); the Eval Lab registry contract forbids floating refs, so the
-#: pin never moves and `@latest` is never used.
 TB4_VERSION = "4.0.0"
 TB4_PIN_TAG = "v4.0.0"
 TB4_PIN_COMMIT = "452bf30"
 
-#: The dataset name TB4's own `dataset.toml` reports. TB3 reports the *same*
-#: name, so the dataset name alone is not a distinguishing source identity.
 TB4_DATASET_NAME = "terminal-bench/terminal-bench"
 
-#: TB4's `source_repo`. Forced to the version-suffixed ref rather than read from
-#: `dataset.toml`, because craft rows are keyed by `(source_repo, task_ref)` and
-#: a TB3 and a TB4 row for the same task must never share that key. The version
-#: suffix is what makes the identity distinct and the pin explicit.
 TB4_FALLBACK_SOURCE_REPO = "terminal-bench/terminal-bench@4.0.0"
 
-#: The full pinned dataset ref, for validation and reporting.
 TB4_DATASET_REF = "terminal-bench/terminal-bench@4.0.0"
 
-#: Ref tokens the registry contract treats as floating and therefore refuses.
-#: A floating ref names a moving target (`@latest`, `@head`, `@main`) and cannot
-#: be re-pinned, so the TB4 plan and source lanes refuse them outright.
 FLOATING_REF_TOKENS = frozenset({"latest", "head", "main", "master"})
 
-#: Machine-readable migration record for the v3 -> v4 release: removed/fixed
-#: task lists, the pinned release identity, and the expected 66-task inventory.
-#: `plan` reads it so the expected inventory is authoritative even without a TB3
-#: checkout on disk.
 MIGRATION_RECORD = Path(__file__).resolve().parent / "data" / "terminal-bench-4-migration.json"
 
-#: Pinned TB4 resource contract: flat 8-hour agent timeout on all 66 tasks.
 TB4_TIMEOUT_SECONDS: int = 28_800
 
-#: Permitted Z.ai model selectors for TB4 Harbor compilation.
 ZAI_ALLOWED_MODELS: frozenset[str] = frozenset(
     {"zai-coding-plan/glm-5.3", "zai-coding-plan/glm-5.3-flash"}
 )
@@ -96,18 +62,13 @@ ZAI_DEFAULT_MODEL: str = "zai-coding-plan/glm-5.3"
 ZAI_DEFAULT_AGENT: str = "zai-opencode"
 ZAI_MODEL_PREFIX: str = "zai-coding-plan/"
 
-#: Permitted agent identifiers for the DeepSeek arm of TB4 Harbor compilation.
 DEEPSEEK_ALLOWED_AGENTS: frozenset[str] = frozenset(
     {"mini-swe-agent", "evallab.harbor_dsh:DeepSeekHarnessAgent"}
 )
 
-#: Z.ai Open Platform standard API for metered mini-SWE and Terminus 2.
-#: Billed per-token on api.z.ai, never against Coding Plan quota.
 ZAI_OPENAPI_MODEL_SELECTOR: str = "zai/glm-5.3-flash"
 ZAI_OPENAPI_ALLOWED_AGENTS: frozenset[str] = frozenset({"mini-swe-agent", TERMINUS_AGENT})
 
-#: TB4 tasks declaring an H100 GPU (pinned v4.0.0 manifests). Local Docker on
-#: this aarch64 host has no CUDA, so these route to a remote Harbor backend.
 TB4_GPU_TASK_REFS: frozenset[str] = frozenset(
     {
         "terminal-bench/fp8-rmsnorm-gemm",
@@ -116,10 +77,6 @@ TB4_GPU_TASK_REFS: frozenset[str] = frozenset(
     }
 )
 
-#: Remote Harbor backends usable for the H100 class, with the exact credential
-#: environment variables each fails closed on. Modal is the default (24h
-#: sandbox lifetime covers the 8h agent timeout; 1 TiB free volume covers
-#: jax-speedrun-gpu's 1 TB storage). Beam and Daytona are supported alternates.
 TB4_REMOTE_ENVIRONMENTS: dict[str, tuple[str, ...]] = {
     "modal": ("MODAL_TOKEN_ID", "MODAL_TOKEN_SECRET"),
     "beam": ("BEAM_TOKEN",),
@@ -127,10 +84,6 @@ TB4_REMOTE_ENVIRONMENTS: dict[str, tuple[str, ...]] = {
 }
 TB4_DEFAULT_REMOTE_ENVIRONMENT: str = "modal"
 
-#: A task directory is one that carries both files. Harbor's own layout adds
-#: `environment/`, `tests/`, and `solution/`, but those are checked per facet
-#: rather than required for discovery, so a partial task is still recorded (with
-#: nulls) instead of vanishing from the corpus.
 TASK_MANIFEST = "task.toml"
 TASK_INSTRUCTION = "instruction.md"
 
@@ -140,39 +93,19 @@ DifficultyMechanism = Literal["conceptual", "clerical", "volume", "mixed"]
 AntiCheat = Literal["hidden_tests", "answer_outside_image", "digest_check", "process_check"]
 BaseImagePin = Literal["digest", "tag", "bare"]
 
-#: Verifier *mechanism* families. The first four are the spec's `verifier_type`
-#: enum. The rest are mechanisms this corpus actually contains that the enum
-#: cannot name, recorded so a null `verifier_type` is legible rather than blank:
-#:
-#: - `unit_js`   — a JS/TS test runner (vitest, playwright) drives the reward.
-#: - `shell_only` — the verifier is shell and none of the four mechanisms were
-#:   observed in it; in practice it compares an answer file against an expected
-#:   value written into the script (198 `gpqa-diamond` shards do exactly that).
-#: - `scorer_script` — a Python module that computes the reward itself, with no
-#:   test framework, no committed reference, and no model call.
-#:
-#: `shell_only` and `scorer_script` are residual: they are recorded only when no
-#: mechanism family fired, so they can never promote a task to `hybrid`.
 _ENUM_FAMILIES = ("pytest", "diff", "golden_file", "judge")
 _RESIDUAL_FAMILIES = ("shell_only", "scorer_script")
 
-#: Client libraries whose presence in a verifier means a model decides the
-#: reward. Import-level detection only: a verifier that shells out to an unknown
-#: binary is not claimed either way.
 _JUDGE_MODULES = frozenset(
     {"openai", "anthropic", "litellm", "cohere", "mistralai", "ollama", "dspy", "instructor"}
 )
 
-#: JS/TS test runners, read from a `package.json` dependency table rather than
-#: from file names, so a stray `*.test.ts` fixture is not mistaken for a runner.
 _JS_RUNNERS = frozenset(
     {"vitest", "jest", "mocha", "ava", "playwright", "@playwright/test", "@jest/globals"}
 )
 
-#: Extensions treated as verifier *code* (as opposed to fixtures or data).
 _VERIFIER_CODE_SUFFIXES = frozenset({".py", ".sh", ".bash", ".ts", ".tsx", ".mjs", ".cjs", ".js"})
 
-#: Lockfiles: any of these is, on its own, an exact-version dependency pin.
 _LOCKFILES = frozenset(
     {
         "uv.lock",
@@ -191,13 +124,6 @@ _LOCKFILES = frozenset(
     }
 )
 
-#: Installer front-ends and the pin separator a package argument must contain.
-#: `None` marks an installer that is pinned by construction because it refuses
-#: to resolve anything outside an existing lockfile.
-#:
-#: Longest prefix wins, so `uv pip install` is matched before `pip install`
-#: would be, and `python3 -m pip install` is listed explicitly rather than
-#: silently missed — 4 TB3 environments install that way.
 _INSTALLERS: dict[tuple[str, ...], str | None] = {
     ("pip", "install"): "==",
     ("pip3", "install"): "==",
@@ -218,15 +144,8 @@ _INSTALLERS: dict[tuple[str, ...], str | None] = {
     ("conda", "create"): "=",
 }
 
-#: Arguments that name a manifest rather than a package: the pin, if any, lives
-#: in the referenced file, which is scored as its own site.
 _PIN_DEFERRING_SUFFIXES = (".txt", ".lock", ".toml", ".json", ".yml", ".yaml", ".cfg")
 
-#: Extension → language. Deliberately excludes `Dockerfile`, YAML, JSON, and
-#: Markdown: every Harbor environment has a Dockerfile, so recording it would
-#: make the column constant, and the rest are data/config rather than the
-#: implementation language of the environment. `.v` is resolved by sibling
-#: evidence rather than guessed, because it is both Coq and Verilog.
 _LANGUAGE_BY_SUFFIX: dict[str, str] = {
     ".py": "python",
     ".pyi": "python",
@@ -349,11 +268,6 @@ CRAFT_SCHEMA = pa.schema(
 )
 
 
-# --------------------------------------------------------------------------- #
-# digests and file inventory
-# --------------------------------------------------------------------------- #
-
-
 def _sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -363,23 +277,10 @@ def _sha256_file(path: Path) -> str:
 
 
 def _walk(root: Path) -> Iterator[Path]:
-    """Every path under `root`, in a stable relative-path order.
-
-    Symlinks are yielded but never followed, so a loop cannot hang a scan and a
-    link's *target* is what gets recorded.
-    """
     yield from sorted(root.rglob("*"), key=lambda item: item.relative_to(root).as_posix())
 
 
 def task_digest(task_dir: Path) -> str:
-    """A content digest over the whole task directory.
-
-    This is craft's own digest, not the upstream `dataset.toml` pin: it has to
-    cover corpora that have no upstream manifest, and it is the thing
-    idempotence is defined against ("same digests ⇒ no row churn"). Directory
-    entries and symlink targets are included so a moved or relinked file changes
-    the digest even when no file content did.
-    """
     lines: list[str] = []
     for path in _walk(task_dir):
         rel = path.relative_to(task_dir).as_posix()
@@ -393,33 +294,13 @@ def task_digest(task_dir: Path) -> str:
     return f"sha256:{hashlib.sha256(payload).hexdigest()}"
 
 
-# --------------------------------------------------------------------------- #
-# lexical helpers: shell without substring search
-# --------------------------------------------------------------------------- #
-
-
 def shell_words(text: str) -> tuple[str, ...]:
-    """Lex a shell script into words, dropping comments.
-
-    `shlex` is what makes shell evidence structural rather than textual: the
-    verifier that documents "the pytest call lives in an `if` condition" in a
-    comment must not thereby count as a pytest verifier, and 59 of the 74 TB3
-    `test.sh` files mention their runner in prose.
-
-    A `NAME=value` assignment additionally yields its right-hand side, so
-    `REF="/opt/grader/reference.FCStd"` surfaces the path it binds. The token
-    itself is always kept: splitting every `=` would shred `httpx==0.27.2` into
-    two words and report a pinned dependency as unpinned, which an earlier
-    revision of this function did to 20 TB3 environments.
-    """
     lexer = shlex.shlex(text, punctuation_chars=True)
     lexer.whitespace_split = True
     lexer.commenters = "#"
     try:
         tokens = list(lexer)
     except ValueError:
-        # An unterminated quote means the tail is not lexable; keep nothing
-        # rather than half a word.
         tokens = []
     words: list[str] = []
     for token in tokens:
@@ -436,7 +317,6 @@ def shell_words(text: str) -> tuple[str, ...]:
 
 
 def _shell_commands(text: str) -> list[list[str]]:
-    """Split a shell fragment into individual commands at `&&`, `;`, `|`."""
     commands: list[list[str]] = [[]]
     for word in shell_words(text):
         if word in {"&&", "||", ";", "|", "&"}:
@@ -446,14 +326,8 @@ def _shell_commands(text: str) -> list[list[str]]:
     return [command for command in commands if command]
 
 
-# --------------------------------------------------------------------------- #
-# verifier detection (rule 2)
-# --------------------------------------------------------------------------- #
-
-
 @dataclass(frozen=True)
 class PythonModuleFacts:
-    """What `ast` says about one verifier module."""
 
     imports: frozenset[str]
     string_constants: frozenset[str]
@@ -461,7 +335,6 @@ class PythonModuleFacts:
 
 
 def python_module_facts(source: bytes) -> PythonModuleFacts | None:
-    """Parse a verifier module; `None` when it does not parse as Python."""
     try:
         tree = ast.parse(source)
     except (SyntaxError, ValueError):
@@ -491,7 +364,6 @@ def python_module_facts(source: bytes) -> PythonModuleFacts | None:
 
 @dataclass(frozen=True)
 class VerifierEvidence:
-    """Mechanism families observed in a task's `tests/` tree, plus coverage."""
 
     families: frozenset[str]
     modules_parsed: int
@@ -503,14 +375,6 @@ class VerifierEvidence:
 
 
 def inspect_verifier(tests_dir: Path) -> VerifierEvidence:
-    """Classify a verifier by structure: AST for Python, lexing for shell.
-
-    A *reference artifact* is a non-code file that actually exists under
-    `tests/` and whose name appears as a path in the verifier's own Python
-    string constants or shell words. Matching candidates against the real file
-    inventory is what keeps this from degenerating into a keyword list: the
-    evidence for `golden_file` is always a file a reviewer can open.
-    """
     families: set[str] = set()
     parsed = 0
     unparsed = 0
@@ -594,8 +458,6 @@ def inspect_verifier(tests_dir: Path) -> VerifierEvidence:
         families.add("golden_file")
 
     if not families:
-        # Residual characterisation: say what the verifier *is* so the null
-        # `verifier_type` carries evidence instead of silence.
         if parsed:
             families.add("scorer_script")
         elif any(path.suffix in {".sh", ".bash"} for path in files):
@@ -613,15 +475,6 @@ def inspect_verifier(tests_dir: Path) -> VerifierEvidence:
 
 
 def _verifier_type(families: frozenset[str]) -> VerifierType | None:
-    """Map observed mechanism families onto the spec's enum, or refuse to.
-
-    `hybrid` means "more than one mechanism", which stays true even when one of
-    them is a mechanism the enum cannot name — `golden_file` + `unit_js` really
-    is two mechanisms. A *single* mechanism the enum cannot name yields `None`:
-    calling a vitest verifier `pytest`, or a shell answer-comparison
-    `golden_file`, would be the confidently-wrong answer rule 1 forbids, and the
-    gap is a finding about the enum rather than about the task.
-    """
     mechanisms = families - frozenset(_RESIDUAL_FAMILIES)
     if len(mechanisms) > 1:
         return "hybrid"
@@ -632,18 +485,7 @@ def _verifier_type(families: frozenset[str]) -> VerifierType | None:
     return None
 
 
-# --------------------------------------------------------------------------- #
-# environment facets
-# --------------------------------------------------------------------------- #
-
-
 def _dockerfile_instructions(text: str) -> list[tuple[str, str]]:
-    """Dockerfile instructions as `(verb, argument)`, continuations joined.
-
-    A real (if small) parse of the Dockerfile grammar: comments dropped,
-    backslash continuations folded, so `RUN pip install \\\n  foo==1.2` is one
-    instruction rather than two unrelated lines.
-    """
     joined: list[str] = []
     buffer = ""
     for raw in text.splitlines():
@@ -666,7 +508,6 @@ def _dockerfile_instructions(text: str) -> list[tuple[str, str]]:
 
 
 def base_image_pin(dockerfile: Path) -> BaseImagePin | None:
-    """How the first `FROM` names its image: by digest, by tag, or bare."""
     if not dockerfile.is_file():
         return None
     for verb, argument in _dockerfile_instructions(
@@ -691,16 +532,6 @@ def _requirements_pinned(path: Path) -> bool:
 
 
 def _install_pinned(command: Sequence[str], heads: tuple[str, ...], separator: str | None) -> bool:
-    """True when every package argument of one installer call carries a pin.
-
-    `separator is None` means the installer resolves only from a lockfile
-    (`npm ci`, `pnpm install`, `uv sync`), so the call is pinned by
-    construction. Flags are skipped, and an argument naming a manifest
-    (`-r requirements.txt`, `pyproject.toml`) defers to that file, which
-    `pinned_dependencies` scores as its own site — otherwise
-    `pip install -r requirements.txt` would read as an unpinned package named
-    `requirements.txt`.
-    """
     if separator is None:
         return True
     arguments = list(command[len(heads) :])
@@ -719,7 +550,6 @@ def _install_pinned(command: Sequence[str], heads: tuple[str, ...], separator: s
 
 
 def _matching_installer(command: Sequence[str]) -> tuple[tuple[str, ...], str | None] | None:
-    """The longest `_INSTALLERS` prefix this command starts with, if any."""
     best: tuple[tuple[str, ...], str | None] | None = None
     for heads, separator in _INSTALLERS.items():
         if tuple(command[: len(heads)]) != heads:
@@ -730,18 +560,6 @@ def _matching_installer(command: Sequence[str]) -> tuple[tuple[str, ...], str | 
 
 
 def pinned_dependencies(environment: Path) -> bool | None:
-    """Whether every dependency declaration in the environment pins versions.
-
-    Three-valued on purpose. The spec types this `bool`, but a task whose
-    environment declares no dependencies at all has no fact to report, and rule
-    1 outranks the type: `None` there, rather than a `False` that reads as
-    "declared and unpinned".
-
-    Sites considered: lockfiles, `requirements*.txt`, and installer invocations
-    inside `RUN` instructions (lexed, then split at `&&`/`;`/`|`). The base
-    image is deliberately *not* a site here — it is reported separately as
-    `base_image_pin`, because one boolean cannot answer both questions.
-    """
     if not environment.is_dir():
         return None
     sites: list[bool] = []
@@ -773,12 +591,6 @@ def pinned_dependencies(environment: Path) -> bool | None:
 
 
 def environment_services(environment: Path) -> int | None:
-    """Number of declared environment containers.
-
-    A `docker-compose.yaml` beside the environment Dockerfile is Harbor's
-    multi-container declaration, so its `services` count is the answer. A lone
-    Dockerfile is one service. Neither present ⇒ nothing observed ⇒ `None`.
-    """
     for name in ("docker-compose.yaml", "docker-compose.yml"):
         candidate = environment / name
         if not candidate.is_file():
@@ -798,12 +610,6 @@ def environment_services(environment: Path) -> int | None:
 
 
 def environment_languages(environment: Path) -> list[str]:
-    """Languages present in the environment, by extension, without guessing.
-
-    `.v` is Coq only when a `_CoqProject` sits beside it and Verilog only when
-    a SystemVerilog sibling does; otherwise it contributes nothing, because the
-    extension alone does not distinguish them.
-    """
     if not environment.is_dir():
         return []
     files = [path for path in _walk(environment) if path.is_file() and not path.is_symlink()]
@@ -823,14 +629,8 @@ def environment_languages(environment: Path) -> list[str]:
     return sorted(languages)
 
 
-# --------------------------------------------------------------------------- #
-# scanning
-# --------------------------------------------------------------------------- #
-
-
 @dataclass(frozen=True)
 class TaskSource:
-    """One corpus root, with the `source_repo` its records carry."""
 
     root: Path
     source_repo: str
@@ -839,7 +639,6 @@ class TaskSource:
 
 @dataclass(frozen=True)
 class SkippedTask:
-    """A discovered directory that could not be recorded, and why."""
 
     path: str
     reason: str
@@ -853,12 +652,6 @@ class ScanResult:
 
 
 def discover_tasks(root: Path) -> list[Path]:
-    """Task directories under `root`, deepest-path-stable order.
-
-    Structural definition: a directory holding both `task.toml` and
-    `instruction.md`. Nothing else qualifies, which is why the TB3 root's
-    `README.md` and `dataset.toml` are not tasks.
-    """
     if not root.is_dir():
         return []
     manifests = sorted(
@@ -885,12 +678,6 @@ def _human_minutes(metadata: dict[str, Any]) -> int | None:
 
 
 def _answer_hiding(*, isolated: bool, references: Sequence[str], signed: bool) -> str | None:
-    """A deterministic composite of the hiding mechanisms actually observed.
-
-    Enumerable rather than prose: each code names structure a reviewer can
-    check. A description of *what specifically* is withheld ("the expected
-    mutation report") is a reading task and stays with the LLM pass.
-    """
     codes: list[str] = []
     if isolated:
         codes.append("separate_verifier_image")
@@ -902,13 +689,11 @@ def _answer_hiding(*, isolated: bool, references: Sequence[str], signed: bool) -
 
 
 def _table(document: dict[str, Any], key: str) -> dict[str, Any]:
-    """A manifest sub-table, or an empty one when it is missing or not a table."""
     value = document.get(key)
     return value if isinstance(value, dict) else {}
 
 
 def scan_task(task_dir: Path, source: TaskSource) -> CraftRecord:
-    """Extract one task's deterministic facets. Never writes."""
     manifest = tomllib.loads((task_dir / TASK_MANIFEST).read_bytes().decode("utf-8"))
     task_table = _table(manifest, "task")
     metadata = _table(manifest, "metadata")
@@ -925,22 +710,11 @@ def scan_task(task_dir: Path, source: TaskSource) -> CraftRecord:
     environment = task_dir / "environment"
     evidence = inspect_verifier(task_dir / "tests")
 
-    # `environment_mode = "separate"` is the declaration that the verifier is
-    # built from `tests/` into its own image. `task_workbench.py:1503` treats
-    # its absence as `verifier_not_isolated`, so absence is recorded as False
-    # rather than unknown.
     isolated = verifier.get("environment_mode") == "separate"
 
     anti_cheat: list[AntiCheat] = []
     if isolated:
         anti_cheat.append("hidden_tests")
-        # Entailed by the same evidence, not independently observed: the agent
-        # image's build context is `environment/`, so in separate mode nothing
-        # under `tests/` or `solution/` can enter it. A content-equality test
-        # between the two trees was tried and rejected as unsound — fixture
-        # applications and input data are legitimately byte-identical across
-        # `environment/` and `tests/` in 164 file pairs of this corpus, so
-        # equality proves duplication of inputs, not a leaked answer.
         anti_cheat.append("answer_outside_image")
     if evidence.digest_check:
         anti_cheat.append("digest_check")
@@ -994,7 +768,6 @@ def scan_tasks_batch(
     task_dirs: Sequence[Path],
     source: TaskSource,
 ) -> tuple[list[CraftRecord], list[SkippedTask]]:
-    """Extract deterministic facets for a batch of tasks from a single source."""
     records: list[CraftRecord] = []
     skipped: list[SkippedTask] = []
     for task_dir in task_dirs:
@@ -1016,7 +789,6 @@ def scan(
     sources: Sequence[TaskSource],
     batch_size: int = DEFAULT_BATCH_SIZE,
 ) -> ScanResult:
-    """Scan every source in batches, in source order then task order."""
     if batch_size <= 0:
         raise ValueError(f"batch_size must be positive; got {batch_size}")
     records: list[CraftRecord] = []
@@ -1030,11 +802,6 @@ def scan(
             skipped.extend(batch_skipped)
     records.sort(key=lambda item: (item.source_repo, item.task_ref))
     return ScanResult(tuple(records), tuple(skipped), tuple(sources))
-
-
-# --------------------------------------------------------------------------- #
-# corpus roots
-# --------------------------------------------------------------------------- #
 
 
 def _root_from_config(
@@ -1054,21 +821,18 @@ def _root_from_config(
 
 
 def tb3_root(explicit: Path | None = None, environ: Mapping[str, str] | None = None) -> Path:
-    """The TB3 corpus root: explicit path, then `EVALLAB_TB3_ROOT`, then default."""
     return _root_from_config(
         explicit=explicit, environ=environ, env_var=TB3_ROOT_ENV, default=DEFAULT_TB3_ROOT
     )
 
 
 def tb4_root(explicit: Path | None = None, environ: Mapping[str, str] | None = None) -> Path:
-    """The TB4 corpus root: explicit path, then `EVALLAB_TB4_ROOT`, then default."""
     return _root_from_config(
         explicit=explicit, environ=environ, env_var=TB4_ROOT_ENV, default=DEFAULT_TB4_ROOT
     )
 
 
 def tb3_source(root: Path) -> TaskSource:
-    """The TB3 corpus, naming itself from its own `dataset.toml` when present."""
     source_repo = TB3_FALLBACK_SOURCE_REPO
     manifest = root / "dataset.toml"
     if manifest.is_file():
@@ -1083,17 +847,6 @@ def tb3_source(root: Path) -> TaskSource:
 
 
 def tb4_source(root: Path) -> TaskSource:
-    """The TB4 corpus, with a source identity distinct from TB3's.
-
-    TB4's `dataset.toml` reports the same dataset name TB3 does
-    (`terminal-bench/terminal-bench`), so reading the name would let a TB3 and a
-    TB4 row for the same task share a `(source_repo, task_ref)` key. The
-    `source_repo` is therefore forced to the pinned `@4.0.0` ref, which is both
-    the distinct identity and the explicit pin.
-    Discovery is scoped to the checkout's `tasks/` directory when present:
-    upstream terminal-bench repositories also carry `archive/` tasks, which are
-    not part of the pinned 66-task v4.0.0 inventory.
-    """
     tasks_root = root / "tasks"
     discovery_root = tasks_root if tasks_root.is_dir() else root
     return TaskSource(root=discovery_root, source_repo=TB4_FALLBACK_SOURCE_REPO, label="tb4")
@@ -1111,13 +864,7 @@ def repository_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
-# --------------------------------------------------------------------------- #
-# TB4 pin validation, migration planning, and job compilation
-# --------------------------------------------------------------------------- #
-
-
 def load_migration_record(path: Path | None = None) -> dict[str, Any]:
-    """Load the machine-readable v3 -> v4 migration record."""
     record_path = path or MIGRATION_RECORD
     try:
         with record_path.open(encoding="utf-8") as handle:
@@ -1130,7 +877,6 @@ def load_migration_record(path: Path | None = None) -> dict[str, Any]:
 
 
 def _dataset_identity(root: Path) -> dict[str, str]:
-    """The `[dataset]` name/version a root declares, or empty when absent."""
     manifest = root / "dataset.toml"
     if not manifest.is_file():
         return {}
@@ -1150,21 +896,18 @@ def _dataset_identity(root: Path) -> dict[str, str]:
 
 
 def _is_floating_ref(ref: str) -> bool:
-    """Whether a dataset ref names a moving target rather than a release."""
     base = ref.split("@", 1)[0].rstrip("/")
     token = base.rsplit("/", 1)[-1] if "/" in base else base
     return token.lower() in FLOATING_REF_TOKENS or "@latest" in ref or "@head" in ref
 
 
 def _version_from_ref(ref: str) -> str | None:
-    """The `@version` suffix of a dataset ref, if any."""
     if "@" not in ref:
         return None
     return ref.split("@", 1)[1].strip()
 
 
 def _git_pin_ref(root: Path) -> str | None:
-    """The pinned ref a checkout's git state proves, if it is the v4.0.0 release."""
     try:
         described = subprocess.run(
             ["git", "-C", str(root), "describe", "--tags", "--exact-match", "HEAD"],
@@ -1188,18 +931,9 @@ def _git_pin_ref(root: Path) -> str | None:
 
 
 def resolve_tb4_ref(root: Path, ref: str | None = None) -> str:
-    """Resolve the effective pinned dataset ref for a TB4 root.
-
-    Refuses a wrong dataset, a floating ref, and a wrong version. Resolution
-    order: an explicit `ref`, then `[dataset].version` in `dataset.toml`, then
-    the checkout's git state (v4.0.0 tag / 452bf30 commit), else "unpinned".
-    """
     identity = _dataset_identity(root)
     name = identity.get("name")
     if not name:
-        # Upstream terminal-bench checkouts ship no dataset.toml. The exact
-        # v4.0.0 git pin (tag or 452bf30 commit) establishes the dataset
-        # identity on its own; anything else that declares nothing is refused.
         if _git_pin_ref(root) == TB4_DATASET_REF:
             name = TB4_DATASET_NAME
         else:
@@ -1234,13 +968,6 @@ def plan_tb4(
     ref: str | None = None,
     tb3_path: Path | None = None,
 ) -> dict[str, Any]:
-    """Read-only migration plan for a pinned TB4 checkout.
-
-    Scans the TB4 root (never writes a Parquet row), validates the pin, and
-    reports the expected 66-task inventory and the exact 74 -> 66 delta. When a
-    TB3 root is supplied, the removed tasks are detected live against it; the
-    authoritative removed/fixed lists come from the migration record either way.
-    """
     if not tb4_path.is_dir():
         raise FileNotFoundError(f"TB4 corpus root not found: {tb4_path}")
     effective_ref = resolve_tb4_ref(tb4_path, ref=ref)
@@ -1323,14 +1050,6 @@ def _render_plan(plan: dict[str, Any]) -> str:
 
 
 def deterministic_tb4_task_id(dataset_ref: str, task_ref: str) -> str:
-    """Deterministic, Crockford-encoded 26-char ULID-compatible job identity.
-
-    Derived from sha256(f"{dataset_ref}\\0{task_ref}"):
-    - Upper 48 bits map to the timestamp field.
-    - Next 80 bits map to the randomness field.
-    Guarantees stable, collision-free per-task identity across recompilations
-    so partial runs can be resumed without re-keying jobs.
-    """
     digest = hashlib.sha256(f"{dataset_ref}\0{task_ref}".encode()).digest()
     millis = int.from_bytes(digest[:6], "big") & ((1 << 48) - 1)
     randomness = int.from_bytes(digest[6:16], "big") & ((1 << 80) - 1)
@@ -1348,26 +1067,15 @@ def compile_tb4(
     include_tasks: Sequence[str] | None = None,
     remote_environment: str = TB4_DEFAULT_REMOTE_ENVIRONMENT,
 ) -> dict[str, Any]:
-    """Compile the pinned TB4 v4.0.0 adoption lane into an executable Harbor job plan.
-
-    Fails closed on:
-    - Task count or inventory drift against the immutable 66-task manifest.
-    - Upstream digest drift if a prior compiled plan exists at `out`.
-    - Accidental TB3/TB4 aggregation (refuses if TB3 root is supplied).
-    - Invalid or highspeed model selector (only permitted Z.ai and DeepSeek combinations allowed).
-    - Floating refs, wrong dataset name, or unpinned version.
-    """
     if not tb4_path.is_dir():
         raise FileNotFoundError(f"TB4 corpus root not found: {tb4_path}")
 
-    # 1. TB3/TB4 aggregation refusal
     if tb3_path is not None:
         raise ValueError(
             "accidental TB3/TB4 aggregation refused: TB3 and TB4 cohorts are non-comparable "
             "and cannot be aggregated or mixed into a single compile pass"
         )
 
-    # 2. Model & provider validation (fail closed)
     if "highspeed" in model.lower():
         raise ValueError(
             f"invalid model selector {model!r}: highspeed models are refused at compile time (fail closed)"
@@ -1386,28 +1094,20 @@ def compile_tb4(
             "highspeed, non-Z.ai, and unapproved DeepSeek configurations are refused at compile time (fail closed)"
         )
 
-    # 2b. Remote backend validation for the H100 task class (fail closed).
-    # Selecting a backend here is routing representation only: it never
-    # authorizes spend, and queued execution keeps the standing
-    # cloud_or_remote_environment admission policy. The docker+GPU refusal
-    # happens after task selection (step 7) where the selected refs are known.
     if remote_environment != "docker" and remote_environment not in TB4_REMOTE_ENVIRONMENTS:
         raise ValueError(
             f"invalid remote_environment {remote_environment!r}: must be 'docker' or one of "
             f"{sorted(TB4_REMOTE_ENVIRONMENTS)} (HAR-62 backend routing)"
         )
 
-    # 3. Pin validation (refuses wrong dataset, floating refs, wrong version)
     effective_ref = resolve_tb4_ref(tb4_path, ref=ref)
     record = load_migration_record()
 
-    # 4. Scan the TB4 corpus
     result = scan([tb4_source(tb4_path)])
     actual_records = {r.task_ref: r for r in result.records}
     actual_refs = sorted(actual_records.keys())
     expected_refs = list(record["expected_inventory"])
 
-    # 5. Inventory and task-count checks (fail closed on ANY discrepancy)
     if len(actual_refs) != len(expected_refs):
         raise ValueError(
             f"task count drift: actual {len(actual_refs)} != expected {len(expected_refs)}"
@@ -1419,7 +1119,6 @@ def compile_tb4(
     if unexpected:
         raise ValueError(f"inventory drift: unexpected task(s): {unexpected}")
 
-    # 6. Canonical manifest digest
     manifest_bytes = json.dumps(
         {
             "dataset_ref": effective_ref,
@@ -1440,7 +1139,6 @@ def compile_tb4(
     ).encode("utf-8")
     manifest_digest = f"sha256:{hashlib.sha256(manifest_bytes).hexdigest()}"
 
-    # 7. Normalize and validate include_tasks
     expected_set = set(expected_refs)
     if include_tasks is not None:
         selected_set: set[str] = set()
@@ -1466,7 +1164,6 @@ def compile_tb4(
                 "the task (HAR-62)"
             )
 
-    # 8. Construct task entries
     task_entries: list[dict[str, Any]] = []
     current_digests: dict[str, str] = {}
     for task_ref in expected_refs:
@@ -1489,13 +1186,10 @@ def compile_tb4(
                 }
             )
 
-    # 9. Upstream digest drift check against existing plan if present
     if out is not None and out.is_file():
         try:
             prior_plan = json.loads(out.read_text(encoding="utf-8"))
             if isinstance(prior_plan, dict) and "tasks" in prior_plan:
-                # Retain every task's byte identity even when the emitted jobs
-                # are a subset. Older full plans carry these digests in tasks.
                 prior_digests = prior_plan.get("task_digests")
                 if prior_digests is None:
                     prior_digests = {
@@ -1520,7 +1214,6 @@ def compile_tb4(
         except (json.JSONDecodeError, UnicodeError):
             pass
 
-    # 10. Build complete plan dictionary
     allowed_pairs = sorted(
         [[m, ZAI_DEFAULT_AGENT] for m in ZAI_ALLOWED_MODELS]
         + [[DEEPSEEK_MODEL_SELECTOR, a] for a in DEEPSEEK_ALLOWED_AGENTS]
@@ -1589,7 +1282,6 @@ def compile_tb4(
         "tasks": task_entries,
     }
 
-    # 11. Write plan to disk if out is given
     if out is not None:
         out.parent.mkdir(parents=True, exist_ok=True)
         rendered_json = json.dumps(plan, indent=2, sort_keys=True) + "\n"
@@ -1614,21 +1306,10 @@ def _render_compile(plan: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-# --------------------------------------------------------------------------- #
-# Parquet output and idempotence
-# --------------------------------------------------------------------------- #
-
-
 PARQUET_NAME = "craft.parquet"
 
 
 def records_digest(records: Sequence[CraftRecord]) -> str:
-    """Digest over the record set itself, independent of Parquet encoding.
-
-    The witness for idempotence: two scans of an unchanged corpus print the
-    same value. Comparing the Parquet bytes would also work today but would
-    couple the guarantee to a pyarrow version.
-    """
     payload = json.dumps(
         [record.model_dump(mode="json") for record in records],
         sort_keys=True,
@@ -1639,7 +1320,6 @@ def records_digest(records: Sequence[CraftRecord]) -> str:
 
 @dataclass(frozen=True)
 class Churn:
-    """Row-level difference between an existing Parquet table and a new scan."""
 
     added: tuple[str, ...]
     removed: tuple[str, ...]
@@ -1671,12 +1351,6 @@ def _row_key(record: CraftRecord) -> str:
 
 
 def compute_churn(records: Sequence[CraftRecord], existing: dict[str, dict[str, Any]]) -> Churn:
-    """What a re-scan would change, keyed by `(source_repo, task_ref)`.
-
-    `facets_changed` is the interesting column: a row whose `task_digest` is
-    unchanged but whose facets moved means the *scanner* changed its mind, which
-    is a scanner bug or an intended `facets_schema_version` bump — never noise.
-    """
     fresh = {_row_key(record): record for record in records}
     added = tuple(sorted(set(fresh) - set(existing)))
     removed = tuple(sorted(set(existing) - set(fresh)))
@@ -1708,12 +1382,6 @@ class WriteResult:
 
 
 def write_records(records: Sequence[CraftRecord], output_root: Path) -> WriteResult:
-    """Write `craft.parquet` under `output_root`, only when content changed.
-
-    Skipping an identical write is part of the idempotence guarantee: a re-scan
-    of an unchanged corpus leaves the file's bytes *and* its mtime alone, so
-    nothing downstream sees a new artifact where there is no new fact.
-    """
     output_root.mkdir(parents=True, exist_ok=True)
     path = output_root / PARQUET_NAME
     churn = compute_churn(records, _read_existing(path))
@@ -1740,12 +1408,6 @@ def write_records(records: Sequence[CraftRecord], output_root: Path) -> WriteRes
 
 
 def assert_output_outside_corpora(output_root: Path, sources: Iterable[TaskSource]) -> None:
-    """Refuse to write inside a scanned corpus.
-
-    The TB3 corpus is read-only by mission rule and the one-folder law forbids
-    writing outside the repository; both are cheap to enforce here rather than
-    to remember.
-    """
     resolved = output_root.resolve()
     for source in sources:
         root = source.root.resolve()
@@ -1756,17 +1418,7 @@ def assert_output_outside_corpora(output_root: Path, sources: Iterable[TaskSourc
             )
 
 
-# --------------------------------------------------------------------------- #
-# reporting
-# --------------------------------------------------------------------------- #
-
-
 def distribution(records: Sequence[CraftRecord]) -> dict[str, dict[str, int]]:
-    """The counts WS-A exists to produce, computed from the records in memory.
-
-    Mirrors what `sql/craft_views.sql` returns from Parquet; the CLI prints it
-    so a scan is self-describing without a DuckDB round trip.
-    """
 
     def tally(values: Iterable[Any]) -> dict[str, int]:
         counts: dict[str, int] = {}
@@ -1810,11 +1462,6 @@ def _render(result: ScanResult, write: WriteResult, sources: Sequence[TaskSource
     for facet, reason in sorted(LLM_ONLY_FACETS.items()):
         lines.append(f"  null-by-design {facet}: {reason}")
     return "\n".join(lines)
-
-
-# --------------------------------------------------------------------------- #
-# CLI
-# --------------------------------------------------------------------------- #
 
 
 def build_parser() -> argparse.ArgumentParser:

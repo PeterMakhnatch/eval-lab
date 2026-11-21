@@ -1,46 +1,3 @@
-"""Subscription-quota accounting for paid agents, measured instead of estimated.
-
-The lab's policy model is denominated in dollars (``est_cost_usd``,
-``daily_cost_ceiling_usd``). Subscription-backed agents consume provider quota;
-their reported dollars are API-list-price equivalents, not subscription charges.
-API-backed Terminus 2 routes consume provider balance; local Ollama has no API
-charge. Recorded usage and cost estimates do not establish remaining allowance.
-
-This module reports that quota honestly, and its central discipline is to keep
-two different questions apart:
-
-*consumption*
-    What the lab itself used. Recovered from each trial's own committed
-    artifacts: token counts from ``result.json`` and model-turn counts from the
-    agent's session rollout. Always scoped to the lab.
-
-*headroom*
-    What remains on the subscription. The provider reports this as a single
-    account-wide integer percentage covering every client of the account, not
-    just the lab. Codex snapshots come from trial artifacts; Claude also has a
-    free, bounded live OMP usage probe. Neither can be attributed to the lab.
-
-Conflating those two is how the dollar model misleads, so they are separate
-types here and every quantity carries an :data:`Availability` label. Nothing is
-estimated: a number that was not observed is reported ``unavailable``.
-
-Boundaries this module keeps deliberately:
-
-- Artifact reports read Harbor job directories only. The explicit Claude live
-  reader invokes OMP's redacted usage command, which owns credential access and
-  provider metadata retrieval. Neither reader reads the wall clock (``now`` is
-  injected), credential files, or the catalog itself.
-- It reads ``payload.rate_limits`` and token counters out of a session rollout
-  and never the message text, so its output is safe to commit even though the
-  rollout it parsed is not.
-- Where promotion omitted the rollout, it falls back to that trial's redacted
-  ``agent/quota/*.rate-limits.json`` sidecar so committed evidence still yields
-  a quota reading. Fallback, never addition: a tree holding both records must
-  not count the same reading twice.
-- It measures. It does not authorise, and it imports nothing from the policy
-  gate.
-"""
-
 from __future__ import annotations
 
 import contextlib
@@ -65,14 +22,10 @@ from evallab.execution_contracts import (
 )
 from evallab.results import discover_job_dirs
 
-#: Agents with a supported consumption reader. Free controls are excluded.
 PAID_AGENTS: frozenset[str] = frozenset(
     {"codex", "claude-code", "cursor-cli", "antigravity-cli", "terminus-2", MIMO_AGENT}
 )
 
-#: The account named in operator-facing billing and allowance messages. These
-#: are deliberately provider-specific: a Codex snapshot cannot describe
-#: Antigravity or Cursor.
 PROVIDER_SUBSCRIPTIONS: dict[str, str] = {
     "codex": "Peter's ChatGPT/Codex subscription",
     "claude-code": "Peter's Claude subscription",
@@ -96,28 +49,14 @@ def provider_subscription_description(agent: str, model: str | None = None) -> s
     return PROVIDER_SUBSCRIPTIONS.get(agent, f"{agent} subscription/policy state")
 
 
-#: Codex is the only lane whose session artifacts expose this rate-limit format.
-#: Claude dispatch sidecars carry a separate, live OMP snapshot; its transcripts
-#: remain consumption evidence only.
 MEASURED_QUOTA_AGENTS: frozenset[str] = frozenset({"codex"})
 
-#: Provenance label, matching the vocabulary used by the operator surfaces.
 Availability = Literal["observed", "unavailable"]
 
 ROLLOUT_GLOB = "agent/sessions/**/rollout-*.jsonl"
 
-#: Harbor's claude-code agent points the CLI at ``<trial>/agent/sessions`` and
-#: the CLI writes one JSONL transcript per session below
-#: ``projects/<cwd-slug>/``. Assistant messages there carry a
-#: ``message.usage`` block with the Anthropic API counters. The parser below
-#: only reads those scalars -- never message text -- so its output stays safe
-#: to commit though the files parsed are not.
 CLAUDE_SESSION_GLOB = "agent/sessions/projects/**/*.jsonl"
 
-#: Promotion (rule R4, ``scripts/promote_codex_bundle.py``) omits the rollout and
-#: leaves the provider's quota reading beside it as a redacted sidecar. It is the
-#: only quota signal a promoted bundle carries, and the reader below falls back
-#: to it -- never adds it -- so a tree holding both records cannot double-count.
 QUOTA_SIDECAR_GLOB = "agent/quota/*.rate-limits.json"
 QUOTA_SIDECAR_KIND = "evallab-rate-limits-sidecar"
 
@@ -127,7 +66,6 @@ _SECONDS_PER_MINUTE = 60
 
 
 def label(availability: Availability) -> str:
-    """Render a provenance label the way the operator surfaces print it."""
     return f"[{availability}]"
 
 
@@ -160,7 +98,6 @@ def _as_bool(value: object) -> bool | None:
 
 
 def _parse_instant(value: object) -> datetime | None:
-    """Parse a Harbor/rollout timestamp into an aware UTC instant."""
     text = _as_str(value)
     if text is None:
         return None
@@ -182,7 +119,6 @@ def _parse_epoch(value: object) -> datetime | None:
 
 
 class QuotaWindow(BaseModel):
-    """One provider rate-limit window, exactly as the provider reported it."""
 
     used_percent: float | None = None
     window_minutes: int | None = None
@@ -191,11 +127,6 @@ class QuotaWindow(BaseModel):
 
     @property
     def remaining_percent(self) -> float | None:
-        """Complement of ``used_percent``.
-
-        Account-wide and as coarse as the source: the provider reports whole
-        percentage points, so this is not a fine-grained budget.
-        """
         if self.used_percent is None:
             return None
         return max(0.0, 100.0 - self.used_percent)
@@ -208,15 +139,6 @@ class QuotaWindow(BaseModel):
 
 
 class QuotaObservation(BaseModel):
-    """A provider quota snapshot recovered from a completed trial's artifacts.
-
-    The Codex CLI attaches a ``rate_limits`` block to the
-    ``token_count`` event it writes into its session rollout, and Harbor copies
-    that rollout out of the container into ``<trial>/agent/sessions/``.
-
-    Its scope is the whole subscription account, so it answers "how much of the
-    allowance is gone", never "how much of it did the lab use".
-    """
 
     job_name: str
     trial_name: str
@@ -239,14 +161,6 @@ class QuotaObservation(BaseModel):
 
 
 class TrialConsumption(BaseModel):
-    """What one paid trial is recorded as having consumed.
-
-    ``input_tokens`` is Harbor's ``n_input_tokens``, which is **inclusive** of
-    ``cache_tokens``. The quantity that represents fresh work is therefore
-    :attr:`uncached_input_tokens`, and whether the provider charges a cached
-    input token against the subscription allowance at the same rate as an
-    uncached one is UNVERIFIED -- see :data:`CACHED_WEIGHTING_NOTE`.
-    """
 
     job_name: str
     trial_name: str
@@ -285,37 +199,22 @@ class TrialConsumption(BaseModel):
 
     @property
     def uncached_input_tokens(self) -> int | None:
-        """Input tokens that were not served from cache."""
         if self.input_tokens is None:
             return None
         return max(0, self.input_tokens - (self.cache_tokens or 0))
 
     @property
     def cached_input_ratio(self) -> float | None:
-        """Share of input tokens served from cache, ``None`` when unobserved."""
         if not self.input_tokens or self.cache_tokens is None:
             return None
         return self.cache_tokens / self.input_tokens
 
     @property
     def usage_availability(self) -> Availability:
-        """Whether this trial's own consumption was observed at all.
-
-        ``unavailable`` never means "consumed nothing" -- it means the trial
-        left no usage record. :attr:`exception_type` is the evidence a reader
-        needs to judge why, and this module refuses to guess on their behalf.
-        """
         return "observed" if (self.total_tokens or 0) > 0 else "unavailable"
 
 
 class ConsumptionTotals(BaseModel):
-    """Summed consumption over a set of paid trials.
-
-    ``attempts_declared`` is summed per distinct job, not per trial: attempts
-    are a job-level launch parameter, so summing it across a job's trials would
-    triple-count. Comparing it against :attr:`paid_trials` shows how many
-    declared attempt slots actually became trials.
-    """
 
     jobs: int = 0
     paid_trials: int = 0
@@ -342,7 +241,6 @@ class ConsumptionTotals(BaseModel):
 
     @property
     def cached_input_ratio(self) -> float | None:
-        """Cache share of input. UNVERIFIED whether quota weighs it equally."""
         if not self.input_tokens:
             return None
         return self.cache_tokens / self.input_tokens
@@ -389,7 +287,6 @@ def _totals(trials: Sequence[TrialConsumption]) -> ConsumptionTotals:
 
 
 class ConsumptionLedger(BaseModel):
-    """What the lab spent, per trial, with groupings the Sponsor asked for."""
 
     trials: tuple[TrialConsumption, ...] = ()
 
@@ -397,12 +294,6 @@ class ConsumptionLedger(BaseModel):
         return _totals(self.trials)
 
     def since(self, instant: datetime) -> ConsumptionLedger:
-        """Ledger restricted to trials that started at or after ``instant``.
-
-        Trials with no recorded start are dropped rather than assumed recent;
-        the count is therefore a lower bound, which is the safe direction for a
-        gate.
-        """
         return ConsumptionLedger(
             trials=tuple(
                 trial
@@ -439,12 +330,6 @@ class ConsumptionLedger(BaseModel):
 
 
 class Headroom(BaseModel):
-    """What remains on the subscription -- never what remains for the lab.
-
-    This is the constraint that actually binds. When ``hard_stop`` is true the
-    account has no overflow credits, so reaching 100% is not an extra charge:
-    it is a lockout until :attr:`resets_at`.
-    """
 
     availability: Availability
     scope: Literal["account"] = "account"
@@ -465,14 +350,8 @@ class Headroom(BaseModel):
     rate_limit_reached_type: str | None = None
     source: str | None = None
 
-    #: True when the account has no overflow credits, so exhausting the window
-    #: blocks every paid agent until it resets. ``None`` when the credits block
-    #: was not reported.
     hard_stop: bool | None = None
 
-    #: The lab's own share of the account-wide percentage. Structurally
-    #: unavailable: the provider reports one integer for the whole account and
-    #: it cannot be decomposed, so this module will not pretend otherwise.
     lab_attributable: Availability = "unavailable"
     lab_attributable_reason: str = (
         "the provider reports one account-wide integer percentage that covers every "
@@ -522,12 +401,6 @@ def _milliseconds_instant(value: object) -> datetime | None:
 
 
 def parse_claude_headroom(payload: object, *, now: datetime) -> Headroom:
-    """Whitelist OMP's account-wide Claude windows; never retain the raw report.
-
-    The weekly window selects the lab ceiling. Both windows must be measurable
-    before a live reading can establish headroom. Model-specific weekly limits
-    cannot substitute for the account's weekly limit.
-    """
     unavailable = "OMP Claude usage did not report valid 5h and 7d quota windows"
     reports = _as_object(payload).get("reports")
     if not isinstance(reports, list):
@@ -593,12 +466,9 @@ def parse_claude_headroom(payload: object, *, now: datetime) -> Headroom:
 def read_claude_headroom(
     *,
     now: datetime,
-    # `omp usage` start-up alone took 36-43s on a loaded host (2026-10-28); a
-    # shorter bound reports quota as unavailable and pauses every Claude dispatch.
     timeout_seconds: float = 60.0,
     run: Callable[..., subprocess.CompletedProcess[str]] | None = None,
 ) -> Headroom:
-    """Free, bounded metadata probe. Exceptions/output never enter persisted reasons."""
     if not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
         raise ValueError("Claude quota timeout must be positive and finite")
     try:
@@ -623,7 +493,6 @@ def read_claude_headroom(
 
 
 def claude_dispatch_quota_record(reading: Headroom) -> dict[str, Any]:
-    """Persist only typed quota scalars, independent of OMP's account metadata."""
     return {
         "kind": CLAUDE_DISPATCH_QUOTA_KIND,
         "version": 1,
@@ -645,7 +514,6 @@ def claude_dispatch_quota_record(reading: Headroom) -> dict[str, Any]:
 
 
 def persist_claude_dispatch_quota(job_dir: Path, record: dict[str, Any]) -> None:
-    """Retain the dispatch snapshot beside each actual Harbor trial, including failures."""
     if not job_dir.is_dir():
         return
     text = json.dumps(record, indent=2, sort_keys=True) + "\n"
@@ -654,8 +522,6 @@ def persist_claude_dispatch_quota(job_dir: Path, record: dict[str, Any]) -> None
         if trial_dir.is_dir() and (trial_dir / "config.json").is_file():
             destination = trial_dir / CLAUDE_DISPATCH_QUOTA_PATH
             if destination.exists():
-                # A diff may reuse an older trial. Its dispatch evidence stays
-                # bound to the original launch, never the rerun's snapshot.
                 continue
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_text(text, encoding="utf-8")
@@ -666,10 +532,6 @@ NO_OBSERVATION_REASON = (
     "snapshot, so the remaining allowance is unknown"
 )
 
-#: Whether the provider charges a cached input token against the subscription
-#: allowance at the same rate as an uncached one. Nothing observable locally or
-#: in the published documentation settles this, so it stays UNVERIFIED: a wrong
-#: assumption here would silently invalidate every consumption figure.
 CACHED_WEIGHTING_NOTE = (
     "UNVERIFIED: whether cached input draws on the subscription allowance at the "
     "same rate as uncached input is not observable from these artifacts and is not "
@@ -708,7 +570,6 @@ def _headroom(observations: Sequence[QuotaObservation], *, now: datetime) -> Hea
 
 
 class QuotaReport(BaseModel):
-    """Consumption and headroom side by side, each with its own provenance."""
 
     generated_at: datetime
     roots: tuple[Path, ...] = ()
@@ -719,14 +580,6 @@ class QuotaReport(BaseModel):
     cached_weighting_note: str = CACHED_WEIGHTING_NOTE
 
     def counter_resolution_percent(self) -> float | None:
-        """Smallest change the provider's counter can express, as observed.
-
-        Every snapshot seen so far reports a whole percentage point, so
-        consumption below one point of the window registers as no movement at
-        all. That floor is why a zero delta across a run is evidence of "not
-        detectable", never evidence of "consumed nothing". ``None`` when there
-        is nothing to measure.
-        """
         values = [
             observation.primary.used_percent
             for observation in self.observations
@@ -738,18 +591,6 @@ class QuotaReport(BaseModel):
 
 
 def _sidecar_snapshots(trial_dir: Path) -> list[tuple[datetime, dict[str, Any], Path]]:
-    """Provider quota snapshots from a promoted trial's R4 quota sidecars.
-
-    Written by ``scripts/promote_codex_bundle.py`` beside each rollout that
-    promotion omitted, carrying only the event timestamp and a whitelist of
-    ``payload.rate_limits`` scalars. A document is read only when it declares
-    itself with :data:`QUOTA_SIDECAR_KIND`, so an unrelated JSON file dropped in
-    ``agent/quota/`` is ignored rather than guessed at.
-
-    The timestamp kept is the one the *trial* recorded, never the file's, so a
-    reading recovered here ages exactly as its rollout-sourced twin would and
-    :attr:`Headroom.staleness_seconds` stays honest about a committed number.
-    """
     snapshots: list[tuple[datetime, dict[str, Any], Path]] = []
     for sidecar in sorted(trial_dir.glob(QUOTA_SIDECAR_GLOB)):
         try:
@@ -815,12 +656,6 @@ def _rate_limit_snapshots(
     *,
     agent: str,
 ) -> list[tuple[datetime, dict[str, Any], Path]]:
-    """Read only a snapshot format proven to belong to ``agent``.
-
-    Codex rollouts expose the ``rate_limits`` block consumed here. Antigravity
-    and Cursor artifacts do not expose a compatible measured allowance, so a
-    block found in one of those trials is not silently treated as their quota.
-    """
     if agent not in MEASURED_QUOTA_AGENTS:
         return []
     snapshots: list[tuple[datetime, dict[str, Any], Path]] = []
@@ -851,7 +686,6 @@ def _rate_limit_snapshots(
 
 
 def _model_turns(trial_dir: Path) -> int | None:
-    """Count of ``token_count`` events, i.e. model turns the agent actually took."""
     rollouts = sorted(trial_dir.glob(ROLLOUT_GLOB))
     if not rollouts:
         return None
@@ -876,27 +710,6 @@ def _model_turns(trial_dir: Path) -> int | None:
 def _claude_session_usage(
     trial_dir: Path,
 ) -> tuple[int | None, int | None, int | None, int | None]:
-    """Sum Anthropic ``message.usage`` counters from Claude session transcripts.
-
-    Returns ``(turns, input_tokens, cache_tokens, output_tokens)`` mirroring
-    Harbor's own counters exactly: ``input_tokens`` is inclusive of both
-    cache counters, while ``cache_tokens`` counts cache reads only
-    (verified 2026-10-13: Harbor recorded ``n_cache_tokens`` 42,747 against
-    42,747 read plus 22,645 creation on the first gateway trial). Whether
-    the provider charges a cached token at the same rate stays UNVERIFIED
-    (see :data:`CACHED_WEIGHTING_NOTE`); the two are reported separately,
-    never collapsed.
-
-    All ``None`` when no session file yields a usage block. Only the
-    ``message.usage`` scalars are read; prompt, tool and reasoning text is
-    never touched.
-
-    Each distinct usage tuple is counted once: the CLI replays identical
-    assistant messages under fresh uuids (observed 2026-10-13: one response
-    present three times), and counting every replay would multiply one
-    history. The bridge usage ledger remains authoritative; this fallback
-    only fills trials whose result carries no counters.
-    """
     turns = 0
     plain_input = 0
     cache_read_total = 0
@@ -984,7 +797,6 @@ def _observation(
 
 
 def _declared_attempts(command: object) -> int | None:
-    """``--n-attempts`` as recorded in the job's launch command, or ``None``."""
     if not isinstance(command, list):
         return None
     for index, item in enumerate(command[:-1]):
@@ -998,7 +810,6 @@ def _declared_attempts(command: object) -> int | None:
 
 
 def _span_seconds(payload: object) -> float | None:
-    """Duration of a Harbor phase block, or of a record's own start/finish."""
     block = _as_object(payload)
     started = _parse_instant(block.get("started_at"))
     finished = _parse_instant(block.get("finished_at"))
@@ -1008,7 +819,6 @@ def _span_seconds(payload: object) -> float | None:
 
 
 class _JobContext(BaseModel):
-    """Job-level facts every trial in the job inherits."""
 
     attempts_declared: int | None = None
     policy_rule: str | None = None
@@ -1061,10 +871,6 @@ def _trial_consumption(
     if agent == "claude-code" and (
         (input_tokens is None and output_tokens is None) or not model_turns
     ):
-        # Harbor's result counters are the primary record; the CLI session
-        # transcript is a fallback for trials whose result carries no
-        # counters -- never a second source, so one history cannot count
-        # twice. Other agents are untouched by this branch.
         turns, session_input, session_cache, session_output = _claude_session_usage(trial_dir)
         if input_tokens is None and output_tokens is None:
             input_tokens, cache_tokens, output_tokens = session_input, session_cache, session_output
@@ -1114,12 +920,6 @@ def load_quota_report(
     now: datetime,
     paid_agents: frozenset[str] = PAID_AGENTS,
 ) -> QuotaReport:
-    """Build the quota report from Harbor job directories under ``roots``.
-
-    Every external input is injected: the directories to scan and the instant
-    used for staleness. No credential store, database, network call, or clock
-    read happens here, which is what lets the tests be deterministic.
-    """
     resolved = tuple(Path(root).expanduser() for root in roots)
     trials: list[TrialConsumption] = []
     observations: list[QuotaObservation] = []
@@ -1148,9 +948,7 @@ def load_quota_report(
     )
 
 
-
 def default_roots(repository_root: Path) -> tuple[Path, ...]:
-    """Job directories a lab checkout keeps paid-trial evidence in."""
     return (repository_root / "runs", repository_root / "research" / "evidence" / "runs")
 
 

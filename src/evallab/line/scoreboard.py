@@ -1,5 +1,3 @@
-"""Label-isolated, file-derived assembly-line metrics and their text view."""
-
 from __future__ import annotations
 
 from collections import Counter, defaultdict
@@ -12,11 +10,6 @@ from evallab import hack_drop
 from .core import declared_scope, resolve_ref
 from .io import canonical_hash, read_json, read_rows
 
-# Version 1 (no field): the shape written by #1815. Version 2 adds ``schema_version`` and the
-# ``autoreview`` section. Version 3 changes nothing in the file: it marks batches whose
-# SCOREBOARD.md is rendered from the saved scoreboard.json, so ``line check`` can compare the
-# view too (older batches rendered it from memory, in a different key order).
-# ``line check`` compares a saved scoreboard on its own version only.
 SCOREBOARD_VERSION = 3
 
 
@@ -106,8 +99,7 @@ def _receipt_rows(receipt: dict[str, Any], side: str, batch: Path) -> int:
     total = 0
     root = batch.resolve()
     for item in receipt.get(side, []):
-        path = resolve_ref(batch, item["path"])  # refuses anything leaving the batch
-        # Only the batch's own rows are ever read here; outside inputs count what they recorded.
+        path = resolve_ref(batch, item["path"])
         if root in path.resolve().parents and path.suffix == ".jsonl":
             total += len(read_rows(path))
         elif "rows" in item:
@@ -116,7 +108,6 @@ def _receipt_rows(receipt: dict[str, Any], side: str, batch: Path) -> int:
 
 
 def stored_version(stored: dict[str, Any]) -> int:
-    """The schema version a saved scoreboard was written at (no field means version 1)."""
     version = stored.get("schema_version", 1)
     if isinstance(version, bool) or not isinstance(version, int) or version < 1:
         raise ValueError(f"scoreboard.json has an invalid schema_version: {version!r}")
@@ -129,18 +120,11 @@ def stored_version(stored: dict[str, Any]) -> int:
 
 
 def build_scoreboard(batch: Path, repo_root: Path, version: int = SCOREBOARD_VERSION) -> dict:
-    """Recompute every metric from persisted batch files, never changing decisions; the labels
-    are read through the line's reader (no-follow, bounded, never sealed material)."""
     with declared_scope(repo_root):
         return _build_scoreboard(batch, repo_root, version)
 
 
 def _build_scoreboard(batch: Path, repo_root: Path, version: int = SCOREBOARD_VERSION) -> dict:
-    """Recompute every metric from persisted batch files, never changing decisions.
-
-    ``version`` selects which sections to derive, so a saved scoreboard is compared only on
-    the sections its own version defines (1: no ``schema_version``/``autoreview``).
-    """
     batch = Path(batch)
     spec = read_json(batch / "spec.json")
     policy = spec.get("labels_policy", {}).get("attempted_cheat", "exclude")
@@ -265,7 +249,7 @@ def _build_scoreboard(batch: Path, repo_root: Path, version: int = SCOREBOARD_VE
         "models": [{"role": role, "route": route} for role, route in sorted(models)],
         "quality_checks": read_json(check_path)["checks"] if check_path.exists() else [],
     }
-    if version == 1:  # a batch built before versioning: no version field, no autoreview section
+    if version == 1:
         del board["schema_version"], board["autoreview"]
     return board
 
@@ -279,7 +263,6 @@ def _display_metric(metric: dict[str, Any]) -> str:
 
 
 def render_scoreboard(value: dict) -> str:
-    """Render the saved scoreboard, including denominators and uncertainty."""
     lines = [
         f"# Assembly line scoreboard: {value['batch_id']}",
         "",

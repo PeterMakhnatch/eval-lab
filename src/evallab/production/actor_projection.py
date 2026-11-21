@@ -1,5 +1,3 @@
-"""Open cloud SQLite sources without creating sidecar files."""
-
 from __future__ import annotations
 
 import os
@@ -7,14 +5,6 @@ from pathlib import Path
 
 
 def source_read_uri(source: Path) -> str:
-    """Return a read URI that cannot create sidecar files beside the source.
-
-    SQLite writes ``-shm``/``-wal`` bookkeeping for any read of a WAL-format
-    database, which would mutate the source directory. A closed, checkpointed WAL
-    database can be read as an immutable image with no side effects; a WAL database
-    with a live journal cannot, so that case is refused rather than silently read
-    without its committed tail.
-    """
     descriptor = os.open(source, os.O_RDONLY | os.O_NOFOLLOW)
     try:
         header = os.read(descriptor, 100)

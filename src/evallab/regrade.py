@@ -1,47 +1,3 @@
-"""Zero-cost verifier re-scoring over recorded trials (`harbor trial regrade`).
-
-Harbor can re-run a task's verifier against a *finished* trial's agent logs and
-artifacts without invoking a model, in seconds, provided the task is single-step
-and its verifier resolves to ``environment_mode = "separate"``. Every lab
-generator already emits that mode and ``task_workbench`` rejects tasks that do
-not, so the precondition holds across lab-authored families. Externally
-imported packs frequently do not (terminal-bench 2.1 records
-``verifier_environment_mode = "shared"``), so the precondition is checked, never
-assumed.
-
-Two capabilities come out of one mechanism:
-
-1. **Verifier hardening.** Change ``tests/``, re-score the recorded trial, and
-   read the reward delta at zero model cost. A cheat trial that used to score
-   1.0 and now scores 0.0 is a hardened verifier, demonstrated on the exact
-   trajectory that exploited it.
-2. **Grader determinism.** Re-score with a *byte-identical* verifier. The reward
-   must be identical. If it is not, the verifier is nondeterministic, which
-   silently poisons every downstream contrast. Nobody probes for this because
-   re-running trials is expensive; regrading is not.
-
-The reward-integrity rule this module exists to enforce: **a regrade reward is
-never the trial's reward.** A receipt records both, each bound to the bytes it
-came from — the source trajectory digest and the verifier identity digest — so a
-re-scoring can never be mistaken for, or silently substituted into, the original
-observation. Harbor's own regrade never modifies the source trial; neither does
-anything here.
-
-Job-level regrading (`regrade_job`) extends the same machinery to whole Harbor
-jobs via `harbor job regrade`, which Harbor derives as one regrade trial per
-recorded source trial, matched by task name. The job receipt carries one
-trial-level receipt per source trial — each with its own source/verifier
-identity and old/new reward dimensions — plus the exact job command Harbor ran.
-`plan_regrade_job` previews the same resolution without invoking anything, for
-CLI dry-runs. Both refuse closed (typed reason codes, no silent skips) when the
-source job is missing or empty, when verifier tasks cannot be resolved or do
-not cover the job's tasks, or when a layout this module cannot verify
-(multi-step sources) is present. Job regrades run on local Docker only; anything
-else raises before any work starts, with no bypass flag. A *trial* regrade may
-also run on Modal, and only under a :class:`CloudSpendGate` (a recorded approval
-and a USD cap, charged before every execution) with the lab's pinned Harbor.
-"""
-
 from __future__ import annotations
 
 import importlib.metadata
@@ -65,42 +21,23 @@ from evallab.execution_backend import require_local_docker
 from evallab.harbor_telemetry import harbor_child_environment
 from evallab.schemas import ContractModel
 
-#: Marker appended to generated regrade trial names. Regrade outputs are trials
-#: in their own right; the suffix keeps them recognisable in a jobs tree without
-#: parsing `config.source_trial`.
 REGRADE_TRIAL_NAME_SUFFIX = "regrade"
 
-#: The only verifier environment a job regrade may use, and the default for a
-#: trial regrade. Regrade never invokes a model; the verifier runs inside
-#: Harbor's Docker environment at `$0`.
 LOCAL_REGRADE_ENVIRONMENTS = frozenset({"docker"})
 
-#: Paid verifier environments a *trial* regrade may use, mapped to Harbor's
-#: `--env` value. `harbor trial regrade` takes no `--environment-kwarg`, so the
-#: class fixes the shared setup/task interpreter boundary and bounded sandbox
-#: lifetime. Admitted only under a :class:`CloudSpendGate`.
 CLOUD_REGRADE_ENVIRONMENTS: Mapping[str, str] = {
     "modal": "evallab.harbor_modal:RegradeModalEnvironment",
 }
 
-#: Job-level receipt filename, written at the new job root. The source job is
-#: never written to.
 
-#: Per-trial receipt filename inside a regrade output trial. A later
-#: determinism probe reads it to learn which verifier digest scored the trial.
 REGRADE_TRIAL_RECEIPT_FILENAME = "regrade-receipt.json"
 
-#: The verifier's build inputs live here relative to the task directory. Harbor
-#: builds the separate verifier image from this context, so its content is the
-#: verifier's identity.
 _VERIFIER_CONTEXT_DIR = "tests"
 
-#: Ignored inside the verifier build context: caches are not verifier semantics.
 _CONTEXT_IGNORED_DIRS = frozenset({"__pycache__", ".pytest_cache", ".ruff_cache"})
 
 
 class RegradeRefusalCode(StrEnum):
-    """Fail-closed reasons a trial cannot be re-scored. Never a silent skip."""
 
     SOURCE_TRIAL_MISSING = "source_trial_missing"
     SOURCE_RESULT_UNREADABLE = "source_result_unreadable"
@@ -116,18 +53,11 @@ class RegradeRefusalCode(StrEnum):
     HARBOR_INVOCATION_FAILED = "harbor_invocation_failed"
     REGRADE_RESULT_UNREADABLE = "regrade_result_unreadable"
     REGRADE_REWARD_ABSENT = "regrade_reward_absent"
-    #: The source job directory does not exist.
     SOURCE_JOB_MISSING = "source_job_missing"
-    #: The source job holds no trial with a result.json to re-score.
     SOURCE_JOB_EMPTY = "source_job_empty"
-    #: task_dir was omitted and no trial's saved config resolves to a live task.
     TASK_UNRESOLVED = "task_unresolved"
-    #: A given task_dir leaves source tasks without a verifier.
     TASK_COVERAGE_GAP = "task_coverage_gap"
-    #: A single given task names nothing in the source job. Refusing beats
-    #: silently scoring unrelated tasks.
     TASK_NAME_MISMATCH = "task_name_mismatch"
-    #: Two task directories claim the same task name.
     TASK_AMBIGUOUS = "task_ambiguous"
     SOURCE_PATCH_UNAVAILABLE = "source_patch_unavailable"
     SOURCE_NO_PASSING_TRIALS = "source_no_passing_trials"
@@ -136,12 +66,10 @@ class RegradeRefusalCode(StrEnum):
     HELD_OUT_SOURCE_MISMATCH = "held_out_source_mismatch"
     HELD_OUT_RUNTIME_UNAVAILABLE = "held_out_runtime_unavailable"
     HELD_OUT_INPUT_CHANGED = "held_out_input_changed"
-    #: A paid execution would take the run past its approved USD cap.
     SPEND_CAP_REACHED = "spend_cap_reached"
 
 
 def modal_resource_blocker(package: Path) -> str | None:
-    """Provider-free admission; an unpriced accelerator is never treated as a CPU."""
     config = tomllib.loads((package / "task.toml").read_text(encoding="utf-8"))
     environments = [
         config.get("environment") or {},
@@ -162,22 +90,14 @@ def modal_resource_blocker(package: Path) -> str | None:
     return None
 
 
-#: Estimate for short Modal CPU controls, not a provider price or billing hard kill.
-#: October 17, 2026: 338 native allocations at 2 CPUs/8 GiB averaged $0.003223
-#: in resource/lifecycle estimates cross-checked against the app's metered usage.
-#: Two snapshot-create reservations give $0.005: >50% above that observed mean;
-#: ordinary starts also reserve image preparation. Long tails/larger resources
-#: need an explicit higher estimate. Logical replays have a separate authority.
 MODAL_USD_PER_ALLOCATION_UNIT = 0.0025
 
-#: Passed only to the admitted regrade subprocess; never installed in this process.
 _REGRADE_MODAL_POLICY_ENV = "EVALLAB_REGRADE_MODAL_POLICY"
 
 
 def _modal_environment_kwargs(
     modal_app_name: str | None, billing_tag: str | None
 ) -> dict[str, Any]:
-    """Use the native grader's owned-app identifier rules without importing an SDK."""
     if modal_app_name is None and billing_tag is None:
         return {}
     if not isinstance(billing_tag, str) or not re.fullmatch(
@@ -194,20 +114,11 @@ def _modal_environment_kwargs(
 
 
 class SpendCapReached(RuntimeError):
-    """A paid execution would take the run past its approved USD cap."""
+    pass
 
 
 @dataclass
 class CloudSpendGate:
-    """Approval for paid executions: a recorded approval and a USD cap.
-
-    Every paid execution reserves ``usd_per_execution`` before it starts; one
-    that would pass ``cap_usd`` raises :class:`SpendCapReached` instead of
-    running. Reservations are estimates, not bills: a failed or short execution
-    keeps its reservation. An optional native spend ledger shares the immutable
-    approval/cap across gates and restarts; its entries remain estimates, not bills.
-    Thread-safe: one gate is shared by a run's workers.
-    """
 
     approval: str
     cap_usd: float
@@ -247,7 +158,6 @@ class CloudSpendGate:
             raise ValueError("spend ledger must be outside immutable inputs and execution evidence")
 
     def charge(self) -> None:
-        """Reserve one execution, or raise :class:`SpendCapReached`."""
         with self._lock:
             reserved = (self.executions + 1) * self.usd_per_execution
             if reserved > self.cap_usd + 1e-9:
@@ -256,8 +166,6 @@ class CloudSpendGate:
                     f"over the approved ${self.cap_usd:.2f}"
                 )
             if self.spend_ledger is not None:
-                # upstream_grader imports this class for shared arithmetic, so the
-                # durable authority must be imported only at the reservation seam.
                 from evallab.upstream_grader import _reserve_spend
 
                 _reserve_spend(
@@ -312,12 +220,6 @@ _harbor_problem: list[str | None] = []
 
 
 def lab_harbor_problem() -> str | None:
-    """Why the `harbor` on PATH is not the lab's pinned Harbor, or None.
-
-    Paid backends need the lock's Harbor. Harbor 0.21 starts a Modal separate
-    verifier from the agent's prebuilt image (no `/tests`), so every grade
-    comes back as infra; 0.24 builds `tests/Dockerfile`. Checked once per process.
-    """
     if not _harbor_problem:
         _harbor_problem.append(_probe_harbor())
     return _harbor_problem[0]
@@ -353,29 +255,17 @@ def _probe_harbor() -> str | None:
 
 
 class RegradeVerdict(StrEnum):
-    """Comparison of a regrade reward against the recorded trial reward."""
 
-    #: Different verifier, identical reward on every dimension.
     UNCHANGED = "unchanged"
-    #: Different verifier, a reward dimension decreased: the verifier got stricter
-    #: on this exact trajectory.
     TIGHTENED = "tightened"
-    #: Different verifier, a reward dimension increased: the verifier got more
-    #: permissive on this exact trajectory.
     LOOSENED = "loosened"
-    #: Different verifier, dimensions moved in both directions or the dimension
-    #: set changed. Not summarisable as tighter or looser.
     REPARTITIONED = "repartitioned"
-    #: Byte-identical verifier reproduced the recorded reward exactly.
     DETERMINISTIC = "deterministic"
-    #: Byte-identical verifier produced a different reward. A grader defect.
     NONDETERMINISTIC = "nondeterministic"
-    #: A precondition or the invocation failed; no reward comparison exists.
     REFUSED = "refused"
 
 
 class RewardObservation(ContractModel):
-    """One reward reading, bound to the verifier that produced it."""
 
     rewards: dict[str, float] = Field(
         description="verifier reward dimensions, exactly as recorded",
@@ -387,48 +277,32 @@ class RewardObservation(ContractModel):
 
     @property
     def primary(self) -> float | None:
-        """The `reward` dimension, which Harbor treats as the headline score."""
         return self.rewards.get("reward")
 
 
 class SourceTrialIdentity(ContractModel):
-    """Immutable identity of the trial being re-scored."""
 
     trial_dir: str
     trial_name: str | None = None
     task_name: str | None = None
     agent_name: str | None = None
     model_name: str | None = None
-    #: Digest over the ATIF trajectory bytes actually re-scored. A receipt whose
-    #: source digest no longer reproduces is a receipt about different bytes.
     trajectory_digest: str | None = None
-    #: Digest over the collected artifact manifest, the other regrade input.
     artifact_manifest_digest: str | None = None
-    #: Recorded reward/result bytes and the pre-hidden-test Git patch, when present.
     result_digest: str | None = None
     agent_patch_digest: str | None = None
 
 
 class VerifierIdentity(ContractModel):
-    """Content identity of the verifier used for a re-scoring.
-
-    Digested over the declared `[verifier]` table plus every file in the
-    verifier build context, so "did the verifier change?" is answerable without
-    trusting a version string.
-    """
 
     task_dir: str
     task_name: str | None = None
-    #: Effective mode under Harbor's resolution: an explicit
-    #: `environment_mode`, else `"separate"` when `[verifier.environment]` is
-    #: present, else None. Identity comparison uses `digest`, never this.
     environment_mode: str | None = None
     context_file_count: int = Field(ge=0)
     digest: str
 
 
 class RegradeInvocation(ContractModel):
-    """The exact Harbor command a receipt corresponds to."""
 
     command: list[str]
     trials_dir: str
@@ -439,20 +313,13 @@ class RegradeInvocation(ContractModel):
 
 
 class RegradeExecution(ContractModel):
-    """Outcome of running the Harbor regrade command."""
 
     exit_code: int
     stderr_tail: str = ""
-    #: Harbor prints its own refusal messages (``RegradeError``) to stdout.
     stdout_tail: str = ""
 
 
 class RegradeReceiptV1(ContractModel):
-    """A re-scoring of fixed trajectory bytes under a declared verifier.
-
-    Both rewards are retained and separately attributed. `regraded` never
-    replaces `recorded`; consumers that want the trial's reward read `recorded`.
-    """
 
     schema_version: str = "regrade-receipt/v1"
     source: SourceTrialIdentity
@@ -460,10 +327,7 @@ class RegradeReceiptV1(ContractModel):
     verdict: RegradeVerdict
     recorded: RewardObservation | None = None
     regraded: RewardObservation | None = None
-    #: Per-dimension `regraded - recorded`, only for dimensions present in both.
     reward_delta: dict[str, float] = Field(default_factory=dict)
-    #: True when the verifier digest matches the one recorded for the source
-    #: trial, making this a determinism probe rather than a hardening check.
     same_verifier: bool = False
     refusals: list[RegradeRefusalCode] = Field(default_factory=list)
     invocation: RegradeInvocation | None = None
@@ -472,7 +336,6 @@ class RegradeReceiptV1(ContractModel):
 
     @property
     def refused(self) -> bool:
-        """Whether the receipt carries no usable reward comparison."""
         return self.verdict is RegradeVerdict.REFUSED
 
 
@@ -506,7 +369,6 @@ def _reward_mapping(result: Mapping[str, Any]) -> dict[str, float] | None:
 
 
 def read_reward_observation(trial_dir: Path) -> RewardObservation | None:
-    """Read the reward a trial actually recorded, or None when absent."""
     result = _load_json(trial_dir / "result.json")
     if not isinstance(result, Mapping):
         return None
@@ -521,7 +383,6 @@ def read_reward_observation(trial_dir: Path) -> RewardObservation | None:
 
 
 def source_trial_identity(trial_dir: Path) -> SourceTrialIdentity:
-    """Identify a recorded trial and digest the bytes a regrade will consume."""
     result = _load_json(trial_dir / "result.json")
     result_map: Mapping[str, Any] = result if isinstance(result, Mapping) else {}
     agent_info = result_map.get("agent_info")
@@ -555,7 +416,6 @@ def _iter_context_files(context: Path) -> Iterable[Path]:
 
 
 def verifier_identity(task_dir: Path) -> VerifierIdentity:
-    """Digest a task's verifier declaration together with its build context."""
     config = _load_json_toml(task_dir / "task.toml")
     config_map: Mapping[str, Any] = config if isinstance(config, Mapping) else {}
     verifier = config_map.get("verifier")
@@ -585,7 +445,6 @@ def verifier_identity(task_dir: Path) -> VerifierIdentity:
 
 
 def _jsonable(value: Any) -> Any:
-    """Coerce TOML scalars that json cannot serialise (datetimes) to strings."""
     if isinstance(value, Mapping):
         return {str(k): _jsonable(v) for k, v in value.items()}
     if isinstance(value, list | tuple):
@@ -604,10 +463,6 @@ def _load_json_toml(path: Path) -> Mapping[str, Any] | None:
 
 
 def _check_trial_regrade_environment(environment: str, spend_gate: CloudSpendGate | None) -> None:
-    """Admit local Docker, or a paid backend under a spend gate and the pinned Harbor.
-
-    Other providers and custom import paths raise before any work starts.
-    """
     if environment in LOCAL_REGRADE_ENVIRONMENTS:
         require_local_docker()
         return
@@ -627,14 +482,6 @@ def _check_trial_regrade_environment(environment: str, spend_gate: CloudSpendGat
 
 
 def _verifier_effective_mode(verifier: Mapping[str, Any] | None) -> str | None:
-    """Resolve a `[verifier]` table to its effective environment mode.
-
-    Mirrors Harbor's authoritative resolution (`verifier_mode._resolve_mode`):
-    an explicit `environment_mode` wins, otherwise a `[verifier.environment]`
-    table implies `"separate"`. Anything else (including an explicit
-    `"shared"`, which Harbor rejects alongside an environment table) is not
-    isolated and cannot be regraded.
-    """
     verifier_map: Mapping[str, Any] = verifier if isinstance(verifier, Mapping) else {}
     mode = verifier_map.get("environment_mode")
     if isinstance(mode, str) and mode:
@@ -694,11 +541,6 @@ def build_regrade_command(
     trial_name: str,
     environment: str = "docker",
 ) -> list[str]:
-    """Build the exact `harbor trial regrade` invocation for a re-scoring.
-
-    Mirrors `execution_contracts.build_command`: one place constructs Harbor
-    argv, and the receipt records it verbatim.
-    """
     return [
         "harbor",
         "trial",
@@ -716,11 +558,6 @@ def build_regrade_command(
 
 
 def _regrade_trial_name(source: SourceTrialIdentity, verifier: VerifierIdentity) -> str:
-    """Name a regrade output after its source and the verifier that scored it.
-
-    The verifier digest is in the name so two hardening rounds over one source
-    trial cannot collide in the same trials directory.
-    """
     base = (source.trial_name or Path(source.trial_dir).name).replace("/", "-")
     short = verifier.digest.removeprefix("sha256:")[:8]
     return f"{base}__{REGRADE_TRIAL_NAME_SUFFIX}-{short}"
@@ -757,11 +594,6 @@ def _classify(
 
 
 def _recorded_verifier_digest(trial_dir: Path) -> str | None:
-    """Read the verifier digest a prior receipt recorded beside this trial.
-
-    A regrade trial produced by this module carries its own receipt, which is
-    how a later determinism probe knows the verifier was byte-identical.
-    """
     receipt = _load_json(trial_dir / REGRADE_TRIAL_RECEIPT_FILENAME)
     if isinstance(receipt, Mapping):
         verifier = receipt.get("verifier")
@@ -780,13 +612,6 @@ def regrade_trial(
     write_receipt: bool = True,
     spend_gate: CloudSpendGate | None = None,
 ) -> RegradeReceiptV1:
-    """Re-score one recorded trial with a task's current verifier.
-
-    Never mutates the source trial. Refuses closed with typed reason codes when
-    any precondition fails, rather than producing an unattributable reward.
-    Local Docker by default; Modal only under ``spend_gate``, which is charged
-    once just before Harbor runs. A charge over the cap refuses the trial.
-    """
     _check_trial_regrade_environment(environment, spend_gate)
     trial_dir = Path(trial_dir)
     task_dir = Path(task_dir)
@@ -849,8 +674,6 @@ def regrade_trial(
             spend_gate.modal_app_name, spend_gate.billing_tag
         )
         if environment_kwargs:
-            # Harbor's regrade CLI cannot express environment kwargs. Bind the
-            # validated gate to this one output trial in the child process only.
             runner_kwargs["env"] = {
                 **harbor_child_environment(),
                 _REGRADE_MODAL_POLICY_ENV: json.dumps(
@@ -950,7 +773,6 @@ def regrade_trial(
 
 
 def _validate_regrade_destination(source: Path, parent: Path, name: str) -> None:
-    """A replay must never create or resume output within its immutable input."""
     if not name or Path(name).name != name or name in {".", ".."}:
         raise ValueError("regrade name must be a single directory name")
     source = source.resolve()

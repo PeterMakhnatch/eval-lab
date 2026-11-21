@@ -1,37 +1,3 @@
-"""Generic $0 static and mechanical leak stages for dataset audit (HAR-195).
-
-This module owns three dataset-neutral entry points built on the frozen
-:mod:`evallab.dataset_audit_contracts` types:
-
-- :func:`static_observation` reads a task package directory and records the
-  seven descriptive lexical flags ported from the MiMo static-audit prototype
-  (``/tmp/static_audit.py`` rules a..g). The rules are re-implemented here as
-  import-safe, input-explicit helpers: no hard-coded manifest, no dataset
-  sniffing, no built-in harness list. Patch-line scope and harness
-  exclusions arrive as explicit caller inputs; the default scope reads the
-  package's actual test source. Byte counts are honest, and every fact is
-  bound to the sha256 of the inputs actually read.
-- :func:`prepare_leak_probe` derives a read-only image-inspection variant of
-  a task package (``solution/solve.sh`` replacement only) following the
-  HAR-161 ``probe-image-checks@1`` pattern. The parent alone executes the
-  returned probe task through the Executor as a local, model-free job.
-- :func:`leak_observation` reads a finished probe job directory and reduces
-  its ``LEAK_PROBE_V1`` lines to coverage/refs/unreachable evidence using
-  HAR-177 semantics (future history iff commits beyond base exist on any ref
-  or as unreachable objects). The verifier reward is never read.
-
-Scientific boundaries preserved throughout:
-
-- Static flags are descriptive diagnostics, never quality verdicts; generic
-  :func:`evallab.task_lint.lint_task` findings are attached as diagnostics,
-  not keep/fix/discard predictions.
-- Missing or incomplete evidence stays ``unknown`` (``None`` flags), never
-  clean. Absence of a probe output is ``unavailable``, not negative proof.
-- Nothing here executes a task, contacts the network/registry, spends,
-  launches services, or mutates the original package. The probe script
-  itself is metadata-only git reads plus its own log writes.
-"""
-
 from __future__ import annotations
 
 import base64
@@ -49,15 +15,7 @@ from evallab.dataset_audit_contracts import (
 from evallab.registry import task_directory_digest
 from evallab.task_lint import lint_task
 
-# ---------------------------------------------------------------------------
-# Static stage: ported /tmp/static_audit.py rules (descriptive, lexical).
-# ---------------------------------------------------------------------------
-
-#: Scope label when the corpus is the added lines of an explicitly supplied
-#: patch file (the caller also supplies that dataset's harness exclusions).
 PATCH_LINES_SCOPE = "added-patch-lines"
-#: Scope label when the corpus is the actual test source of a Harbor package.
-#: Deliberately different from the patch-lines label.
 HARBOR_TEST_SCOPE = "harbor-test-source"
 
 STR_RE = re.compile(r"""('''|\"\"\"|'|")(.+?)\1""")
@@ -122,8 +80,6 @@ SETITER_RE = re.compile(
     r"list\(\s*set\(|tuple\(\s*set\(|str\(\s*set\(|\.join\(\s*set\(|"
     r"join\(\s*\w*[Ss]et\b"
 )
-# NOTE: /tmp/static_audit.py defines WINPATH_RE twice; the second (broader)
-# assignment is the effective rule and is reproduced here.
 ABSPATH_RE = re.compile(
     r"/((?:home|root|testbed|workspace|tmp|var|usr|opt|etc|data|mnt|private|Users)/\S*)"
 )
@@ -184,7 +140,6 @@ def _sha256_file(path: Path) -> str | None:
 
 
 def _read_text_file(path: Path) -> tuple[str, bytes]:
-    """(decoded text, raw bytes) of a file; missing files give ("", b"")."""
     try:
         raw = path.read_bytes()
     except OSError:
@@ -193,11 +148,6 @@ def _read_text_file(path: Path) -> tuple[str, bytes]:
 
 
 def parse_test_patch(patch_text: str) -> list[tuple[str, bool, list[str]]]:
-    """Split a unified test patch into ``(path, is_new, added_lines)``.
-
-    Pure helper ported from the static-audit prototype: harness files are
-    included here and filtered by the caller.
-    """
     sections: list[tuple[str, bool, list[str]]] = []
     cur: str | None = None
     is_new = False
@@ -222,14 +172,12 @@ def parse_test_patch(patch_text: str) -> list[tuple[str, bool, list[str]]]:
 
 
 def is_harness_path(path: str, harness_basenames: Collection[str]) -> bool:
-    """Whether a patch path names a caller-supplied harness file (out of scope)."""
     return path.rsplit("/", 1)[-1] in harness_basenames
 
 
 def _flag_unstated_literal(
     testcode: list[str], instruction: str
 ) -> tuple[int | None, str]:
-    """(a) assertion/check-line literals absent from the instruction."""
     if not instruction:
         return None, "instruction unavailable; unstated-literal scan needs it"
     ilow = instruction.lower()
@@ -267,7 +215,6 @@ def _flag_unstated_literal(
 
 
 def _flag_network(testcode: list[str]) -> tuple[int, str]:
-    """(b) network-pattern mentions, localhost-only vs external-or-mixed."""
     hits: list[str] = []
     for line in testcode:
         for pattern in NET_PATS:
@@ -285,7 +232,6 @@ def _flag_network(testcode: list[str]) -> tuple[int, str]:
 
 
 def _flag_nondeterminism(corpus: str) -> tuple[int, str]:
-    """(c) unseeded randomness, wall-clock, entropy, set-iteration order."""
     found: list[str] = []
     if RAND_RE.search(corpus) and not SEED_RE.search(corpus):
         found.append("unseeded-random")
@@ -304,7 +250,6 @@ def _flag_nondeterminism(corpus: str) -> tuple[int, str]:
 
 
 def _flag_env_coupled(testcode: list[str]) -> tuple[int, str]:
-    """(d) absolute host paths, user identity, or GPU mentions in tests."""
     paths: list[str] = []
     for line in testcode:
         stripped = line.strip()
@@ -333,7 +278,6 @@ def _flag_env_coupled(testcode: list[str]) -> tuple[int, str]:
 def _flag_tiny_suite(
     testcode: list[str], sh_lines: list[str], has_mod: bool
 ) -> tuple[int, str]:
-    """(e) fewer than two assertion/shell-check lines, no modified files."""
     n_py = sum(
         1
         for line in testcode
@@ -352,7 +296,6 @@ def _flag_tiny_suite(
 def _flag_repo_file_read(
     testcode: list[str], known_basenames: set[str]
 ) -> tuple[int, str]:
-    """(f) file/data references not supplied by the analyzed scope."""
     repo_dep: list[str] = []
     abs_read: list[str] = []
     for line in testcode:
@@ -387,7 +330,6 @@ def _flag_repo_file_read(
 
 
 def _flag_polyglot_toolchain(sh_corpus: list[str]) -> tuple[int, str]:
-    """(g) non-Python toolchain mentions in shell test lines."""
     tools: list[str] = []
     for line in sh_corpus:
         if line.strip().startswith("export ") and "_OPTS" in line:
@@ -403,11 +345,6 @@ def _flag_polyglot_toolchain(sh_corpus: list[str]) -> tuple[int, str]:
 def _collect_harbor_test_source(
     task_dir: Path,
 ) -> tuple[dict[str, bytes], list[str], list[str]]:
-    """Actual test source of an ordinary Harbor package (no patch scope).
-
-    Returns ``(files_by_relpath, testcode_lines, sh_lines)``. Binary or
-    unreadable files are skipped; shell lines come from ``*.sh`` test files.
-    """
     tests_dir = task_dir / "tests"
     files: dict[str, bytes] = {}
     testcode: list[str] = []
@@ -432,7 +369,6 @@ def _collect_harbor_test_source(
 
 
 def _task_lint_findings(task_dir: Path) -> list[dict[str, Any]]:
-    """Generic task_lint findings as descriptive diagnostics (never verdicts)."""
     return [
         {
             "rule": finding.rule,
@@ -458,24 +394,12 @@ HACK_SCAN_LIMITS_FALLBACK = (
 
 
 def _scan_package_for_static(task_dir: Path):
-    """Scanner seam for the static stage (monkeypatchable in tests).
-
-    The lazy local import keeps ``evallab.reward_hack`` (and its heavier
-    runner/matrix imports) out of this module's import time and avoids
-    import cycles.
-    """
     from evallab.reward_hack import scan_package
 
     return scan_package(task_dir)
 
 
 def _hack_scan_fact(task_dir: Path) -> dict[str, Any]:
-    """JSON-serializable V1-V8 scan joined descriptively into static facts.
-
-    Never raises: when the scanner is unavailable or fails for this package,
-    the fact records ``available: False`` plus the error and stays unknown
-    rather than implying clean.
-    """
     try:
         scan = _scan_package_for_static(task_dir)
     except Exception as exc:  # noqa: BLE001 - recorded, never raised
@@ -540,7 +464,6 @@ def _unknown_static_observation(
     reason: str,
     hack_scan: dict[str, Any] | None = None,
 ) -> AuditObservation:
-    """A recorded observation with every flag unknown (never clean)."""
     facts: dict[str, Any] = {
         "coverage": coverage,
         "scope": scope,
@@ -586,24 +509,6 @@ def static_observation(
     added_patch: Path | None = None,
     harness_basenames: Collection[str] = (),
 ) -> AuditObservation:
-    """Collect static descriptors for one task package (read-only, $0).
-
-    The default scope analyzes the package's actual ``tests/`` source with
-    coverage ``harbor-test-source``. When the caller supplies ``added_patch``
-    (a unified patch whose added lines are the hidden tests), the corpus is
-    those added lines minus files in ``harness_basenames``, with coverage
-    ``added-patch-lines``. An explicitly requested patch that is missing
-    never falls back to ``tests/``: its flags stay unknown.
-
-    Every fact is bound to the sha256 of the inputs read; byte counts are
-    honest ``len(bytes)``. Unsupported or incomplete slices are ``None``
-    (unknown), never clean. The observation status is ``recorded``: fresh
-    local facts, no execution.
-
-    The ``hack_scan`` fact joins the offline BenchJack-shaped V1-V8 ledger
-    (``evallab.reward_hack.scan_package``) descriptively: schema, digests,
-    recon, findings, and limits. It never keeps, fixes, or discards.
-    """
     if task.path is None:
         return AuditObservation(
             stage="static",
@@ -656,7 +561,6 @@ def static_observation(
         if patch_path is not None:
             coverage = PATCH_LINES_SCOPE
             if not patch_path.is_file():
-                # Explicitly requested but absent: unknown, never tests/ fallback.
                 sources.append(
                     AuditSource(
                         path=str(patch_path),
@@ -733,8 +637,6 @@ def static_observation(
                     )
                 )
             known_basenames = {rel.rsplit("/", 1)[-1] for rel in files}
-            # No patch scope exists here: nothing was "modified"; the visible
-            # suite is the whole corpus. Recorded explicitly, not inferred.
             has_mod = False
             scope_detail = {
                 "test_files": sorted(files),
@@ -844,11 +746,6 @@ PROBE_MARK = "LEAK_PROBE_V1"
 
 
 def build_leak_probe_script() -> str:
-    """Inspect candidate checkouts without changing their files or refs.
-
-    Findings are scoped to discovered repositories and their initial HEAD.
-    Failed commands remain unknown rather than becoming zero-count evidence.
-    """
     return r'''#!/bin/bash
 set -u -o pipefail
 export GIT_OPTIONAL_LOCKS=0
@@ -933,7 +830,6 @@ _REPO_LIKE_RE = re.compile(r"^LEAK_PROBE_V1 repo\s")
 
 
 def _decode_probe_path(value: str) -> str | None:
-    """Repository path from the probe's base64 field (None when unusable)."""
     if value == "unknown":
         return None
     try:
@@ -947,16 +843,6 @@ _INCOMPLETE_RE = re.compile(r"^LEAK_PROBE_V1 incomplete_scan\b(.*)$")
 
 
 def parse_probe_output(text: str) -> dict[str, Any]:
-    """Reduce raw oracle text to probe evidence (pure; never touches reward).
-
-    Returns ``repos`` (per-repository dicts), ``done``/``no_repository``/
-    ``missing_git`` markers, and whether any ``LEAK_PROBE_V1`` line exists.
-    Repository paths arrive base64-encoded (``path_b64``) so spaces survive
-    the line format; undecodable paths stay ``None`` and make their
-    repository incomplete, and ``repo_like`` keeps malformed repo lines from
-    reading as no-repository. Numeric fields stay ``int``; tool/parse
-    failures stay ``"unknown"``.
-    """
     repos: list[dict[str, Any]] = []
     done: int | None = None
     no_repository = False

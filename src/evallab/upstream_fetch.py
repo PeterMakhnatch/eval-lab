@@ -1,30 +1,3 @@
-"""Detect agent trials that fetched upstream remote content (answer-leak guard).
-
-A trial that downloads the upstream package (``pip download waitress==2.0.0``)
-or curls the upstream file (``curl .../soupsieve/master/...``) can score a
-verifier reward without doing the task's work. The verifier reward stays as
-recorded; GEPA's objective score for such trials is forced to 0
-(``UPSTREAM_FETCH_ZERO``) so the optimiser cannot select for the leak.
-
-The detector is pure: :func:`detect_upstream_fetch` maps executed shell
-commands to :class:`Finding` records. :func:`commands_from_trial` extracts
-those commands from a Harbor trial directory (ATIF ``agent/trajectory*.json``,
-``tool_calls[].arguments.keystrokes``). Shell parsing is deliberately narrow:
-quote-aware operator splitting, backslash-continuation joining, and heredoc
-grouping, with no subshell evaluation.
-
-Conservative by decision: any remote fetch counts for the GEPA score (task
-images are pre-baked, so the model has no legitimate need to reach the
-network). Informational queries (``pip show/list``, ``git log/diff``,
-``grep http``) and local installs (``-e .``, local paths, local ``-r`` files)
-are not findings.
-
-``Finding`` is an attempt, not an acquisition. Counts use
-``assess_upstream_fetch`` to require recorded positive outcome evidence; failed
-and unknown attempts remain visible but do not exclude a pass. This does not
-loosen the separate, opt-in GEPA ``UPSTREAM_FETCH_ZERO`` attempt policy.
-"""
-
 from __future__ import annotations
 
 import fnmatch
@@ -47,11 +20,8 @@ __all__ = [
     "confirmed_fetch",
 ]
 
-#: Campaign score rule id: force the GEPA objective score to 0.0 when
-#: :func:`detect_upstream_fetch` reports any finding for the trial.
 UPSTREAM_FETCH_ZERO = "upstream_fetch_zero"
 
-#: Score rule ids accepted by ``load_campaign``.
 KNOWN_SCORE_RULES = frozenset({UPSTREAM_FETCH_ZERO})
 
 _EXCERPT_CHARS = 200
@@ -59,23 +29,13 @@ _EXCERPT_CHARS = 200
 
 @dataclass(frozen=True)
 class Finding:
-    """One executed remote-content fetch attempt (outcome not assessed)."""
 
-    #: ATIF step id, or -1 when the caller did not supply one.
     step_index: int
-    #: Stable machine-readable kind, e.g. ``pip-download-remote-package``.
     kind: str
-    #: First 200 chars of the offending command, whitespace-collapsed.
     excerpt: str
-    #: True when the fetch names the task's own repo/package (strong signal).
     names_task_repo: bool
-    #: Exact matcher operand; retained for target-bound outcome assessment.
     target: str
 
-
-# ---------------------------------------------------------------------------
-# Shell splitting (narrow, no evaluation)
-# ---------------------------------------------------------------------------
 
 _HEREDOC_OPEN = re.compile(r"<<-?\s*(['\"]?)(\w+)\1")
 
@@ -85,7 +45,6 @@ def _join_continuations(text: str) -> str:
 
 
 def _split_units(text: str) -> list[tuple[str, str]]:
-    """Split keystrokes into (head, body) units; heredoc bodies stay attached."""
     units: list[tuple[str, str]] = []
     pending: list[str] = []
     head_lines: list[str] = []
@@ -117,7 +76,6 @@ def _split_units(text: str) -> list[tuple[str, str]]:
 
 
 def _split_operators(line: str) -> list[str]:
-    """Split one command line on && || ; | outside quotes (backslash-aware)."""
     parts: list[str] = []
     buf: list[str] = []
     quote: str | None = None
@@ -178,10 +136,6 @@ def _argv(segment: str) -> list[str] | None:
         return None
 
 
-# ---------------------------------------------------------------------------
-# Repo matching
-# ---------------------------------------------------------------------------
-
 def _repo_parts(task_repo: str | None) -> set[str]:
     if not task_repo:
         return set()
@@ -211,10 +165,6 @@ def _names_repo(*, operand: str = "", url: str = "", task_repo: str | None) -> b
     return any(len(part) >= 3 and part in lowered for part in parts)
 
 
-# ---------------------------------------------------------------------------
-# Per-tool matchers
-# ---------------------------------------------------------------------------
-
 _LOOPBACK = re.compile(
     r"^https?://(localhost|127\.\d+\.\d+\.\d+|\[?::1\]?|169\.254\.169\.254)([:/]|$)",
     re.IGNORECASE,
@@ -229,7 +179,6 @@ def _is_loopback_url(url: str) -> bool:
 
 
 def _pip_findings(argv: list[str], *, tool: str, task_repo: str | None) -> list[tuple[str, str, bool]]:
-    """Match pip/uv-pip argv. Returns (kind, operand-or-url, names_repo)."""
     out: list[tuple[str, str, bool]] = []
     if len(argv) < 2:
         return out
@@ -283,13 +232,13 @@ def _pip_findings(argv: list[str], *, tool: str, task_repo: str | None) -> list[
             i += 1
     for operand in operands:
         if re.match(r"^(\d+)?>&?\d*(/.*)?$", operand) or operand.startswith(("<", ">")):
-            continue  # shell redirection, not an install operand
+            continue
         if _REMOTE_URL.match(operand):
             out.append((kind, operand, _names_repo(operand=operand, task_repo=task_repo)))
         elif _ARCHIVE_FILE.search(operand) or operand.startswith(("./", "../", "/", "~")):
-            continue  # local file install
+            continue
         elif no_index and not remote_index:
-            continue  # --no-index with no remote index cannot fetch
+            continue
         elif operand:
             out.append((kind, operand, _names_repo(operand=operand, task_repo=task_repo)))
     return out
@@ -340,7 +289,6 @@ _NODE_FETCH_CALLS = ("fetch(", "https.get", "https.request", "http.get", "http.r
 def _script_findings(
     head: str, body: str, *, interpreter: str, task_repo: str | None,
 ) -> list[tuple[str, str, bool]]:
-    """Match python/node -c / stdin-heredoc code that fetches remote URLs."""
     out: list[tuple[str, str, bool]] = []
     argv = _argv(head)
     code: str | None = None
@@ -350,9 +298,8 @@ def _script_findings(
         elif argv[1] == "-" or (len(argv) > 2 and argv[2] == "-"):
             code = body
         elif argv[1] == "-m":
-            return out  # module runs (pytest, pip handled separately) are not -c/heredocs
+            return out
     if code is None:
-        # Regex fallback for heads shlex cannot parse: `-c` or stdin-heredoc only.
         if re.search(r"(^|\s)-(c|e)\s", head):
             code = head
         elif re.search(r"(^|\s)-\s*(<<|$)", head):
@@ -415,13 +362,6 @@ def detect_upstream_fetch(
     *,
     task_repo: str | None = None,
 ) -> list[Finding]:
-    """Flag executed remote-content fetches in agent shell commands.
-
-    ``commands`` is an iterable of ``(step_index, command_text)`` tuples;
-    bare strings are accepted with ``step_index=-1``. ``task_repo`` (e.g.
-    ``"Pylons/waitress"``) marks findings that name the task's own repo or
-    package as strong; every remote fetch is reported regardless.
-    """
     findings: list[Finding] = []
     for item in commands:
         if isinstance(item, str):
@@ -458,7 +398,6 @@ def detect_upstream_fetch(
 
 
 def confirmed_fetch(flag: dict) -> bool:
-    """No command-only or missing-evidence fallback at decisive consumers."""
     evidence = flag.get("outcome_evidence")
     if (
         flag.get("kind") != "upstream_fetch"
@@ -500,17 +439,10 @@ _PROMPT = re.compile(r"^(?:\S+@\S+:[^\n]*[#$]|[#$])(?:\s|$)")
 
 
 def _output_lines(content: str, command: str) -> list[str]:
-    """Drop terminal headers and command echoes, including wrapped echoes.
-
-    A terminal observation is a screen/window, not pure stdout. Text appearing
-    in the sent command cannot be positive evidence (echo/printf/heredocs).
-    """
     content = _ANSI.sub("", content)
     for marker in ("New Terminal Output:", "Current Terminal Screen:"):
         if marker in content:
             content = content.split(marker, 1)[1]
-            # Buffered output before the current echo is not this command's
-            # result. Match wrapped echo text without whitespace.
             offsets = [index for index, char in enumerate(content) if not char.isspace()]
             compact = "".join(content[index] for index in offsets)
             sent = re.sub(r"\s+", "", command)
@@ -540,7 +472,6 @@ def _normal_package(value: str) -> str:
 
 
 def _package_identity(target: str) -> tuple[str, str | None] | None:
-    # URL/VCS operands cannot safely be inferred to be a package name.
     if _REMOTE_URL.match(target):
         return None
     match = re.match(r"^([A-Za-z0-9_.-]+)(?:\[[^\]]*\])?(?:==([^;]+))?", target)
@@ -583,7 +514,6 @@ def _option(argv: list[str], names: set[str]) -> str | None:
 
 
 def _pip_artifact(command: str, finding: Finding, lines: list[str]) -> tuple[str, str] | None:
-    """Exact saved/listed pinned artifact in a lexically normalized directory."""
     identity = _package_identity(finding.target)
     segment = _fetch_segment(command, finding)
     if not identity or not identity[1] or not segment:
@@ -631,7 +561,6 @@ _OUTPUT_SPILL_RE = re.compile(
 
 
 def _retained_output(content: str, trial_dir: Path | None) -> tuple[str, dict[str, str] | None]:
-    """Recover only an in-trial spill whose exact recap matches this observation."""
     if trial_dir is None:
         return content, None
     matches = list(_OUTPUT_SPILL_RE.finditer(content))
@@ -643,7 +572,6 @@ def _retained_output(content: str, trial_dir: Path | None) -> tuple[str, dict[st
     relative = Path("agent/evallab-output") / match["file"]
     try:
         source = trial_dir.resolve() / relative
-        # A marker cannot authorize a different file, even via an in-trial symlink.
         if source.resolve() != source:
             return content, None
         raw = source.read_bytes()
@@ -664,7 +592,6 @@ def _retained_evidence(results: list[dict]) -> dict:
 def _call_observations(
     step: dict, call_id: str | None, *, trial_dir: Path | None = None
 ) -> list[dict]:
-    """Bind by source_call_id or an explicit, unique recorded command window."""
     observation = step.get("observation")
     results = observation.get("results") if isinstance(observation, dict) else None
     if not call_id or not isinstance(results, list):
@@ -700,7 +627,6 @@ def _call_observations(
             and _output_lines(content, command)
         ):
             continue
-        # Do not manufacture a source_call_id for a legacy terminal window.
         bound.append({**result, "content": content, "binding": binding, "retained_output": retained})
     return bound
 
@@ -719,8 +645,6 @@ def _executed_calls(step: dict, layer: dict | None) -> list[tuple[str | None, st
             extracted.append((call.get("tool_call_id"), command))
     if extracted:
         return extracted
-    # Recorded/replayed attempts may lack raw calls. Preserve them as unknown,
-    # never attach a different call's output to a reconstructed command.
     if isinstance(layer, dict):
         command = layer.get("executed_keystrokes")
         if isinstance(command, str) and command.strip():
@@ -737,7 +661,6 @@ def _resolve_path(value: str, cwd: str | None) -> str:
 
 
 def _command_paths(command: str) -> list[tuple[list[str], str | None]]:
-    """Resolve explicit cd prefixes, never assume an inherited sandbox cwd."""
     cwd = None
     parts = []
     cursor = 0
@@ -748,8 +671,6 @@ def _command_paths(command: str) -> list[tuple[list[str], str | None]]:
         if not argv:
             continue
         if argv[0] == "cd" and len(argv) == 2:
-            # A semicolon/|| does not establish that cd succeeded. Only
-            # explicit && prefixes can bind a relative artifact operand.
             cwd = _resolve_path(argv[1], cwd) if start >= 0 and command[cursor:].lstrip().startswith("&&") else None
         else:
             parts.append((argv, cwd))
@@ -760,9 +681,6 @@ def _artifact_operand(artifact: str, operand: str, cwd: str | None) -> bool:
     resolved = _resolve_path(operand, cwd)
     if resolved == artifact:
         return True
-    # A suffix/platform glob is safe only after the full observed package
-    # and pinned version, in the exact directory. Never accept *.whl or a
-    # wildcard package/version, nor a glob in another acquisition episode.
     parent, filename = posixpath.split(artifact)
     pattern_parent, pattern = posixpath.split(resolved)
     wheel = re.fullmatch(r"([A-Za-z0-9_.]+)-([^-]+)-[^/ ]+\.whl", filename)
@@ -773,7 +691,6 @@ def _artifact_operand(artifact: str, operand: str, cwd: str | None) -> bool:
 
 
 def _and_follows(command: str, before: list[str], after: list[str]) -> bool:
-    """The observed follow-up is gated by this extraction's success."""
     parts = _segments(command)
     indices_before = [index for index, part in enumerate(parts) if _argv(part) == before]
     indices_after = [index for index, part in enumerate(parts) if _argv(part) == after]
@@ -802,11 +719,6 @@ def _source_observed(lines: list[str], source_root: str | None = None) -> bool:
 
 
 def _artifact_extraction(artifact: str, command: str, lines: list[str]) -> tuple[str | None, bool] | None:
-    """Observed unpack or source read of the saved/listed artifact.
-
-    Quiet extraction needs a success-conditioned listing/read of its destination.
-    Merely listing an archive or reading a preexisting directory is not proof.
-    """
     if any(re.search(r"(?i)^(?:unzip:|tar:)|cannot find or open|End-of-central-directory", line) for line in lines):
         return None
     paths = _command_paths(command)
@@ -853,7 +765,6 @@ def _artifact_extraction(artifact: str, command: str, lines: list[str]) -> tuple
 
 
 def _observed_outcome(finding: Finding, command: str, results: list[dict]) -> tuple[str, str | None, str]:
-    """Assess a single call/target, not the trial-wide absence of errors."""
     if _fetch_segment(command, finding) is None:
         return "unknown", None, "multiple/ambiguous fetch commands in the call"
     lines = [
@@ -878,8 +789,6 @@ def _observed_outcome(finding: Finding, command: str, results: list[dict]) -> tu
         ):
             return "unknown", None, "output-producing companion command cannot prove acquisition"
     segment = _fetch_segment(command, finding)
-    # Exit status is meaningful only for the fetch itself, not `tail`, `ls`,
-    # echo, || true, a multi-target script, or git remote-add / index queries.
     acquisition_kind = (
         "remote-package" in finding.kind
         or finding.kind in {
@@ -898,14 +807,6 @@ def _observed_outcome(finding: Finding, command: str, results: list[dict]) -> tu
 def assess_upstream_fetch(
     agent_seq: Sequence[tuple[str, dict]], info: dict, *, trial_dir: Path | None = None
 ) -> list[dict]:
-    """Attempt facts plus confirmed acquisition evidence for process-job.
-
-    IDs are local to document, step and call. Terminal windows may contain
-    delayed output: we never promote another call's success just because its
-    numeric ID or package name matches. Retained output is usable only when
-    re-capping its bytes exactly reproduces the recorded observation; command
-    and fresh-unpack guards still apply. A preexisting directory is never proof.
-    """
     from collections import Counter
 
     from evallab import probe03
@@ -955,8 +856,6 @@ def assess_upstream_fetch(
                         later_sid = later_step.get("step_id")
                         later_layer = layer_for(later_doc, later_step)
                         later_calls = _executed_calls(later_step, later_layer)
-                        # A fresh attempt at this target is a new episode: it
-                        # cannot prove acquisition for the earlier attempt.
                         if any(
                             _acquisition_target(later.target) == _acquisition_target(finding.target)
                             for _cid, text in later_calls

@@ -1,75 +1,3 @@
-"""HAR-92 step layers: what the model proposed, what the harness accepted, what executed, what came back.
-
-Field names (proposed for HAR-93 agreement; Data owns the catalog tables, this
-module owns the recording):
-
-- ``step.extra["step_layers"]`` on Terminus-2 agent steps::
-
-      {"schema": "evallab.step_layers/v1",
-       "provenance": "recorded" | "reconstructed" | "copied",
-       "proposed": {"message": str | None, "reasoning": str | None,
-                    "reason": str | None},
-       "accepted": {"kind": "calls" | "parse_error" | "prose_completion" | "unknown",
-                    "calls": [{"keystrokes": str, "duration_sec": float | None}
-                              | {"task_complete": True}] | None,
-                    "task_complete": bool | None,
-                    "parse_error": str | None,
-                    "prose_shaped": bool | None,
-                    "reason": str | None},
-       "executed": {"keystrokes_sent": [str] | None,
-                    "durations_sec": [float | None] | None,
-                    "sent_at": str | None,
-                    "timeout": bool | None,
-                    "reason": str | None},
-       "observed": {"output": str | None, "truncated": bool | None,
-                    "truncated_bytes": int | None,
-                    "timeout_template": bool | None,
-                    "reason": str | None}}
-
-  ``provenance`` is per step-layers object: ``recorded`` (written at runtime by
-  :class:`evallab.harbor_terminus.SecretSafeTerminus2`), ``reconstructed``
-  or ``copied`` (an ``is_copied_context`` step: context replayed into a
-  continuation, never a turn taken there). Anything not derivable is null
-  with a ``reason``; missing coverage never reads as 0.
-
-- Trial level (computed by consumers, never stored on the trial):
-
-  - ``verifier_outcome``: ``pass`` | ``fail`` | ``none`` (reward present and
-    >= 1.0, reward present but lower, no reward).
-  - ``stop_reason``: ``task_complete`` | ``prose_completion`` |
-    ``agent_timeout`` | ``trial_budget_exhausted`` | ``error`` | ``unknown``.
-    A verifier-scored ``AgentTimeoutError`` is a scored trial whose stop
-    reason is ``agent_timeout``, not an infra failure.
-  - ``execution_problems``: counts of parse errors, prose completions,
-    provider 400s without usage, unreconciled proxy requests, and whether
-    proxy usage failed reconciliation (derived from the provider-usage ledger:
-    ``None`` only when there is no ledger). Layer-derived counts are ``None``
-    — never partial counts shown as totals — when any live agent step lacks
-    layers, with the reason carried alongside.
-  - ``trajectory_coverage``: ``trajectory_head``,
-    ``continuation_indices`` / ``continuation_count`` /
-    ``continuations_missing`` (same names and meanings as the HAR-93 capture
-    record), per-part steps, ``duplicate_segments`` (whole-duplicate parts in
-    the SFT exporter's ``duplicate_of:`` vocabulary), unique steps after
-    dedupe, duplicated/copied/malformed counts, gaps, and notes.
-
-Recording is additive: the raw ATIF message, observation, and rollout
-details are untouched, so SFT/RL training fidelity cannot change. The MiMo
-parser itself is untouched; reconstruction replays the same
-:func:`evallab.mimo_tool_calls.normalize_mimo_tool_calls` plus the stock
-Terminus parser through an injected ``parse`` callback, so this module stays
-Harbor-free and tests can inject a fake parser.
-
-This module is also the one shared stitching library for Terminus
-continuation files: ``discover_trajectory_parts`` + ``stitch_steps`` (+
-``coverage_record``, ``segment_fingerprint`` / ``duplicate_segments``) are
-the only allowed way to merge ``trajectory.json`` with its
-``trajectory.cont-N.json`` parts. Consumers: ``traj`` (chain stitching),
-``trial_diagnosis``, ``trial_treatment`` (capture token sums), ``explorer``,
-``interpretation/trajectory_ir``,
-``sft_terminus`` (whole-segment identity), ``process_job``.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -115,9 +43,7 @@ __all__ = [
     "wrap_layers",
 ]
 
-#: The ``step.extra`` key carrying the four layers on agent steps.
 STEP_LAYERS_KEY = "step_layers"
-#: Version stamp inside every recorded/reconstructed layers object.
 STEP_LAYERS_SCHEMA = "evallab.step_layers/v1"
 
 Provenance = Literal["recorded", "reconstructed", "copied"]
@@ -134,17 +60,7 @@ StopReason = Literal[
     "error",
     "unknown",
 ]
-#: A ``ceiling:<dimension>`` stop reason names the binding trial-budget
-#: ceiling (``input_tokens``, ``output_tokens``, ``requests``, ``cost`` or
-#: ``total_tokens``); the dimension suffix is dynamic, so these reasons are
-#: plain ``str`` rather than members of the ``StopReason`` literal.
 CEILING_STOP_PREFIX = "ceiling:"
-#: Whose limit (if any) stopped the trial. ``our_limit`` is a lab-imposed
-#: budget or loop stop; ``harness_step_limit`` is the agent harness's own
-#: step cap; ``context_exhausted`` is the agent harness's own served context
-#: filling (agent-side: not a lab ceiling, not infra); ``task_timeout`` is
-#: Harbor's outer wall timeout (recorded as ``agent_timeout``); ``model_end``
-#: is the model finishing on its own.
 StopCategory = Literal[
     "our_limit",
     "harness_step_limit",
@@ -155,14 +71,9 @@ StopCategory = Literal[
     "unknown",
 ]
 
-#: Harbor's mid-output omission marker (``Terminus2._limit_output_length``):
-#: ``[... output limited to 10000 bytes; N interior bytes omitted ...]``.
 TRUNCATION_MARKER_RE = re.compile(
     r"\[\.\.\. output limited to \d+ bytes; (\d+) interior bytes omitted \.\.\.\]"
 )
-#: Head of Harbor's command-timeout observation template
-#: (``terminus_2/templates/timeout.txt``). Required at the start so a command
-#: that merely prints similar text is not mistaken for a harness timeout.
 TIMEOUT_TEMPLATE_RE = re.compile(
     r"^Previous command:\n.*The previous command timed out after .* seconds",
     re.DOTALL,
@@ -172,7 +83,6 @@ _CONTINUATION_RE = re.compile(r"^trajectory\.cont-(\d+)\.json$")
 
 @dataclass(frozen=True)
 class ReplayedCommand:
-    """One parsed command from a parser replay: keystrokes plus wait."""
 
     keystrokes: str
     duration_sec: float | None = None
@@ -180,7 +90,6 @@ class ReplayedCommand:
 
 @dataclass(frozen=True)
 class ReplayedParse:
-    """The parser decision for one response text, replayed deterministically."""
 
     error: str | None
     commands: tuple[ReplayedCommand, ...] = ()
@@ -189,7 +98,6 @@ class ReplayedParse:
 
 @dataclass
 class TrajectoryPart:
-    """One trajectory document of a trial: the head or a continuation."""
 
     name: str
     kind: Literal["head", "continuation"]
@@ -206,7 +114,6 @@ class TrajectoryPart:
 
 @dataclass
 class StitchStats:
-    """Dedupe outcome for stitched continuation parts."""
 
     per_part_steps: list[int] = field(default_factory=list)
     per_part_copied: list[int] = field(default_factory=list)
@@ -216,13 +123,7 @@ class StitchStats:
     malformed_steps: int = 0
 
 
-# --------------------------------------------------------------------------- #
-# Layer builders (runtime recording and offline reconstruction share these)
-# --------------------------------------------------------------------------- #
-
-
 def proposed_layer(message: Any, reasoning: Any, *, reason: str | None = None) -> dict[str, Any]:
-    """The model emission as generated: raw text plus reasoning."""
     text = message if isinstance(message, str) else None
     think = reasoning if isinstance(reasoning, str) and reasoning else None
     if text is None and reason is None:
@@ -239,7 +140,6 @@ def accepted_layer(
     prose_shaped: bool | None = None,
     reason: str | None = None,
 ) -> dict[str, Any]:
-    """The parser result: normalized calls, a parse error, or prose completion."""
     return {
         "kind": kind,
         "calls": [dict(call) for call in calls] if calls is not None else None,
@@ -258,7 +158,6 @@ def executed_layer(
     timeout: bool | None = None,
     reason: str | None = None,
 ) -> dict[str, Any]:
-    """The keystrokes actually sent, with waits and the batch timestamp."""
     return {
         "keystrokes_sent": list(keystrokes_sent) if keystrokes_sent is not None else None,
         "durations_sec": list(durations_sec) if durations_sec is not None else None,
@@ -269,7 +168,6 @@ def executed_layer(
 
 
 def parse_observed_output(output: Any) -> dict[str, Any]:
-    """Decode one observation text: truncation and timeout-template flags."""
     if not isinstance(output, str):
         return {
             "output": None,
@@ -289,7 +187,6 @@ def parse_observed_output(output: Any) -> dict[str, Any]:
 
 
 def observed_layer(output: Any) -> dict[str, Any]:
-    """The terminal output returned, with truncation flags."""
     return parse_observed_output(output)
 
 
@@ -300,7 +197,6 @@ def wrap_layers(
     executed: Mapping[str, Any],
     observed: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Assemble the four layers into one ``step.extra`` object."""
     return {
         "schema": STEP_LAYERS_SCHEMA,
         "provenance": provenance,
@@ -312,7 +208,6 @@ def wrap_layers(
 
 
 def attach_layers(extra: Mapping[str, Any] | None, layers: Mapping[str, Any]) -> dict[str, Any]:
-    """Return a copy of a step ``extra`` mapping carrying ``layers``."""
     merged = dict(extra) if isinstance(extra, Mapping) else {}
     merged[STEP_LAYERS_KEY] = dict(layers)
     return merged
@@ -333,14 +228,6 @@ def build_recorded_layers(
     output: Any,
     not_executed_reason: str | None = None,
 ) -> dict[str, Any]:
-    """Assemble runtime-recorded layers for one agent step.
-
-    ``commands`` are the parsed ``(keystrokes, duration_sec)`` pairs the
-    harness acted on; ``keystrokes_sent`` is what actually went to the
-    terminal (``None`` with ``not_executed_reason`` when a parse error meant
-    nothing executed). Parser decisions come from the live parse the harness
-    already ran, never a re-parse.
-    """
     calls: list[dict[str, Any]] = [
         {"keystrokes": keys, "duration_sec": duration} for keys, duration in commands
     ]
@@ -383,11 +270,6 @@ def build_recorded_layers(
     )
 
 
-# --------------------------------------------------------------------------- #
-# Offline reconstruction (trials recorded before HAR-92)
-# --------------------------------------------------------------------------- #
-
-
 def _freeze(value: Any) -> str:
     return json.dumps(value, sort_keys=True, default=str)
 
@@ -411,12 +293,6 @@ _FEEDBACK_PREFIX = "Previous response had parsing errors:"
 
 
 def feedback_error_text(observation_text: Any) -> str | None:
-    """The harness's parse-error verdict recorded in an observation, if any.
-
-    A turn whose observation is the parse-error feedback prompt was rejected
-    under the parser treatment that ran: nothing executed. Returns the
-    feedback message, else ``None``.
-    """
     if not isinstance(observation_text, str):
         return None
     text = observation_text.strip()
@@ -426,13 +302,6 @@ def feedback_error_text(observation_text: Any) -> str | None:
 
 
 def executed_output(step: Mapping[str, Any]) -> str | None:
-    """Terminal output of a turn that executed, or ``None``.
-
-    Harbor-free observation verdict for consumers without a parser: a turn
-    whose observation is parse-error feedback, Harbor's stand-in reply, or
-    nothing at all did not execute. Anything else is the terminal output the
-    harness read back after executing. Never guesses commands or counts.
-    """
     text = _observation_text(step)
     if not isinstance(text, str) or not text.strip():
         return None
@@ -444,15 +313,6 @@ def executed_output(step: Mapping[str, Any]) -> str | None:
 
 
 def copied_layers() -> dict[str, Any]:
-    """Null layers for an ``is_copied_context`` step, which never ran here.
-
-    Harbor's summarization split copies ``[system, question prompt, questions
-    reply, handoff]`` into the continuation, so its one copied agent message
-    is the questions subagent's reply. That reply is only ever text for the
-    answers subagent: never parsed or executed, even when it holds commands.
-    Its own step, with timestamp and usage, is in
-    ``trajectory.summarization-N-questions.json``, not the head.
-    """
     reason = (
         "is_copied_context: replayed context, never parsed or executed in this "
         "segment; the step it copies is in the part it came from (after a "
@@ -470,15 +330,6 @@ def copied_layers() -> dict[str, Any]:
 def synthesize_atif_calls(
     step: Mapping[str, Any], layers: Mapping[str, Any] | None
 ) -> list[dict[str, Any]]:
-    """Stock Terminus-2 ``tool_calls`` synthesized from step layers.
-
-    ``raw_content`` trials store the raw model reply and no ``tool_calls``;
-    this rebuilds the calls the harness accepted in the shape stock
-    Terminus-2 writes (``bash_command`` with ``keystrokes``/``duration``,
-    ``mark_task_complete``), so parsed-trajectory consumers read MiMo runs
-    like any other Terminus-2 run. Returns [] when the step accepted nothing
-    (parse errors) or carries no layers.
-    """
     if not isinstance(layers, Mapping):
         return []
     accepted = layers.get("accepted")
@@ -521,13 +372,6 @@ def synthesize_atif_calls(
 def effective_tool_calls(
     step: Mapping[str, Any], layers: Mapping[str, Any] | None = None
 ) -> list[dict[str, Any]]:
-    """The step's tool calls: native ``tool_calls`` when present, else synthesized.
-
-    The single read path for consumers that count or inspect tool calls.
-    Native calls win; a step without them falls back to ``layers`` (the
-    caller's recorded or reconstructed layers) or, when none are passed, the
-    layers recorded in ``step.extra``.
-    """
     native = step.get("tool_calls")
     if isinstance(native, list):
         calls = [call for call in native if isinstance(call, dict)]
@@ -538,11 +382,6 @@ def effective_tool_calls(
         stored = extra.get(STEP_LAYERS_KEY) if isinstance(extra, Mapping) else None
         layers = stored if isinstance(stored, Mapping) else None
     return synthesize_atif_calls(step, layers)
-
-
-# --------------------------------------------------------------------------- #
-# Continuation discovery, stitching, and coverage
-# --------------------------------------------------------------------------- #
 
 
 def _sha256(path: Path) -> str | None:
@@ -567,11 +406,6 @@ def _part_stats(
 
 
 def discover_trajectory_parts(agent_dir: Path) -> list[TrajectoryPart]:
-    """List the head plus every ``trajectory.cont-N.json`` continuation.
-
-    Tolerates a missing head (only continuations retained) and unreadable
-    files; both are reported in the part record, never silently dropped.
-    """
     parts: list[TrajectoryPart] = []
     try:
         entries = sorted(agent_dir.iterdir(), key=lambda p: p.name)
@@ -622,13 +456,6 @@ def discover_trajectory_parts(agent_dir: Path) -> list[TrajectoryPart]:
 
 
 def _step_key(step: Mapping[str, Any]) -> str | None:
-    """Identity for cross-part dedupe, or ``None`` when unmergeable.
-
-    Steps without a timestamp cannot be told apart from a re-emitted turn:
-    merging them would collapse genuine repeats (a loop of identical calls)
-    into one. Only timestamped steps merge across parts; the rest are always
-    kept. Every shared step observed so far carries a timestamp.
-    """
     if step.get("timestamp") is None:
         return None
     return _freeze(
@@ -645,18 +472,6 @@ def _step_key(step: Mapping[str, Any]) -> str | None:
 def stitch_steps(
     docs_in_order: Sequence[Mapping[str, Any] | Any],
 ) -> tuple[list[Any], StitchStats]:
-    """Merge continuation parts into unique steps without double-counting.
-
-    Copied-context steps repeat history already present in an earlier part,
-    so they are excluded from action views (but counted). Steps shared across
-    parts — a sealed head re-dumped as a continuation (duplicate files), or a
-    head prefix restated by a cumulative continuation — are identified by
-    (timestamp, source, message, reasoning, observation) and kept once, with
-    later parts superseding. Repeats *within* one part are always kept: a
-    loop of identical calls is evidence, not a recording duplicate.
-    Non-dict entries pass through untouched so malformed shapes still fail
-    closed in strict consumers.
-    """
     stats = StitchStats()
     first_seen_in: dict[str, int] = {}
     unique: list[Any] = []
@@ -690,16 +505,6 @@ def stitch_steps(
 
 
 def segment_fingerprint(steps: Any) -> str | None:
-    """Whole-segment identity, shared with the SFT exporter.
-
-    Same algorithm as ``sft_terminus.py`` (sha256 over the steps array dumped
-    with sorted keys): a continuation whose steps equal an exported segment's
-    — a summarization that failed without splitting the chat — is the same
-    segment twice. Non-list steps never match. Step-level prefix overlap (a
-    cumulative continuation restating the head) does NOT match here; that is
-    counted once by :func:`stitch_steps` for reporting, while the SFT
-    exporter keeps both segments as separate conversations.
-    """
     if not isinstance(steps, list):
         return None
     return hashlib.sha256(
@@ -710,13 +515,6 @@ def segment_fingerprint(steps: Any) -> str | None:
 def duplicate_segments(
     named_step_lists: Sequence[tuple[str, Any]],
 ) -> dict[str, str]:
-    """Name later whole-duplicate segments ``duplicate_of:<earlier name>``.
-
-    Mirrors the SFT exporter's per-trial loop: segments iterate main-first,
-    the first fingerprint wins, and later matches are skipped and recorded
-    under the same ``duplicate_of:`` vocabulary. Input order must be
-    main-first (see :func:`discover_trajectory_parts`).
-    """
     seen: dict[str, str] = {}
     duplicates: dict[str, str] = {}
     for name, steps in named_step_lists:
@@ -737,17 +535,6 @@ def coverage_record(
     summarization_count: int | None = None,
     step_lists: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """The capture-coverage record: which parts exist and what they hold.
-
-    Continuation names align with the HAR-93 capture record
-    (``trial_treatment.collect_capture``): ``trajectory_head``,
-    ``continuation_indices``, ``summarization_count``, and
-    ``continuations_missing`` (expected ``1..summarization_count`` minus
-    present, ``None`` when the count is unknown) mean the same in both.
-    Beyond the capture record this adds per-part steps, whole-duplicate
-    segments in the SFT exporter's ``duplicate_of:`` vocabulary, and the
-    unique/step-overlap counts from :func:`stitch_steps`.
-    """
     head = next((part for part in parts if part.kind == "head"), None)
     continuations = [part for part in parts if part.kind == "continuation"]
     present = sorted(part.index for part in continuations if part.readable)
@@ -809,11 +596,6 @@ def coverage_record(
     }
 
 
-# --------------------------------------------------------------------------- #
-# Outcome vs execution: verifier outcome, stop reason, execution problems
-# --------------------------------------------------------------------------- #
-
-
 def _exception_type(exception_info: Any) -> str | None:
     if not isinstance(exception_info, Mapping):
         return None
@@ -829,18 +611,6 @@ def classify_stop_reason(
     last_prose_completion: bool | None = None,
     native_exit_status: str | None = None,
 ) -> tuple[str, str]:
-    """Return (stop_reason, detail). Unknown stays unknown, never a default.
-
-    ``last_task_complete`` / ``last_prose_completion`` describe the final
-    accepted agent turn (from step layers) for trials that raised nothing.
-    Xiaomi's pinned ``BaseAgent`` returns ``Idle`` when the model issues no
-    tool call and ``LimitsExceeded`` at its step cap (or for an empty model
-    response, identified by ``native_exit_result``). Structured infrastructure
-    stops retain ``infra_error``; a served-context refusal ends as
-    ``ContextExhausted``/``context_exhausted`` (final state graded, never
-    infra); other native failures remain errors, and a binding trial-budget
-    ceiling reads ``ceiling:<dimension>``.
-    """
     metadata = agent_metadata if isinstance(agent_metadata, Mapping) else {}
     recorded = metadata.get("stop_reason")
     if isinstance(recorded, str) and (
@@ -856,7 +626,6 @@ def classify_stop_reason(
         or recorded.startswith(CEILING_STOP_PREFIX)
     ):
         return recorded, "agent metadata stop_reason"
-    # A nudge alone does not mean the loop break ended the trial.
     loop_break = metadata.get("loop_break")
     if isinstance(loop_break, Mapping) and loop_break.get("stop_call") is not None:
         return "loop_break", "agent metadata loop_break record stopped the trial"
@@ -892,18 +661,6 @@ def classify_stop_reason(
 
 
 def stop_category(reason: str | None) -> StopCategory:
-    """Whose limit (if any) stopped the trial, for setup-limit rollups.
-
-    ``trial_budget_exhausted``, ``loop_break`` and any ``ceiling:<dimension>``
-    reason are ``our_limit``; ``harness_step_limit`` is the agent harness's
-    own step cap; ``context_exhausted`` is the agent harness's own served
-    context filling (agent-side, never a lab ceiling or infra);
-    ``agent_timeout`` is Harbor's outer wall timeout
-    (``task_timeout``); ``task_complete``/``prose_completion`` are the model
-    finishing on its own (``model_end``). Anything else — including
-    ``error`` and unrecognized labels — reads ``error``, except a missing or
-    ``unknown`` reason, which stays ``unknown``.
-    """
     if reason is None or reason == "unknown":
         return "unknown"
     if not isinstance(reason, str):
@@ -926,14 +683,6 @@ def stop_category(reason: str | None) -> StopCategory:
 
 
 def limit_hit_summary(reasons: Iterable[str | None]) -> dict[str, Any]:
-    """Roll stop reasons up to a setup-limit summary.
-
-    Returns ``{"trials", "limit_hit_trials", "limit_hit_share",
-    "setup_limited"}``: a trial counts as limit-hit when its
-    :func:`stop_category` is ``our_limit``. ``limit_hit_share`` is ``None``
-    with no trials; ``setup_limited`` is a strict ``> 0.05`` share so a
-    lone limit stop in a large sweep does not flag the setup.
-    """
     trials = hits = 0
     for reason in reasons:
         trials += 1

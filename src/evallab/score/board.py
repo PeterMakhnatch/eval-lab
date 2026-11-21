@@ -1,4 +1,3 @@
-"""One scoreboard JSON authority and its pure Markdown view."""
 from __future__ import annotations
 
 from collections import Counter
@@ -91,7 +90,6 @@ def build(cohorts: dict, predictions: dict, config: dict, coordinates: dict, pol
 
 
 def summary(board: dict, receipts: dict) -> dict:
-    """Small aggregate publication; full statistics and per-item joins stay external."""
     rows = []
     for row in board["rows"]:
         points = {}

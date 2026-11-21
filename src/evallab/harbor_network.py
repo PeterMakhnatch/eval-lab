@@ -1,18 +1,3 @@
-"""Platform-aware Harbor Docker network policy for the execution staging adapter.
-
-Harbor's Docker provider enforces ``no-network`` and ``allowlist`` only on Linux
-Docker hosts. Docker Desktop on macOS (and other non-Linux providers) correctly
-rejects those policies with:
-
-    ValueError: network_mode='no-network' is not supported by
-    EnvironmentType.DOCKER environment.
-
-The execution staging adapter in ``runner.py`` uses this module to derive an
-effective network mode for the current host, preserving the requested canonical
-policy in a temporary execution copy and returning a ``NetworkAdaptation`` record
-the runner can persist in that copy's ``run_manifest.json``.
-"""
-
 from __future__ import annotations
 
 import copy
@@ -31,19 +16,12 @@ ADAPTER_VERSION = "1.0.0"
 
 
 def adapter_digest() -> str:
-    """SHA-256 digest of this adapter module and the version string."""
     source = Path(__file__).resolve().read_bytes()
     return f"sha256:{hashlib.sha256(ADAPTER_VERSION.encode() + b'\n' + source).hexdigest()}"
 
 
 @dataclass(frozen=True)
 class HarborNetworkPolicy:
-    """Network policy the current host can actually run.
-
-    ``network_isolation_enforced`` is ``True`` only when the host platform is
-    known to support Harbor's no-network Docker enforcement (Linux). On other
-    platforms the policy is ``public`` and no isolation is claimed.
-    """
 
     network_mode: NetworkMode
     network_isolation_enforced: bool
@@ -51,11 +29,6 @@ class HarborNetworkPolicy:
 
 
 def host_harbor_network_policy() -> HarborNetworkPolicy:
-    """Return the network policy appropriate for the current host.
-
-    Linux: ``no-network`` with isolation enforced. macOS and other unsupported
-    platforms: ``public`` with isolation unenforced and a documented reason.
-    """
     system = platform.system()
     if system == "Linux":
         return HarborNetworkPolicy(
@@ -78,7 +51,6 @@ def host_harbor_network_policy() -> HarborNetworkPolicy:
 
 @dataclass(frozen=True)
 class NetworkAdaptation:
-    """Record of a canonical network policy adapted to a host's capabilities."""
 
     requested_agent_network: str
     effective_agent_network: str
@@ -95,13 +67,6 @@ class NetworkAdaptation:
 def _canonical_networks(
     config: dict[str, Any],
 ) -> tuple[str, str, str | None]:
-    """Return (agent, verifier_baseline, verifier_phase) declared in task.toml.
-
-    The verifier baseline follows the supported Harbor 0.24.0 resolution:
-    ``[verifier.environment].network_mode`` if present, otherwise the agent's
-    ``[environment].network_mode``. The phase override is ``[verifier].network_mode``
-    if present, otherwise the verifier baseline.
-    """
     environment = config.get("environment")
     agent: str = (
         environment.get("network_mode", "public") if isinstance(environment, dict) else "public"
@@ -121,7 +86,6 @@ def _canonical_networks(
 
 
 def _effective_network(requested: str, host: HarborNetworkPolicy) -> str:
-    """Downgrade no-network to the host's supported mode when necessary."""
     if requested == "no-network" and host.network_mode != "no-network":
         return host.network_mode
     return requested
@@ -142,7 +106,6 @@ def with_agent_network_allowlist(
     task_toml_text: str,
     allowed_hosts: tuple[str, ...],
 ) -> str:
-    """Add an explicit agent-phase allowlist without changing the source package."""
     if not allowed_hosts:
         return task_toml_text
     if any(not re.fullmatch(r"[A-Za-z0-9.-]+", host) for host in allowed_hosts):
@@ -187,12 +150,6 @@ def _replace_in_section(
     key: str,
     new_value: str,
 ) -> str:
-    """Replace the value of exactly one ``key = ...`` line inside ``[section]``.
-
-    Preserves leading whitespace, the quoting style, and any inline comment or
-    trailing whitespace after the original value. Raises ``ValueError`` when the
-    section or key is missing, or when the key appears more than once.
-    """
     found = _section_range(text, section)
     if found is None:
         raise ValueError(f"[{section}] not found in task.toml")
@@ -218,7 +175,6 @@ def _replace_in_section(
 
 
 def _set_network_sentinel(config: dict[str, Any], sentinel: str) -> dict[str, Any]:
-    """Set every network_mode value to a sentinel for comparison."""
     config = copy.deepcopy(config)
     if isinstance(config.get("environment"), dict):
         config["environment"]["network_mode"] = sentinel
@@ -235,15 +191,6 @@ def adapt_task_toml_for_host(
     *,
     host_policy: HarborNetworkPolicy | None = None,
 ) -> tuple[str, NetworkAdaptation | None]:
-    """Derive an effective ``task.toml`` for the current host or an explicit host policy.
-
-    The returned text is identical to the input when the host can execute the
-    canonical policy. Otherwise the only ``task.toml`` changes are the
-    ``network_mode`` values in ``[environment]``, ``[verifier.environment]``,
-    and ``[verifier]`` (phase override) so the package does not ask Harbor for
-    an unsupported policy. A ``NetworkAdaptation`` record is returned for the
-    runner to persist in ``run_manifest.json``.
-    """
     config = tomllib.loads(task_toml_text)
     host = host_policy if host_policy is not None else host_harbor_network_policy()
     requested_agent, requested_verifier, requested_phase = _canonical_networks(config)
@@ -270,25 +217,20 @@ def adapt_task_toml_for_host(
 
     new_text = task_toml_text
 
-    # [environment].network_mode
     new_text = _replace_in_section(new_text, "environment", "network_mode", effective_agent)
 
-    # [verifier.environment].network_mode if present
     if _section_range(new_text, "verifier.environment") is not None:
         new_text = _replace_in_section(
             new_text, "verifier.environment", "network_mode", effective_verifier
         )
 
-    # [verifier].network_mode phase override if present
     if requested_phase is not None and effective_phase is not None:
         new_text = _replace_in_section(new_text, "verifier", "network_mode", effective_phase)
     new_config = tomllib.loads(new_text)
 
-    # Prove only network_mode values changed.
     if _set_network_sentinel(config, "<adapted>") != _set_network_sentinel(new_config, "<adapted>"):
         raise ValueError("adaptation changed non-network parsed fields")
 
-    # Prove the effective values landed where expected.
     if new_config["environment"]["network_mode"] != effective_agent:
         raise ValueError("environment.network_mode not set to effective value")
     if (

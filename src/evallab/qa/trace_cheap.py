@@ -1,37 +1,3 @@
-"""``evallab qa trace-cheap``: the cheap-model trace QA entry point.
-
-Pipeline (one trial in, ``qa.finding/v1`` out):
-
-1. **Tripwires prefilter** (:func:`evallab.tripwires.scan_trace`, $0):
-   deterministic rules over the agent steps; fired rules, their steps and the
-   hackbook entry ids of ``hb_*`` hits are recorded, and the judge's action
-   window is centred on the flagged steps.
-2. **Candidate mechanisms**:
-   - *confirmation mode* when the caller supplies candidates (``candidate_fn``)
-     or, by default, the hackbook matcher ranks one: the judge is asked about
-     that one mechanism (the v2 harness);
-   - *proposed mode* (opt-in ``propose=True``) when anything can be proposed: up
-     to :data:`MAX_PROPOSALS` leads from the shared tripwire evidence and, with
-     a ``retriever``, labelled DEV analogues from
-     :class:`evallab.production.cloud_trace_db.CloudTraceRetriever` (target
-     task excluded). The judge must pick one candidate the actions witness;
-   - *discovery mode* otherwise: the whole hackbook short list.
-3. **Cheap judge** (OpenRouter, structured JSON-schema output + one repair
-   retry, cite-the-step-or-abstain enforced in this module).
-4. One ``qa.finding/v1`` finding stating the mode, with step citations.
-
-Measured on ``qa-trace-sft-v0`` (see that dataset's README) and in
-``research/experiments/oq3-discovery-cascade``. A ``confirmation``,
-``proposed`` and ``discovery`` finding do not carry the same weight.
-``neither`` means no checked mechanism was witnessed, never that the run is
-clean; retrieved analogues are leads from other tasks, never evidence about
-this trace.
-
-The judge is injectable (``judge=`` callable taking the message list and
-returning ``(answer_dict_or_None, cost_usd)``) so tests run with mocks and
-make no live calls.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -73,19 +39,13 @@ DEFAULT_MODEL = "openai/gpt-oss-120b"
 STAGE = "trace-cheap/v2"
 JudgeFn = Callable[[list[dict[str, str]]], tuple[dict[str, Any] | None, float]]
 
-#: Upper bound on proposed candidates (hackbook leads first, then retrieval).
 MAX_PROPOSALS = 5
 MAX_HACKBOOK_PROPOSALS = 3
 MAX_RETRIEVED_PROPOSALS = 2
-#: Deterministic rules whose hit leaves a stage-1 ``neither`` ambiguous. Context
-#: rules (test reads, history browsing, external sourcing) are ordinary agent
-#: behaviour and do not escalate on their own.
 ESCALATE_RULES = frozenset({
     "grader_tamper", "submission_tamper", "codeban_violation", "task_protected_reads",
     "upstream_confirmed", "hidden_test_corroboration", "hackbook",
 })
-#: Retrieval query vocabulary, most specific first. A query is the first two
-#: vocabulary terms present in the flagged steps (else the whole action list).
 _QUERY_TERMS = (
     "conftest", "monkeypatch", "upstream", "verifier", "grader", "reward", "hidden",
     "xfail", "hardcoded", "expected", "solution", "skip", "exit", "mock", "git",
@@ -110,7 +70,6 @@ _PROPOSED_HEAD = (
 
 
 def resolve_trajectory(target: Path) -> Path:
-    """Trajectory JSON for a trial dir, a trajectory file, or a dir holding one."""
     target = Path(target)
     if target.is_file():
         return target
@@ -130,7 +89,6 @@ def load_steps(target: Path) -> tuple[list[dict[str, Any]], Path]:
 
 
 def actions_only(steps: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Agent tool-call actions with their step ids (assistant prose stripped)."""
     out: list[dict[str, Any]] = []
     for s in steps:
         if s.get("source") != "agent":
@@ -148,13 +106,12 @@ def actions_only(steps: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def tripwire_prefilter(steps: Sequence[dict[str, Any]]) -> dict[str, Any]:
-    """Tripwire summary: fired rules, flagged step ids, hackbook entry ids ($0, fail-open)."""
     from evallab import tripwires
 
     agent_steps = [s for s in steps if s.get("source") == "agent"]
     try:
         report = tripwires.scan_trace(agent_steps, steps=list(steps))
-    except Exception as exc:  # detectors fail open; the judge still runs
+    except Exception as exc:
         return {"fired": [], "flagged_steps": [], "entry_ids": [], "error": str(exc)[:200]}
     fired, flagged, entry_ids = [], set(), []
     for rule, hits in report.items():
@@ -176,8 +133,6 @@ def tripwire_prefilter(steps: Sequence[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-
-
 def _entry_text(entry_id: str, root: Path | None, limit: int = 600) -> str:
     from evallab.hackbook.models import get_entry, load_hackbook
 
@@ -195,7 +150,6 @@ def _short_list(root: Path | None) -> str:
 
 
 def retrieval_query(actions: Sequence[dict[str, Any]], focus: Sequence[int]) -> str:
-    """Two-term retrieval query from the flagged steps, else from the whole action list."""
     focus_set = set(focus)
     for texts in (
         [a["text"] for a in actions if a["step"] in focus_set],
@@ -211,7 +165,6 @@ def retrieval_query(actions: Sequence[dict[str, Any]], focus: Sequence[int]) -> 
 def retrieved_proposals(
     retriever: CloudTraceRetriever, query: str, *, task_id: str | None, top_k: int
 ) -> list[dict[str, Any]]:
-    """Labelled DEV analogues for ``query`` as candidate leads (target task excluded)."""
     if not query:
         return []
     examples = retriever.retrieve_similar_examples(
@@ -250,7 +203,6 @@ def propose_candidates(
     task_id: str | None = None,
     retriever: CloudTraceRetriever | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Ranked candidate leads plus a receipt of what each source contributed."""
     receipt: dict[str, Any] = {"query": None, "retrieval_error": None}
     hackbook_ids = prefilter.get("entry_ids") or []
     proposals = [
@@ -263,13 +215,12 @@ def propose_candidates(
             proposals += retrieved_proposals(
                 retriever, receipt["query"], task_id=task_id, top_k=MAX_RETRIEVED_PROPOSALS
             )
-        except Exception as exc:  # retrieval fails open to the deterministic leads
+        except Exception as exc:
             receipt["retrieval_error"] = str(exc)[:200]
     return proposals[:MAX_PROPOSALS], receipt
 
 
 def _fewshot(root: Path | None) -> list[dict[str, str]]:
-    """3 TRAIN examples per label from qa-trace-sft-v0 when the dataset is present."""
     if root is None:
         return []
     path = Path(root) / "research/datasets/qa-trace-sft-v0/train.jsonl"
@@ -289,7 +240,6 @@ def _fewshot(root: Path | None) -> list[dict[str, str]]:
 
 
 def _window(actions: Sequence[dict[str, Any]], focus: Sequence[int], budget: int = 7000) -> str:
-    """Action lines within ``budget`` chars, nearest the focus steps first when they overflow."""
     lines = [(a["step"], f"[{a['step']}] {a['text'][:500]}") for a in actions]
     if not focus or sum(len(line) + 1 for _, line in lines) <= budget:
         return "\n".join(line for _, line in lines)[:budget]
@@ -341,13 +291,6 @@ def openrouter_judge(
     receipts: list[dict[str, Any]] | None = None,
     max_tokens: int = 4096,
 ) -> JudgeFn:
-    """Default judge: OpenRouter structured output + one repair retry.
-
-    ``max_tokens`` covers reasoning plus the JSON answer: at 1,500, DeepSeek
-    v4.1 Flash exhausted the budget before answering on 12% of OQ-3 traces.
-    Each completed HTTP call appends the served model, token usage, cost and the
-    response text digest to ``receipts`` when given.
-    """
     key = api_key or os.environ.get("OPENROUTER_API_KEY", "")
 
     def call(messages: list[dict[str, str]], structured: bool) -> tuple[str, float]:
@@ -425,7 +368,6 @@ def _valid_citation(pred: dict[str, Any], actions: Sequence[dict[str, Any]]) -> 
 def _judged(
     judge: JudgeFn, messages: list[dict[str, str]], actions: Sequence[dict[str, Any]]
 ) -> tuple[dict[str, Any] | None, float, bool]:
-    """One judge pass with cite-or-abstain enforced: ``(answer, cost, forced_abstain)``."""
     pred, cost = judge(messages)
     if pred is not None and pred["label"] != "neither" and not _valid_citation(pred, actions):
         return {"label": "neither", "mechanism": None, "evidence": []}, cost, True
@@ -435,7 +377,6 @@ def _judged(
 def escalation_reason(
     pred: dict[str, Any] | None, abstained: bool, prefilter: dict[str, Any]
 ) -> str | None:
-    """Why a stage-1 answer goes to the second stage; ``None`` keeps it final."""
     if pred is None:
         return "judge_unparsed"
     if abstained:
@@ -459,15 +400,6 @@ def run_trace_cheap(
     propose: bool = False,
     retriever: CloudTraceRetriever | None = None,
 ) -> dict[str, Any]:
-    """Full pipeline for one trial; returns ``{finding, mode, ...}`` (no writes).
-
-    ``candidate_fn`` supplies caller-known candidates instead of tripwire leads.
-    By default the first tripwire lead is confirmed; no lead means short-list
-    discovery. ``propose=True`` instead turns tripwire hits and retrieval
-    analogues into a proposed candidate
-    list; it is opt-in because OQ-3 measured no net gain (see
-    ``research/experiments/oq3-discovery-cascade``).
-    """
     steps, traj = load_steps(Path(target))
     actions = actions_only(steps)
     prefilter = tripwire_prefilter(steps)

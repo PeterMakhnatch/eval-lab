@@ -1,10 +1,3 @@
-"""Run Harbor's native readers on writable copies and normalize real outputs.
-
-Use ``keys run --``; credentials are resolved from host environment, not persisted
-in Harbor's agent config. PAYG Flash prices are from
-https://docs.z.ai/guides/overview/pricing (2026-10-06).
-"""
-
 from __future__ import annotations
 
 import json
@@ -19,7 +12,6 @@ from evallab.harbor_telemetry import HARBOR_TELEMETRY_ENV, HARBOR_TELEMETRY_OFF
 
 DEFAULT_MODEL = "openai/glm-5.3-flash"
 DEFAULT_AGENT = "mini-swe-agent"
-#: ``<root>/readers`` is the verdict store the task pages read (task_pages.default_store).
 DEFAULT_ROOT = Path.home() / "Library" / "Application Support" / "evallab"
 ANALYZE_CHECKS = ("reward_hacking", "task_specification")
 PRICE_PER_MILLION = {"input": 0.15, "cached_input": 0.03, "output": 0.50}
@@ -30,7 +22,6 @@ _LABEL_LINE = re.compile(
 
 
 def flash_cost(input_tokens: int, output_tokens: int, cached_tokens: int = 0) -> float:
-    """List-price estimate; prompt-token totals include cached input."""
     if not 0 <= cached_tokens <= input_tokens:
         raise ValueError("Cached input must be between zero and total input")
     return (
@@ -41,14 +32,11 @@ def flash_cost(input_tokens: int, output_tokens: int, cached_tokens: int = 0) ->
 
 
 def configure_evaluator(agent: str = DEFAULT_AGENT, model: str = DEFAULT_MODEL) -> None:
-    """Resolve only the budgeted Z.ai route; never persist a credential in config."""
     if agent != DEFAULT_AGENT or model != DEFAULT_MODEL:
         raise ValueError(f"Unpriced evaluator route: {agent}/{model}")
     source = "ZAI_OPENAPI_API_KEY"
     if not os.environ.get(source):
         raise RuntimeError(f"{source} is unset; run with `keys run --`")
-    # Harbor selects MSWEA_API_KEY before the provider key, but mini 2.4's
-    # LiteLLM driver consumes OPENAI_API_KEY. Select the provider credential.
     os.environ.pop("MSWEA_API_KEY", None)
     os.environ["OPENAI_API_KEY"] = os.environ[source]
     for key in ("OPENAI_BASE_URL", "OPENAI_API_BASE"):
@@ -56,7 +44,6 @@ def configure_evaluator(agent: str = DEFAULT_AGENT, model: str = DEFAULT_MODEL) 
 
 
 def resolve_trial_task(source: Path) -> Path:
-    """Recover a cleaned execution-stage task from its saved experiment spec."""
     result = json.loads((source / "result.json").read_text())
     original = Path(result["config"]["task"]["path"])
     if (original / "instruction.md").is_file():
@@ -71,7 +58,6 @@ def resolve_trial_task(source: Path) -> Path:
 
 
 def _optional_trial_task(source: Path) -> Path | None:
-    """Return the trial's own task when resolvable; TW trials carry none."""
     try:
         return resolve_trial_task(source)
     except (OSError, KeyError, ValueError, TypeError, AttributeError):
@@ -79,7 +65,6 @@ def _optional_trial_task(source: Path) -> Path | None:
 
 
 def stage_trial(source: Path, root: Path = DEFAULT_ROOT, task: Path | None = None) -> Path:
-    """Make a fresh, blind copy: native evidence, raw reward, no Eval Lab labels."""
     source = Path(source).resolve()
     dest = root / "analyze-src" / source.parent.name / source.name
     if dest.resolve() == source:
@@ -113,12 +98,10 @@ def stage_trial(source: Path, root: Path = DEFAULT_ROOT, task: Path | None = Non
         config["task"]["path"] = str(task.resolve())
         config_path.write_text(json.dumps(config, indent=2))
     result_path.write_text(json.dumps(result, indent=2))
-    # reward.json is a second copy of the same annotation channel.
     reward_path = dest / "verifier" / "reward.json"
     if reward_path.exists():
         rewards = json.loads(reward_path.read_text())
         reward_path.write_text(json.dumps({"reward": rewards.get("reward")}))
-    # Wrapper annotations appended to otherwise legitimate test output leak labels too.
     for pattern in ("*.txt", "*.log"):
         for path in (dest / "verifier").glob(pattern):
             text = path.read_text()
@@ -129,7 +112,6 @@ def stage_trial(source: Path, root: Path = DEFAULT_ROOT, task: Path | None = Non
 
 
 def stage_task(task: Path, source: Path, root: Path = DEFAULT_ROOT) -> Path:
-    """Withhold our integrity detector, preserving the independent task/verifier."""
     task = Path(task).resolve()
     dest = root / "analyze-task" / source.parent.name / source.name / task.name
     if dest.resolve() == task:
@@ -201,15 +183,12 @@ async def run_analyze(
     job_name: str | None = None,
     cost_limit: float = 0.03,
 ) -> tuple[Any, Path]:
-    """Use Harbor 0.24's default rubric, one trial and no retries."""
     os.environ[HARBOR_TELEMETRY_ENV] = HARBOR_TELEMETRY_OFF
     from harbor.analyze.analyzer import run_analyze as harbor_run  # ty: ignore[unresolved-import]
     from harbor.models.environment_type import EnvironmentType  # ty: ignore[unresolved-import]
 
     configure_evaluator(agent, model)
     explicit = task if task is not None else _optional_trial_task(source)
-    # TW trials carry no prepared Harbor task: analyze the trajectory with
-    # whatever task info the trial dir itself holds (instruction.md, prompt).
     independent_task = stage_task(explicit, source, root) if explicit is not None else None
     staged = stage_trial(source, root, independent_task)
     report, job_dir = await harbor_run(
@@ -229,7 +208,6 @@ async def run_analyze(
 
 
 def parse_checks(data: dict[str, Any], expected: tuple[str, ...] = ()) -> tuple[dict, dict]:
-    """Parse real Harbor artifact/report outcomes. True means a problem found."""
     outcomes = {"pass": False, "fail": True, "not_applicable": None}
     checks = {name: None for name in expected}
     explanations = {name: "Reader did not decide." for name in expected}
@@ -246,7 +224,6 @@ def parse_checks(data: dict[str, Any], expected: tuple[str, ...] = ()) -> tuple[
 
 
 def _reader_trial(job_dir: Path, source_name: str, reader: str) -> tuple[Path, dict]:
-    """Join by original wrapper path, never by truncated directory-name substrings."""
     prefix = "analyze-" if reader == "harbor_analyze" else "check-"
     matches = []
     for path in job_dir.glob("*/result.json"):
@@ -260,7 +237,6 @@ def _reader_trial(job_dir: Path, source_name: str, reader: str) -> tuple[Path, d
 
 
 def reader_usage(result: dict) -> dict:
-    """Extract real Harbor agent_result totals (also present for failed readers)."""
     data = result.get("agent_result") or {}
     raw_input, raw_output = data.get("n_input_tokens"), data.get("n_output_tokens")
     if raw_input is None or raw_output is None:
@@ -289,7 +265,6 @@ def write_verdict(
     root: Path = DEFAULT_ROOT,
     model: str = DEFAULT_MODEL,
 ) -> tuple[Path, dict]:
-    """Parse Harbor's real report + associated trial, retain raw outputs and usage."""
     reader = "harbor_check" if task_name is not None else "harbor_analyze"
     report_name = "check_report.json" if task_name is not None else "analysis.json"
     report = json.loads((job_dir / report_name).read_text())

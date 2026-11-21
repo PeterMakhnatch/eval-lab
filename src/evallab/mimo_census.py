@@ -1,9 +1,3 @@
-"""Verifier log readers used by the retained MiMo fleet census.
-
-The historical fleet runner and report producer are retired. These parsers
-still serve the native held-out control-qualification workflow.
-"""
-
 from __future__ import annotations
 
 import json
@@ -19,7 +13,6 @@ _JUNIT_RE = re.compile(
 
 
 def parse_junit_grade(text: str) -> dict[str, Any] | None:
-    """Parse one ``junit-grade.log`` line into grade facts, or None."""
     match = _JUNIT_RE.search(text.strip())
     if match is None:
         return None
@@ -34,7 +27,6 @@ def parse_junit_grade(text: str) -> dict[str, Any] | None:
 
 
 def trial_grade_logs(trial_dir: Path) -> list[dict[str, Any]]:
-    """JUnit grade facts for every verifier log under one trial dir."""
     grades: list[dict[str, Any]] = []
     for text in trial_output_logs(trial_dir, "junit-grade.log"):
         grade = parse_junit_grade(text)
@@ -49,17 +41,9 @@ _PYTEST_SUMMARY_RE = re.compile(r"(?m)^.*\b\d+\s+(?:failed|passed|error)\b.*in\s
 _PYTEST_COUNT_RE = re.compile(r"(\d+)\s+(failed|passed|error)")
 _PYTEST_COLLECTED_NONE_RE = re.compile(r"collected 0 items?")
 
-#: v3 structured grade lines (same ``junit-grade.log`` file): the runner
-#: identity line, surefire case counts for mvn/gradle, and the marker
-#: verdict for runners without countable reports.
 _RUNNER_LINE_RE = re.compile(r"(?m)^runner=(?P<runner>[A-Za-z-]+)\s+rc=(?P<rc>-?\d+)")
 
 
-#: Runner-specific case evidence in ``test_output.log`` (mirrors the
-#: verifier's own marker checks, widened so failed cases still prove
-#: execution — a failing test ran; only no-tests/collection errors stay
-#: noexec). Custom/node-run/make-style fallbacks have no case evidence:
-#: an exit-code rc alone is never execution.
 _GO_CASE_RE = re.compile(r"(?m)^--- (?:FAIL|PASS)|^=== RUN\s+\S|panic:")
 _GO_PACKAGE_RE = re.compile(r"(?m)^(ok|FAIL)\s+\S+")
 _GO_NOCASE_RE = re.compile(r"no test files|no tests to run|\[build failed\]")
@@ -81,7 +65,6 @@ _INT_RE = re.compile(r"\d+")
 
 
 def trial_output_logs(trial_dir: Path, name: str) -> list[str]:
-    """Read all verifier ``name`` logs under one trial dir (missing -> skip)."""
     texts: list[str] = []
     for log_path in sorted(trial_dir.rglob(name)):
         try:
@@ -92,12 +75,6 @@ def trial_output_logs(trial_dir: Path, name: str) -> list[str]:
 
 
 def trial_runner(trial_dir: Path) -> str:
-    """Test-runner family for one trial (``pytest`` when unrecorded).
-
-    Reads the verifier-owned ``runner.txt`` (``RUNNER=<name>``), falling back
-    to the ``runner=`` identity line in the structured grade log. Legacy
-    pytest-only cells record neither and default to ``pytest``.
-    """
     for log_path in sorted(trial_dir.rglob("runner.txt")):
         try:
             text = log_path.read_text(encoding="utf-8", errors="replace")
@@ -118,12 +95,6 @@ def _ints_total(text: str) -> int:
 
 
 def _runner_output_executed(runner: str, output: str) -> bool:
-    """Whether runner output shows test cases ran (failures count as ran).
-
-    No-tests and collection errors stay False; frameworks without case
-    evidence (custom/node-run/make-style exit-code fallbacks) are always
-    False — an rc alone never proves execution.
-    """
     if runner == "go-test":
         if _GO_CASE_RE.search(output):
             return True
@@ -139,9 +110,6 @@ def _runner_output_executed(runner: str, output: str) -> bool:
     if runner in ("tap", "ava", "node-test"):
         if _TAP_OK_RE.search(output):
             return True
-        # G6: a tap-labeled command emitting mocha spec-reporter output
-        # carries no TAP markers; its passing/failing counts still prove
-        # cases ran (failures count as ran, as everywhere here).
         if any(int(count) > 0 for count in _MOCHA_COUNT_RE.findall(output)):
             return True
         return any(int(count) > 0 for count in _TAP_PLAN_RE.findall(output))
@@ -178,7 +146,6 @@ def _runner_output_executed(runner: str, output: str) -> bool:
 
 
 def _job_payload(job_dir: Path) -> dict[str, Any] | None:
-    """Job-level result.json payload, or None when absent/unreadable."""
     payload_path = job_dir / "result.json"
     try:
         payload = json.loads(payload_path.read_text(encoding="utf-8"))
@@ -188,11 +155,6 @@ def _job_payload(job_dir: Path) -> dict[str, Any] | None:
 
 
 def job_has_trial_errors(job_dir: Path) -> bool:
-    """Whether the job-level result records errored trials or eval errors.
-
-    Setup-failing packages (e.g. a fail-closed cache-purge block: healthcheck
-    rc=1, no reward) surface here, never as scored grading failures.
-    """
     payload = _job_payload(job_dir)
     if not isinstance(payload, dict):
         return False

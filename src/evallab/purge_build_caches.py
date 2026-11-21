@@ -1,105 +1,3 @@
-"""Remove regenerable build/module caches from MiMo code setups (``purge-build-caches@1``).
-
-Vals' rung 5: with git and network gone the agent searches build and module
-caches for the reference patch. The image census (``research/experiments/
-vals-closure/cache-census.csv``, n=11 Python tasks) shows every image ships
-``__pycache__`` (2k-22k dirs), most ship ``.pytest_cache`` and a project
-``egg-info``, and two ship ``build/lib``. Setup's ``git clean -fdx`` already
-removes the *untracked* worktree caches before the agent starts (verified
-post-setup on 002552: zero survivors), so this transform is defense in depth
-for the shapes ``git clean`` cannot reach:
-
-* caches *tracked* in git (committed ``.pyc`` / ``.pytest_cache`` survive the
-  clean by design);
-* caches inside the setup's ``--exclude`` dirs (``node_modules/.cache``,
-  ``.vitest``) which ``git clean`` never enters.
-
-Foreign ``.pth`` / ``egg-link`` pointers (site-packages entries naming a
-project copy outside the worktree) are *reported* by
-:func:`foreign_pth_leaks` for census and validation, not deleted here:
-deleting them risks breaking installers the grader needs, and project copies
-themselves belong to ``purge-installed-copies@1``.
-
-What it does not touch, and why: dependency directories themselves
-(``node_modules``, ``.venv``, ``vendor``, ``target``, ``site-packages``) and
-shared download caches (``~/.cache/pip``, ``~/.npm``) stay, because offline
-graders compile and test from them (e.g. Go tasks build from the module
-cache; 1.2.0's own setup adds only ``node_modules/.cache`` + ``.vitest``).
-Deleting the project's own *copies* stays in ``purge-installed-copies@1``.
-
-The inserted setup block runs after ``write_blocklist`` (same anchor as
-``purge-installed-copies@1``, ordered after it) and before the mtime block,
-which anchors on the ready sentinel. It fails closed: any surviving listed
-cache stops setup before the ready sentinel is written.
-
-``purge-build-caches@2`` is the language-aware superset: the @1 sweep above
-plus this project's own entries in shared caches (pip cache wheels of the
-project, GOMODCACHE/GOCACHE entries of the project's module, the worktree
-cargo ``target/`` plus registry copies of the crate, ``~/.m2`` artifacts of
-the project, the Gradle project ``.gradle/`` dir, and npm/yarn/pnpm cache
-entries of the package). Each language section fires only when its project
-files are present, removes only the project's entries (shared dependency
-caches stay: offline graders need them), and fails setup when a listed entry
-survives. pnpm's content-addressed store has no per-package eviction, so a
-reference there fails closed for manual triage. @2 supersedes @1: it refuses
-a parent that already carries @1.
-
-``purge-build-caches@3`` adds node gitignored build outputs (``lib/``,
-``dist/``, ``build/``, ``out/``): images baked from the fixed tree carry
-the fix in compiled output that setup's ``git clean`` spares via
-``--exclude``. A dir counts as grader-used when worktree tests import
-through it, a test config or the ``test`` script names it, a self-link
-resolves through a package entry point inside it, or any tracked source
-references it as a runtime asset path (``path.join(__dirname, '..',
-'lib', ...)``, ``fromAsset`` — the shape that broke the naive delete on
-000047). Grader-unused dirs are deleted; grader-used dirs are deleted and
-rebuilt from the base tree via the package ``compile`` script (``build`` as
-fallback; compile regenerates output without running the packaged test suite), and
-setup fails when there is no build script or the rebuild does not
-regenerate them. @3 supersedes @2: it refuses @1/@2 parents.
-
-``purge-build-caches@4`` is @3 with disabled-cache tolerance. On Modal
-sandboxes pip's cache is disabled (``python3 -m pip cache dir`` exits
-non-zero with ``cache is disabled`` on stderr), so @2/@3's fail-closed
-``_pbc_dir`` precondition aborts setup before any agent phase. When pip
-reports a disabled cache — or ``PIP_NO_CACHE_DIR`` is nonempty (including
-``off``/``false``/``0``, which pip also interprets as disabling its cache
-for backwards compatibility) — @4 treats the pip-cache commands as
-not-applicable with a logged reason. Existing cache directories at
-``$PIP_CACHE_DIR``, ``~/.cache/pip``, ``/root/.cache/pip`` and
-``$XDG_CACHE_HOME/pip`` are removed completely and verified absent
-fail-closed. The same rule covers any other leg whose tool reports
-a disabled cache (``GOCACHE=off`` logs its reason and removes stale
-standard-location build caches while retaining the module-cache purge).
-@1-@3 outputs are byte-unchanged; @4 supersedes @3
-and refuses @1/@2/@3 parents.
-
-``purge-build-caches@5`` is @4 with the node build-output handling generalized
-to any depth. @3/@4 scanned only ``$CWD`` itself, so monorepo package outputs
-(``packages/*/lib``) baked from the fixed tree survived: setup's ``git clean
---exclude=lib`` spares every lib-named dir while the block never looked
-inside (format-code-task-000919: ``packages/babel-plugin-idx/lib`` with
-post-fix bytes). Each candidate output dir (``lib``, ``dist``, ``build``,
-``out``, ``es``, ``esm``, ``cjs``) is attributed to its nearest
-``package.json`` scope (or ``$CWD`` when orphaned) and must be both ignored
-and untracked; tracked outputs stay (``strip`` owns them) and non-ignored
-ones stay (``git clean`` owns them). A dir counts as grader-used when the
-scope's tests import through it, a scope or root test config names it, any
-tracked source under the scope references it, or a workspace self-link
-resolves through a package entry segment inside it (``main``/``types``/
-``exports`` first segments, so ``cjs``/``esm`` entry points count).
-Grader-unused dirs are deleted; grader-used dirs are deleted and rebuilt
-from the base tree via the scope's (else the root's) ``compile``/``build``
-script, and setup fails when there is no build script or the rebuild does
-not regenerate them. Partial (per-file) neutralization was rejected: a
-half-deleted output dir breaks module resolution exactly like a full delete
-but keeps the leak surface. @5 supersedes @4 and refuses @1-@4 parents;
-chain adoption is the clean-set owner's call.
-
-Grading (``tests/``), the instruction and the image are unchanged. The setup
-is re-embedded in the task.toml healthcheck payload, which is what executes.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -112,15 +10,8 @@ from evallab.task_variants import VariantInvalid, VariantRecord, derive_task
 
 MARKER = "purge-build-caches@1"
 SETUP_REL = "environment/setup/setup.sh"
-#: Same anchor as purge-installed-copies: this block is appended after the
-#: ``write_blocklist`` call, so it runs after the installed-copy purge and
-#: before the mtime-normalize block at the ready sentinel.
 ANCHOR = "\nwrite_blocklist\n"
 
-#: Worktree cache names deleted wherever they appear under $CWD (outside
-#: .git). All are regenerable: Python/pytest/mypy/ruff/hypothesis/tox/nox
-#: caches, coverage output, and JS build caches. Dependency dirs and project
-#: copies (build/, egg-info) are intentionally absent here.
 CACHE_NAMES = (
     "__pycache__",
     ".pytest_cache",
@@ -133,7 +24,6 @@ CACHE_NAMES = (
     ".vitest",
 )
 
-#: File-name globs deleted under $CWD (outside .git).
 CACHE_GLOBS = (
     "*.pyc",
     "*.pyo",
@@ -155,13 +45,6 @@ _cache_left=$(find "$CWD" -path "$CWD/.git" -prune -o \\( -name "__pycache__" -o
 [ -z "$_cache_left" ] || fail "purge-build-caches@1 left caches: $_cache_left"
 
 """
-#: Project-cache purge appended after the @1 sweep by ``shell_block_v2``.
-#: Each language section fires only when its project files are present under
-#: $CWD, removes only this project's entries from shared caches, and fails
-#: setup when a listed entry survives. Env overrides (GOMODCACHE, GOCACHE,
-#: CARGO_HOME, PIP_CACHE_DIR, npm_config_cache, YARN_CACHE_FOLDER,
-#: PNPM_STORE_PATH) are respected so setups with relocated caches purge the
-#: right directories.
 LANG_BLOCK = """\\
 # purge-build-caches@2: language-aware project-cache purge (runs after @1).
 # Python: this project's wheels in the pip download cache.
@@ -356,11 +239,6 @@ if [ -f "$CWD/package.json" ]; then
 fi
 
 """
-#: Node gitignored build-output handling appended by ``shell_block_v3``.
-#: Compiled output (lib/, dist/, build/, out/) baked from the fixed tree
-#: carries the fix, and setup's ``git clean`` spares some of these via
-#: ``--exclude``. Tests importing from src/ never need them (delete);
-#: tests resolving through them need a base-tree rebuild (else fail closed).
 NODE_BUILD_BLOCK = """\\
 # purge-build-caches@3: node gitignored build outputs (lib/, dist/, build/, out/).
 if [ -f "$CWD/package.json" ]; then
@@ -428,11 +306,6 @@ if [ -f "$CWD/package.json" ]; then
 fi
 
 """
-#: Node build-output handling for ``shell_block_v5``: the ``NODE_BUILD_BLOCK``
-#: logic generalized to any depth (000919: ``packages/*/lib``). Candidates are
-#: attributed to the nearest ``package.json`` scope so per-package build
-#: scripts and entry points apply; ``es``/``esm``/``cjs`` join the dir list
-#: because ``main``/``exports`` commonly point into them.
 NODE_BUILD_BLOCK_V5 = """\
 # purge-build-caches@5: node compiled outputs at any depth (lib/, dist/, build/, out/, es/, esm/, cjs/).
 # @3/@4 scanned only $CWD itself, so monorepo package outputs (packages/*/lib) baked from the
@@ -565,34 +438,16 @@ fi
 
 """
 
-#: Build-output dir names handled by ``shell_block_v5`` (recorded in @5
-#: lineage inputs). ``es``/``esm``/``cjs`` join the @3/@4 four because
-#: ``main``/``exports`` commonly point into them.
 BUILD_OUTPUT_DIRS_V5 = ("lib", "dist", "build", "out", "es", "esm", "cjs")
 
 TRANSFORM_ID_V4 = "purge-build-caches@4"
 MARKER_V4 = "purge-build-caches@4"
 
-#: Legs whose tool can report a disabled cache (recorded in @4 lineage
-#: inputs). Every other leg is directory-gated: with no cache directory
-#: present there is nothing to purge and the section stays silent.
 DISABLED_TOLERANT_LEGS = (
     "python-pip",
     "go-build",
 )
 
-#: Python/pip leg for ``purge-build-caches@4``. The enabled path is the
-#: @2/@3 leg verbatim (same ``@2`` messages: inherited text keeps its
-#: original id, as ``CACHE_BLOCK`` keeps ``@1`` under @2/@3). The new
-#: disabled path fires when pip reports a disabled cache
-#: (``python3 -m pip cache dir`` exits non-zero with ``cache is disabled``
-#: on stderr — the Modal sandbox shape) or ``PIP_NO_CACHE_DIR`` is nonempty.
-#: Pip's option callback disables caching even for false-like values
-#: (``off``/``false``/``0``), for backwards compatibility. Cache commands are
-#: skipped with a logged reason, but existing on-disk cache directories are
-#: removed entirely and verified absent. Filename filtering would leave
-#: content-addressed HTTP bodies, and a disabled cache cannot provide
-#: dependency wheels to the offline grader anyway.
 PIP_LEG_V4 = """\
 # Python: this project's wheels in the pip download cache.
 if [ -f "$CWD/pyproject.toml" ] || [ -f "$CWD/setup.py" ] || [ -f "$CWD/setup.cfg" ]; then
@@ -662,11 +517,8 @@ PY
 fi
 """
 
-#: Markers bounding the pip leg inside ``LANG_BLOCK`` for the @4 derivation.
-#: The Go leg starts immediately after the pip leg's closing ``fi``.
 _PIP_LEG_START = "# Python: this project's wheels in the pip download cache.\n"
 _GO_LEG_START = "# Go: this module's entries in the module cache"
-#: The disabled Go build-cache path logs its reason and removes stale caches.
 _GO_OFF_OLD = '  [ "$_pbc_gocache" = "off" ] && _pbc_gocache=""\n'
 _GO_OFF_V4 = """\
   if [ "$_pbc_gocache" = "off" ]; then
@@ -693,10 +545,6 @@ if (
     raise RuntimeError("purge-build-caches@4 pip-leg anchor moved; update PIP_LEG_V4")
 if LANG_BLOCK.count(_GO_OFF_OLD) != 1:
     raise RuntimeError("purge-build-caches@4 go-off anchor moved; update _GO_OFF_V4")
-#: @4 language block: @3 text with the pip leg swapped for the
-#: disabled-tolerant ``PIP_LEG_V4`` and the ``GOCACHE=off`` stale-cache purge.
-#: Everything else (including ``@1``/``@2`` messages in inherited text) is
-#: byte-identical to @3.
 LANG_BLOCK_V4 = (LANG_BLOCK[:_pip_start] + PIP_LEG_V4 + LANG_BLOCK[_go_start:]).replace(
     _GO_OFF_OLD, _GO_OFF_V4
 )
@@ -704,7 +552,6 @@ LANG_BLOCK_V4 = (LANG_BLOCK[:_pip_start] + PIP_LEG_V4 + LANG_BLOCK[_go_start:]).
 
 MARKER_V2 = "purge-build-caches@2"
 
-#: Language sections in ``LANG_BLOCK`` (recorded in @2 lineage inputs).
 LANGUAGE_SECTIONS = (
     "python-pip",
     "go-mod",
@@ -727,17 +574,14 @@ MARKER_V5 = "purge-build-caches@5"
 
 
 def shell_block_v5() -> str:
-    """@4 plus recursive node build-output handling. Fail closed."""
     return CACHE_BLOCK + LANG_BLOCK_V4 + NODE_BUILD_BLOCK_V5
 
 
 def shell_block_v4() -> str:
-    """@3 plus disabled-cache tolerance in the pip leg. Fail closed."""
     return CACHE_BLOCK + LANG_BLOCK_V4 + NODE_BUILD_BLOCK
 
 
 def build_setup_sh_v4(parent_setup_sh: str) -> str:
-    """Parent ``setup.sh`` plus the @4 block. Refuses @1/@2/@3/@4 parents and bare setups."""
     if MARKER_V4 in parent_setup_sh:
         raise VariantInvalid("parent setup.sh already carries purge-build-caches@4")
     if MARKER_V3 in parent_setup_sh:
@@ -758,7 +602,6 @@ def build_setup_sh_v4(parent_setup_sh: str) -> str:
 
 
 def build_setup_sh_v5(parent_setup_sh: str) -> str:
-    """Parent ``setup.sh`` plus the @5 block. Refuses @1/@2/@3/@4/@5 parents and bare setups."""
     if MARKER_V5 in parent_setup_sh:
         raise VariantInvalid("parent setup.sh already carries purge-build-caches@5")
     if MARKER_V4 in parent_setup_sh:
@@ -807,7 +650,6 @@ def _read_parent(parent_dir: Path) -> tuple[str, str, str, str]:
 def build_changes_v4(
     parent_dir: Path | str,
 ) -> tuple[dict[str, bytes | None], dict[str, Any]]:
-    """Build the ``derive_task`` changes mapping plus lineage inputs for @4."""
     parent = Path(parent_dir)
     task_name, workdir, image, setup_sh = _read_parent(parent)
     new_setup = build_setup_sh_v4(setup_sh)
@@ -848,7 +690,6 @@ def derive_purge_build_caches_v4(
     parent_source: dict[str, Any] | None = None,
     variants_root: Path | str | None = None,
 ) -> VariantRecord:
-    """Derive ``purge-build-caches@4`` for a MiMo task package."""
     parent = Path(parent_dir)
     changes, inputs = build_changes_v4(parent)
     kwargs: dict[str, Any] = {}
@@ -872,7 +713,6 @@ def derive_purge_build_caches_v4(
 def build_changes_v5(
     parent_dir: Path | str,
 ) -> tuple[dict[str, bytes | None], dict[str, Any]]:
-    """Build the ``derive_task`` changes mapping plus lineage inputs for @5."""
     parent = Path(parent_dir)
     task_name, workdir, image, setup_sh = _read_parent(parent)
     new_setup = build_setup_sh_v5(setup_sh)
@@ -917,7 +757,6 @@ def derive_purge_build_caches_v5(
     parent_source: dict[str, Any] | None = None,
     variants_root: Path | str | None = None,
 ) -> VariantRecord:
-    """Derive ``purge-build-caches@5`` for a MiMo task package."""
     parent = Path(parent_dir)
     changes, inputs = build_changes_v5(parent)
     kwargs: dict[str, Any] = {}

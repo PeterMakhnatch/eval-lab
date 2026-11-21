@@ -1,34 +1,3 @@
-"""Isolated artifact, unified-patch, and explicit solution-bundle replay.
-
-``run_candidate(task, files={"answer.txt": "good"}, target_dir="/app")``
-installs artifacts, not executable scripts. A directory passed as ``files`` has
-exactly the same meaning even if it contains solve.sh. Only ``solution_bundle``
-executes a caller's solve.sh, using the existing native solution-directory mode.
-``patch`` is unified-diff text (or an explicit Path), applied by the task image's
-``patch`` executable inside its fresh environment. Missing image dependencies
-are execution errors, never host-side installation or an invented reward.
-
-``run_candidates`` accepts an ordered sequence of candidate keyword mappings.
-Execution policy is batch-wide: candidates cannot override the backend, local
-Docker permission, cap, approval, ledger, app, billing tag, timeout, or evidence
-locations. Modal uses only the native runner's durable reservation ledger. The
-cap bounds admitted conservative reservations, not provider invoices or a provider billing switch.
-The known GA hosted-verifier-judge contract is refused before allocation: this
-lane has no authorization or meter for that separate API. This is not a generic
-detector of arbitrary external costs embedded in task scripts.
-Local/auto trials serialize, including across this lane's cooperating processes;
-Modal trials may overlap up to max_concurrency. Native Docker admission remains
-in force independently of the lane lock.
-
-Plans only read source inputs. They do not stage packages, import optional
-runtimes, inspect/write the ledger, probe Docker, or call providers. Therefore
-live admission and remaining-cap checks are explicitly deferred. A port plan
-retains the adapter's pure description; its native reservation and build-context
-identities become available after local package preparation during execution.
-Image source digests are not cache keys/hits. Actual native environment/image
-identities come exclusively from hydrated native runtime observations.
-"""
-
 from __future__ import annotations
 
 import contextlib
@@ -115,7 +84,6 @@ def _input_roots(request: Mapping[str, Any], *, ignore_invalid: bool = False) ->
     roots = []
     for name in ("task", "port_task", "solution_bundle", "files", "patch"):
         value = request.get(name)
-        # A patch string is always text, never an implicitly opened host path.
         if isinstance(value, Path) or (name != "patch" and isinstance(value, str)):
             try:
                 roots.append(Path(value).expanduser().resolve())
@@ -178,7 +146,6 @@ def _patch_path(value: str, strip: int) -> str | None:
 
 
 def _validate_patch(data: bytes, strip: int) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    """Validate regular-file unified hunks and return targets/final deletions."""
     try:
         text = data.decode("utf-8")
     except UnicodeDecodeError as exc:
@@ -333,7 +300,6 @@ def _payload(
 
 
 def _known_external_dependencies(config: Mapping[str, Any]) -> list[dict[str, Any]]:
-    """Recognize the native GA hosted-judge contract, not arbitrary task costs."""
     environment = (config.get("verifier") or {}).get("env") or {}
     if (
         isinstance(environment, Mapping)
@@ -392,15 +358,11 @@ def _prepare(
         adapter = describe_port_task(package, port_task)
         port_source = _source_path(port_task)
         sources.append((port_source, _source_digest(port_source)))
-        # Check universal native options without allocating a temporary package.
         if type(timeout_seconds) is not int or timeout_seconds <= 0:
             raise native.GraderRefusal("timeout_seconds must be an explicit positive integer")
         if platform not in {None, "linux/amd64", "linux/arm64"}:
             raise native.GraderRefusal("platform must be linux/amd64 or linux/arm64")
     else:
-        # Planning only: explicit Modal is the Compose route, and a Modal
-        # plan without approval/ledger refuses inside admission before any
-        # ledger access; real admission re-runs at execution.
         prepared_native = native.plan_upstream_grader(
             package, blank=True, backend="modal" if backend == "modal" else "auto", platform=platform, timeout_seconds=timeout_seconds
         )
@@ -523,9 +485,7 @@ def _stage_payload(prepared: _Prepared, output: Path) -> Path:
             script += f"destination=\"${{target%/}}\"/{shlex.quote(name)}\n"
             script += 'check_destination "$destination"\nmkdir -p -- "$(dirname -- "$destination")"\n'
             script += f'cp -p -- /solution/payload/{index} "$destination"\n'
-        # Apply directory modes last, so read-only input directories can be installed.
         for name, mode in reversed(payload.directories):
-            # BSD chmod treats -- after the mode as a filename; paths are absolute.
             script += f"chmod {mode & 0o777:o} \"${{target%/}}\"/{shlex.quote(name)}\n"
     else:
         assert payload.patch is not None
@@ -536,8 +496,6 @@ def _stage_payload(prepared: _Prepared, output: Path) -> Path:
             f'patch --batch --forward --fuzz=0 --no-backup-if-mismatch --reject-file=- '
             f'-p{prepared.patch_strip} -d "$target" < /solution/candidate.patch\n'
         )
-        # BSD patch can retain an empty file for an explicit +++ /dev/null
-        # deletion. Never use -E: that would also erase legitimate empty files.
         for name in payload.patch_deletions:
             script += f"destination=\"${{target%/}}\"/{shlex.quote(name)}\n"
             script += 'check_destination "$destination"\n'
@@ -579,8 +537,6 @@ def _local_lane(
         yield
         return
     require_local_docker(allow_local_docker=allow_local_docker)
-    # Native slots=1 still applies. This lane lock also covers concurrent API
-    # callers/processes, and intentionally serializes auto's possible Docker work.
     with _LOCAL_TRIAL_LOCK:
         directory = default_state_dir()
         directory.mkdir(parents=True, exist_ok=True)
@@ -657,18 +613,6 @@ def run_candidate(
     output_dir: Path | str | None = None,
     plan: bool = False,
 ) -> dict[str, Any]:
-    """Return a native grade or explicit unmeasured refusal/error.
-
-    Mapping keys and directory members are relative to target_dir. str values
-    are UTF-8 content; bytes are preserved. ``patch`` str is content, not a host
-    filename. Pass Path for a patch file. Unified patches support regular-file
-    add/change/delete hunks, not renames, binary data, or symlink creation.
-    Existing inputs/evidence are never overwritten. Single-input refusals with
-    unsafe evidence paths cannot write evidence and return output_dir=None.
-    ``allow_local_docker=False`` or EVALLAB_DISABLE_LOCAL_DOCKER=1 forbids local
-    execution; ``auto`` then selects Modal with the same explicit cloud policy.
-    True never overrides the environment switch, including at native startup.
-    """
     output = (
         Path(output_dir).expanduser().resolve()
         if output_dir is not None

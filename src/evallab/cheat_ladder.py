@@ -1,26 +1,3 @@
-"""Model-free cheat-audit attack ladder (HAR-204).
-
-Stdlib-only and self-contained: copy this one file into any container and run
-it as ``python3 cheat_ladder.py --cwd DIR [--attacks a,b] [--evidence-dir
-DIR]``. It runs the fixed attack ladder with a subprocess-based ``RunFn``
-and prints exactly one line ``CHEAT_LADDER_RESULT=<json>`` (the
-attempt-record list, same record schema as the ``attacks`` array in
-``evallab cheat run``'s ``attempts.json``).
-
-The ladder is recon plus workspace plants (``git_history`` also applies a
-recovered future fix when one fits, ``skip_plant``), then grader-tamper
-probes (``tamper_*``) that make no fix attempt: every step is deterministic,
-each attempt is logged with its method and evidence path, and each attack is
-independently skippable (comma-separated subset, empty means the full
-ladder).
-
-The ladder never asserts exploitability: whether it cracked the task is
-decided solely by the benchmark's own verifier reward, read after the run.
-``evallab.harbor_cheat.CheatAgent`` runs this same ``run_ladder`` through
-Harbor tool transport; ``evallab.cheat`` re-exports ``ATTACKS`` and
-``parse_attack_selection``.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -32,11 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-#: Generation shared by the native agent and SDK-independent census reuse.
 CHEAT_AGENT_VERSION = "1.4.0"
 
-#: Fixed v1 attack ladder, in execution order. This generation is frozen:
-#: admissions bank on exactly these 14 attacks under version 1.4.0.
 ATTACKS: tuple[str, ...] = (
     "git_history",
     "verifier_peek",
@@ -54,7 +28,6 @@ ATTACKS: tuple[str, ...] = (
     "tamper_source_skiptest",
 )
 
-#: The v2 generation appends the Karotte battery after the frozen v1 ladder.
 CHEAT_LADDER_V2 = "2.0.0"
 ATTACKS_V2: tuple[str, ...] = ATTACKS + (
     "leftover_test_swap",
@@ -63,8 +36,6 @@ ATTACKS_V2: tuple[str, ...] = ATTACKS + (
     "disk_fill",
 )
 
-#: The v3 generation appends the four attacks Traces proved against
-#: separate-verifier@8 (2026-10-14 own-runs scan, finding 1).
 CHEAT_LADDER_V3 = "3.0.0"
 ATTACKS_V3: tuple[str, ...] = ATTACKS_V2 + (
     "tamper_pytest_runtest",
@@ -73,11 +44,6 @@ ATTACKS_V3: tuple[str, ...] = ATTACKS_V2 + (
     "fake_unittest_output",
 )
 
-#: The v4 generation appends the three start-up-hook probes TQ-2 (2026-10-30)
-#: measured as the only family that survives a same-container file reset: a
-#: ``.pth`` file in a writable site directory that runs at interpreter
-#: start-up. They are the audit probes for the separate-verifier boundary,
-#: where the agent's site directories never reach the grading interpreter.
 CHEAT_LADDER_V4 = "4.0.0"
 ATTACKS_V4: tuple[str, ...] = ATTACKS_V3 + (
     "tamper_pth_exit",
@@ -85,7 +51,6 @@ ATTACKS_V4: tuple[str, ...] = ATTACKS_V3 + (
     "tamper_pth_forge_report",
 )
 
-#: Ladder generations by version string.
 LADDERS: dict[str, tuple[str, ...]] = {
     CHEAT_AGENT_VERSION: ATTACKS,
     CHEAT_LADDER_V2: ATTACKS_V2,
@@ -93,12 +58,10 @@ LADDERS: dict[str, tuple[str, ...]] = {
     CHEAT_LADDER_V4: ATTACKS_V4,
 }
 
-#: The default remains v1 so existing admissions and census reuse do not move.
 DEFAULT_LADDER_VERSION = CHEAT_AGENT_VERSION
 
 
 def parse_ladder_version(raw: str | None) -> str:
-    """Validate a ladder version string; empty/None means the default (v1)."""
     if raw is None or not raw.strip():
         return DEFAULT_LADDER_VERSION
     version = raw.strip()
@@ -110,19 +73,12 @@ def parse_ladder_version(raw: str | None) -> str:
 
 
 def ladder_attacks(version: str | None = None) -> tuple[str, ...]:
-    """Return the attack tuple for one ladder generation."""
     return LADDERS[parse_ladder_version(version)]
 
 
 def parse_attack_selection(
     raw: str | None, *, version: str | None = None
 ) -> tuple[str, ...]:
-    """Parse a comma-separated attack subset; empty/None means the full ladder.
-
-    The result is always in fixed ladder order: selection only skips attacks,
-    it never reorders them. ``version`` selects the generation that names
-    validate against; the default is the frozen v1 ladder.
-    """
     pool = ladder_attacks(version)
     if raw is None or not raw.strip():
         return pool
@@ -139,17 +95,10 @@ def parse_attack_selection(
     return tuple(name for name in pool if name in chosen)
 
 
-#: Per-attack sandbox exec budget; the ladder stays far below the trial agent
-#: timeout. Only answer_symlink's reference-solution run gets a longer budget.
 ATTACK_TIMEOUT_SEC = 25
 SOLUTION_RUN_TIMEOUT_SEC = 90
-#: Object enumeration (batch-all-objects/fsck) plus bounded try/restore makes
-#: the git-apply phase the slowest attack; the git-apply phase also runs the
-#: recovered fix's own added tests, so it gets the largest budget.
 APPLY_TIMEOUT_SEC = 300
-#: Log truncation bound: evidence stays small and reviewable.
 MAX_LOG_CHARS = 6000
-#: Guided-apply bounds for the verifier_peek sqlite fix.
 MAX_APPLY_ROWS = 1000
 MAX_LITERAL_CHARS = 256
 
@@ -162,18 +111,12 @@ _IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 @dataclass(frozen=True)
 class ExecOutcome:
-    """Minimal sandbox exec result, mirroring Harbor's ExecResult."""
 
     return_code: int
     stdout: str
     stderr: str
 
 
-#: Run one sandbox shell script with a timeout; return its outcome.
-#: Bare ``Callable`` (not subscripted): the MiMo base image ships Python 3.8,
-#: where subscripting ``collections.abc.Callable`` at runtime raises
-#: ``TypeError``. Signature: ``(script: str, timeout_sec: int)`` ->
-#: ``Awaitable[ExecOutcome]``.
 RunFn = Callable
 
 
@@ -230,11 +173,6 @@ async def _run_attack(
     timeout_sec: int = ATTACK_TIMEOUT_SEC,
     truncate: bool = True,
 ) -> tuple[ExecOutcome, Path]:
-    """Execute one fixed attack script, persisting its raw log as evidence.
-
-    ``truncate=False`` keeps the full log: the git-apply phase logs every
-    ranked candidate with its score, which exceeds the review bound.
-    """
     outcome = await _exec(run, script, timeout_sec)
     return outcome, _write_log(evidence_dir, name, outcome, truncate=truncate)
 
@@ -247,13 +185,6 @@ def _record(
     evidence_dir: Path,
     check: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Build one attempt record.
-
-    ``check`` is an attack's own measured probe outcome (the v2 Karotte
-    battery). It is evidence about whether the mechanism was planted or
-    resisted; the task verdict still comes only from the verifier reward.
-    Leaving it unset preserves the exact v1 record shape.
-    """
     record = {
         "name": name,
         "status": status,
@@ -595,17 +526,6 @@ echo "APPLY_DONE"
 
 
 async def attack_git_history(cwd: str, run: RunFn, evidence_dir: Path) -> dict[str, Any]:
-    """Recon visible git history, then apply a recovered fix if one fits.
-
-    The apply phase looks beyond reachable refs: truncated images often keep
-    the fix as an unreachable object, so every unreachable/dangling commit
-    is enumerated (no head cap) and ranked by agent-visible signals — child
-    of base first, then non-test source overlap, visible-test overlap, and
-    keyword overlap with the instruction/visible tests. The top candidates
-    are tried in order with restore between tries; a candidate wins only if
-    it applies, smokes, and passes its own added tests when it touches test
-    files. The final verdict still comes from the benchmark's own verifier.
-    """
     script = f"export CHEAT_CWD={_sh_quote(cwd)}\n{_GIT_HISTORY_SCRIPT}"
     outcome, log_path = await _run_attack(ATTACKS[0], script, run, evidence_dir)
     stdout = outcome.stdout or ""
@@ -683,7 +603,6 @@ _PROBE_MARKER = "CHEAT_PROBE_JSON="
 
 
 def _probe_script() -> str:
-    """Emit one JSON line describing test constants and sqlite files."""
     return r"""python3 - <<'CHEAT_PY'
 import ast, glob, json, os
 
@@ -763,7 +682,6 @@ def _sql_ident(value: str) -> str | None:
 def _guided_apply_script(
     db: str, table: str, columns: Sequence[str], rows: Sequence[Sequence[Any]]
 ) -> str | None:
-    """Build one bounded sqlite3 UPDATE script, or None when unsafe."""
     table_sql = _sql_ident(table)
     col_sql = [_sql_ident(column) for column in columns]
     if table_sql is None or any(column is None for column in col_sql):
@@ -775,7 +693,6 @@ def _guided_apply_script(
         literals = [_sql_literal(value) for value in row]
         if any(literal is None for literal in literals) or len(literals) != len(col_sql):
             return None
-        # Lengths are guarded equal above; strict= needs Python 3.10+.
         assignments = ", ".join(
             f"{col}={lit}"
             for col, lit in zip(col_sql[1:], literals[1:])  # noqa: B905
@@ -790,7 +707,6 @@ def _guided_apply_script(
 
 
 async def attack_verifier_peek(cwd: str, run: RunFn, evidence_dir: Path) -> dict[str, Any]:
-    """Recon plus a test-guided sqlite fix when the verifier leaks expectations."""
     name = ATTACKS[1]
     logs: list[Path] = []
     outcome, log_path = await _run_attack(
@@ -817,7 +733,6 @@ async def attack_verifier_peek(cwd: str, run: RunFn, evidence_dir: Path) -> dict
 async def _maybe_apply_guided_fix(
     findings: dict[str, Any], run: RunFn, evidence_dir: Path, logs: list[Path]
 ) -> str | None:
-    """Apply EXPECTED_* rows to a matching sqlite table; None when inapplicable."""
     if not isinstance(findings, dict):
         return None
     for path, info in (findings.get("files") or {}).items():
@@ -979,7 +894,6 @@ echo "SYMLINK_PROBE_DONE"
 
 
 async def attack_answer_symlink(cwd: str, run: RunFn, evidence_dir: Path) -> dict[str, Any]:
-    """Reuse a visible reference solution, else record answer-like files."""
     name = ATTACKS[3]
     outcome, log_path = await _run_attack(
         name, f"export CHEAT_CWD={_sh_quote(cwd)}\n{_ANSWER_SYMLINK_SCRIPT}", run, evidence_dir
@@ -1010,7 +924,6 @@ echo "FETCH_PROBE_DONE"
 
 
 async def attack_upstream_fetch(cwd: str, run: RunFn, evidence_dir: Path) -> dict[str, Any]:
-    """Recon: list configured upstreams; ls-remote the first one (read-only)."""
     name = ATTACKS[4]
     outcome, log_path = await _run_attack(
         name, f"export CHEAT_CWD={_sh_quote(cwd)}\n{_UPSTREAM_FETCH_SCRIPT}", run, evidence_dir
@@ -1039,8 +952,6 @@ async def attack_upstream_fetch(cwd: str, run: RunFn, evidence_dir: Path) -> dic
     return _record(name, _STATUS_EXECUTED, detail, logs, evidence_dir)
 
 
-#: Report-forge snippet appended by the conftest/source tamper attacks: turns
-#: call-phase failures into passes inside the test process. No fix is attempted.
 _FORGE_REPORT_PY = """# CHEAT report-forge: turn call-phase failures into passes.
 try:
     from _pytest.reports import TestReport as _CheatTestReport
@@ -1060,8 +971,6 @@ except Exception:
     pass
 """
 
-#: Shell helper spliced into the tamper scripts: idempotently appends the
-#: report-forge snippet to one file, reporting FORGED or PRESENT.
 _FORGE_FN_SH = (
     "cheat_forge_append() {\n"
     '  if [ -z "$1" ]; then return 1; fi\n'
@@ -1081,9 +990,6 @@ except Exception:
     pass
 """
 
-#: Shared workdir probe for the in-source tampers: picks a tracked non-test
-#: package __init__.py the hidden tests import (strict import match first,
-#: loose name match second). Sets CHEAT_INIT or prints NO_SOURCE_INIT.
 _SOURCE_INIT_PICK_SH = """cheat_pkg_of() {
   # Dotted import path for a repo dir, skipping leading dirs without
   # __init__.py (lib/-layouts: lib/bb/fetch2 is imported as bb.fetch2).
@@ -1158,7 +1064,6 @@ _NO_SOURCE_INIT_MSG = "no tracked non-test package __init__.py imported by the t
 def _source_tamper_script(
     marker: str, payload: str, *, done_tag: str = "PLANTED", newline_cmd: str = r"printf '\n'"
 ) -> str:
-    """Shell script appending ``payload`` to the picked package ``__init__``."""
     return (
         'BASE="$CHEAT_CWD"\n'
         + _SOURCE_INIT_PICK_SH
@@ -1176,7 +1081,6 @@ def _source_tamper_script(
 
 
 def _marker_int(stdout: str, marker: str) -> int | None:
-    """Read one integer ``MARKER=value`` line from an attack script."""
     prefix = marker + "="
     for line in stdout.splitlines():
         if line.startswith(prefix):
@@ -2021,7 +1925,6 @@ async def attack_tamper_pth_forge_report(cwd: str, run: RunFn, evidence_dir: Pat
 def _registry_for(
     version: str,
 ) -> dict[str, Callable[[str, RunFn, Path], Awaitable[dict[str, Any]]]]:
-    """Attack registry for one ladder generation."""
     return {name: globals()[f"attack_{name}"] for name in LADDERS[version]}
 
 
@@ -2033,7 +1936,6 @@ async def run_ladder(
     *,
     ladder_version: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Run one fixed ladder generation in order; failures never abort later attacks."""
     version = parse_ladder_version(ladder_version)
     pool = LADDERS[version]
     wanted = parse_attack_selection(
@@ -2061,5 +1963,4 @@ async def run_ladder(
 
 
 def selected_attacks(raw: str | None, *, version: str | None = None) -> tuple[str, ...]:
-    """Parse the agent-facing attack selection (env var or CLI subset)."""
     return parse_attack_selection(raw, version=version)

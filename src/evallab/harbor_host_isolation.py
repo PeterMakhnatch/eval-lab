@@ -1,23 +1,3 @@
-"""Multi-service Docker host isolation, enforced before sandbox execution.
-
-Reuse the creation/mount/privilege validation of the strict egress-lock backend,
-then attach a fresh isolated bridge only after installing a kernel destination
-filter in every project container. The sandbox's ordinary root lacks NET_ADMIN
-and NET_RAW. Only the trusted controller briefly uses privileged exec to
-install/inspect the matched nft tool.
-
-Tasks that ship their own ``environment/docker-compose.yaml`` (e.g. CheatBench
-checker sidecars) run each declared service under the same creation-time lock
-as ``main``: ``network_mode: none``, immutable capability drops and
-``no-new-privileges`` on every container, no host bind mounts on sidecars, and
-a per-container nft destination boundary installed before any network is
-attached. Sidecars keep their own entrypoint so their servers start normally.
-The shared project network afterwards uses a subnet outside the filter's
-blocked ranges (Docker's default pools are all blocked on purpose), allocated
-per sandbox from ``_ISOLATION_SUBNET_CANDIDATES``; on an ``--internal`` network
-that subnet provably cannot route anywhere but the project containers.
-"""
-
 from __future__ import annotations
 
 import contextlib
@@ -61,48 +41,11 @@ _TOOL_TARGET = "/opt/evallab-host-isolation"
 _PHASE_SWITCH_MODES = frozenset({NetworkMode.PUBLIC, NetworkMode.NO_NETWORK})
 _TESTS_DIR = "/tests"
 _SETUP_BUNDLE_NAME = PurePosixPath(V2_SETUP_SUBDIR).name
-#: Per-sandbox project-network subnets, tried in order until `docker network
-#: create --subnet` succeeds (a stale network may hold an earlier slice).
-#: Docker's default pools (rfc1918/100.64/10, Docker Desktop host space) are
-#: ALL denied by the nft destination boundary on purpose, so a default-pool
-#: subnet would leave `main` unable to reach its own sidecars (verified:
-#: connection refused under the installed filter). These /28 slices sit in
-#: 192.31.196.0/24 (AS112-v4 sink, RFC 7535): no legitimate sandbox
-#: destination lives there, and on an `--internal` network the subnet cannot
-#: route anywhere but the project containers. The public-mode shadow is 16
-#: anycast-sink addresses, never registries, APIs, or the Claude bridge.
 _ISOLATION_SUBNET_CANDIDATES = tuple(f"192.31.196.{base}/28" for base in range(0, 256, 16))
 
 
 class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
-    """Native Harbor Docker with a mandatory controller/private-network boundary.
 
-    Public internet is retained when the source baseline is public. Non-public
-    allowlists are refused rather than silently weakened. Task-provided Compose
-    sidecars are accepted and locked per service (see below). The explicit
-    egress_lock backend remains the stronger all-network deny option and stays
-    strict single-container.
-
-    The single permitted phase switch is agent ``no-network`` ↔ setup/verifier
-    ``public`` (the mimo-clean-v5 contract): the nft destination boundary is
-    installed before the first public attachment and stays in force across
-    every disconnect/reconnect, and the no-network phase keeps no attachment
-    at all. Any allowlist or other phase mode is refused at construction and
-    at switch time.
-
-    Multi-service tasks (a task ``environment/docker-compose.yaml`` declaring
-    sidecars besides ``main``, e.g. CheatBench checkers): the overlay applies
-    creation-time lock settings to every service, every container is confirmed
-    against the daemon evidence, each container gets its own nft boundary
-    (sidecars always strict, never the Claude bridge exception), and the
-    shared project network uses an isolated subnet (see
-    ``_ISOLATION_SUBNET_CANDIDATES``) with per-service ``--alias`` names so
-    ``main`` reaches sidecars without weakening the filter.
-    """
-
-    # Task sidecars are locked per service (overlay + daemon confirmation +
-    # per-container nft), so task-provided Compose is accepted here while the
-    # explicit egress-lock backend stays strict single-container.
     _allow_task_compose = True
 
     def __init__(
@@ -121,7 +64,6 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
         if raw_port is not None and isolation_lane != "claude-code":
             raise ValueError("only the Claude lane may admit a host bridge")
         if raw_port is not None:
-            # Validate the complete tuple before Docker work, not after creation.
             nft_rules((), ("192.0.2.1",), raw_port)
         self._bridge_port = raw_port
         self._bridge_addresses: tuple[str, ...] = ()
@@ -156,9 +98,6 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
                     "the no-network/public pair"
                 )
         self._declared_phase_policies = tuple(declared)
-        # Forward only baseline repeats; retain the declared pair for this
-        # subclass's real disconnect/reconnect path rather than the strict
-        # base's immutable no-network assertions.
         forward = [policy for policy in declared if policy == baseline]
         args, kwargs = self._replace_phase_policies(args, kwargs, forward)
         super().__init__(*args, egress_lock=True, **kwargs)
@@ -207,20 +146,9 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
         policy = network_policy or self.network_policy
         if policy.network_mode not in _PHASE_SWITCH_MODES:
             raise ValueError("host-isolation refuses network allowlists")
-        # Both directions of the no-network/public pair are applied through
-        # disconnect/reconnect with the nft boundary preserved; the strict
-        # base-class switch refusal does not apply to this pair.
 
 
     def _task_compose_service_names(self) -> list[str]:
-        """Service names declared by the task's own Compose file, if any.
-
-        Merged after Harbor's base/build fragments and before this wrapper's
-        lock overlay, so the overlay (and later the resolved-config and daemon
-        confirmation) must cover exactly these plus ``main``. Anything
-        unparseable fails closed: an unreadable task network boundary is never
-        guessed.
-        """
         candidates = [
             self.environment_dir / name
             for name in (
@@ -259,7 +187,6 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
         return sorted(names)
 
     def _task_compose_network_meta(self) -> tuple[bool, dict[str, list[str]]]:
-        """Whether task Compose declares ``networks:`` and any per-service DNS aliases."""
         candidates = [
             self.environment_dir / name
             for name in (
@@ -330,9 +257,6 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
         for name in self._task_compose_service_names():
             if name == MAIN_SERVICE_NAME:
                 continue
-            # Sidecars keep their own entrypoint/command/user/healthcheck so
-            # their servers start normally; every network/capability boundary
-            # is still forced at creation.
             services[name] = {
                 "network_mode": "none",
                 "cap_drop": ["NET_ADMIN", "NET_RAW"],
@@ -378,9 +302,6 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
             "develop",
             "provider",
         )
-        # `expose` is harmless metadata (no published ports without a
-        # PortBinding, which the daemon confirmation separately refuses), so
-        # unlike the strict single-container backend it is not refused here.
         if any(service.get(key) for key in unsafe) or service.get("runtime") not in (
             None,
             "runc",
@@ -541,13 +462,6 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
     async def _verify_service_container(
         self, container: dict[str, Any], *, service: str, project: str, ids: list[str]
     ) -> None:
-        """Confirm one project container's creation-time lock before any exec.
-
-        Mirrors the strict backend's daemon evidence checks on every service,
-        with the strictly stronger capability requirement (both ``NET_ADMIN``
-        and ``NET_RAW`` dropped). ``main`` additionally matches the Harbor
-        trial mounts; sidecars must carry no bind mounts at all.
-        """
         container_id = container.get("Id")
         host = container.get("HostConfig")
         networks = container.get("NetworkSettings")
@@ -635,9 +549,6 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
             raise RuntimeError(f"host-isolation sidecar carries host bind mounts: {service}")
 
     async def _prepare_tool(self) -> None:
-        """Extract a matched tool bundle; remove the helper before the sandbox exists."""
-        # No implicit image pulls. Preloading this pinned host-side build base is
-        # an operator preparation step, distinct from sandbox/model traffic.
         endpoint = os.environ.get("DOCKER_HOST") if not os.environ.get("DOCKER_CONTEXT") else None
         if endpoint is None:
             endpoint = json.loads(
@@ -675,9 +586,6 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
             ).strip()
             output = await self._daemon_output("start", "--attach", helper)
             if self._bridge_port is not None:
-                # The supervised bridge binds 127.0.0.1, so only Desktop's
-                # IPv4 alias can name that frontend. An AAAA answer must not
-                # admit a distinct IPv6-only host listener on the same port.
                 self._bridge_addresses = tuple(
                     address
                     for address in desktop_dns_addresses(output)
@@ -704,7 +612,6 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
         finally:
             if helper is not None:
                 await self._daemon_output("rm", "--force", helper)
-            # This unique tag/image was created here, never a pre-existing image.
             with contextlib.suppress(Exception):
                 await self._daemon_output("image", "rm", tag)
 
@@ -725,8 +632,6 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
         return await self._nft_in(self._container_id or "", *arguments, rules=rules)
 
     async def _daemon_output(self, *command: str, stdin: str | None = None) -> str:
-        # The base helper has a deliberately short daemon timeout. Host-side
-        # tool builds need a bounded but longer timeout and nft needs stdin.
         import asyncio
 
         process = await asyncio.create_subprocess_exec(
@@ -750,14 +655,6 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
         return stdout.decode("utf-8")
 
     def _resolve_record_path(self) -> Path:
-        """One record file per environment instance sharing a trial directory.
-
-        The agent environment and each separate verifier environment share
-        ``trial_dir`` but own distinct containers. The first writer keeps
-        ``host-isolation.json``; a later environment whose container differs
-        takes ``host-isolation-<session>.json`` so the agent phase-switch
-        evidence is never overwritten by the verifier environment.
-        """
         if self._record_path is not None:
             return self._record_path
         primary = self.trial_paths.trial_dir / ISOLATION_RECORD
@@ -814,7 +711,6 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
         self._resolve_record_path().write_text(json.dumps(record, indent=2) + "\n")
 
     def _ordered_services(self) -> list[str]:
-        """Deterministic service order: `main` first, then sidecars sorted."""
         services = self._service_container_ids or ({MAIN_SERVICE_NAME: self._container_id or ""})
         return [
             MAIN_SERVICE_NAME,
@@ -824,7 +720,6 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
     async def _install_and_verify_rules(
         self, rules: str, rule_count: int, container_id: str
     ) -> str:
-        """Install the destination boundary and return the confirmed kernel listing."""
         installed = nft_objects(
             json.loads(
                 await self._nft_in(container_id, "--echo", "--json", "--file", "-", rules=rules)
@@ -854,7 +749,6 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
         )
 
     async def _confirm_no_network_state(self) -> dict[str, Any]:
-        """Prove the sandbox has no attachment and no usable interface but lo."""
         per_service: dict[str, Any] = {}
         for service in self._ordered_services():
             cid = self._service_container_ids.get(service) or self._container_id
@@ -882,7 +776,6 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
         return evidence
 
     async def _confirm_public_state(self) -> dict[str, Any]:
-        """Prove the bridge is attached and the boundary survived the attach."""
         per_service: dict[str, Any] = {}
         for service in self._ordered_services():
             cid = self._service_container_ids.get(service) or self._container_id
@@ -912,7 +805,6 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
         return evidence
 
     async def _ensure_rules_before_reconnect(self) -> None:
-        """Reinstall-and-confirm the boundary when it did not survive a detach."""
         for service in self._ordered_services():
             cid = self._service_container_ids.get(service) or self._container_id
             assert cid is not None
@@ -932,13 +824,6 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
                 self._rules_listing = listing
 
     async def _create_isolation_network(self, *, internal: bool) -> str:
-        """Create the shared project network on an isolated, filter-safe subnet.
-
-        Docker's default pools are all denied by the nft destination boundary,
-        so the project network carries an explicit subnet outside the blocked
-        ranges (see ``_ISOLATION_SUBNET_CANDIDATES``). Candidates are tried in
-        order; a stale sandbox network may hold an earlier slice.
-        """
         errors: list[str] = []
         for subnet in _ISOLATION_SUBNET_CANDIDATES:
             command = ["network", "create"]
@@ -959,8 +844,6 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
     def _connect_command(self, service: str, network_id: str, container_id: str) -> list[str]:
         command = ["network", "connect"]
         if len(self._service_container_ids) > 1:
-            # Per-service DNS aliases so `main` reaches sidecars by name and
-            # any task-declared service aliases (e.g. openmath_agent article).
             command.extend(["--alias", service])
             _, aliases = self._task_compose_network_meta()
             for alias in aliases.get(service, ()):
@@ -969,8 +852,6 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
         return command
 
     async def _apply_network_policy(self, network_policy: NetworkPolicy) -> None:
-        # Harbor calls this only for real switches (set_network_policy returns
-        # early on repeats); the support check above already refused allowlists.
         mode = network_policy.network_mode
         if mode not in _PHASE_SWITCH_MODES:
             raise ValueError("host-isolation refuses network allowlists")
@@ -996,8 +877,6 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
         else:
             if self._network_id is None:
                 self._network_id = await self._create_isolation_network(internal=False)
-            # The filter lives in the container netns; reinstall-and-confirm
-            # before the sandbox ever has a public attachment again.
             await self._ensure_rules_before_reconnect()
             for service in services:
                 if not self._bridge_attached(await self._container_networks(cids[service])):
@@ -1016,8 +895,6 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
         self._write_lock_record(applied=True)
 
     async def run_healthcheck(self, healthcheck: Any = None) -> None:
-        # Scope the helper interpreter/cache policy to readable clean setup.
-        # Explicit overrides and ordinary task healthchecks keep their task env.
         if healthcheck is not None or not (
             self.environment_dir / "setup" / "setup.sh"
         ).is_file():
@@ -1027,7 +904,6 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
             await super().run_healthcheck(healthcheck)
 
     async def _bootstrap_verifier_setup(self) -> None:
-        # Primary environments must never inspect the sibling hidden tests.
         if self._enable_environment_dir_upload or not (
             self.environment_dir / _SETUP_BUNDLE_NAME / "setup.sh"
         ).is_file():
@@ -1040,8 +916,6 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
                 timeout_sec=math.ceil(self.task_env_config.build_timeout_sec),
                 user="root",
             )
-        # Harbor clears verifier/ before seeding; repeated grades reopen its
-        # setup.log. Preserve the actual pre-seed bootstrap output separately.
         setup_log = Path(self.trial_paths.trial_dir) / f"docker-setup-{self.session_id}.log"
         setup_log.parent.mkdir(parents=True, exist_ok=True)
         setup_log.write_text(
@@ -1062,8 +936,6 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
             self._service_listings = {}
             self._isolation_subnet = None
             await super().start(force_build=force_build)
-            # The inherited inspect confirms creation-time none, safe mounts and
-            # default capabilities before any copy/exec can take place.
             assert self._container_id is not None and self._tool_temp is not None
             assert self._service_container_ids, "host-isolation confirmed no services"
             from evallab.host_isolation import controller_addresses
@@ -1077,8 +949,6 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
                     rules = self._rules
                     count = 3 + len(self._host_addresses) + len(self._bridge_addresses)
                 else:
-                    # Sidecars never admit the Claude bridge exception, even on
-                    # the Claude lane: only main may reach the gateway.
                     rules = nft_rules(self._host_addresses, (), None)
                     count = 3 + len(self._host_addresses)
                 self._service_rules[service] = rules
@@ -1101,7 +971,6 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
                     await self._daemon_output(
                         *self._connect_command(service, self._network_id, cid)
                     )
-                # Attachment must preserve the same kernel namespace/rules.
                 for service in self._ordered_services():
                     cid = self._service_container_ids[service]
                     if (
@@ -1115,8 +984,6 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
                         )
             self._isolation_confirmed = True
             self._write_lock_record(applied=True)
-            # Setup may execute only after the complete host boundary is proved,
-            # and must finish before Harbor seeds any submitted artifacts.
             await self._bootstrap_verifier_setup()
         except BaseException as error:
             self._isolation_confirmed = False

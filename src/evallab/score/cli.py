@@ -1,4 +1,3 @@
-"""Cache-only score command. Missing predictions never request inference."""
 from __future__ import annotations
 
 import argparse
@@ -48,7 +47,6 @@ def command(args: argparse.Namespace, repo_root: Path, **_: Any) -> int:
     args.out.mkdir(parents=True, exist_ok=False)
     path = args.out / "scoreboard.json"
     path.write_text(json.dumps(value, indent=2, sort_keys=True, allow_nan=False) + "\n")
-    # Read the saved authority, not the in-memory object.
     (args.out / "SCOREBOARD.md").write_text(board.render(json.loads(path.read_text())))
     (args.out / "items.jsonl").write_text("".join(json.dumps(row, sort_keys=True, allow_nan=False) + "\n" for row in receipt))
     if "qa" in value:

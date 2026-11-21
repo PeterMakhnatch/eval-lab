@@ -1,8 +1,3 @@
-"""Own the dropped-uid reward-write rule, screening verifier text statically.
-
-Nothing here executes task content.
-"""
-
 from __future__ import annotations
 
 import re
@@ -16,8 +11,6 @@ if TYPE_CHECKING:
 
 _REWARD_DIR = "/logs/verifier"
 _REWARD_FILE = r"/logs/verifier/reward\.(?:txt|json)\b"
-# A redirection or tee whose target is the reward file, or a copy whose final
-# operand is that file.
 _REWARD_WRITE = re.compile(rf"(?:>>?|\btee\b)[^\n;&|]*?{_REWARD_FILE}")
 _REWARD_COPY = re.compile(
     rf"\b(?:cp|mv|install)\b[^\n;&|]*?\s{_REWARD_FILE}\s*(?:$|[;&|])"
@@ -50,7 +43,6 @@ def _kills_dropped_uid(command: list[str]) -> bool:
     head = _head(command)
     if head in _KILL_HEADS:
         return True
-    # kill -9 -1 sends SIGKILL to every process the caller may signal.
     return head == "kill" and "-1" in command[1:] and any(
         option in _SIGKILL for option in command[1:]
     )
@@ -61,8 +53,6 @@ def _writes_reward(line: str) -> bool:
 
 
 def lint_dropped_uid_reward(task_dir: Path) -> list[Finding]:
-    """Warn when a dropped-uid child can rewrite the reward after grading."""
-    # Imported here: task_lint imports this module while it loads.
     from evallab.task_lint import Finding
 
     tests = task_dir / "tests"

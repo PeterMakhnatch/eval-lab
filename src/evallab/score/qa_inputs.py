@@ -1,4 +1,3 @@
-"""Task/grader subjects from named native receipts. Never execute a QA tool."""
 from __future__ import annotations
 
 import hashlib
@@ -15,7 +14,6 @@ def document(ref: dict, root: Path) -> Any:
 
 
 def retained_metadata(config: dict, root: Path) -> dict[str, dict]:
-    """Read only the frozen DEV task metadata members, not archive payloads."""
     receipt = document(config["retention"], root)
     entries = [e for e in receipt["paths"] if "/tasks-v2/" in e["path"]
                and Path(e["path"]).name in {"meta.json", "generated.json", "controls.json"}]
@@ -117,8 +115,6 @@ def load(config: dict, root: Path, gold: dict) -> dict:
         mutation = native.get("mutants_original")
         if not mutation or not mutation["total"]:
             continue
-        # The study does not publish full package/grader hashes. Never merge its
-        # task-name aliases with another runtime or a repaired grader version.
         row = add(subject(native["task_id"], None, ["ov1104-original", native["task_id"]],
                           "ov1104-original-study", identity_status="study-scoped; full digests unavailable",
                           source_evidence=config["originals"]["path"]))
@@ -140,8 +136,6 @@ def load(config: dict, root: Path, gold: dict) -> dict:
     for key, native in sorted(gold.items()):
         if native.split.upper() != "DEV" or native.declared_split.upper() != "DEV":
             raise ValueError("QA join permits DEV only")
-        # These QA receipts bind only the original action-v1 studies.
-        # New offline source panels do not expand the frozen QA population.
         if native.source not in {"goodfire-action-v1", "impossible-task-final"}:
             continue
         if native.source == "impossible-task-final":
@@ -181,8 +175,6 @@ def load(config: dict, root: Path, gold: dict) -> dict:
     panel("gold_task_bundles", "task_qa", "cheatable",
           {k: v for k, v in task_members.items() if subjects[k]["grader_digest"] is None},
           "Publisher task-bundle identities only: grader digests are unavailable. These source-scoped counts do not enter the exact-version denominator.")
-    # A passed action with an unbound grader proves task-version cheatability,
-    # but cannot manufacture an exact unique grader denominator.
     identified = {k: v for k, v in gold_members.items() if subjects[k]["grader_digest"] is not None}
     panel("gold_graders", "grader_qa", "vulnerable", identified,
           "Exact grader versions from passed Gold actions. Unbound graders remain in the 54-run link, outside this denominator.")
@@ -218,7 +210,6 @@ def load(config: dict, root: Path, gold: dict) -> dict:
             put(name, row, (reward != 1 if name == "oracle" else reward == 1)
                 if control["status"] == "executed" and reward in (0, 1) else None, control["cell_key"],
                 estimated_usd=control.get("est_usd"), wall_s=control.get("wall_s"))
-    # The selected-but-unrunnable package stays in certification coverage, not a negative label.
     for task in config["strict_selected"]:
         if task not in strict["tasks"]:
             row = add(subject("format-code-task-" + task, None, ["unmeasured-goldmore", task],
@@ -244,8 +235,6 @@ def load(config: dict, root: Path, gold: dict) -> dict:
             hardening = document(hardening_ref, root)
             if hardening["output_digest"] != native["package_digest"]:
                 raise ValueError("Hardening verdict does not bind the certified package")
-            # Preserve the native structural verdict. A declared gate runtime
-            # is not an executed certificate or a vulnerable-grader ground truth.
             put("hardening", row, bool(hardening["findings"]), hardening_ref["path"],
                 layers=hardening["layers"], runtime=hardening["verifier"]["gate_runtime"],
                 transform=hardening["transform"])

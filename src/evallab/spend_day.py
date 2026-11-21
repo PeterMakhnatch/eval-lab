@@ -1,84 +1,3 @@
-"""UTC-day lab spend ledger (HAR-122) and billed-session allocation (HAR-131).
-
-One ledger per UTC day sums ALL lab spend broken down by source (Modal
-billed rows, Daytona sandbox estimates, model API ledgers), by card
-(HAR-NNN) and by job, with the grand total against the policy's daily cap.
-
-``spend day`` resolves policy at 00:00 UTC on the reported day: its dated
-override applies to that whole day, including retrospective reports after
-expiry. Validated overrides always expire after that day's start. This is
-reporting, not renewed launch permission: ``spend check`` resolves at the
-window end (the launch time), respecting expiry even with an older --since.
-
-Source rules (each row carries ``basis`` so billed figures are never
-mixed with estimates):
-
-:- ``modal`` (basis ``billed``): the HAR-107 billing-reconcile rows in
-  catalog table ``modal_billing_rows``. Modal bills the account, not
-  jobs, so costs split by billed app (``description``), one row per app;
-  an app lands on a card only through an explicit app -> card binding,
-  and every app without one stays on its own ``unattributed`` row as the
-  unknown residual. The per-(object, day) ``max(daily, hourly)`` rule is
-  unchanged, so the split conserves the billed total exactly.
-  When the table holds no rows for the day the ledger says so; this
-  module never fetches billing itself (the reconcile path owns that).
-  Per-job GPU shares come only from an explicit HAR-131 session receipt
-  (:func:`session_spend_for_job`), never from dividing these rows.
-- ``daytona`` (basis ``estimate``): the Daytona SDK (0.220.0) exposes
-  only quota/current-usage snapshots
-  (``OrganizationUsageOverview``: CPU/memory/disk quotas, no dollars,
-  no history), so there is no billed per-day source. Each catalog
-  trial on a Daytona backend is priced with the same formula
-  ``evallab tasks qualify-collect`` uses
-  (:func:`evallab.task_qualification.estimate_cost_usd` over the
-  Daytona list-price card), applied to the slice of trial wall time
-  that falls inside the UTC day (intervals crossing midnight are
-  split). Trial resources come from the job/trial environment
-  overrides, then the staged ``task.toml`` (read-only); when the
-  staging is gone the ``mimo-v2.6-rl`` family fallback (2 vCPU /
-  8192 MiB, the uniform shape across every surviving staged task.toml
-  of that family) applies and the row evidence says so.
-- ``model`` (basis ``ledger``): settled proxy-ledger dollars —
-  per-job ``lab-metadata.json`` ``provider_usage`` totals
-  (``cost_micros``) via :func:`evallab.ledger.build_cost_block`, plus
-  experiment ``spend.jsonl`` ledgers (``cost_usd`` per row with a
-  ``ts`` timestamp). Self-hosted MiMo proxy calls are $0 at the proxy
-  (pricing 0/0, billed instead through Modal server time) and
-  contribute no model row, so they are never double counted.
-
-Card attribution is explicit-only and fail-closed: the declared
-``policy/spend-attribution.yaml`` exact-name bindings or the catalog
-``lab_metadata`` ``experiment.linear_card`` (copied from the submitting
-``ExperimentSpec.linear_card``) wins, the job-name prefix (``har81-...``
--> ``HAR-81``) or the ledger path (``har111/...`` -> ``HAR-111``) covers
-the rest; disagreement or a malformed explicit card fails closed to
-``unattributed`` with a conflict note and is never guessed. Task,
-model, harness, and app names are never attribution: the 2026-10-01
-``ovn-g5-*`` runs attribute only through their declared G5-RUN.md
-cell binding, and jobs with no binding at all stay ``unattributed``
-(republishing with ``publication_card`` binds the results home without
-rewriting raw records). Billed Daytona dollars are unavailable from the
-provider API, so Daytona rows stay estimates.
-
-Window ledgers generalize the day to any half-open UTC window
-[start, end): a day is the special case [day 00:00, next day 00:00).
-Overlap rules per source (documented where implemented):
-Modal billing rows are hourly, so a row counts whole when its
-``interval_start`` hour falls in the window; Daytona trials contribute
-the seconds of their wall interval overlapping the window;
-``spend.jsonl`` rows count when their ``ts`` is in the window while
-per-job proxy ledgers count whole on the day their job finished.
-The pre-launch check (``check_launch``) additionally reads the queue's
-``running``/``approved`` specs read-only to reserve in-flight spend;
-this module still never spends, never writes, and never launches.
-
-``session_spend_for_job`` reads an explicit post-session receipt, binds its
-complete declared membership to teardown, and shares billed Modal dollars by
-recorded trial wall seconds. It adds the supplied existing Daytona estimate;
-an unknown estimate leaves the combined total unknown. This allocation is an
-accounting policy, not measured per-job GPU usage or a new pricing model.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -90,13 +9,10 @@ from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 from typing import Any
 
-#: Lab day-spend cap (USD) the ledger reports against.
 DEFAULT_CAP_USD = 20.0
 
-#: Card bucket for spend that cannot be tied to a card. Never guessed.
 UNATTRIBUTED = "unattributed"
 
-#: Row ``basis`` values: billed money vs estimates vs settled ledgers.
 BASIS_BILLED = "billed"
 BASIS_ESTIMATE = "estimate"
 BASIS_LEDGER = "ledger"
@@ -107,43 +23,16 @@ _PATH_CARD_RES = (
     re.compile(r"(?i)\bhar0*(\d+)\b"),
 )
 
-#: Task-family fallback sandbox sizes (cpus, memory_mb) when the staged
-#: task.toml is gone. ``mimo-v2.6-rl``: uniform 2 vCPU / 8192 MiB across
-#: every surviving staged task.toml of that family (10/10 on 2026-09-29/30;
-#: same shape as the HAR-110 budget line, 2 vCPU + 8 GiB + 10 GiB).
 FALLBACK_DAYTONA_RESOURCES: dict[str, tuple[int, int]] = {
     "mimo-v2.6-rl": (2, 8192),
 }
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-#: Declared attribution policy: exact job/app names bound to a Linear card.
-#: Read-only; an absent file means no declared bindings.
 SPEND_ATTRIBUTION_POLICY = "policy/spend-attribution.yaml"
 SPEND_ATTRIBUTION_SCHEMA = "evallab.spend_attribution/v1"
 
 
-
-
-
-
-
-
-
-
 def parse_dt(value: Any) -> datetime | None:
-    """Parse a catalog timestamp or epoch to an aware UTC datetime."""
     if isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):
@@ -166,20 +55,12 @@ def parse_dt(value: Any) -> datetime | None:
 
 
 def _coerce_utc(value: datetime) -> datetime:
-    """Treat a naive datetime as UTC; pass aware datetimes through."""
     return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
-
-
 
 
 def window_overlap_seconds(
     start: datetime, end: datetime, window_start: datetime, window_end: datetime
 ) -> float:
-    """Seconds of ``[start, end)`` falling inside ``[window_start, window_end)``.
-
-    Naive bounds are treated as UTC (matching ``parse_dt``). Slice
-    portions across adjacent windows always add up to the whole interval.
-    """
     overlap = (
         min(_coerce_utc(end), _coerce_utc(window_end))
         - max(_coerce_utc(start), _coerce_utc(window_start))
@@ -188,13 +69,8 @@ def window_overlap_seconds(
 
 
 def day_to_window(day: date) -> tuple[datetime, datetime]:
-    """Half-open UTC window ``[day 00:00, day+1 00:00)`` for a calendar day."""
     start = datetime.combine(day, time.min, tzinfo=UTC)
     return start, start + _one_day()
-
-
-
-
 
 
 def _one_day() -> Any:
@@ -203,33 +79,12 @@ def _one_day() -> Any:
     return timedelta(days=1)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
 def trial_daytona_resources(
     *,
     task_family: str | None,
     environment_configs: Iterable[Any],
     task_toml_env: Mapping[str, Any] | None,
 ) -> tuple[tuple[int | None, int | None, int | None], str]:
-    """Resolve ``(cpus, memory_mb, storage_mb)`` for one Daytona trial.
-
-    Precedence mirrors ``qualify-collect``: environment overrides, then
-    the staged ``task.toml`` ``[environment]``. When the staging is gone
-    the task-family fallback applies (flagged ``fallback``); unknown
-    families without a task.toml cannot be rated (flagged ``missing``).
-    Missing values are None (the lab never invents sizes); storage
-    defaults to 0 billable GiB downstream per the rate-card rule.
-    """
     cpus: int | None = None
     memory_mb: int | None = None
     storage_mb: int | None = None
@@ -278,45 +133,12 @@ def trial_daytona_resources(
     return (cpus, memory_mb, storage_mb), basis or "missing"
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# ---------------------------------------------------------------------------
-# Catalog + filesystem readers (read-only; never spend, never write).
-# ---------------------------------------------------------------------------
-
-
-#: Modal rows lag real usage: warn when the latest fetched billing hour
-#: is older than this versus now (the catalog may undercount tonight).
 MODAL_STALE_AFTER_HOURS = 4.0
 
-#: Refusal when Modal billing rows are stale and launch is not allowed despite staleness.
 REASON_STALE_MODAL = "stale_modal_billing"
 
 
-
-
-
-
-
-
-
-
-
-
 def _read_task_toml_env(task_path: Any) -> dict[str, Any]:
-    """Read-only ``[environment]`` from a staged task dir, else {}."""
     if not isinstance(task_path, str) or not task_path:
         return {}
     candidate = Path(task_path) / "task.toml"
@@ -332,18 +154,7 @@ def _read_task_toml_env(task_path: Any) -> dict[str, Any]:
     return dict(env) if isinstance(env, Mapping) else {}
 
 
-
-
 def sibling_worktree_roots(repo_root: Path) -> list[Path]:
-    """Other worktrees beside this one across the entire repository (read-only).
-
-    Resolves the primary checkout via ``git rev-parse --git-common-dir``,
-    then adds worktrees from ``git worktree list --porcelain`` and scans
-    ``<primary>/.worktrees/*``. When run from a linked worktree, this
-    discovers the primary checkout and all sibling worktrees; when run
-    from the primary checkout, it discovers all worktrees under
-    ``.worktrees``. The caller's own checkout is always excluded.
-    """
     import subprocess
 
     roots: set[Path] = set()
@@ -394,61 +205,11 @@ def sibling_worktree_roots(repo_root: Path) -> list[Path]:
     return sorted(p for p in roots if p != repo_root)
 
 
-
-
-
-
-# ---------------------------------------------------------------------------
-# Pre-launch spend-cap check (HAR-129; HAR-122 proposal §2-§5).
-# ---------------------------------------------------------------------------
-#
-# Committed(window) = Settled(window) + InFlight + candidate, where
-# Settled is the window ledger above and InFlight reserves one ceiling
-# per queued spec in ``running``/``approved`` states:
-# ``max(cost_limit_usd, est_cost_usd)``. The check fails closed: an
-# unreachable catalog is never treated as $0, and a cloud (non-docker)
-# queued spec with no positive ``est_cost_usd`` refuses as unratable.
-# A total strictly greater than the cap refuses; exactly-at-cap allows.
-
-#: Refusal when committed spend exceeds the cap (CLI exit 3).
 REASON_CEILING_EXCEEDED = "daily_cost_ceiling_exceeded"
-#: Fail-closed when the catalog is unreachable (CLI exit 2). Never $0.
 REASON_CAP_UNVERIFIED = "daily_cap_unverified"
-#: Fail-closed when a queued cloud spec cannot be rated (CLI exit 2).
 REASON_UNRATABLE_SPEC = "unratable_cost_spec"
 
-#: Queue states whose specs hold reserved spend against the cap.
-#: Approved is scanned before running so an approved->running transition
-#: is never missed between directory reads.
 IN_FLIGHT_STATES = ("approved", "running")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 def _session_json_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -641,20 +402,6 @@ def _validate_spend_session(entry: Any, index: int) -> dict[str, Any]:
 
 
 def session_spend_for_job(job_dir: Path, receipt_path: Path) -> dict[str, Any]:
-    """Share a complete billed Modal pool by recorded trial wall seconds.
-
-    This is an accounting policy, not measured per-job GPU usage; warm/idle/
-    startup overhead stays in the pool. Add only the receipt's existing Daytona
-    estimate, preserving unknowns. Validate every declared session before any
-    allocation. Bind the target to its native result ID, spec, exact recorded
-    revision and lab-metadata byte hash, never its directory name.
-    Native billing resolutions ``d``/``h`` must not overlap for the same app
-    object/resource; daily and hourly reports are not additive alternatives.
-
-    Receipt/source bytes are read afresh without writes, queries or pricing.
-    ``billing_reported_at`` retains the latest row's original timestamp string.
-    Invalid, ambiguous or stale explicit inputs raise ``ValueError``.
-    """
     receipt, raw_receipt = _read_session_json(receipt_path)
     if receipt.get("schema") != "evallab.session_spend/v1":
         raise ValueError(f"unsupported session spend receipt schema: {receipt_path}")

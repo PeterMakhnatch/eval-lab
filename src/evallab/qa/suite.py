@@ -1,5 +1,3 @@
-"""Retrospective version x registered-key x frozen-split QA comparisons ($0)."""
-
 from __future__ import annotations
 
 import argparse
@@ -58,7 +56,6 @@ class _Run(ContractModel):
 
 
 class NotRescored(ContractModel):
-    """A published result this command cannot re-score; shown verbatim, never as a row."""
 
     model_config = ConfigDict(extra="forbid", strict=True)
 
@@ -79,7 +76,6 @@ class _Manifest(ContractModel):
 
 
 class SourceReceipt(ContractModel):
-    """Raw source custody, not a replacement for per-item findings."""
 
     path: str
     sha256: str
@@ -89,7 +85,6 @@ class SourceReceipt(ContractModel):
 
 
 class SuiteRow(ContractModel):
-    """A shared-score row plus the evidence denominators it cannot represent."""
 
     agent: Agent
     version: str
@@ -115,8 +110,6 @@ class SuiteRow(ContractModel):
 
     @field_serializer("score")
     def _shared_metrics(self, score: ScoreRow) -> dict[str, Any]:
-        # The legacy scorer defaults absent cost to zero; suite cost fields below
-        # retain measuredness instead of exporting that misleading default.
         return score.model_dump(exclude={"cost_per_item_usd"})
 
 
@@ -147,14 +140,11 @@ def _json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 
 
 def _canonical(finding: Finding) -> str:
-    # exclude_unset retains the distinction between an omitted cost and recorded $0.
     return json.dumps(finding.model_dump(by_alias=True, exclude_unset=True), sort_keys=True)
 
 
 def _unique(findings: list[Finding], source: Path) -> list[Finding]:
     seen: set[str] = set()
-    # Retained producers reuse ids across subjects (e.g. qa-trace/3 T0 not_run stubs), so an
-    # id conflicts only when the same subject carries two different records under it.
     ids: dict[tuple[str, str], str] = {}
     result: list[Finding] = []
     for finding in findings:
@@ -217,7 +207,6 @@ def _load_source(path: Path) -> tuple[list[Finding], SourceReceipt]:
         except (UnicodeError, ValueError) as exc:
             raise ValueError(f"invalid findings in {file}: {exc}") from exc
     findings = _unique(findings, path)
-    # Directory hashes bind the sorted relative-path/file-byte-hash inventory.
     digest = (
         _sha256(json.dumps(fingerprints, separators=(",", ":")).encode())
         if path.is_dir()
@@ -242,7 +231,6 @@ def _validate_version(agent: str, version: str) -> None:
 
 
 def _agent_of(version: str, agents: list[Agent]) -> Agent:
-    """The requested agent whose identity prefixes name this version (prefixes are disjoint)."""
     owners = [
         agent for agent in agents
         if any(version.startswith(prefix) and len(version) > len(prefix) for prefix in _AGENT_PREFIXES[agent])
@@ -274,8 +262,6 @@ def _identity(subject: FindingSubject) -> tuple[str, str, str] | None:
 
 
 def _project_subject(subject: FindingSubject) -> FindingSubject:
-    # The legacy scorer does not include task_digest in subject_key. A private,
-    # lossless scoring projection keeps two digests of the same name separate.
     return subject.model_copy(update={"task_id": json.dumps(_identity(subject))})
 
 
@@ -286,7 +272,6 @@ def _load_split_guard(root: Path) -> ModuleType:
         raise ValueError(f"cannot load the established split guard: {path}")
     guard = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(guard)
-    # Re-root the established guard's module-level paths at the requested repository.
     keys = root / "research/answer-keys"
     vars(guard).update(
         REPO=root,
@@ -389,7 +374,6 @@ def _exposure_notes(
             ),
             None,
         )
-        # Unlike a scoreboard aggregate, we can verify the *actual* excluded IDs.
         if score.split in guard.REPORTED and ack and ack["how"] == "excluded" and touched & measured_ids:
             raise ValueError(
                 f"split/exposure guard: {key.key_id}/{score.split} actually measured excluded "
@@ -529,7 +513,6 @@ def _comparison_row(
 def build_suite(
     root: Path, *, agents: list[Agent], versions: list[str], day: str, manifest: Path | None = None
 ) -> SuiteReport:
-    """Read surviving evidence, enforce custody, and reuse the shared QA scorer."""
     if date.fromisoformat(day).isoformat() != day:
         raise ValueError("--date must be an ISO YYYY-MM-DD date")
     if not versions or len(set(versions)) != len(versions):
@@ -626,7 +609,6 @@ def _number(value: float | None) -> str:
 
 
 def _shown(path: str, root: Path | None) -> str:
-    """Repository-relative display path; JSON receipts keep the resolved path."""
     if root is None:
         return path
     try:
@@ -639,7 +621,6 @@ _UNMEASURED_STATUSES = ("no-run", "inapplicable")
 
 
 def render_suite(report: SuiteReport, root: Path | None = None) -> str:
-    """Deterministic Markdown; every rate is beside its measured denominator."""
     agents = ", ".join(f"`{agent}`" for agent in report.agents)
     lines = [
         f"# QA suite — {report.date_utc}", "",
@@ -739,7 +720,6 @@ def _suite_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
         default = Path(f"research/qa-scoreboard/suite-{args.date.replace('-', '')}.md")
         destination = args.output or default
         destination = destination if destination.is_absolute() else root / destination
-        # Do not let --output turn a successful comparison into destruction of its inputs.
         protected = {(root / path).resolve() for path in report.frozen_custody}
         source_paths = {Path(source.path) for source in report.sources}
         source_paths.update(Path(path) for path in report.bound_sources)

@@ -1,15 +1,3 @@
-"""M030 LOOP-TRAJ: Trajectory analysis, mechanical feature extraction, and human review queue.
-
-Contract for downstream UI (GYM-UI) and AGY capture:
-- A trajectory outline is a deterministic typed record with trial/job identity,
-  ordered phases, step/tool/error counts, loop-suspicion features, and source citations.
-- Persisted mechanical feature rows are queryable through Parquet and DuckDB views.
-- Missing trajectory data is an explicit accounted/unavailable state,
-  never a fabricated empty success.
-- Path traversal outside configured roots is prevented via strict path jail enforcement.
-- Review selection and behavior labels are implemented in ``evallab.labels``.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -44,31 +32,27 @@ from evallab.trajectory_error_taxonomy import (
 PhaseType = Literal["setup", "prompt", "work", "verifier", "unknown"]
 AvailabilityStatus = Literal["featured", "accounted_unavailable"]
 
-#: Re-exported from :mod:`evallab.edit_signals` (single source of truth);
-#: kept here so existing ``evallab.traj.EDIT_*`` references keep working.
 
 _REDACTION_PATTERN = re.compile(
     r"<<evallab-redacted: (?P<bytes>\d+) bytes, (?P<digest>sha256:[0-9a-f]{64})>>"
 )
-#: Continuation segments (``trajectory.cont-N.json``) beside the head.
 _CONTINUATION_RE = re.compile(r"^trajectory\.cont-(\d+)\.json$")
 
 
 class TrajectoryError(Exception):
-    """Base error for trajectory operations."""
+    pass
 
 
 class PathJailError(TrajectoryError):
-    """Raised when a path escapes the allowed root jail."""
+    pass
 
 
 class TrajectoryNotFoundError(TrajectoryError):
-    """Raised when an expected trajectory cannot be located."""
+    pass
 
 
 @dataclass(frozen=True)
 class SourceCitation:
-    """Provenance citation to an underlying evidence file and step."""
 
     path: str
     sha256: str
@@ -78,7 +62,6 @@ class SourceCitation:
 
 @dataclass(frozen=True)
 class LoopSuspicion:
-    """Deterministic loop-suspicion heuristic features."""
 
     score: float
     detected: bool
@@ -90,12 +73,6 @@ class LoopSuspicion:
 
 @dataclass(frozen=True)
 class LoopStep:
-    """The four per-step facts the loop-suspicion heuristic reads.
-
-    Extracted once per raw step by :func:`extract_loop_step` and shared by
-    ``outline_trajectory`` and the run report, so the heuristic has a single
-    implementation and a single fact source.
-    """
 
     tool_name: str | None
     tool_command: str | None
@@ -105,7 +82,6 @@ class LoopStep:
 
 
 class LoopStepView(Protocol):
-    """The four loop-suspicion attributes; ``StepOutline`` and ``LoopStep`` qualify."""
 
     @property
     def tool_name(self) -> str | None: ...
@@ -122,7 +98,6 @@ class LoopStepView(Protocol):
 
 @dataclass(frozen=True)
 class StepOutline:
-    """Condensed outline of one trajectory step with CAS reasoning citations."""
 
     step_id: int
     source: str
@@ -159,7 +134,6 @@ class StepOutline:
 
 @dataclass(frozen=True)
 class PhaseOutline:
-    """Ordered semantic execution phase within a trajectory."""
 
     phase_id: int
     name: str
@@ -178,7 +152,6 @@ class PhaseOutline:
 
 @dataclass(frozen=True)
 class TrajectoryOutline:
-    """Deterministic typed outline of a full trial trajectory."""
 
     trial_id: str
     job_id: str
@@ -333,7 +306,6 @@ TRAJ_FEATURES_PARQUET_SCHEMA = pa.schema(
 
 
 def _check_path_jail(path: Path, roots: Sequence[Path]) -> Path:
-    """Ensure path resolves cleanly inside at least one allowed root."""
     resolved = path.resolve()
     for root in roots:
         root_resolved = root.resolve()
@@ -352,7 +324,6 @@ def _safe_str(val: Any, default: str = "") -> str:
 
 
 def _authoritative_int(value: Any) -> int | None:
-    """Return a declared aggregate token count, or None when absent/invalid."""
     if isinstance(value, bool):
         return None
     if isinstance(value, int) and value >= 0:
@@ -361,7 +332,6 @@ def _authoritative_int(value: Any) -> int | None:
 
 
 def _authoritative_float(value: Any) -> float | None:
-    """Return a finite nonnegative native cost, or None when unavailable."""
     if isinstance(value, bool) or not isinstance(value, int | float):
         return None
     return float(value) if math.isfinite(value) and value >= 0 else None
@@ -373,13 +343,6 @@ ChainSegment = tuple[Path, dict[str, Any], str]
 
 @dataclass(frozen=True)
 class ChainResolution:
-    """A resolved continuation chain plus its completeness verdict.
-
-    ``complete`` is False when a ``continued_trajectory_ref`` could not be
-    followed; ``stopped_ref``/``stop_cause`` name it (``missing``, ``escaping``,
-    ``unparseable``, or ``cycle``). Consumers must treat an incomplete chain as
-    partial evidence, never as the complete run.
-    """
 
     segments: tuple[ChainSegment, ...]
     complete: bool
@@ -392,18 +355,6 @@ def _resolve_chain_segments(
     traj_data: dict[str, Any],
     trial_dir: Path,
 ) -> ChainResolution:
-    """Resolve generic ATIF ``continued_trajectory_ref`` links, canonical first.
-
-    Upstream agents split one logical run into continuation segments (for example
-    a summarization handoff); every segment is a complete ATIF document and the
-    terminal segment carries the cumulative native ``final_metrics``. Each hop is
-    jailed to the trial directory, content-hashed, and cycle-guarded (the seen
-    set alone bounds the walk: every hop must reach a new file, so no hop cap is
-    needed). A continued reference that cannot be followed — missing, escaping,
-    unparseable, or cyclic — ends the walk with ``complete=False`` and names the
-    stopping reference, so callers never present a stale partial head as the
-    complete run.
-    """
     segments: list[ChainSegment] = [(traj_path, traj_data, sha256_file(traj_path))]
     seen = {traj_path.resolve()}
     current_path = traj_path
@@ -446,10 +397,6 @@ def _resolve_chain_segments(
         segments.append((resolved, loaded, sha256_file(resolved)))
         current_path = resolved
         current_data = loaded
-    # HAR-92: older trials carry continuations no reference points at (no
-    # ``continued_trajectory_ref``, or a head that was never re-dumped). Union
-    # in every sibling ``trajectory.cont-N.json`` by index so consumers read
-    # all parts; dedupe happens in ``stitched_chain_action_steps``.
     discovered: list[tuple[int, Path]] = []
     try:
         siblings = sorted(current_path.parent.iterdir(), key=lambda entry: entry.name)
@@ -488,15 +435,6 @@ def _resolve_chain_segments(
 def stitched_chain_action_steps(
     segments: Sequence[ChainSegment],
 ) -> tuple[list[tuple[int, Any]], StitchStats]:
-    """Unique non-copied raw steps across continuation parts, canonical order.
-
-    Drops copied-context repeats and dedupes steps shared across parts: a
-    sealed head re-dumped as a continuation, or a head prefix restated by a
-    cumulative continuation, is counted once (later parts supersede). Kept
-    steps retain their original segment position for citations. The one
-    shared stitching implementation lives in
-    :func:`evallab.step_layers.stitch_steps`.
-    """
     position_by_id: dict[int, int] = {}
     docs: list[Any] = []
     for position, (_, data, _) in enumerate(segments):
@@ -510,12 +448,6 @@ def stitched_chain_action_steps(
 
 
 def trial_trajectory_path(trial_dir: Path) -> Path | None:
-    """Head ``trajectory.json`` under ``agent/`` (else the trial root).
-
-    HAR-92: when the head was never retained (only continuations survive),
-    fall back to the lowest-index ``trajectory.cont-N.json`` so the evidence
-    is reported with a coverage gap instead of reading as absent.
-    """
     for base in (trial_dir / "agent", trial_dir):
         head = base / "trajectory.json"
         if head.is_file():
@@ -557,7 +489,6 @@ def _extract_command_string(call_args: Any) -> str | None:
         for key in ("cmd", "command", "keystrokes", "input", "script", "code"):
             if key in call_args and isinstance(call_args[key], str):
                 return call_args[key].strip()
-        # Fallback to compact JSON string
         try:
             return json.dumps(call_args, sort_keys=True)
         except Exception:
@@ -575,15 +506,11 @@ def _is_edit_action(tool_name: str | None, command_snippet: str | None) -> bool:
 
 
 def _analyze_loop_suspicion(steps: Sequence[LoopStepView]) -> LoopSuspicion:
-    """Analyze step sequences for repeated commands, failing cycles, and loops."""
     repeated_commands = 0
     repeated_errors = 0
     cyclic_patterns = 0
     reasons: list[str] = []
 
-    # 1. Consecutive identical tool commands. Step ordinals prefer the real
-    # step id when the input carries one (StepOutline) and fall back to the
-    # 1-based position in the analyzed sequence (LoopStep).
     consecutive_cmd_count = 0
     last_cmd: str | None = None
     run_start: int | None = None
@@ -628,7 +555,6 @@ def _analyze_loop_suspicion(steps: Sequence[LoopStepView]) -> LoopSuspicion:
         prev_ordinal = ordinal
     _finalize_run()
 
-    # 2. Repeated failing commands with identical error/exit code
     failed_cmds: Counter[str] = Counter()
     for step in steps:
         if step.is_error and step.tool_command:
@@ -639,7 +565,6 @@ def _analyze_loop_suspicion(steps: Sequence[LoopStepView]) -> LoopSuspicion:
             repeated_errors += 1
             reasons.append(f"repeated_failing_command: {failed_cmd} ({count} failures)")
 
-    # 3. Alternating tool cycles (e.g. A -> B -> A -> B -> A -> B)
     tool_sequence = [s.tool_name for s in steps if s.tool_name]
     if len(tool_sequence) >= 6:
         for period in (2, 3):
@@ -654,12 +579,9 @@ def _analyze_loop_suspicion(steps: Sequence[LoopStepView]) -> LoopSuspicion:
                 reasons.append(f"cyclic_tool_pattern: period={period} repeated {matches} times")
                 break
 
-    # Calculate bounded score [0.0, 1.0]
     score = 0.0
     if repeated_commands > 0:
         score += 0.35 + min(0.35, repeated_commands * 0.15)
-        # A 3-long run stays at the historical value; longer identical runs
-        # push the score clearly above the detection threshold.
         if max_consecutive_run > 3:
             score += min(0.30, 0.10 * math.log10(max_consecutive_run / 3))
 
@@ -682,16 +604,6 @@ def _analyze_loop_suspicion(steps: Sequence[LoopStepView]) -> LoopSuspicion:
 
 
 def extract_loop_step(raw_step: dict[str, Any]) -> tuple[LoopStep, str | None, ErrorClassification]:
-    """Primary-tool, exit, and error facts for one raw trajectory step.
-
-    This is the fact source ``outline_trajectory`` reads when building each
-    ``StepOutline``; the run report calls it too, so both consumers share one
-    extraction and one ``_analyze_loop_suspicion`` implementation.
-
-    Returns the four loop facts, the error message, and the full error
-    classification (probe flag, category) from the same single
-    ``classify_step_error`` call, so no consumer classifies twice.
-    """
     tool_calls = effective_tool_calls(raw_step)
     primary_tool_name = None
     primary_tool_cmd = None
@@ -699,7 +611,6 @@ def extract_loop_step(raw_step: dict[str, Any]) -> tuple[LoopStep, str | None, E
         first_call = tool_calls[0]
         primary_tool_name = _safe_str(first_call.get("function_name"))
         primary_tool_cmd = _extract_command_string(first_call.get("arguments"))
-    # Observation errors / exit codes across observation / observation_results.
     exit_code: int | None = None
     error_msg: str | None = None
     result_type: str | None = None
@@ -730,7 +641,6 @@ def extract_loop_step(raw_step: dict[str, Any]) -> tuple[LoopStep, str | None, E
             "failed",
         }:
             error_msg = error_msg or content[:120].strip() or "tool result reported an error"
-    # Deterministic error taxonomy and expected negative probe classification.
     _, primary_text = split_envelope(results[0].get("content") if results else None)
     primary_content = primary_text or error_msg
     error_classification = classify_step_error(
@@ -741,11 +651,6 @@ def extract_loop_step(raw_step: dict[str, Any]) -> tuple[LoopStep, str | None, E
         result_type=result_type if results else None,
         result_status=result_status if results else None,
     )
-    # Output-text inference: when the harness records no exit code and no
-    # error flag, and the taxonomy sees neither an error nor an expected
-    # probe, a strong failure signature in the command output still marks the
-    # step as an error (same pattern the run report uses). An explicit exit
-    # code 0 means the call was accepted, so inference never overrides it.
     is_inferred_error = False
     if (
         not error_classification.is_error
@@ -799,7 +704,6 @@ def _extract_state_journal_metrics(
     steps: Sequence[StepOutline],
     citations: Sequence[SourceCitation] = (),
 ) -> dict[str, Any]:
-    """Extract mechanical state diff and state journal metrics from trial artifacts."""
     not_observed: dict[str, Any] = {
         "state_diff_observed": False,
         "state_journal_status": "not_observed",
@@ -923,7 +827,6 @@ def _extract_reference_and_citation_metrics(
     steps: Sequence[StepOutline],
     citations: Sequence[SourceCitation],
 ) -> dict[str, Any]:
-    """Extract mechanical path reference and citation validity counts."""
     path_refs = _collect_path_tokens(steps)
     invalid_paths = sum(1 for p in path_refs if "\x00" in p or ".." in p.split("/"))
     valid_paths = len(path_refs) - invalid_paths
@@ -945,7 +848,6 @@ def _extract_reference_and_citation_metrics(
     }
 
 def _build_phases(steps: Sequence[StepOutline]) -> tuple[PhaseOutline, ...]:
-    """Group ordered steps into semantic phases."""
     if not steps:
         return ()
 
@@ -1110,10 +1012,6 @@ def resolve_trial_target(
     repo_root: Path | None = None,
     explicit_runs_root: Path | None = None,
 ) -> tuple[Path, Path | None, Path | None]:
-    """Resolve a target identifier or path to (trial_dir, trajectory_path, result_path).
-
-    Enforces path jail against configured roots.
-    """
     root = (repo_root or Path.cwd()).resolve()
     candidate_roots = _resolve_candidate_roots(root, explicit_runs_root)
 
@@ -1415,7 +1313,6 @@ def outline_trajectory(
     explicit_runs_root: Path | None = None,
     store_root: Path | None = None,
 ) -> TrajectoryOutline:
-    """Build a deterministic typed trajectory outline from trial evidence."""
     root = (repo_root or Path.cwd()).resolve()
     try:
         trial_dir, traj_path, result_path = resolve_trial_target(
@@ -1642,11 +1539,6 @@ def outline_trajectory(
     )
 
 
-
-# --------------------------------------------------------------------------- #
-# Versioned Trajectory Store Read Rule (A4)
-# --------------------------------------------------------------------------- #
-
 VERIFIED_ON_DISK_TRAJECTORY_HASHES: tuple[str, ...] = (
     "fb1299f2b50306ea88b1969e739f4bede505eb2c30c91b5ac5949040eb7eccc1",
     "527e1439ffc97bad2e2c75b301c03408000e4e9b48e121eea180d0aa7129bc13",
@@ -1675,16 +1567,6 @@ VERIFIED_ON_DISK_TRAJECTORY_HASHES: tuple[str, ...] = (
 )
 
 def get_versioned_traj_features_sql(source_relation: str = "traj_features") -> str:
-    """Return SQL for the versioned trajectory store read view (v_traj_features_v1).
-
-    Read Rule Specification (A4):
-      1. status = 'featured' filter: accounts only for successfully extracted, verified trials.
-      2. source_sha256-to-bytes deduplication: deduplicates multiple projection rows for the same
-         trial (job_name, trial_name) by prioritizing current verified on-disk bytes hashes and latest
-         creation timestamp, preventing double/triple counting from historical re-projections.
-      3. Documented known-absent accounting: includes on-disk trials that were omitted from historical
-         parquet projections due to nested 'trials*/' subdirectory layouts.
-    """
     sql_path = Path(__file__).resolve().parents[2] / "sql" / "traj_versioned_features.sql"
     template = sql_path.read_text(encoding="utf-8")
     verified_hashes_quoted = ", ".join(f"'{h}'" for h in VERIFIED_ON_DISK_TRAJECTORY_HASHES)

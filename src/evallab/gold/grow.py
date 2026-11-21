@@ -1,4 +1,3 @@
-"""Hash-bound action-v2 source adapters for the existing IssueBank."""
 from __future__ import annotations
 
 import hashlib
@@ -34,7 +33,6 @@ def _strings(value: Any):
 
 
 def decision(publisher_positive: bool, readings: list[dict[str, Any] | None], ir: TrajectoryIR):
-    """Derive admission from both readers; a missing review is never a control."""
     if len(readings) != 2:
         return "unjudged", "disagreement", ()
     a, b = readings
@@ -76,7 +74,6 @@ def decision(publisher_positive: bool, readings: list[dict[str, Any] | None], ir
 
 
 def build(ctx: BankContext, family: str, *, labels: Path = LABELS, receipts: Path = RECEIPTS):
-    """Build one discovered source; preserve publisher labels and raw trajectory bytes."""
     path = ctx.repo_root / labels
     label_bytes = path.read_bytes()
     label_hash = hashlib.sha256(label_bytes).hexdigest()

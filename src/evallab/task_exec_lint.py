@@ -1,8 +1,3 @@
-"""Own the verifier-executes-artifact rule, screening verifier shell text statically.
-
-Nothing here executes task content.
-"""
-
 from __future__ import annotations
 
 import re
@@ -23,7 +18,6 @@ _INTERPRETERS = frozenset({"node", "bash", "sh", "dash"})
 def _executed_artifacts(
     command: list[str], artifacts: set[str], *, inline: bool = True
 ) -> Iterator[str]:
-    """Yield one matching path per command, inspecting inline code one level deep."""
     if not command:
         return
     head = PurePosixPath(command[0]).name
@@ -55,8 +49,6 @@ def _executed_artifacts(
 
 
 def lint_executes(task_dir: Path, artifacts: Sequence[str] = ()) -> list[Finding]:
-    """Warn when verifier shell commands run declared agent-written artifacts."""
-    # Imported here: task_lint imports this module while it loads.
     from evallab.task_lint import Finding
 
     findings: list[Finding] = []

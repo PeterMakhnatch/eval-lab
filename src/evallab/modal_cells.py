@@ -1,5 +1,3 @@
-"""Native Modal cell execution, keyed cache reuse and reserve/settle spend accounting."""
-
 from __future__ import annotations
 
 import fcntl
@@ -15,12 +13,9 @@ from typing import Any
 
 from evallab.registry import task_directory_digest
 
-#: Modal Sandbox pricing rates (USD per CPU-second, per GiB-second)
 MODAL_CPU_USD_PER_S: float = 0.00003942
 MODAL_GIB_USD_PER_S: float = 0.00000667
-#: Shared estimate margin over measured sandbox seconds
 ESTIMATE_MARGIN: float = 1.25
-#: Default seconds reserved per cell when task package provides no specific calibration
 PROJECTED_CELL_SECONDS: int = 240
 
 CellRunner = Callable[[Path, Path, str], dict[str, Any]]
@@ -28,7 +23,6 @@ CellRunner = Callable[[Path, Path, str], dict[str, Any]]
 
 
 def sha256_text(text: str) -> str:
-    """Return SHA-256 hex digest of UTF-8 encoded text."""
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
@@ -40,10 +34,6 @@ def compute_cell_key(
     grader_hook: str = "",
     timeout_seconds: int = 600,
 ) -> str:
-    """Deterministic hash of a cell's evaluation parameters.
-
-    cell_key = sha256(package digest, variant, submission or mutant digest, backend image, grader hook, timeout)
-    """
     payload = "\0".join([
         str(package_digest).strip(),
         str(variant).strip(),
@@ -56,7 +46,6 @@ def compute_cell_key(
 
 
 def estimate_modal_cost(package: Path, wall_seconds: float) -> float:
-    """Estimate Modal cost from task package resources and elapsed wall seconds."""
     env: dict[str, Any] = {}
     task_toml = package / "task.toml"
     if task_toml.is_file():
@@ -73,9 +62,7 @@ def estimate_modal_cost(package: Path, wall_seconds: float) -> float:
     return cost
 
 
-
 class _FileLock:
-    """Simple cross-process file lock using flock."""
 
     def __init__(self, lock_path: Path):
         self.lock_path = lock_path
@@ -96,16 +83,7 @@ class _FileLock:
                 pass
 
 
-# ---------------------------------------------------------------------------
-# SandboxMeter (Drop-in replacement for mutant_auditor.SandboxMeter)
-# ---------------------------------------------------------------------------
-
-
 class SandboxMeter:
-    """Cost estimate from measured sandbox seconds with reserve/settle support.
-
-    Drop-in replacement for legacy mutant_auditor.SandboxMeter.
-    """
 
     def __init__(self, cap_usd: float, gate: Any = None):
         self.cap = float(cap_usd)
@@ -133,11 +111,6 @@ class SandboxMeter:
             self.cells += 1
 
 
-# ---------------------------------------------------------------------------
-# Keyed Cell Specification and Batch Runner
-# ---------------------------------------------------------------------------
-
-
 def modal_cell_runner(
     *,
     repo_root: Path,
@@ -147,18 +120,6 @@ def modal_cell_runner(
     results_dir: Path | None = None,
     backend_factory: Callable[..., Any] | None = None,
 ) -> CellRunner:
-    """A CellRunner over ModalBackend; result.json is the consumption marker.
-
-    Default timeout_seconds is 600s rather than 1800s to bound worst-case overrun
-    per in-flight cell: (kill_timeout_cost - reservation).
-    For 3 packages x 6 cells = 18 in flight on 2 CPU / 8 GiB instances:
-    Projected 240s reservation is $0.0397. 600s kill timeout is $0.0991.
-    Worst-case overrun per in-flight cell is $(0.0991 - 0.0397) = $0.0594.
-    Aggregate worst-case overrun for 18 cells is 18 * $0.0594 = $1.0692
-    (compared to 18 * $(0.2974 - 0.0397) = $4.6386 under 1800s).
-
-    Returns cached or executed result dict; cached results include `cache_hit: True`.
-    """
 
     def run(cell_dir: Path, package: Path, script: str) -> dict[str, Any]:
         variant = cell_dir.name

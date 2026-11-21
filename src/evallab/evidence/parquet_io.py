@@ -1,5 +1,3 @@
-"""Atomic Parquet writes and immutable snapshot reading."""
-
 from __future__ import annotations
 
 import fcntl
@@ -25,13 +23,6 @@ _SNAPSHOT_SCHEMA = "evallab.parquet-snapshot/v1"
 
 @contextmanager
 def parquet_root_lock(root: Path, *, exclusive: bool = True) -> Iterator[None]:
-    """Exclude projection publication and compaction under one local lake root.
-
-    The stable lock file is outside job directories and must never be unlinked.
-    All writers must participate; this is advisory exclusion, not a filesystem
-    transaction or protection against arbitrary external edits. Acquisition is
-    not reentrant: already-excluded compaction uses its private staging writer.
-    """
     durable_mkdir(root)
     with (root / ".parquet.lock").open("a+b") as handle:
         fcntl.flock(handle.fileno(), fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH)
@@ -51,7 +42,6 @@ def _publication_root(path: Path) -> Path | None:
 
 @contextmanager
 def parquet_publication_lock(path: Path, *, exclusive: bool = True) -> Iterator[None]:
-    """Coordinate hot/cold lake writes without adding files to standalone bundles."""
     root = _publication_root(path)
     if root is None:
         yield
@@ -61,7 +51,6 @@ def parquet_publication_lock(path: Path, *, exclusive: bool = True) -> Iterator[
 
 
 def write_parquet_bytes_atomic(path: Path, payload: bytes) -> None:
-    """Publish serialized bytes, coordinating canonical lake destinations."""
     with parquet_publication_lock(path):
         durable_mkdir(path.parent)
         temporary = path.with_suffix(".parquet.tmp")
@@ -74,7 +63,6 @@ def write_parquet_bytes_atomic(path: Path, payload: bytes) -> None:
 
 @cache
 def _empty_parquet_bytes(schema: pa.Schema) -> bytes:
-    """Serialize each schema's required empty table once per process."""
     sink = pa.BufferOutputStream()
     pq.write_table(
         pa.Table.from_pylist([], schema=schema),
@@ -91,7 +79,6 @@ def _write_table_file(
     rows: Sequence[dict[str, Any]],
     schema: pa.Schema,
 ) -> None:
-    """Serialize one table without taking the publication lock."""
     durable_mkdir(path.parent)
     temporary = path.with_suffix(".parquet.tmp")
     try:
@@ -115,7 +102,6 @@ def write_table_atomic(
     rows: Sequence[dict[str, Any]],
     schema: pa.Schema,
 ) -> None:
-    """Publish one table, coordinating canonical lake destinations."""
     with parquet_publication_lock(path):
         _write_table_file(path, rows, schema)
 
@@ -200,11 +186,6 @@ def _snapshot_row_count(path: Path, name: str) -> int:
 
 
 def parquet_snapshot_paths(root: Path) -> dict[str, Path] | None:
-    """Resolve one current snapshot, or ``None`` when no pointer exists.
-
-    A malformed pointer, missing file, symlink, path escape, or hash mismatch
-    raises ``ValueError``. There is no fallback to another generation.
-    """
     pointer = root / _SNAPSHOT_POINTER
     if pointer.is_symlink():
         raise ValueError("snapshot pointer must not be a symlink")

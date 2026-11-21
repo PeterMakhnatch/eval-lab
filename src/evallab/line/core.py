@@ -1,5 +1,3 @@
-"""Receipt-backed DEV replay through the existing hack-drop stages."""
-
 from __future__ import annotations
 
 import hashlib
@@ -105,11 +103,10 @@ _AR_FLAGGED_VERDICTS = {"confirmed_cheat", "suspicious"}
 
 
 class BudgetReservationRefused(RuntimeError):
-    """A live call was refused before it started because its reserved cost would pass the cap."""
+    pass
 
 
 def reject_label_fields(value: Any, where: str) -> None:
-    """Evaluator/label fields must never appear in anything the line reads or writes."""
     if isinstance(value, dict):
         for key, child in value.items():
             if str(key).lower() in LABEL_KEYS:
@@ -121,7 +118,6 @@ def reject_label_fields(value: Any, where: str) -> None:
 
 
 def _clean_details(details: Any, where: str) -> dict[str, Any]:
-    """Whitelist AutoReview stage details; anything else is refused, never copied."""
     if not isinstance(details, dict):
         raise ValueError(f"AutoReview details must be an object: {where}")
     if "j3" in details or "prior" in details:
@@ -157,7 +153,6 @@ def _clean_details(details: Any, where: str) -> dict[str, Any]:
 
 
 def _autoreview_stage(stage: Any, where: str, row_steps: Any) -> hd.StageVerdict:
-    """Accept only the model-attested AutoReview stage-verdict shape, internally consistent."""
     if not isinstance(stage, dict) or set(stage) - {
         "decision",
         "reasons",
@@ -205,8 +200,6 @@ def _autoreview_stage(stage: Any, where: str, row_steps: Any) -> hd.StageVerdict
         "AUTOREVIEW_BUDGET_EXCEEDED",
         "AUTOREVIEW_CACHE_MISS",
     } or any(r.startswith("AUTOREVIEW_ERROR:") for r in names):
-        # An outcome that is not a reading carries none: one reason, and no score, verdict, model
-        # or cost that a later stage or the scoreboard could mistake for a model's judgment.
         consistent = (
             decision == "review"
             and len(names) == 1
@@ -242,7 +235,7 @@ def _autoreview_stage(stage: Any, where: str, row_steps: Any) -> hd.StageVerdict
 
 def _cache(spec: dict[str, Any]) -> tuple[dict[str, hd.StageVerdict], list[Path]]:
     j3_files = j3.cache_files(spec)
-    j3.load_cache(spec, ordering=True)  # Refuse malformed/label-bearing inputs before side effects.
+    j3.load_cache(spec, ordering=True)
     if spec["autoreview"]["mode"] != "cached":
         return {}, j3_files
     path = hd.check_declared_path(spec["autoreview"]["cache"])
@@ -282,7 +275,6 @@ def _cache(spec: dict[str, Any]) -> tuple[dict[str, hd.StageVerdict], list[Path]
 
 
 def _task_status_dev(path: str) -> None:
-    """Every declared split in a task-status file must be DEV: top level, rows and mapping values."""
     resolved = hd.check_declared_path(path)
     text = hd.read_declared_text(resolved)
     try:
@@ -303,7 +295,6 @@ def _task_status_dev(path: str) -> None:
 
 
 class _NoRegistry:
-    """The registry when none can be built (tests only): nothing is assigned TEST."""
 
     def assigned_test_anywhere(
         self, *, item_id: str | None = None, task_id: str | None = None
@@ -313,11 +304,10 @@ class _NoRegistry:
 
 @dataclass(frozen=True)
 class Intake:
-    """Every admitted run, and the identity of every file the admission read."""
 
     items: list[hd.RolloutItem]
     rows: list[dict[str, Any]]
-    inodes: frozenset[tuple[int, int]]  # (device, inode) of each file of each admitted rollout
+    inodes: frozenset[tuple[int, int]]
 
 
 def _intake(spec: dict[str, Any], root: Path) -> tuple[list[hd.RolloutItem], list[dict[str, Any]]]:
@@ -326,14 +316,6 @@ def _intake(spec: dict[str, Any], root: Path) -> tuple[list[hd.RolloutItem], lis
 
 
 def _admit_sources(spec: dict[str, Any], root: Path) -> Intake:
-    """Admit every rollout the sources list, at run time and at check time alike.
-
-    Each rollout goes through ``rollout_admission.admit_rollout`` once, on its canonical path:
-    one walk that refuses links and special files, one read that is hashed, checked for a TEST
-    declaration (any ``split`` key, any case, any depth) and parsed. The run that is scored is
-    built from those bytes, and the hash recorded is that read's, so no rollout file is opened
-    again after it was admitted.
-    """
     from evallab.line.io import sealed_set
     from evallab.rollout_admission import AdmissionRefused, admit_rollout
 
@@ -371,7 +353,7 @@ def _admit_sources(spec: dict[str, Any], root: Path) -> Intake:
             except hd.DuplicateKeyError:
                 raise
             except ValueError:
-                top = None  # not a manifest: the loader flags unparsable rollouts itself
+                top = None
             if isinstance(top, list):
                 raise ValueError(
                     f"a JSON list is not a rollout manifest (its rows would skip DEV checks): "
@@ -448,8 +430,6 @@ def _tasks(spec: dict[str, Any], items: list[hd.RolloutItem]) -> dict[str, dict[
             )
         )
         status = str(info.get("status", "")).lower()
-        # hack-drop's own vocabulary maps onto the line's: gold/hardened are certified and
-        # exploitable is weak, never silently uncertified.
         status = {"gold": "certified", "hardened": "certified", "exploitable": "weak"}.get(
             status, status
         )
@@ -481,7 +461,6 @@ def _cached_call(ar: hd.StageVerdict) -> dict[str, Any] | None:
 
 
 def used_routes(trace_rows: list[dict[str, Any]]) -> set[str]:
-    """Every model route that actually served a call; an unknown route is `unattested`."""
     routes: set[str] = set()
     for row in trace_rows:
         call = row["autoreview"].get("call")
@@ -513,7 +492,6 @@ def _evaluate(
     for item, run in zip(items, intake, strict=True):
         status_actions = spec["task_policy"]
         if run["corpus"] == "goodfire" and spec.get("goodfire_review_floor", True):
-            # Apply the source review floor without changing policy for later runs.
             status_actions = {
                 status: "review" if status != "certified" and action == "pass" else action
                 for status, action in status_actions.items()
@@ -532,13 +510,10 @@ def _evaluate(
         elif mode == "cached":
             cached = cache.get(item.item_id)
             if not hd.autoreview_eligible(l0):
-                # The current L0 decides eligibility: a stale stored reading never applies.
                 ar = hd.StageVerdict(
                     "autoreview", "pass", ["AUTOREVIEW_NOT_ELIGIBLE"], [], {"eligible": False}
                 )
             elif cached is None or set(cached.reasons) & AUTOREVIEW_UNREAD:
-                # Eligible, but the cache has no actual reading (decided by reason codes, not by
-                # whatever details a row carries): never pass silently.
                 ar = hd.StageVerdict(
                     "autoreview", "review", ["AUTOREVIEW_CACHE_MISS"], [], {"eligible": True}
                 )
@@ -549,7 +524,6 @@ def _evaluate(
             seen: dict[str, Any] = {}
 
             def reviewer(prompt: str, route: str, _seen: dict[str, Any] = seen) -> dict[str, Any]:
-                # Reserve the per-call bound before the call; refuse if it could pass the cap.
                 if state["halted"] or state["spent_usd"] + call_bound > cap:
                     raise BudgetReservationRefused("reserved call cost would exceed the cap")
                 res = hd.run_omp_session(prompt, model=route)
@@ -561,7 +535,7 @@ def _evaluate(
                     cost_usd=_measured_cost(res),
                 )
                 if _seen["cost_usd"] > call_bound:
-                    state["halted"] = True  # the bound was breached: no further calls
+                    state["halted"] = True
                 return res
 
             ar = hd.evaluate_autoreview_stage(
@@ -589,7 +563,6 @@ def _evaluate(
                 )
             else:
                 value = j3_cache.get(item.item_id) or j3.reading(item, [], "cache_miss")
-            # Rebind stored/cache readings to current native input, not just the run ID.
             current = j3.outcome(value, item)
             if current.decision == "review" and j3.outcome(value).decision != "review":
                 value = {**value, "error": "invalid_input"}
@@ -600,8 +573,6 @@ def _evaluate(
                 priority_value = value
         decision = hd.consolidate_decisions(item, task, l0, ar).to_manifest_row()
         if "j3" in ar.details:
-            # The legacy manifest sanitizer drops nested reader records. The line's
-            # strict schema preserves only validated prior/J3 data, never raw text.
             decision["stage_decisions"]["autoreview"].update(
                 details=_clean_details(ar.details, item.item_id),
                 evidence_steps=list(ar.evidence_steps),
@@ -648,7 +619,6 @@ def _evaluate(
 
 
 def _priority_order(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Complete J3 scores first, descending; ties and missing scores keep arrival order."""
     return sorted(
         rows,
         key=lambda row: (
@@ -694,7 +664,6 @@ def _is_station_snapshot(name: str) -> bool:
 
 
 def batch_ref(batch: Path, path: Path) -> str:
-    """A receipt path: relative inside the batch (so a byte copy still verifies), else absolute."""
     try:
         return path.relative_to(batch).as_posix()
     except ValueError:
@@ -702,7 +671,6 @@ def batch_ref(batch: Path, path: Path) -> str:
 
 
 def resolve_ref(batch: Path, raw: str) -> Path:
-    """Resolve a receipt path against the batch being checked; a relative one cannot leave it."""
     path = Path(raw)
     if path.is_absolute():
         return path
@@ -728,23 +696,12 @@ def _write_snapshot(batch: Path, wanted: bytes) -> Path:
 
 
 class Found(NamedTuple):
-    """What ``line check`` found on disk before it began: the bytes of ``scoreboard.json`` and
-    ``SCOREBOARD.md`` (``None`` if absent) and whether the view matched the scoreboard."""
 
     files: dict[str, bytes | None]
     view: str
 
 
 def invalidate_check(batch: Path) -> Found:
-    """Replace any earlier check result with PENDING/not-passed before a new check runs.
-
-    The batch is validated first, so a missing, linked or tampered directory is refused before
-    anything in it is rewritten (a hard link must not be silently replaced by a fresh file).
-    The saved ``SCOREBOARD.md`` is compared with the view rendered from the saved scoreboard
-    BEFORE either is rewritten: re-rendering first would repair a tampered or deleted view and
-    let the check pass. The outcome is carried in the pending ``check.json`` for the
-    ``scoreboard_recompute`` gate.
-    """
     from evallab.line.scoreboard import render_scoreboard, stored_version
 
     preflight_batch(batch)
@@ -786,28 +743,18 @@ def invalidate_check(batch: Path) -> Found:
         },
     )
     if score is None or view != "ok":
-        # no scoreboard, or a saved view that is not what the scoreboard renders: leave both
-        # exactly as found
         return Found(found, view)
     score["quality_checks"] = pending
     write_json(batch / "scoreboard.json", score)
     try:
         rendered = render_scoreboard(score)
     except (ValueError, KeyError, TypeError, AttributeError):
-        return Found(found, "unreadable")  # it fails its gate; it must not crash the check
+        return Found(found, "unreadable")
     (batch / "SCOREBOARD.md").write_text(rendered, encoding="utf-8")
     return Found(found, view)
 
 
 def settle_check(batch: Path, value: dict[str, Any], found: Found) -> None:
-    """Write the finished check, then bring the scoreboard's quality section and view along.
-
-    That is done only when the saved view matched the saved scoreboard when the check began
-    (or the scoreboard has since proved sound): only the quality-check list is refreshed, and the
-    view is rendered from it, so nothing that was wrong is repaired. Otherwise ``scoreboard.json``
-    and ``SCOREBOARD.md`` are put back exactly as ``line check`` found them: a tampered or deleted
-    view is never rewritten into a passing one, so a second check fails too.
-    """
     from evallab.line.scoreboard import render_scoreboard
 
     write_json(batch / "check.json", value)
@@ -821,7 +768,7 @@ def settle_check(batch: Path, value: dict[str, Any], found: Found) -> None:
             score["quality_checks"] = value["checks"]
             rendered = render_scoreboard(score)
         except (OSError, ValueError, KeyError, TypeError, AttributeError):
-            pass  # a scoreboard that cannot be rendered stays as found, and failed its gate
+            pass
         else:
             write_json(batch / "scoreboard.json", score)
             (batch / "SCOREBOARD.md").write_text(rendered, encoding="utf-8")
@@ -832,9 +779,6 @@ def settle_check(batch: Path, value: dict[str, Any], found: Found) -> None:
 
 
 def refused_check(error: Exception) -> dict[str, Any]:
-    """The check result of a batch the line refused before any gate ran (a declared input that
-    is now a link, a spec that no longer resolves to itself): every gate FAIL and not passed, so
-    ``check.json`` names the refusal instead of staying ``PENDING``."""
     return {
         "checks": [
             {"name": name, "status": "FAIL", "details": f"not run, refused: {error}"}
@@ -860,7 +804,6 @@ def _evaluate_twice(
     list[dict[str, Any]],
     list[dict[str, Any]],
 ]:
-    """The decisions, their trace and run state, and a second evaluation to prove determinism."""
     decisions, traces, state = _evaluate(spec, items, intake, tasks, cache)
     frozen_ar = {
         row["run_id"]: hd.StageVerdict(
@@ -884,11 +827,6 @@ def _evaluate_twice(
 
 
 def _refuse_unallowed_readings(spec: dict[str, Any], traces: list[dict[str, Any]]) -> None:
-    """Every stored reading must be attested and on a route in ``models.allowed``.
-
-    Cached replay spends $0 of its own (historical ``cost_usd`` in a cached row is what the
-    original run spent, not this run), so ``max_usd: 0`` does not refuse a cached reading.
-    """
     allowed = set(spec["models"]["allowed"])
     for route in used_routes(traces):
         if route not in allowed:
@@ -898,12 +836,10 @@ def _refuse_unallowed_readings(spec: dict[str, Any], traces: list[dict[str, Any]
 
 
 def _shares_an_inode(keys: set[tuple[Any, ...]], inodes: frozenset[tuple[int, int]]) -> bool:
-    """Whether any file an admission read is the same file as one of ``keys`` (by inode)."""
     return any(("id", device, inode) in keys for device, inode in inodes)
 
 
 def run_line(spec_path: Path, repo_root: Path) -> Path:
-    """Run the line; every declared input is read through the one no-follow, bounded reader."""
     with sealed_scope(repo_root), hd.declared_reader(_declared_text):
         return _run_line(spec_path, repo_root)
 
@@ -917,7 +853,6 @@ def _run_line(spec_path: Path, repo_root: Path) -> Path:
     batch = Path(spec["out_root"]) / spec["batch_id"]
     if batch.exists():
         raise ValueError(f"batch already exists; choose a new batch_id: {batch}")
-    # Admit every source before producing a batch or touching a queue.
     admitted = _admit_sources(spec, repo_root)
     items, intake = admitted.items, admitted.rows
     admitted_hash = {Path(r["rollout_path"]): r["sha256"] for r in intake}
@@ -933,15 +868,9 @@ def _run_line(spec_path: Path, repo_root: Path) -> Path:
     )
     if (labelled & file_keys(fed_to_decisions)) or _shares_an_inode(labelled, admitted.inodes):
         raise ValueError("a label file is also an input to a decision stage")
-    # A run without a stored reading is not an error here: ``_evaluate`` sends it to review as
-    # AUTOREVIEW_CACHE_MISS when the current L0 makes it eligible, and the scoreboard counts it.
-    # Labels are read only by the scoreboard, but a non-DEV label file must fail before any
-    # directory, queue or export exists.
     from evallab.line.scoreboard import _load_labels
 
     _load_labels(spec, repo_root, spec["labels_policy"]["attempted_cheat"])
-    # Everything that can be refused is refused before a batch directory exists or the shared
-    # Judge queue is touched: the Station file, and (without paid calls) the model routes.
     verdict_source = Path(spec["judge"].get("verdicts") or STATE_DIR / "verdicts.jsonl")
     hd.check_dev_path_allowed(verdict_source)
     station_bytes = read_bytes(verdict_source) if verdict_source.is_file() else b""
@@ -950,8 +879,6 @@ def _run_line(spec_path: Path, repo_root: Path) -> Path:
     if spec["autoreview"]["mode"] != "live" and j3.mode(spec) != "live":
         prepared = _evaluate_twice(spec, items, intake, tasks, cache)
         _refuse_unallowed_readings(spec, prepared[1])
-    # The shared queue is read (and so refused if it is sealed or a link) before a directory
-    # exists; runs already in it are refused too, but only a batch that will append is told so.
     _refuse_queue(
         spec,
         [row["run_id"] for row in _queue(prepared[0], spec)]
@@ -962,8 +889,6 @@ def _run_line(spec_path: Path, repo_root: Path) -> Path:
     for source in spec["sources"]:
         folder = Path(source["rollouts"])
         if folder.is_dir():
-            # A folder of trials is walked (links and special files refused) before a batch
-            # directory exists, not when the intake receipt hashes it; that digest is reused.
             admitted_hash[folder] = strict_digest(folder)
     batch.mkdir(parents=True)
     write_json(batch / "spec.json", spec)
@@ -1073,7 +998,6 @@ def _run_line(spec_path: Path, repo_root: Path) -> Path:
     start = time.time()
     queue = _queue(decisions, spec)
     write_rows(batch / "judge-queue.jsonl", queue)
-    # The shared Judge queue is appended only after every check passes (see the end).
     snapshot = _write_snapshot(batch, station_bytes)
     write_rows(batch / "verdicts.jsonl", verdicts)
     receipt(
@@ -1100,8 +1024,6 @@ def _run_line(spec_path: Path, repo_root: Path) -> Path:
         batch / "decisions.jsonl",
         *[Path(s["labels"]) for s in spec["sources"] if s["labels"]],
     ]
-    # The scoreboard reads its own stage receipt, so write it, build once, then rewrite it with
-    # the real elapsed time of that build (label loading, joins, intervals and rendering).
     receipt("scoreboard", time.time(), score_inputs, [], len(decisions), len(decisions))
     write_json(
         batch / "check.json",
@@ -1114,7 +1036,7 @@ def _run_line(spec_path: Path, repo_root: Path) -> Path:
         },
     )
     start = time.time()
-    render_scoreboard(build_scoreboard(batch, repo_root))  # timed: labels, joins, intervals, view
+    render_scoreboard(build_scoreboard(batch, repo_root))
     receipt("scoreboard", start, score_inputs, [], len(decisions), len(decisions))
     write_json(batch / "scoreboard.json", build_scoreboard(batch, repo_root))
     (batch / "SCOREBOARD.md").write_text(
@@ -1127,7 +1049,6 @@ def _run_line(spec_path: Path, repo_root: Path) -> Path:
         queue_pending=spec["judge"]["write"],
     )
     if result["passed"] and spec["judge"]["write"]:
-        # Only a batch that passed every check may touch the shared Judge queue.
         try:
             _refuse_queue(spec, [row["run_id"] for row in queue])
             problem = None
@@ -1144,7 +1065,6 @@ def _run_line(spec_path: Path, repo_root: Path) -> Path:
             result["passed"] = False
     write_json(batch / "check.json", result)
     write_json(batch / "scoreboard.json", build_scoreboard(batch, repo_root))
-    # The view is rendered from the saved file, as `line check` does, so the two always agree.
     score = read_json(batch / "scoreboard.json")
     (batch / "SCOREBOARD.md").write_text(render_scoreboard(score), encoding="utf-8")
     return batch
@@ -1193,10 +1113,6 @@ _BATCH_FOLDERS: dict[str, frozenset[str]] = {
 
 
 def preflight_batch(batch: Path) -> None:
-    """Refuse a batch directory that is not exactly what the line writes, before anything reads
-    or rewrites a file in it: it must exist and not be a link, and hold only the closed set of
-    batch files, as regular single-link files and plain folders (no symlinks, hard links,
-    FIFOs, sockets or devices, and no other names)."""
     mode = os.lstat(batch).st_mode
     if stat.S_ISLNK(mode):
         raise ValueError(f"batch is a symlink: {batch}")
@@ -1235,7 +1151,6 @@ design, so a label key inside them is the Station's own record and is not scanne
 
 
 def _check_station_row(row: dict[str, Any], number: int) -> None:
-    """A Station row declares no split other than dev and no label field beyond its schema."""
     where = f"Station verdicts line {number}"
     from evallab.rollout_admission import declares_non_dev
 
@@ -1249,12 +1164,6 @@ def _check_station_row(row: dict[str, Any], number: int) -> None:
 
 
 def _station_verdicts(data: bytes, admitted: set[str]) -> list[dict[str, Any]]:
-    """The Station's effective verdicts for the admitted runs, from one frozen byte string.
-
-    Mirrors the Station's own reader (a line that is not JSON is skipped) but refuses what it
-    would crash on or silently prefer: invalid UTF-8, a non-object row, a repeated key, a split
-    other than dev, an evaluator/label field outside the Station's own reveal blocks.
-    """
     from evallab.production.judge_report import effective_records
 
     rows: list[dict[str, Any]] = []
@@ -1275,13 +1184,6 @@ def _station_verdicts(data: bytes, admitted: set[str]) -> list[dict[str, Any]]:
 
 
 def _refuse_queue(spec: dict[str, Any], run_ids: list[str]) -> None:
-    """Read the external Judge queue before anything is written.
-
-    It is read through the one reader (no link followed, bounded, never another name for sealed
-    material). Every row must be an object with a ``run_id``, and none of ``run_ids`` (the runs
-    this batch is about to queue) may already appear twice: the append skips a queued run, so
-    a doubled one could never be verified afterwards, and the file has to be fixed first.
-    """
     queue = Path(spec["judge"]["queue"])
     if not os.path.lexists(queue):
         return
@@ -1319,7 +1221,6 @@ _CALL_KEYS = frozenset({"requested_route", "served_models", "n_fallbacks", "cost
 
 
 def _live_call(call: Any, where: str) -> dict[str, Any] | None:
-    """A call record is exactly its four fields, typed; anything else is refused."""
     if call is None:
         return None
     served = call.get("served_models") if isinstance(call, dict) else None
@@ -1346,15 +1247,6 @@ def _validate_live_trace(
     spec: dict[str, Any],
     items: list[hd.RolloutItem],
 ) -> None:
-    """A live model reading cannot be recomputed, so everything around it is.
-
-    Each stored row must have exactly the trace-row fields; its ``stage``, ``mode``, ``score``
-    and ``cited_steps`` must follow from the reading; and which of the stage's outcomes the run
-    reached must follow from the recomputed L0 eligibility, the run's trajectory and the spend
-    of the rows before it (the same walk ``line run`` made): not eligible, budget exhausted, no
-    trajectory, a model error, or a model reading on the configured route backed by a call
-    record that agrees with its details. A reading cannot be dropped, rerouted or relabelled.
-    """
     cap = spec["autoreview"]["max_usd"]
     bound = spec["autoreview"].get("max_call_usd", 0)
     route = spec["autoreview"].get("route")
@@ -1386,7 +1278,6 @@ def _validate_live_trace(
         if names & {"AUTOREVIEW_NOT_ELIGIBLE", "AUTOREVIEW_DISABLED", "AUTOREVIEW_CACHE_MISS"}:
             raise ValueError(f"eligible run without a live reading: {where}")
         if spent >= cap:
-            # The budget was spent before this run: the stage could only report that.
             if (
                 names != {"AUTOREVIEW_BUDGET_EXCEEDED"}
                 or call
@@ -1401,8 +1292,6 @@ def _validate_live_trace(
         if names & {"AUTOREVIEW_BUDGET_EXCEEDED", "AUTOREVIEW_NO_TRAJECTORY"}:
             raise ValueError(f"live reading skipped without cause: {where}")
         errors = [r for r in names if r.startswith("AUTOREVIEW_ERROR:")]
-        # Before a call the line reserves ``max_call_usd``; with that reservation over the cap
-        # (or after a breach) the reviewer is never reached, so no reading can exist here.
         refusable = halted or spent + bound > cap
         if refusable and not errors:
             raise ValueError(f"live reading where the budget walk required a refusal: {where}")
@@ -1412,8 +1301,6 @@ def _validate_live_trace(
                 len(names) != 1
                 or details != {"error": error}
                 or (error == "BudgetReservationRefused" and not refusable)
-                # A refused or never-started call has no call record; one that did run is on
-                # the one route the spec allows.
                 or (call and (refusable or error == "BudgetReservationRefused"))
                 or (call and call["requested_route"] != route)
             ):
@@ -1441,9 +1328,6 @@ def _declared_text(path: Path) -> str:
 
 @contextmanager
 def declared_scope(repo_root: Path) -> Iterator[None]:
-    """Every declared input read inside is opened without following a link, bounded, and never
-    another name for sealed material. ``run``, ``check``, ``scoreboard`` and ``replay`` all
-    read through it; a nested scope reuses the outer one."""
     with sealed_scope(repo_root), hd.declared_reader(_declared_text):
         yield
 
@@ -1457,20 +1341,6 @@ def check_batch(
     | None = None,
     queue_pending: bool = False,
 ) -> dict[str, Any]:
-    """Re-derive all eight gates; any missing/corrupt evidence fails closed.
-
-    Determinism recomputes the decisions once and compares them with the stored decisions and
-    the hashes ``line run`` recorded from its own two in-process passes, so one recompute in a
-    new process proves the same input still gives the same answer. ``line run`` hands its own
-    two passes as ``evaluated`` (first decisions, second-pass traces, second decisions) instead
-    of paying for a third. ``fast`` skips the recompute: that gate is then ``SKIPPED``, the
-    result says determinism is not verified, and it is never a pass.
-
-    Declared inputs are read through the no-follow reader, and the bytes it returns are both
-    hashed (provenance) and parsed (loaders): a file whose bytes differ between two reads of
-    this check fails provenance. ``queue_pending`` is for ``run_line`` only: the external Judge
-    queue is appended after this check passes, so it cannot be verified yet.
-    """
     with sealed_scope(repo_root), record_reads() as reads, hd.declared_reader(_declared_text):
         result = _check_batch(batch, repo_root, fast, evaluated, queue_pending)
     unstable = reads.unstable()
@@ -1506,8 +1376,6 @@ def _check_batch(
     preflight_batch(batch)
     spec = load_spec(batch / "spec.json")
     if spec != read_json(batch / "spec.json"):
-        # load_spec resolves every declared path; the stored spec was resolved when it was written,
-        # so a difference means a declared input now is, or passes through, a link.
         raise ValueError(
             "spec.json holds paths that are no longer canonical (a declared input is a link)"
         )
@@ -1594,8 +1462,6 @@ def _check_batch(
         return resolved == root or root in resolved.parents
 
     def provenance() -> None:
-        # Admitted outside inputs come from the spec and from a fresh, verified intake, never
-        # from the batch's own (possibly edited) runs.jsonl.
         intake_hashes = {r["rollout_path"]: r["sha256"] for r in verified_intake()[1]}
         expected_external = {
             "intake": [Path(s["rollouts"]) for s in spec["sources"]]
@@ -1699,8 +1565,6 @@ def _check_batch(
                         "relocatable, then copied); re-run the line to regenerate it",
                     )
                     require(False, f"{receipt['stage']} receipt does not list {sorted(missing)}")
-                # Exact membership: a stage lists only its own files (and, for the judge, its
-                # immutable Station snapshots), never another file that happens to be in the batch.
                 extra = listed - names
                 if receipt["stage"] == "judge" and side == "inputs":
                     extra = {n for n in extra if not _is_station_snapshot(n)}
@@ -1726,9 +1590,6 @@ def _check_batch(
                     on_disk == listed_snapshots,
                     "evidence/station-inputs holds a file the judge receipt does not list",
                 )
-            # A closed set: every output is the batch's own file, and a stage lists exactly the
-            # outside inputs the spec (or the verified intake) declares for it: omissions and
-            # extras both fail. Nothing else is read.
             for ref in receipt["outputs"]:
                 path = resolve_ref(batch, ref["path"])
                 require(inside(path), f"receipt output is not a file of this batch: {ref['path']}")
@@ -1765,13 +1626,11 @@ def _check_batch(
                 path = resolve_ref(batch, ref["path"])
                 known = None if inside(path) else intake_hashes.get(os.path.realpath(path))
                 if known is not None:
-                    # Admitted by this check's own intake: the rollout is never read again.
                     require(known == ref["sha256"], f"hash mismatch: {path}")
                     continue
-                if not inside(path) and path.is_dir():  # a manifest tree: no links, no specials
+                if not inside(path) and path.is_dir():
                     require(strict_digest(path) == ref["sha256"], f"hash mismatch: {path}")
                     continue
-                # One open descriptor: type, link count, hash and rows all come from these bytes.
                 data = read_bytes(path, single_link=inside(path))
                 require(hashlib.sha256(data).hexdigest() == ref["sha256"], f"hash mismatch: {path}")
                 if "rows" in ref:
@@ -1810,7 +1669,6 @@ def _check_batch(
         ]
         require(len(set(hashes)) == 1, "decision hashes differ")
 
-        # The trace is evidence too: recompute what is recomputable and compare.
         def shown(rows: list[dict[str, Any]]) -> str:
             return canonical_hash(
                 [{"run_id": r["run_id"], "l0": r["l0"]} for r in rows] if live else rows
@@ -1840,7 +1698,6 @@ def _check_batch(
                         f"prior reader call differs from recomputation: {stored['run_id']}",
                     )
         if spec["autoreview"]["mode"] == "live":
-            # Keep the old reader's attestation and paid-budget validation unchanged.
             prior_trace = []
             for row in stored_trace:
                 stage = row["autoreview"]
@@ -1910,7 +1767,6 @@ def _check_batch(
             read_rows(batch / "judge-queue.jsonl") == _queue(decisions, spec),
             "Judge queue differs from reviews + audits",
         )
-        # verdicts.jsonl is a pure function of the pinned Station snapshot and the admitted runs.
         judge = next(r for r in receipts if r["stage"] == "judge")
         snapshot_dir = (batch / "evidence" / "station-inputs").resolve()
         snapshots = [
@@ -1939,8 +1795,6 @@ def _check_batch(
         for row in read_rows(batch / "trace.jsonl"):
             _clean_details(row["autoreview"]["details"], row["run_id"])
         label_keys = file_keys(Path(s["labels"]) for s in spec["sources"] if s["labels"])
-        # What the spec and the verified intake feed the decision stages, not only what the
-        # receipts claim: a receipt that omits an input cannot hide a label file in it.
         decision_inputs = (
             [Path(s["rollouts"]) for s in spec["sources"]]
             + [Path(r["rollout_path"]) for r in verified_intake()[1]]
@@ -1965,8 +1819,8 @@ def _check_batch(
 
     def scoreboard() -> None:
         stored = read_json(batch / "scoreboard.json")
-        version = stored_version(stored)  # refuses a version newer than this code reads
-        if version >= 3:  # older batches rendered the view from memory, in another key order
+        version = stored_version(stored)
+        if version >= 3:
             carried = previous.get("scoreboard_view", "ok")
             require(
                 carried == "ok",

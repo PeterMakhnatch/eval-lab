@@ -1,4 +1,3 @@
-"""Cache-only score argument declarations."""
 from __future__ import annotations
 
 import argparse

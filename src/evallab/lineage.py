@@ -1,10 +1,3 @@
-"""Lineage walker for generated artifacts (E14).
-
-Recursively traces the lineage of generated artifacts back to Zone 1
-(immutable evidence), validating recorded content digests and detecting
-cycles, missing inputs, and unrecorded derivations.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -32,7 +25,6 @@ def _parse_front_matter(content: str) -> dict[str, Any] | None:
 
 @dataclass(frozen=True)
 class LineageNode:
-    """A single node in an artifact lineage graph."""
 
     target: str
     path: str | None
@@ -47,19 +39,9 @@ class LineageNode:
 
 
 def classify_zone(path_or_str: str | Path) -> str:
-    """Classify the storage/provenance zone of a path or target.
-
-    Zones:
-    - z1: Immutable evidence (runs/, research/evidence/, library/benchmarks/_trajectories/)
-    - z2: PostgreSQL catalog
-    - z3: Parquet analytics (derived/parquet/, derived/, *.parquet)
-    - z4: Knowledge (research other than evidence, *.md)
-    - unknown: Fallback
-    """
     p_str = path_or_str.as_posix() if isinstance(path_or_str, Path) else str(path_or_str)
     p_str = p_str.replace("\\", "/")
 
-    # Check Z1 first (immutable evidence)
     if (
         p_str.startswith("runs/")
         or "/runs/" in p_str
@@ -70,7 +52,6 @@ def classify_zone(path_or_str: str | Path) -> str:
     ):
         return "z1"
 
-    # Check Z3 (Parquet / derived)
     if p_str.startswith("derived/") or "/derived/" in p_str or p_str.endswith(".parquet"):
         return "z3"
 
@@ -84,7 +65,6 @@ def classify_zone(path_or_str: str | Path) -> str:
 
 
 def normalize_digest(digest: str | None) -> str | None:
-    """Normalize a content digest string to sha256:<64 hex> format."""
     if digest is None:
         return None
     d = digest.strip()
@@ -96,7 +76,6 @@ def normalize_digest(digest: str | None) -> str | None:
 
 
 def compute_file_digest(path: Path) -> str:
-    """Compute sha256:<hex> content digest for a file."""
     h = hashlib.sha256()
     with path.open("rb") as f:
         while chunk := f.read(1024 * 1024):
@@ -105,7 +84,6 @@ def compute_file_digest(path: Path) -> str:
 
 
 def _rel_path(path: Path, repo_root: Path) -> str:
-    """Return repo-relative path if inside repo_root, else posix path."""
     try:
         return path.resolve().relative_to(repo_root.resolve()).as_posix()
     except (ValueError, RuntimeError):
@@ -117,12 +95,6 @@ def resolve_target(
     repo_root: Path,
     explicit_derived: Path | None = None,
 ) -> tuple[Path | None, str, str | None]:
-    """Resolve a target path or ID to (resolved_path, zone, entity_id).
-
-    1. Direct filesystem check relative to repo_root or explicit_derived or absolute.
-    2. Direct check under runs/ or research/evidence/runs/ for job/trial directories.
-    """
-    # 1. Direct path check
     candidates = [
         repo_root / target,
         Path(target),
@@ -135,10 +107,8 @@ def resolve_target(
             zone = classify_zone(_rel_path(c, repo_root))
             return c, zone, None
         if c.is_dir():
-            # If directory in Z1 (e.g. trial directory or job directory)
             zone = classify_zone(_rel_path(c, repo_root))
             if zone == "z1":
-                # Check for canonical manifest or result.json
                 for sub in ("manifest.json", "result.json", "rollout.json", "PROMOTION.json"):
                     if (c / sub).is_file():
                         return c / sub, "z1", None
@@ -161,7 +131,6 @@ def resolve_target(
 
 
 def _parse_input_items(raw_inputs: Any) -> list[dict[str, Any]]:
-    """Normalize raw inputs from front-matter or JSON into standard dicts."""
     results: list[dict[str, Any]] = []
     if not isinstance(raw_inputs, (list, tuple)):
         return results
@@ -193,18 +162,11 @@ def read_artifact_inputs(
     zone: str,
     repo_root: Path,
 ) -> tuple[str, list[dict[str, Any]], str | None]:
-    """Read the `inputs: [{path|id, digest}]` contract from an artifact.
-
-    Returns (status, inputs_list, reason):
-    - ("ok", inputs, None)
-    - ("unrecorded", [], reason)
-    """
     if not file_path.is_file():
         return "unrecorded", [], f"artifact is not a regular file: {file_path}"
 
     ext = file_path.suffix.lower()
 
-    # Markdown artifacts (Z4 front-matter)
     if ext == ".md":
         try:
             content = file_path.read_text(encoding="utf-8")
@@ -223,7 +185,6 @@ def read_artifact_inputs(
 
         return "unrecorded", [], "no inputs field declared in front-matter"
 
-    # JSON artifacts (Z3 / sidecars)
     if ext == ".json":
         try:
             content = file_path.read_text(encoding="utf-8")
@@ -238,14 +199,12 @@ def read_artifact_inputs(
                     return "unrecorded", [], "inputs field in JSON artifact is not a list"
                 return "ok", _parse_input_items(raw_inputs), None
 
-            # Check ProvenanceMetadata sidecar format
             if isinstance(data.get("parent_digests"), list) and data["parent_digests"]:
                 items = [
                     {"path": None, "id": None, "digest": d} for d in data["parent_digests"]
                 ]
                 return "ok", items, None
 
-        # Check for sidecar file beside it
         sidecar_path = file_path.with_suffix(".provenance.json")
         if sidecar_path.is_file():
             try:
@@ -257,9 +216,7 @@ def read_artifact_inputs(
 
         return "unrecorded", [], "no inputs field in JSON artifact"
 
-    # Parquet artifacts
     if ext == ".parquet":
-        # Check Parquet sidecar JSON files
         manifest_path = file_path.parent / "_MANIFEST.json"
         if manifest_path.is_file():
             try:
@@ -296,7 +253,6 @@ def read_artifact_inputs(
 
         return "unrecorded", [], "no inputs metadata found for parquet artifact"
 
-    # YAML artifacts
     if ext in (".yaml", ".yml"):
         try:
             data = yaml.safe_load(file_path.read_text(encoding="utf-8"))
@@ -319,14 +275,11 @@ def _walk_lineage(
     depth: int = 0,
     max_depth: int = 32,
 ) -> LineageNode:
-    """Recursively walk lineage of target, stopping at Zone 1 (immutable evidence)."""
-    # 1. Target resolution
     resolved_path, zone, _ = resolve_target(target, repo_root, explicit_derived)
 
     rel_path = _rel_path(resolved_path, repo_root) if resolved_path is not None else None
     canonical_id = rel_path if rel_path is not None else target
 
-    # 2. Cycle detection
     if canonical_id in ancestors:
         return LineageNode(
             target=target,
@@ -339,7 +292,6 @@ def _walk_lineage(
             expected_digest=expected_digest,
         )
 
-    # 3. Depth bound
     if depth >= max_depth:
         return LineageNode(
             target=target,
@@ -352,7 +304,6 @@ def _walk_lineage(
             expected_digest=expected_digest,
         )
 
-    # 4. Nonexistent target
     if resolved_path is None:
         return LineageNode(
             target=target,
@@ -365,7 +316,6 @@ def _walk_lineage(
             expected_digest=expected_digest,
         )
 
-    # 5. Digest computation and verification
     actual_digest = compute_file_digest(resolved_path)
 
     if expected_digest is not None:
@@ -384,7 +334,6 @@ def _walk_lineage(
                 actual_digest=actual_digest,
             )
 
-    # 6. Terminal base case: Zone 1 (immutable evidence)
     if zone == "z1":
         return LineageNode(
             target=target,
@@ -398,7 +347,6 @@ def _walk_lineage(
             inputs=(),
         )
 
-    # 7. Read inputs contract from derived artifact
     inputs_status, inputs_list, reason = read_artifact_inputs(resolved_path, zone, repo_root)
     if inputs_status != "ok":
         return LineageNode(
@@ -414,7 +362,6 @@ def _walk_lineage(
             inputs=(),
         )
 
-    # 8. Recurse over recorded inputs
     next_ancestors = (*ancestors, canonical_id)
     child_nodes: list[LineageNode] = []
 
@@ -435,7 +382,6 @@ def _walk_lineage(
         )
         child_nodes.append(child_node)
 
-    # Deterministic child ordering: by (path or target, digest)
     child_nodes.sort(key=lambda c: (c.path or c.target, c.digest or ""))
 
     all_resolved = all(c.resolved for c in child_nodes)

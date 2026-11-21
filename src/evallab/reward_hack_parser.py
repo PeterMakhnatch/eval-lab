@@ -1,4 +1,3 @@
-"""Reward-hacking audits, verifier mutation, and certification registration."""
 from __future__ import annotations
 
 import argparse

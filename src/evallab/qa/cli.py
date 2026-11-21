@@ -1,5 +1,3 @@
-"""``evallab qa`` CLI: shared scoring, frozen suites, task and trace QA."""
-
 from __future__ import annotations
 
 import argparse

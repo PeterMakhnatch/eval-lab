@@ -1,4 +1,3 @@
-"""Separate task, grader, and submission-level cached DEV measurements."""
 from __future__ import annotations
 
 from collections import Counter, defaultdict

@@ -1,4 +1,3 @@
-"""Harbor and published-results viewer command registration."""
 from __future__ import annotations
 
 import argparse
@@ -24,7 +23,6 @@ def _command(args: argparse.Namespace, root: Path, **kwargs: Any) -> int:
 
 
 def build_view_parser(commands: argparse._SubParsersAction) -> None:
-    """Register the ``evallab view`` subcommand (one self-contained block)."""
     view = commands.add_parser(
         "view",
         help="Serve job dirs in Harbor's own viewer with integrity reward dims",
@@ -94,7 +92,6 @@ def build_view_parser(commands: argparse._SubParsersAction) -> None:
 
 
 def build_results_viewer_parser(commands: argparse._SubParsersAction) -> None:
-    """Register ``evallab results-viewer``."""
     parser = commands.add_parser(
         "results-viewer",
         help="Serve every published run at one fixed URL, kept in sync (read-only)",

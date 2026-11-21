@@ -1,27 +1,3 @@
-"""Set every work-tree path to one fixed timestamp (``mtime-normalize@1``).
-
-Image tar-layer mtimes record when each file was last written at build time.
-Files touched by the fix commit carry a later mtime than the bulk checkout,
-so ``ls -l`` or ``find -newer`` names the fix files without reading any git
-history (002402: ``Makefile`` plus four ``numpyro``/``test`` paths at
-22:59:13Z against a 22:49 bulk). ``git clean`` does not reset tracked-file
-mtimes, and the strip rebuild never rewrites work-tree bytes, so the cluster
-survives both earlier transforms.
-
-The inserted setup block runs at the end of setup, just before the ready
-sentinel and therefore after the strip rebuild, ``git clean`` and the purge
-reinstall. It sets every file and directory under ``$CWD`` (including the
-rebuilt ``.git`` and any surviving build or cache leftovers) to
-:data:`FIXED_MTIME`. It deletes nothing; removal stays with
-``purge-installed-copies@1``. Setup stops if the touch fails or any path
-stays newer than the fixed timestamp (``@2`` additionally warms lazily
-materialized layers, retries touch+check up to three passes, and stops when
-any path's mtime merely differs from the fixed timestamp). Grading
-(``tests/``), the instruction
-and the image are unchanged. The setup is re-embedded in the existing
-task.toml healthcheck payload, which is what actually executes.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -32,47 +8,23 @@ from typing import Any
 from evallab.strip_future_history import pack_setup, render_task_toml
 from evallab.task_variants import VariantInvalid, VariantRecord, derive_task
 
-#: Transform id recorded in lineage.
 TRANSFORM_ID = "mtime-normalize@1"
 
-#: Marker comment identifying the inserted block (also the idempotence guard).
 MARKER = "mtime-normalize@1"
 
-#: Second-generation transform: same goal, hardened for lazy layer
-#: materialization (Modal ``_ModalDirect``). Recorded in lineage as
-#: ``mtime-normalize@2``; ``@1`` records stay valid, ``@2`` supersedes ``@1``
-#: (a ``@1`` parent is refused, like the purge ``@2``/``@3`` supersedes).
 TRANSFORM_ID_V2 = "mtime-normalize@2"
 
-#: Marker comment identifying the inserted @2 block.
 MARKER_V2 = "mtime-normalize@2"
 
-#: Bounded touch+check passes in the @2 block: the FleetCensus Modal repro
-#: showed one re-bump after the first touch walk and zero offenders on the
-#: second pass, so three passes bound the retry with margin.
 MAX_PASSES_V2 = 3
 
-#: Package-relative path of the setup script this transform rewrites.
 SETUP_REL = "environment/setup/setup.sh"
 
-#: Ready sentinel; the block runs just before it, at the end of setup.
 ANCHOR = 'touch "$M/ready"'
 
-#: The one timestamp every work-tree path carries after setup. A fixed
-#: constant, not per-task: within a task all mtimes become identical, and
-#: across tasks there is no build clock left to compare.
 FIXED_MTIME = "2000-01-01 00:00:00 UTC"
 
-#: ``touch -t`` stamp for the same instant. ``-d`` date parsing differs
-#: between GNU and BSD touch, while ``-t [[CC]YY]MMDDhhmm[.SS]`` works on
-#: both; the container still runs GNU, where both forms agree.
 
-#: Normalize every work-tree path, then fail closed when anything stays newer.
-#: ``touch -h`` also normalizes symlink mtimes themselves instead of their
-#: targets. ``find -newermt`` is strictly newer, so paths exactly at the
-#: fixed timestamp pass. Both literals name local-midnight 2000-01-01, the
-#: same instant ``touch -t`` sets; the bare ``YYYY-MM-DD`` form is used
-#: because some ``find`` date parsers reject the ``UTC`` suffix.
 MTIME_BLOCK = """\
 # mtime-normalize@1: one fixed timestamp for every work-tree path, so fix-commit mtimes cannot leak.
 find "$CWD" -exec touch -h -t 200001010000.00 {} + || fail "mtime-normalize@1 cannot normalize timestamps"
@@ -80,7 +32,6 @@ find "$CWD" -exec touch -h -t 200001010000.00 {} + || fail "mtime-normalize@1 ca
 """
 
 def build_setup_sh(parent_setup_sh: str) -> str:
-    """Parent ``setup.sh`` plus the mtime block. Returns input unchanged when present."""
     if MARKER in parent_setup_sh:
         return parent_setup_sh
     if parent_setup_sh.count(ANCHOR) != 1:
@@ -88,17 +39,6 @@ def build_setup_sh(parent_setup_sh: str) -> str:
     return parent_setup_sh.replace(ANCHOR, MTIME_BLOCK.rstrip("\n") + "\n" + ANCHOR, 1)
 
 
-#: Materialize, then normalize with bounded retries, then require every mtime
-#: to equal the fixed timestamp. The read-only ``stat`` walk forces lazily
-#: materialized layers (Modal ``_ModalDirect`` from ``Image.from_registry``)
-#: to appear before the first touch; directory mtimes re-bumped by a late
-#: materialization are caught by the ``-newermt`` re-check and fixed by the
-#: next pass (at most :data:`MAX_PASSES_V2` touches total). The final loop
-#: compares every path's epoch against a freshly stamped reference file, so
-#: older-than-fixed mtimes fail too — strictly stronger than ``@1``'s
-#: newer-only check. The loop is plain POSIX shell with no pipelines, so
-#: ``pipefail``/``SIGPIPE`` cannot mask an offender; every fallible step
-#: fails closed via ``fail``.
 MTIME_BLOCK_V2 = """\
 # mtime-normalize@2: one fixed timestamp for every work-tree path, so fix-commit mtimes cannot leak.
 find "$CWD" -exec stat {} + >/dev/null || fail "mtime-normalize@2 cannot materialize paths"
@@ -122,7 +62,6 @@ done
 """
 
 def build_setup_sh_v2(parent_setup_sh: str) -> str:
-    """Parent ``setup.sh`` plus the @2 block. Refuses @2 and @1 parents."""
     if MARKER_V2 in parent_setup_sh:
         raise VariantInvalid("parent setup.sh already carries mtime-normalize@2")
     if MARKER in parent_setup_sh:
@@ -154,11 +93,6 @@ def _read_parent(parent_dir: Path) -> tuple[str, str, str, str]:
 def build_changes(
     parent_dir: Path | str,
 ) -> tuple[dict[str, bytes | None], dict[str, Any]]:
-    """Build the ``derive_task`` changes mapping plus lineage inputs.
-
-    Only ``environment/setup/setup.sh`` and the ``task.toml`` healthcheck
-    payload change; grading (``tests/``) is byte-identical by construction.
-    """
     parent = Path(parent_dir)
     task_name, workdir, image, setup_sh = _read_parent(parent)
     new_setup = build_setup_sh(setup_sh)
@@ -194,12 +128,6 @@ def derive_mtime_normalize(
     parent_source: dict[str, Any] | None = None,
     variants_root: Path | str | None = None,
 ) -> VariantRecord:
-    """Derive the ``mtime-normalize@1`` variant of a MiMo task package.
-
-    The parent may be the snapshot package or a strip/purge variant of it;
-    the block anchors on the ready sentinel, which all of them retain, so
-    the runtime order is always strip, then purge, then normalize.
-    """
     parent = Path(parent_dir)
     changes, inputs = build_changes(parent)
     kwargs: dict[str, Any] = {}
@@ -223,11 +151,6 @@ def derive_mtime_normalize(
 def build_changes_v2(
     parent_dir: Path | str,
 ) -> tuple[dict[str, bytes | None], dict[str, Any]]:
-    """Build the ``derive_task`` changes mapping plus lineage inputs for @2.
-
-    Only ``environment/setup/setup.sh`` and the ``task.toml`` healthcheck
-    payload change; grading (``tests/``) is byte-identical by construction.
-    """
     parent = Path(parent_dir)
     task_name, workdir, image, setup_sh = _read_parent(parent)
     new_setup = build_setup_sh_v2(setup_sh)
@@ -264,13 +187,6 @@ def derive_mtime_normalize_v2(
     parent_source: dict[str, Any] | None = None,
     variants_root: Path | str | None = None,
 ) -> VariantRecord:
-    """Derive the ``mtime-normalize@2`` variant of a MiMo task package.
-
-    The parent may be the snapshot package or a strip/purge variant of it,
-    without a ``@1``/``@2`` block; the block anchors on the ready sentinel,
-    which all of them retain, so the runtime order is always strip, then
-    purge, then normalize.
-    """
     parent = Path(parent_dir)
     changes, inputs = build_changes_v2(parent)
     kwargs: dict[str, Any] = {}

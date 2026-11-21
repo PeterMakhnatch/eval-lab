@@ -1,4 +1,3 @@
-"""DEV line command registration, separate from decision implementations."""
 from __future__ import annotations
 
 import argparse

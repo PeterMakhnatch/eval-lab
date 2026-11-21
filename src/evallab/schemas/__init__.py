@@ -25,55 +25,16 @@ from evallab.benchmark_program_contracts import (
 
 
 class ContractModel(BaseModel):
-    """Strict base for durable lab contracts."""
 
     model_config = ConfigDict(extra="forbid")
 
 
-#: The one jobs root a submitted spec may write into.
-#:
-#: A job is addressed as ``<jobs-root>/<job>/<trial>``: the shape the executor
-#: writes (``runner.py:601``), the only shape Harbor's viewer scans
-#: (Harbor 0.21.0 ``harbor/viewer/scanner.py:50,86`` — one ``iterdir()`` per
-#: level, no recursion), and the depth the run explorer walks
-#: (``explorer.py:_discover_jobs``).
-#:
-#: Discovery does not read this field. Its roots are fixed
-#: (``dashboard/explorer.py:80``: ``runs`` and ``research/evidence/runs``), so
-#: the field is honoured only when it *is* a scanned root. Depth alone is not
-#: the rule — a flat ``my-runs`` is exactly as invisible as a nested
-#: ``runs/nightly/jobs``, because neither is scanned.
-#:
-#: ``research/evidence/runs`` is scanned but deliberately excluded here: a
-#: promoted evidence bundle is immutable and is produced by promotion, never by
-#: a run (``AGENTS.md`` "Working rules").
 EXPLORATION_JOBS_ROOT = "runs"
 
-#: Reserved scratch for the lab's own self-tests, deliberately not browsable.
-#:
-#: ``evallab smoke`` writes ``runs/_smoke/<job>/jobs`` (``smoke.py:167,222``)
-#: and reads it back by direct path (``smoke.py:232``); every job it creates
-#: carries the reserved ``smoke-`` name prefix and is excluded from the digest
-#: (``digest.py:47-60``). Nothing browses this area, so nesting under it hides
-#: nothing an operator is looking for — which is precisely what distinguishes it
-#: from the F-04 shape refused below.
 SELF_TEST_JOBS_SCRATCH = "runs/_smoke"
 
 
 def validated_jobs_dir(value: str) -> str:
-    """Refuse a ``jobs_dir`` no reader can honour, at submission time.
-
-    The field was free-form, so a run could be written where nothing looks. That
-    did not merely drop the run: the explorer read the intermediate directory as
-    a job, took the nested job's roll-up ``result.json`` for a trial of it, and
-    rendered a fabricated trial annotated ``trajectory unavailable: missing
-    trajectory.json`` while the real run vanished (M009 F-04, fixed downstream
-    in #66). Refusing here costs one validation error at submission; the
-    alternative was a phantom trial discovered hours later.
-
-    Shared by ``ExperimentSpec`` and ``ExperimentMatrix`` so the two cannot
-    drift apart.
-    """
     normalised = value.rstrip("/")
     if normalised == EXPLORATION_JOBS_ROOT:
         return value
@@ -91,7 +52,6 @@ def validated_jobs_dir(value: str) -> str:
 
 
 def canonical_preamble_path(value: str | None) -> str | None:
-    """Normalize a repo-relative preamble coordinate; ``none`` is absence."""
     if value in (None, "none"):
         return None
     normalized = posixpath.normpath(value)
@@ -112,7 +72,6 @@ def canonical_grid_point_id(
     factor_values: dict[str, Any],
     factor_bindings: dict[str, str],
 ) -> str:
-    """Hash the complete runnable grid coordinate without name parsing."""
     bindings_json = json.dumps(
         factor_bindings, sort_keys=True, separators=(",", ":"), ensure_ascii=False
     )
@@ -142,17 +101,10 @@ ExperimentPurpose = Literal[
     "practice",
 ]
 
-#: The allowed values as data, derived from the type for callers that enumerate
-#: valid research purposes.
 EXPERIMENT_PURPOSES: tuple[ExperimentPurpose, ...] = get_args(ExperimentPurpose)
 
 
 class ElicitationSpec(ContractModel):
-    """§2.1 / §4 Elicitation tuple describing agent prompt and environment conditions.
-
-    A spec with purpose=elicitation must differ from its reference spec in exactly
-    one elicitation field.
-    """
 
     preamble_hash: str | None = Field(
         default=None,
@@ -168,7 +120,6 @@ class ElicitationSpec(ContractModel):
     )
 
     def diff_fields(self, other: ElicitationSpec) -> list[str]:
-        """Return field names that differ between two elicitation tuples."""
         diffs: list[str] = []
         if self.preamble_hash != other.preamble_hash:
             diffs.append("preamble_hash")
@@ -180,11 +131,6 @@ class ElicitationSpec(ContractModel):
 
 
 class PreregSpec(ContractModel):
-    """§2.1 / §4 Preregistration block for comparison experiments.
-
-    Stored verbatim and quoted by the eval card to prevent post-hoc goalpost moving.
-    Both expected outcome and decision rule survive round-tripping unmodified.
-    """
 
     expected: str = Field(
         min_length=1,
@@ -197,10 +143,6 @@ class PreregSpec(ContractModel):
 
 
 class PowerSpec(ContractModel):
-    """§2.1 Statistical power and sample size planning.
-
-    Records minimum detectable difference (mdd) and planned sample size.
-    """
 
     mdd: float | None = Field(
         default=None,
@@ -216,7 +158,6 @@ class PowerSpec(ContractModel):
 
 
 class ProviderRoute(ContractModel):
-    """One pre-authorized provider route for the same logical treatment."""
 
     route_id: str = Field(
         min_length=1,
@@ -232,35 +173,16 @@ class ProviderRoute(ContractModel):
 
 
 class ReferenceDeviation(ContractModel):
-    """One declared difference from the named setup reference (HAR-149).
-
-    A MiMo batch names its measured setup (``reference_profile``) and lists
-    every intended difference here. Dispatch refuses any fingerprint
-    difference the list does not cover, and the run page prints each entry.
-    ``field`` names a compared fingerprint field (``research/setup-profiles``
-    ``compared_fields``); the lock and the ledger binding are hard gates and
-    cannot be waived by declaration.
-    """
 
     field: str = Field(min_length=1)
     value: Any = None
     reason: str = Field(min_length=1)
 
 
-#: Explicit Linear card attribution (``HAR-126``). Free-form guesses are
-#: refused at validation: only ``HAR-NNN`` (case-insensitive, optional
-#: hyphen, leading zeros allowed) normalizes; anything else raises.
 LINEAR_CARD_RE = re.compile(r"(?i)^har-?0*(\d+)$")
 
 
 def normalize_linear_card(value: str | None) -> str | None:
-    """Normalize an explicit Linear card (``har126`` -> ``HAR-126``).
-
-    ``None`` (or blank) stays ``None`` (no explicit card). Anything
-    non-empty that is not a HAR issue identifier raises ``ValueError``
-    fail-closed: callers must never guess a card from task, model, app,
-    or other incidental names.
-    """
     if value is None:
         return None
     if not isinstance(value, str):
@@ -660,7 +582,6 @@ class ExperimentSpec(ContractModel):
 
 
 class MatrixRun(ContractModel):
-    """A control run may use a repo-relative ``solution`` script with oracle only."""
 
     name: str
     agent: str
@@ -668,7 +589,6 @@ class MatrixRun(ContractModel):
     attempts: int = Field(default=1, ge=1)
     expect_reward: float | None = None
     allow_billable: bool = False
-    # Omit absent overrides to preserve the canonical digests of existing matrices.
     solution: str | None = Field(default=None, exclude_if=lambda value: value is None)
 
     @model_validator(mode="after")
@@ -721,24 +641,6 @@ class ExperimentMatrix(ContractModel):
 
     runs: list[MatrixRun] = Field(min_length=1)
 
-    # `purpose` is deliberately NOT declared here, and the asymmetry is the
-    # considered decision, not an oversight — do not "fix" it by symmetry.
-    #
-    # The rule above (`jobs_dir` declared twice) exists because both contracts
-    # *use* the field: each resolves a filesystem path. `purpose` is used by
-    # exactly one dispatch path. It exists so the queue can be grouped,
-    # budgeted, and refused by intent, and a matrix never enters the queue:
-    # `cli._matrix_command` calls `Executor.execute_direct`
-    # (`cli.py:687-699`), which consults no `PolicyGate`, writes no queue state,
-    # and appends nothing to `queue/events.jsonl`. A purpose declared here would
-    # be read by nothing.
-    #
-    # It also could not be budgeted against: `execute_direct` refuses any agent
-    # outside `CONTROL_AGENTS` (`queue.py:1405-1409`), so a matrix is
-    # structurally incapable of launching model agents. Cloud control runs still
-    # incur sandbox/image costs regardless of `MatrixRun.allow_billable`.
-    # Requiring the field here would invalidate all five committed matrices to
-    # record a value no reader consults.
 
     @field_validator("jobs_dir")
     @classmethod
@@ -755,14 +657,6 @@ class AutoRunRule(ContractModel):
 
 
 class DailyCostCeilingOverride(ContractModel):
-    """One dated override of the standing daily cost ceiling.
-
-    A dated override, never a code default: the standing
-    ``daily_cost_ceiling_usd`` holds every day except ``utc_date``, and only
-    while ``now < expires_at``. ``expires_at`` may not run past the end of
-    ``utc_date`` (midnight UTC starting the next day), so an override cannot
-    leak into another UTC day.
-    """
 
     utc_date: date
     ceiling_usd: float = Field(gt=0)
@@ -787,7 +681,6 @@ class LineGateCorpusDelta(ContractModel):
 
 
 class LineGateApproval(ContractModel):
-    """Peter's exact-head exception; never an execution or spending approval."""
 
     pr: int = Field(gt=0, strict=True)
     head: str = Field(pattern=r"^[0-9a-f]{40}$")
@@ -803,37 +696,13 @@ class StandingApprovalsPolicy(ContractModel):
     quiet_failure_rule: int = Field(ge=1)
     auto_run: list[AutoRunRule] = Field(min_length=1)
     escalate_to_human: list[str] = Field(default_factory=list)
-    #: Dated ceiling overrides. Omitted from the canonical dump while empty so
-    #: existing policy files keep their digest; each entry is a one-UTC-day
-    #: ruling recorded with its approval, never a new standing default.
     daily_cost_ceiling_overrides: list[DailyCostCeilingOverride] = Field(
         default_factory=list, exclude_if=lambda value: not value
     )
-    #: Exact-head line exceptions do not authorize any queue execution or spend.
-    #: Preserve the existing policy digest while no exception is recorded.
     line_gate_approvals: list[LineGateApproval] = Field(
         default_factory=list, exclude_if=lambda value: not value
     )
 
-    #: The lab's own refusal threshold on the account-wide `used_percent`.
-    #: Committed at 60 since the 2026-10-13 overnight subscription-agent work
-    #: (Peter approved the pause-above-60 rule; the YAML comment records it).
-    #: This is the one place a number goes; lowering it tightens, while raising
-    #: it or returning it to `None` is Peter's spend decision: refusing above
-    #: some percentage trades the risk of a lockout against the certainty of
-    #: work that will not happen.
-    #:
-    #: Set it to a float and billable dispatch refuses at or above it under
-    #: reason code `subscription_quota_ceiling`, kept deliberately distinct from
-    #: the provider's own `subscription_quota_exhausted` so `queue/reasons/`
-    #: never records a lab policy as the provider's statement
-    #:
-    #: `None` is the unset state and must stay loadable: this model forbids
-    #: extras, and the committed YAML omits the key, so a non-optional field
-    #: here would make `load_policy` raise for every command that reads policy.
-    #: `gt=0` refuses `0` rather than accepting it, because `0` reads as "off"
-    #: while meaning "refuse at or above 0%" — that is, refuse all paid work
-    #: silently. A load error naming the field is the honest response.
     refuse_billable_at_used_percent: float | None = Field(default=None, gt=0, le=100)
 
     @model_validator(mode="after")
@@ -859,13 +728,6 @@ class StandingApprovalsPolicy(ContractModel):
 
 
 def effective_daily_cost_ceiling(policy: StandingApprovalsPolicy, now: datetime) -> float:
-    """The dollar ceiling in force at ``now``.
-
-    Returns the override's ceiling only when ``now``'s UTC date equals the
-    override's ``utc_date`` and ``now`` precedes its ``expires_at``; otherwise
-    the standing ``daily_cost_ceiling_usd``. Every reader of the ceiling goes
-    through here so a dated ruling applies exactly one UTC day.
-    """
     moment = now if now.tzinfo is not None else now.replace(tzinfo=UTC)
     today = moment.astimezone(UTC).date()
     for override in policy.daily_cost_ceiling_overrides:
@@ -941,15 +803,6 @@ LaunchAgentPathKind = Literal["program", "interpreter", "working_directory", "un
 
 
 class BrokenLaunchAgent(ContractModel):
-    """One reference an installed evallab LaunchAgent can no longer resolve.
-
-    ``kind`` names what the reference is, so an operator reading a doctor line
-    does not have to open the plist: ``program`` is what launchd execs,
-    ``interpreter`` is the runtime an exec wrapper (a shell ``-lc`` command or
-    ``keys run --``) hands to, ``working_directory`` is where it starts, and
-    ``unreadable`` is a plist this build cannot parse. ``path`` is the missing
-    path (or the plist itself for ``unreadable``).
-    """
 
     label: str
     plist_path: str
@@ -963,7 +816,6 @@ class BrokenLaunchAgent(ContractModel):
 
 
 class LaunchAgentAudit(ContractModel):
-    """Read-only census of installed evallab LaunchAgents and their dead paths."""
 
     checked: int = Field(ge=0)
     broken: list[BrokenLaunchAgent] = Field(default_factory=list)
@@ -1006,13 +858,6 @@ class HeadlessDoctorReport(ContractModel):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def ready(self) -> bool:
-        """Operator-facing headless readiness; ``healthy`` alone gates quarantine.
-
-        A stale unrelated agent must not suspend useful work already dispatched,
-        so ``healthy`` stays infrastructure-only. ``ready`` is what the
-        ``doctor --headless`` exit code answers: health plus every installed
-        evallab LaunchAgent still resolvable.
-        """
         return self.healthy and self.checks.launch_agents_intact
 
 
@@ -1245,7 +1090,6 @@ class TrialAnalysisSidecar(ContractModel):
 
 
 class BehaviorLabel(ContractModel):
-    """Versioned semantic or mechanical label for any agent-behavior target."""
 
     schema_version: Literal[1] = 1
     label_id: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
@@ -1300,15 +1144,6 @@ class AnalysisReview(ContractModel):
         return self
 
 
-#: On-disk contract for one durable analysis, rooted at the destination root
-#: an analysis was written to:
-#:
-#:     <destination_root>/<analysis_id>/analysis.json               the sidecar
-#:     <destination_root>/<analysis_id>/reviews/<review_id>.json    its reviews
-#:
-#: Discovery MUST select sidecars *positively* by ``ANALYSIS_SIDECAR_FILENAME``.
-#: Globbing ``*.json`` under the destination root sweeps in reviews — and any
-#: artifact type added later — and reports them as malformed sidecars.
 ANALYSIS_SIDECAR_FILENAME = "analysis.json"
 ANALYSIS_REVIEWS_DIRNAME = "reviews"
 
@@ -1402,12 +1237,6 @@ class TaskDigests(ContractModel):
 
 
 class TaskLimits(ContractModel):
-    """Execution limits enforcing runtime constraints.
-
-    Representation fix: timeout ceiling is 28800 seconds to align with
-    TB4 v4.0.0 official agent.timeout_sec=28800. Spend and concurrency
-    policies remain unchanged.
-    """
 
     timeout_seconds: int = Field(default=1_800, ge=1, le=28_800)
     max_memory_mb: int | None = Field(default=None, ge=1)
@@ -1443,20 +1272,9 @@ class ControlEvidenceRef(ContractModel):
     task_version: str = Field(min_length=1)
     task_digests: TaskDigests
     harbor_task_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
-    #: Optional recorded declaration, checked against digest-bound task.toml.
-    #: An absent [task] section uses Harbor's exact executed directory name;
-    #: missing reference metadata never enables a namespace/suffix alias.
     declared_task_name: str | None = Field(default=None, min_length=1)
-    #: Host-staged runs (``evallab run``) lock the staging directory name with
-    #: the adapted package digest. Both fields are set together from the
-    #: job's lab-metadata ``task_staging`` provenance, whose source digests
-    #: discovery has already bound to this exact source package; refs minted
-    #: from direct source runs leave them None and bind the registry task_id.
     staged_task_name: str | None = Field(default=None, min_length=1)
     staged_harbor_digest: str | None = Field(default=None, pattern=r"^sha256:[0-9a-f]{64}$")
-    #: Harbor version stamp from the trial's job lock at mint time
-    #: (``harbor.version``). Keys lock-digest comparisons: a 0.21 lock vs a
-    #: 0.24 lock reports a declared version change, not a digest mismatch.
     harbor_version: str | None = Field(default=None, min_length=1)
 
     @field_validator("evidence_path")
@@ -1534,7 +1352,6 @@ class CertificationIdentity(ContractModel):
 
 
 class TaskCertificationEnvelope(ContractModel):
-    """Digest-bound workbench packet reference; legacy absence stays explicit."""
 
     state: Literal["bound", "legacy_missing"] = "legacy_missing"
     reason: str = Field(default="legacy_record_has_no_certificate_packet", min_length=1)
@@ -1609,11 +1426,6 @@ PretrainStatus = Literal["y", "n", "unknown"]
 
 
 class TaskContamination(ContractModel):
-    """§2.1 Contamination assessment for benchmark and task packages.
-
-    Records whether the task was likely in pretraining corpora, since when it has
-    been public, and the evidentiary basis for the assessment.
-    """
 
     public_since: date | None = Field(
         default=None,
@@ -1749,21 +1561,17 @@ class TaskRegistryRecord(ContractModel):
         return self
 
 
-#: ULID format per queue.new_ulid (Crockford base32, 26 chars, time-sortable).
 ULID_PATTERN = r"^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
 ULID_RE = re.compile(ULID_PATTERN)
 
-#: Content digest format required by all contracts (T1 provenance).
 SHA256_DIGEST_PATTERN = r"^sha256:[0-9a-f]{64}$"
 SHA256_RE = re.compile(SHA256_DIGEST_PATTERN)
 
-#: Discovery ID format per journal convention (D-YYYYMMDD-SUFFIX).
 DISCOVERY_ID_PATTERN = r"^D-[0-9]{8}-[0-9A-Za-z]+$"
 DISCOVERY_ID_RE = re.compile(DISCOVERY_ID_PATTERN)
 
 
 def _validate_discovery_id(value: str) -> str:
-    """Reject malformed discovery identifiers at construction time."""
     if not DISCOVERY_ID_RE.fullmatch(value):
         raise ValueError(
             f"identifier must match discovery ID format (D-YYYYMMDD-SUFFIX), got {value!r}"
@@ -1771,30 +1579,7 @@ def _validate_discovery_id(value: str) -> str:
     return value
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 class Verdict(ContractModel):
-    """§2.1 Verdict: human (or authorized) disposition on a discovery.
-
-    status restricted to the literal set in §2.1. discovery_id follows the
-    journal's discovery identifier format (D-YYYYMMDD-SUFFIX).
-    """
 
     schema_version: Literal[1] = 1
     discovery_id: str = Field(
@@ -1815,7 +1600,6 @@ class Verdict(ContractModel):
 
 
 class TaskSpec(ContractModel):
-    """Specification of a task in the grid."""
 
     task: str = Field(min_length=1)
     task_path: str | None = None
@@ -1832,7 +1616,6 @@ class TaskSpec(ContractModel):
 
 
 class AgentSpec(ContractModel):
-    """Specification of an agent in the grid."""
 
     agent: str = Field(min_length=1)
     model: str | None = None
@@ -1851,7 +1634,6 @@ FactorBinding = Literal["concurrency", "timeout_seconds"]
 
 
 class GridFactor(ContractModel):
-    """A declared treatment coordinate bound to a runner execution lever."""
 
     binding: FactorBinding
     levels: list[FactorValue] = Field(min_length=1)
@@ -1874,7 +1656,6 @@ class GridFactor(ContractModel):
 
 
 class ExperimentArm(ContractModel):
-    """Named runnable treatment with fixed agent and factor coordinates."""
 
     arm_id: str = Field(pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$", max_length=80)
     agent: AgentSpec
@@ -1913,7 +1694,6 @@ class ExperimentArm(ContractModel):
 
 
 class ProviderLimit(ContractModel):
-    """Quota and batch limits for a single provider/agent."""
 
     max_specs: int | None = Field(default=None, ge=1)
     max_trials: int | None = Field(default=None, ge=1)
@@ -1921,7 +1701,6 @@ class ProviderLimit(ContractModel):
 
 
 class GridLimits(ContractModel):
-    """Global and per-provider bounds on grid expansion."""
 
     max_specs: int | None = Field(default=None, ge=1)
     max_trials: int | None = Field(default=None, ge=1)
@@ -1930,7 +1709,6 @@ class GridLimits(ContractModel):
 
 
 class GridAxes(ContractModel):
-    """Tasks crossed with named arms or legacy agent/preamble axes and factors."""
 
     task_refs: list[TaskSpec] = Field(min_length=1)
     agents: list[AgentSpec] = Field(default_factory=list)
@@ -2066,7 +1844,6 @@ class GridAxes(ContractModel):
 
 
 class GridSpec(ContractModel):
-    """Declared specification for an evaluation grid expansion (v2 §4)."""
 
     schema_version: Literal[1] = 1
     grid_id: str | None = None
@@ -2076,7 +1853,6 @@ class GridSpec(ContractModel):
     constraints: list[dict[str, Any]] = Field(default_factory=list)
     daily_budget_units: int | float | None = Field(default=None, ge=0)
 
-    # Execution defaults and limits
     environment: str = "docker"
     jobs_dir: str = EXPLORATION_JOBS_ROOT
     concurrency: int = Field(default=1, ge=1)
@@ -2092,7 +1868,6 @@ class GridSpec(ContractModel):
     policy_rule: str | None = None
     requires: list[str] = Field(default_factory=list)
 
-    # Backward-compatible flat fields
     tasks: list[str | TaskSpec] | None = None
     agents: list[str | AgentSpec] | None = None
     preambles: list[str] | None = None
@@ -2175,13 +1950,7 @@ class GridSpec(ContractModel):
 LadderGridSpec = GridSpec
 
 
-# --------------------------------------------------------------------------- #
-# Authoring / Generation Proposal Specs (SG-1..3)
-# --------------------------------------------------------------------------- #
-
-
 class StateEventMetadata(ContractModel):
-    """Bounded filesystem metadata emitted by the state-journal producer."""
 
     path: str = Field(min_length=1, max_length=4096)
     mode: str = Field(min_length=1, max_length=16)
@@ -2194,7 +1963,6 @@ class StateEventMetadata(ContractModel):
 
 
 class StateJournalEvent(ContractModel):
-    """One append-only record from ``state-journal/state-events.jsonl``."""
 
     sequence: int = Field(ge=1)
     timestamp: str = Field(min_length=1, max_length=64)

@@ -1,22 +1,3 @@
-"""Reward-hacking audit for Harbor task packages, in the BenchJack shape.
-
-Two deterministic halves plus one portable instruction:
-
-* :func:`scan_package` — reconnaissance and a V1-V8 flaw ledger over one task
-  package. Every finding is a *claim*: it cites the file and line carrying the
-  pattern and never asserts that a model would exploit it.
-* :func:`run_hack` — replays authored exploit scripts through the task's own
-  verifier by reusing the checked-in solution-control matrix path
-  (``MatrixRun.solution`` with the oracle agent and ``allow_billable=False``).
-  The reward that comes back is the benchmark's own grade, not a local verdict.
-* The authoring procedure lives in ``.omp/skills/reward-hacking-audit/SKILL.md``
-  and is framework-agnostic; only the replay adapter is Harbor-specific.
-
-Stated limits: a scan finding is not an exploitation proof; a clean scan is not
-a certificate; a resisted exploit script is not proof the task is unhackable by
-another channel. Verdicts route follow-up work, they do not certify a package.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -38,11 +19,8 @@ from evallab.registry import compute_task_digests, harbor_task_digest
 from evallab.runner import run_matrix
 from evallab.schemas import ContractModel, ExperimentMatrix, MatrixRun
 
-#: Hits recorded per pattern rule; the ledger stays bounded and reviews the first
-#: occurrences, not every matching byte of a large verifier.
 MAX_HITS_PER_RULE = 6
 
-#: Text larger than this is skipped by the scan (verifier fixtures, databases).
 MAX_TEXT_BYTES = 1_048_576
 
 FlawClass = Literal["V1", "V2", "V3", "V4", "V5", "V6", "V7", "V8"]
@@ -57,11 +35,8 @@ HackVerdict = Literal[
     "planned",
 ]
 
-#: Paths an agent owns inside its own container. A grader that reads these in a
-#: shared verifier consumes agent-controlled data (V7 on top of V1).
 _AGENT_PATHS = re.compile(r"(?:/app|/workspace|/workdir)(?:/[\w./-]*)?|\$PWD|\$\{?HOME\}?/[\w./-]+")
 
-#: Skips in ``tests/`` that are fixtures rather than verifier logic.
 _TEXT_SUFFIXES = (".sh", ".bash", ".py", ".ps1", ".bat", ".cmd", ".json", ".toml", ".yaml", ".yml")
 
 _ANSWER_NAMES = re.compile(
@@ -70,7 +45,6 @@ _ANSWER_NAMES = re.compile(
 
 
 class HackFinding(ContractModel):
-    """One static claim with its evidence; never a proof of exploitability."""
 
     flaw_class: FlawClass
     severity: Severity
@@ -80,7 +54,6 @@ class HackFinding(ContractModel):
 
 
 class HackScan(ContractModel):
-    """Reconnaissance facts plus the flaw ledger for one package."""
 
     schema_: Literal["evallab.reward_hack.scan/v1"] = Field(
         alias="schema", default="evallab.reward_hack.scan/v1"
@@ -94,7 +67,6 @@ class HackScan(ContractModel):
 
 
 class HackRunResult(ContractModel):
-    """One matrix control after execution; rewards are the benchmark's own."""
 
     name: str
     role: Literal["baseline-oracle", "baseline-nop", "exploit"]
@@ -108,7 +80,6 @@ class HackRunResult(ContractModel):
 
 
 class HackReport(ContractModel):
-    """Scan plus replayed controls; the run-level evidence for one package."""
 
     schema_: Literal["evallab.reward_hack.report/v1"] = Field(
         alias="schema", default="evallab.reward_hack.report/v1"
@@ -123,11 +94,6 @@ class HackReport(ContractModel):
     verdict_reason: str = "plan written; nothing executed"
     scan: HackScan
     limits: str
-
-
-# --------------------------------------------------------------------------- #
-# Static reconnaissance and flaw ledger
-# --------------------------------------------------------------------------- #
 
 
 @dataclass(frozen=True)
@@ -424,7 +390,6 @@ def _control_scripts(package: Path) -> tuple[str, ...]:
 
 
 def scan_package(package: str | Path) -> HackScan:
-    """Deterministic, offline V1-V8 ledger for one Harbor task package."""
     root = Path(package).expanduser().resolve()
     if not (root / "task.toml").is_file():
         raise ValueError(f"{root}: not a Harbor task package (task.toml is missing)")
@@ -479,14 +444,8 @@ def scan_package(package: str | Path) -> HackScan:
     )
 
 
-# --------------------------------------------------------------------------- #
-# Exploit replay through the task's own verifier
-# --------------------------------------------------------------------------- #
-
-
 @dataclass(frozen=True)
 class ControlScript:
-    """One staged exploit script plus the control author's declared expectation."""
 
     staged: Path
     source: str
@@ -511,7 +470,6 @@ def plan_matrix(
     timeout_seconds: int = 1_800,
     name_prefix: str = "reward-hack",
 ) -> ExperimentMatrix:
-    """Baselines plus one solution-override control per staged exploit script."""
     root = Path(package).expanduser().resolve()
     if not (root / "task.toml").is_file():
         raise ValueError(f"{root}: not a Harbor task package (task.toml is missing)")
@@ -524,8 +482,6 @@ def plan_matrix(
     digests = compute_task_digests(root)
     task_table = _table(config, "task")
     slug = _slug(str(task_table.get("name") or root.name))
-    # Job dirs share one jobs root across invocations; the matrix's own id keeps a
-    # re-run of the same package from colliding with the previous run's jobs.
     matrix_id = new_ulid()
     nonce = matrix_id.lower()[-6:]
     runs: list[MatrixRun] = [
@@ -562,7 +518,6 @@ def plan_matrix(
 
 
 def stage_controls(run_dir: Path, scripts: Sequence[Path]) -> tuple[ControlScript, ...]:
-    """Copy exploit scripts into the run directory and digest them."""
     staged: list[ControlScript] = []
     controls_dir = run_dir / "controls"
     controls_dir.mkdir(parents=True, exist_ok=True)
@@ -597,7 +552,6 @@ def _role_of(index: int) -> Literal["baseline-oracle", "baseline-nop", "exploit"
 def classify_results(
     matrix: ExperimentMatrix, results: Sequence[dict[str, Any]], controls: Sequence[ControlScript]
 ) -> tuple[tuple[HackRunResult, ...], HackVerdict, str]:
-    """Map raw matrix results to outcomes and one verdict, without inventing scores."""
     runs: list[HackRunResult] = []
     for index, (run, result) in enumerate(zip(matrix.runs, results, strict=True)):
         role = _role_of(index)
@@ -682,7 +636,6 @@ def run_hack(
     timeout_seconds: int = 1_800,
     output_dir: Path | None = None,
 ) -> tuple[HackReport, Path]:
-    """Scan, plan, optionally replay, and write the receipts for one package."""
     root = Path(package).expanduser().resolve()
     scan = scan_package(root)
     selected = (
@@ -785,11 +738,6 @@ def render_report(report: HackReport) -> str:
         lines.append("nothing executed")
     lines += ["", f"Limits: {report.limits}", ""]
     return "\n".join(lines)
-
-
-# --------------------------------------------------------------------------- #
-# CLI
-# --------------------------------------------------------------------------- #
 
 
 def _hack_scan_command(args: argparse.Namespace, root: Path, *, harbor: Any | None = None) -> int:

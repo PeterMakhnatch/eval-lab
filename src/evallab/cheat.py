@@ -1,16 +1,3 @@
-"""Cheat-audit lane: fixed attack ladder, verdicts from the verifier (HAR-204).
-
-``evallab cheat run`` executes the deterministic model-free ``cheat`` agent
-against a task on the local Docker backend through the existing
-direct-execution path. Every step is $0: no provider calls, no deploys,
-oracle/nop-style controls only.
-
-Verdict rule (shared with sibling lanes through
-:func:`cheat_verdict_for_reward`): ``cracked`` iff the benchmark's own
-verifier returned reward >= 1.0, ``unscored`` iff no reward is extractable,
-else ``clean``. The lane never asserts exploitability beyond the verifier.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -44,9 +31,6 @@ from evallab.execution_contracts import (
 )
 from evallab.harbor_telemetry import harbor_child_environment
 
-#: Serializes the process-env handoff below: build_command reads the attack
-#: subset from the host environment, so concurrent in-process cheat runs must
-#: not interleave their selection with another run's Harbor invocation.
 _CHEAT_ENV_LOCK = threading.Lock()
 
 
@@ -59,19 +43,10 @@ VERDICT_CRACKED = "cracked"
 VERDICT_CLEAN = "clean"
 VERDICT_UNSCORED = "unscored"
 
-#: Detail marker run_ladder writes for attacks skipped by subset selection
-#: (as opposed to selected attacks that decline with their own detail).
 _SUBSET_SKIP_DETAIL = "not in --attacks subset"
 
 
 def _selected_from_attempts(attacks: Any) -> list[str] | None:
-    """Selected subset recorded in one attempts payload, or None if unknown.
-
-    run_ladder always records the full pool in ladder order; attacks outside
-    the requested subset are ``skipped`` with the subset marker above, while
-    selected attacks that decline still report their own detail. Excluding
-    only marker-skipped records therefore recovers the requested subset.
-    """
     if not isinstance(attacks, list):
         return None
     selected: list[str] = []
@@ -90,12 +65,6 @@ def _selected_from_attempts(attacks: Any) -> list[str] | None:
 def _derive_verdict_provenance(
     entries: Sequence[Mapping[str, Any]],
 ) -> tuple[str | None, list[str] | None]:
-    """Derive (ladder_version, selected_attacks) from attempts payloads.
-
-    Both are uniform-across-trials only: mixed generations, missing version
-    fields, or disagreeing selections yield None (unknown standalone
-    rebuild), which the verdict payload represents as null.
-    """
     versions: list[str | None] = []
     selections: list[list[str] | None] = []
     for entry in entries:
@@ -118,18 +87,16 @@ def _derive_verdict_provenance(
 
 
 def cheat_verdict_for_reward(reward: float | None) -> str:
-    """Map a verifier reward to a cheat verdict (pure; shared with grid lane)."""
     if reward is None or isinstance(reward, bool):
         return VERDICT_UNSCORED
     if not isinstance(reward, float) and not isinstance(reward, int):
         return VERDICT_UNSCORED
-    if reward != reward:  # NaN: no usable signal
+    if reward != reward:
         return VERDICT_UNSCORED
     return VERDICT_CRACKED if reward >= 1.0 else VERDICT_CLEAN
 
 
 def trial_reward(result: Mapping[str, Any]) -> float | None:
-    """Extract the mean reward from one trial result.json, or None."""
     if not isinstance(result, Mapping):
         return None
     stats = result.get("stats")
@@ -174,12 +141,6 @@ def _load_json(path: Path) -> dict[str, Any] | None:
 
 
 def collect_cheat_attempts(job_dir: Path) -> list[dict[str, Any]]:
-    """Find every trial's cheat/attempts.json under a job directory.
-
-    Harbor 0.24 nests agent logs at ``<trial>/agent/cheat/attempts.json``;
-    older layouts kept ``<trial>/cheat/attempts.json``. Either nests under
-    the trial directory, which is the first path component below the job.
-    """
     found: list[dict[str, Any]] = []
     for attempts_path in sorted(job_dir.rglob(f"{ATTEMPTS_DIRNAME}/{ATTEMPTS_FILENAME}")):
         try:
@@ -209,13 +170,6 @@ def build_verdicts(
     ladder_version: str | None = None,
     selected_attacks: Sequence[str] | None = None,
 ) -> dict[str, Any]:
-    """Build the per-trial verdict payload for a completed cheat job.
-
-    ``ladder_version``/``selected_attacks`` bind the verdicts to the ladder
-    generation and attack selection that produced them; when absent they are
-    derived from the trials' attempts payloads (uniform values only, else
-    null for an unknown standalone rebuild). Existing fields are unchanged.
-    """
     job_name = job_dir.name
     attempts = {entry["trial"]: entry for entry in collect_cheat_attempts(job_dir)}
     derived_version, derived_selected = _derive_verdict_provenance(tuple(attempts.values()))
@@ -286,7 +240,6 @@ def write_cheat_verdicts(
     ladder_version: str | None = None,
     selected_attacks: Sequence[str] | None = None,
 ) -> Path:
-    """Write <job_dir>/cheat-verdicts.json; sibling lanes reuse this helper."""
     payload = build_verdicts(
         job_dir,
         harbor_rev=harbor_rev,
@@ -299,7 +252,6 @@ def write_cheat_verdicts(
 
 
 def harbor_version() -> str | None:
-    """Best-effort Harbor CLI revision for output provenance."""
     exe = shutil.which("harbor")
     if exe is None:
         return None
@@ -329,18 +281,6 @@ def run_cheat_trial(
     timeout_seconds: int = 600,
     ladder_version: str | None = None,
 ) -> tuple[Path, dict[str, Any]]:
-    """Execute the cheat lane once through direct execution; return (job_dir, verdicts).
-
-    Shared by ``evallab cheat run`` and sibling lanes (e.g. the interop
-    matrix): the attack subset travels in ``EVALLAB_CHEAT_ATTACKS`` under the
-    process-env lock, the trial runs on local Docker ($0), and the verdicts
-    payload comes from the benchmark's own verifier reward. Raises on
-    infrastructure failure (callers map that to their error verdict).
-
-    ``ladder_version=None`` preserves the ambient/default behavior exactly
-    (v1 unless the host already exported an explicit generation). The
-    effective generation and selection are recorded on the verdicts payload.
-    """
     from evallab.execution_contracts import RunRequest
     from evallab.queue import Executor
 
@@ -402,8 +342,6 @@ def _cheat_run_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
 
     version = installed_harbor_version()
     if version is not None and version >= (0, 24):
-        # Version alone is not enough: a standalone tool install can report
-        # 0.24 while this interpreter cannot import the modules the trial uses.
         try:
             require_harbor_runtime("harbor")
         except RuntimeError as exc:

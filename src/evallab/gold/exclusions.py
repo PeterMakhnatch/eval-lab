@@ -1,4 +1,3 @@
-"""Gold source exclusions; historical run and certify evidence remains readable."""
 from __future__ import annotations
 
 import csv
@@ -22,7 +21,6 @@ def _sources() -> dict[str, dict[str, str]]:
 
 
 def source_exclusion(source: str) -> dict[str, str] | None:
-    """Return the reviewed exclusion, including its reason and raw custody path."""
     for prefix in ("staged:", "cross-test:", "failure-library:runs/"):
         if source.startswith(prefix):
             source = source.removeprefix(prefix)

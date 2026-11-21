@@ -1,10 +1,3 @@
-"""Storm Alarms Engine: detect repeated reason_code events in queue logs.
-
-Identifies when >N identical reason_code events occur within a 1-hour window
-in queue/events.jsonl, returns structured StormAlarm models with recommended
-operator actions, and provides formatting utilities for digest and status reports.
-"""
-
 from __future__ import annotations
 
 import json
@@ -24,7 +17,6 @@ AlarmLevel = Literal["info", "warning", "critical"]
 DEFAULT_STORM_THRESHOLD: int = 5
 DEFAULT_STORM_WINDOW: timedelta = timedelta(hours=1)
 
-# Catalog of known reason codes, their alarm levels, and recommended operator actions.
 REASON_CODE_ACTIONS: dict[str, tuple[AlarmLevel, str]] = {
     "subscription_quota_exhausted": (
         "critical",
@@ -133,7 +125,6 @@ REASON_CODE_ACTIONS: dict[str, tuple[AlarmLevel, str]] = {
     ),
 }
 
-# Prefix-based rules for dynamically structured reason codes
 PREFIX_ACTIONS: list[tuple[str, AlarmLevel, str]] = [
     (
         "headless_doctor_failed:",
@@ -192,7 +183,6 @@ PREFIX_ACTIONS: list[tuple[str, AlarmLevel, str]] = [
 
 
 def get_recommended_action_and_level(reason_code: str) -> tuple[AlarmLevel, str]:
-    """Return the severity level and recommended operator action for a reason code."""
     if reason_code in REASON_CODE_ACTIONS:
         return REASON_CODE_ACTIONS[reason_code]
 
@@ -200,7 +190,6 @@ def get_recommended_action_and_level(reason_code: str) -> tuple[AlarmLevel, str]
         if reason_code.startswith(prefix):
             return level, template
 
-    # Generic fallback
     return (
         "warning",
         f"Repeated events with reason '{reason_code}'. Inspect queue logs and dashboard.",
@@ -208,7 +197,6 @@ def get_recommended_action_and_level(reason_code: str) -> tuple[AlarmLevel, str]
 
 
 class StormAlarm(BaseModel):
-    """Structured alarm representing a burst of identical reason_code events."""
 
     reason_code: str
     alarm_level: AlarmLevel = "critical"
@@ -239,7 +227,6 @@ class StormAlarm(BaseModel):
 
 
 def _to_utc(dt: datetime) -> datetime:
-    """Normalize datetime to UTC for consistent comparisons."""
     if dt.tzinfo is None:
         return dt.replace(tzinfo=UTC)
     return dt.astimezone(UTC)
@@ -250,7 +237,6 @@ def load_events_from_source(
     *,
     repo_root: Path | None = None,
 ) -> list[QueueEvent]:
-    """Load QueueEvents from a sequence, path, or repository root."""
     if isinstance(events, Path):
         event_path = events
     elif isinstance(events, Sequence):
@@ -286,23 +272,10 @@ def detect_storm_alarms(
     since: datetime | None = None,
     repo_root: Path | None = None,
 ) -> list[StormAlarm]:
-    """Detect reason_code storms where count > threshold within any sliding window.
-
-    Parameters:
-        events: Explicit QueueEvents or Path to events.jsonl
-        threshold: Event count required to trigger an alarm (> threshold)
-        window: Sliding time window (default: 1 hour)
-        since: If provided, only evaluate events occurring at or after this time
-        repo_root: If provided, resolves queue/events.jsonl from repo root
-
-    Returns:
-        List of StormAlarm instances sorted by severity (critical first) then count.
-    """
     event_list = load_events_from_source(events, repo_root=repo_root)
     if not event_list:
         return []
 
-    # Filter events with reason_code
     valid_events: list[QueueEvent] = []
     for ev in event_list:
         if ev.reason_code is None or not ev.reason_code.strip():
@@ -315,7 +288,6 @@ def detect_storm_alarms(
     if not valid_events:
         return []
 
-    # Group events by reason_code
     events_by_reason: dict[str, list[QueueEvent]] = defaultdict(list)
     for ev in valid_events:
         assert ev.reason_code is not None
@@ -325,13 +297,11 @@ def detect_storm_alarms(
     window_secs = int(window.total_seconds())
 
     for reason_code, reason_events in events_by_reason.items():
-        # Sort events chronologically
         sorted_events = sorted(reason_events, key=lambda e: _to_utc(e.occurred_at))
         n = len(sorted_events)
         if n <= threshold:
             continue
 
-        # Sliding window to find storm clusters
         left = 0
         best_count = 0
         storm_window_start: datetime | None = None
@@ -376,14 +346,12 @@ def detect_storm_alarms(
                 )
             )
 
-    # Sort alarms: critical first, then warning, then info, then by count descending
     severity_order = {"critical": 0, "warning": 1, "info": 2}
     alarms.sort(key=lambda a: (severity_order.get(a.alarm_level, 99), -a.count, a.reason_code))
     return alarms
 
 
 def digest_storm_section(alarms: Sequence[StormAlarm]) -> list[str]:
-    """Generate Markdown lines for embedding storm alarm checks in nightly digests."""
     if not alarms:
         return [
             "## Storm alarms",

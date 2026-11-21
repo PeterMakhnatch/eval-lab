@@ -1,30 +1,3 @@
-"""Deterministic reward-integrity verification for finished Harbor job dirs.
-
-Harbor writes the same reward in up to three places (trial ``result.json``
-``verifier_result.rewards``, ``verifier/reward.json``, and the job-level
-``stats.evals`` aggregate) with no checksum binding them, and Eval Lab readers
-have historically disagreed on edge values: a boolean or ``-1`` reward is a
-scored pass on one path and unscored on another (HAR-446/HAR-455). A reward
-quoted from such a job is only trustworthy if every copy agrees and every
-value is a finite, scored number.
-
-This module is a pure, stdlib-only file reader in the mold of
-:mod:`evallab.results`. It runs no task, calls no model, and writes nothing.
-Findings carry a severity:
-
-- ``block``: a reward from this job must not be quoted until fixed.
-- ``warn``: quotable with the caveat attached.
-- ``info``: an explanation, e.g. why Harbor left ``pass_at_k`` empty.
-
-A job verdict is ``error`` when the directory is not a readable Harbor job,
-``block`` when any block finding fires, else ``pass``. The CLI maps these to
-exit codes 2/1/0 so the check works as a CI gate.
-
-Task identity is reported, never joined: a trial ``task_checksum`` and a job
-lock ``task.digest`` are different digest namespaces (they differ on the same
-trial), so both are listed as opaque strings.
-"""
-
 from __future__ import annotations
 
 import json
@@ -79,7 +52,6 @@ class JobReport:
 
 
 def _read_json_object(path: Path) -> tuple[dict[str, Any], str | None]:
-    """Return (object, error). Error is a short stable code suffix."""
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
@@ -94,7 +66,6 @@ def _read_json_object(path: Path) -> tuple[dict[str, Any], str | None]:
 
 
 def _reward_value_problem(value: Any) -> str | None:
-    """Classify one raw reward value; None means a scored finite number."""
     if isinstance(value, bool):
         return "reward_bool"
     if not isinstance(value, (int, float)):
@@ -117,7 +88,6 @@ def _trial_shaped(directory: Path) -> bool:
 
 
 def _verifier_file_rewards(trial_dir: Path) -> tuple[dict[str, Any] | None, str | None]:
-    """Rewards from verifier/reward.json, else verifier/reward.txt."""
     reward_json = trial_dir / "verifier" / "reward.json"
     if reward_json.is_file():
         value, error = _read_json_object(reward_json)
@@ -136,7 +106,6 @@ def _verifier_file_rewards(trial_dir: Path) -> tuple[dict[str, Any] | None, str 
 def _check_trial(
     report: JobReport, trial_dir: Path, result: dict[str, Any]
 ) -> dict[str, int | float]:
-    """Check one indexed trial; return its scored rewards for the job roll-up."""
     trial_name = str(result.get("trial_name") or trial_dir.name)
     verifier_result = result.get("verifier_result")
     raw_rewards = verifier_result.get("rewards") if isinstance(verifier_result, dict) else None
@@ -208,14 +177,6 @@ def _check_seats(
     result: dict[str, Any],
     scored: dict[str, int | float],
 ) -> None:
-    """Seat-trial integrity: roster agreement and per-seat evidence state.
-
-    A multi-agent (seat) trial records one ``seat_results`` entry per seat
-    and its roster in ``config.participants``. The trial reward alone hides
-    two quotability problems: a seat that errored beside a passing reward,
-    and a seat whose logs never reached the trial dir. Both stay visible
-    here without rewriting the reward.
-    """
     config = result.get("config")
     participants = config.get("participants") if isinstance(config, dict) else None
     participant_seats = {
@@ -276,7 +237,6 @@ def _check_seats(
 
 
 def _reward_bucket_key(value: str) -> Decimal | str:
-    # Compare decimal spellings without rounding distinct rewards to the same float.
     try:
         number = Decimal(value)
     except InvalidOperation:
@@ -318,10 +278,6 @@ def _check_job_stats(
                         str(name) for name in names
                     )
 
-    # Harbor counts only scored trials in stats.evals: an exceptioned trial
-    # with no reward appears in n_total_trials/n_errored_trials but not in any
-    # eval bucket (observed: canary-transaction-reconciliation-codex-20260816,
-    # 3 trials on disk, eval n_trials=2, 1 NonZeroAgentExitCodeError).
     scored_trials = sum(1 for rewards in trial_rewards.values() if rewards)
     if stored_n_trials and stored_n_trials != scored_trials:
         report.add(

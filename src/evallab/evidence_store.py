@@ -1,5 +1,3 @@
-"""Content-addressed durable bundles for raw Harbor evidence."""
-
 from __future__ import annotations
 
 import gzip
@@ -55,7 +53,6 @@ def _content_digest(root: Path, files: list[Path]) -> str:
 
 
 def evidence_tree_digest(source: Path) -> str:
-    """Return the canonical content digest used by evidence archives."""
     source = source.resolve()
     if not source.is_dir():
         raise FileNotFoundError(f"evidence source directory does not exist: {source}")
@@ -69,7 +66,6 @@ def _component(value: str, *, label: str = "path component") -> str:
 
 
 def _absolute(path: Path) -> Path:
-    """Canonicalize trusted ancestors without accepting a symlink as the root."""
     absolute = Path(os.path.abspath(os.fspath(path)))
     if os.path.lexists(absolute) and absolute.is_symlink():
         raise ValueError(f"CAS root cannot be a symlink: {absolute}")
@@ -88,7 +84,6 @@ def _absolute(path: Path) -> Path:
 
 @contextmanager
 def _open_directory_chain(path: Path, *, create: bool) -> Iterator[int]:
-    """Open a directory without following any component symlink."""
     absolute = _absolute(path)
     flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
     descriptor = os.open(absolute.anchor or "/", flags)
@@ -212,7 +207,6 @@ def _atomic_write(
     content: bytes | None = None,
     source: IO[bytes] | None = None,
 ) -> None:
-    """Publish one regular file with an exclusive temp and atomic rename."""
     name = _component(name, label="file name")
     if (content is None) == (source is None):
         raise ValueError("exactly one CAS write source is required")
@@ -369,7 +363,6 @@ def archive_evidence(
 
 
 def store_blob(store_root: Path, content: bytes | str) -> str:
-    """Store raw payload bytes/text in content-addressed storage."""
     raw_bytes = content.encode("utf-8") if isinstance(content, str) else content
     digest_hex = hashlib.sha256(raw_bytes).hexdigest()
     uri = f"cas://sha256/{digest_hex}"

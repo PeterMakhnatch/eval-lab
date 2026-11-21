@@ -205,8 +205,6 @@ def run_revision(
         tree = Path(scratch) / "tree"
         git(root, "worktree", "add", "--quiet", "--detach", str(tree), revision)
         try:
-            # Each revision uses its own locked Python 3.12 environment.
-            # The frozen spec forbids live AutoReview and nonzero spend.
             command = [
                 "uv",
                 "run",
@@ -346,8 +344,6 @@ def main(argv: list[str] | None = None) -> int:
         )
         base = git(ROOT, "merge-base", against, head)
         report.update(head=head, base=base, origin_main=main_rev, against=against, pr=args.pr)
-        # Inventory both immutable revisions so new, deleted and renamed paths
-        # remain sensitive. Do not import code or inspect working-tree bytes.
         repository_files: set[str] = set()
         for rev in (base, head):
             repository_files.update(

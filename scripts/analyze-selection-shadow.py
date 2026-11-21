@@ -65,8 +65,6 @@ def load_run(repo: str, run_id: int, directory: Path) -> dict[str, Any]:
         raise ValueError(f"run {run_id}: stale manifest run or attempt")
     prs = metadata["pull_requests"]
     if not prs:
-        # GitHub can omit closed PRs from run associations. Bind the branch
-        # candidate to the exact head commit, including earlier PR revisions.
         candidates = json.loads(gh(
             "pr", "list", "--repo", repo, "--state", "all", "--head", metadata["head_branch"],
             "--json", "number,headRefOid,headRepository", "--limit", "1000",
@@ -120,7 +118,6 @@ def cost_share(row: dict[str, Any], selected: set[str]) -> float | None:
     receipts = row["receipts"]
     if session_issues(row):
         return None
-    # Failures and interrupted sessions do not provide a full-suite price.
     if any(item["exitstatus"] != 0 or item["collection_errors"] for item in receipts):
         return None
     total = chosen = 0.0

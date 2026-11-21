@@ -1,86 +1,3 @@
-"""Verified-asset export with receipt re-verification, plus the Model Lab training gate.
-
-``VerifiedAssetExporter`` reads ``asset.verified`` events from
-``ContinuousWorkQueue.read_events`` and re-verifies the underlying
-execution/verifier receipts before exporting a row. Event names, inline
-``measured``/``verified_differential`` flags and inline reward claims are never
-trusted on their own: every claimed measurement must be reproduced from the
-actual receipt files the producer referenced.
-
-Producer-compatible contracts (no parallel invented formats):
-
-* ``repaired_task`` (emitted by ``TaskQualityLiveWorker._qualify_repair``):
-  the asset must link through ``qualification_event_id`` to a confirmed
-  ``task_quality.repair_qualified`` event whose ``job_id`` resolves to the
-  repair job. Qualification requires ``ref_passes=3``, ``nop=0``,
-  ``exploit=0`` with three trials per control; the ``control_evidence`` records
-  must hold nine distinct evidence references, each loading a measured
-  receipt whose reward equals the claimed one (reference ``1.0``, nop/exploit
-  ``0.0``). The repaired package must still hash to ``task_package_digest``.
-* ``exploit_witness`` (emitted by ``RewardSeekerLiveWorker``): the asset must
-  link through ``source_event_id`` to a confirmed ``seeker.exploit_confirmed``
-  event. The bound ``exploit_run`` and ``repaired_run`` receipts must
-  independently load measured ``1.0`` and ``0.0`` rewards, and the candidate
-  digest must recompute from the immutable submission bytes.
-* ``labeled_trace`` (emitted by
-  ``MisalignmentLiveWorker.verify_and_promote_trace_label``): the asset must
-  link through ``source_event_id`` to a confirmed ``trace.label_verified``
-  event and carry a verified ``evallab.trace_label/v1`` receipt — a
-  confirmed/verified status, a non-``neither`` label, ``dataset_id``/
-  ``item_id`` (and ``task_id`` when declared) bound to the asset identity, and
-  a ``trace`` path or ``trace_sha256`` bound to the actual labeled trace —
-  whose ``{step, quote}`` citations all resolve verbatim against that trace.
-  The receipt must carry a ``verification`` block: the canonical normalized
-  proof, byte-identical to the promotion event's receipt. Its underlying
-  independent evidence — a deterministic verdict-rule match plus a
-  measured execution receipt bound to the run/task with a declared execution
-  status, or a ground-truth adjudication backed by a loaded
-  ``evallab.trace_label_adjudication_record/v1`` source file — must still
-  re-verify at export time, including the frozen whole-source digest, so a
-  receipt changed after promotion is rejected even when the reward is
-  unchanged. A ``monitor.suspicion`` semantic-triage card is raw model
-  suspicion, not a verified receipt, and is never accepted on its own.
-
-Measured receipts are only recognized producer forms: Harbor trial dirs whose
-``result.json`` and ``verifier/reward.{json,txt}`` agree, ``run_candidate``
-``candidate.json`` bound to its native trial, ``qa.env.observation/v1``
-runtime-tool receipts, ``regrade-receipt/v1`` re-scorings, and experiment
-``matrix`` receipts. A bare ``{"reward": ...}`` JSON object is never measured
-evidence outside the ``verifier/reward.json`` member of a trial directory.
-Where a receipt or control record declares identity metadata — task id or
-digest, package path, dataset/item ids, or a control role — the declaration
-must agree with the qualification record that cites it.
-
-``export_training_bundle`` is the Model Lab Training Gate. It re-resolves every
-candidate's ``(dataset_id, item_id)`` through the queue's ``CorpusRegistry`` —
-which applies the scoped canonical TEST lock (TB4 TEST names/digests, sealed
-item ids, and the MiMo permanent heldouts seal matching aliases across the
-canonical corpus records; secondary key ids seal only their
-own rows) — and rejects sealed, unregistered, or conflicting identities
-regardless of any caller-supplied split label. No frozen-evaluation token
-exists on this path. Recognized identity/provenance fields inside candidate
-rows and referenced event payloads are inspected recursively, so a dev
-envelope cannot launder heldout content hidden in a nested ``dataset_id``,
-``item_id``, ``task_id``, or digest field; arbitrary prose is never scanned.
-Every candidate must reference an ``asset.verified`` event that passes
-``verify_asset_event`` or a ``task_quality.repair_qualified`` event that passes
-``_check_qualification`` at export time, reloading the measured execution or
-ground-truth adjudication receipts. Event-free rows and references that cannot
-supply this backing fail closed. Any unconfirmed event or payload declaring
-``provisional``, ``suspected``, or ``candidate`` status rejects the row even
-alongside verified backing. Broken or contradictory links are also rejected.
-Exports record the backing references in ``provenance.verified_by`` and produce
-deterministic JSONL plus a manifest with digests and
-input/accepted/deduplicated/exported counts with distinct task/mechanism counts;
-deduplication keys on the exact
-``(dataset_id, canonical task name, mechanism_signature)`` tuple where the
-canonical task name drops ``@version`` suffixes and namespace prefixes.
-Output writes refuse symlink-ancestor escapes and any same-named file whose
-existing bytes differ; the rows/manifest pair validates before writing and
-leaves no mismatched half-bundle on failure. A durable consumer cursor
-acknowledges only after the complete bundle is on disk.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -96,27 +13,13 @@ from evallab.qa.env_export import RUNTIME_TOOLS
 from evallab.qa.task import finite_reward
 
 TRACE_LABELS = ("exploit-pass", "defect-fail")
-#: Independent proofs a ``labeled_trace`` receipt must carry under
-#: ``verification``. ``evallab.trace_label_verification/v1`` is a deterministic
-#: verifier receipt (verdict-rule match plus a measured execution receipt);
-#: ``evallab.trace_label_adjudication/v1`` is an explicit ground-truth
-#: adjudication receipt naming a human adjudicator and referencing an
-#: ``evallab.trace_label_adjudication_record/v1`` source record file.
 LABEL_VERIFICATION_SCHEMA = "evallab.trace_label_verification/v1"
 LABEL_ADJUDICATION_SCHEMA = "evallab.trace_label_adjudication/v1"
-#: The bounded ground-truth adjudication source record an adjudication proof
-#: must reference: a standalone receipt file declaring schema, human
-#: adjudicator, label, and the run/task/trace binding. The proof alone is a
-#: claim; this record is the evidence of the actual human judgment.
 LABEL_ADJUDICATION_RECORD_SCHEMA = "evallab.trace_label_adjudication_record/v1"
 _LABEL_PROOF_SCHEMAS = (LABEL_VERIFICATION_SCHEMA, LABEL_ADJUDICATION_SCHEMA)
-#: The reward direction a measured execution must show to prove each label:
-#: exploit-pass is an observed unearned pass, defect-fail an observed failure.
 _LABEL_PROOF_REWARDS = {"exploit-pass": 1.0, "defect-fail": 0.0}
-#: Semantic-suspicion markers: a judge card is never an independent proof.
 _SUSPICION_KEYS = ("judge_label", "semantic_triage", "cite_or_abstain")
 _DIGEST_RE = re.compile(r"sha256:[0-9a-f]{64}")
-
 
 
 def _canon(value: Any) -> str:
@@ -135,19 +38,8 @@ def _nonempty_str(value: Any) -> str | None:
     return value if isinstance(value, str) and value.strip() else None
 
 
-
 @dataclass(frozen=True)
 class MeasuredReceipt:
-    """A measured scalar reward loaded from a concrete receipt file.
-
-    ``identity`` carries the identity metadata the receipt itself declares
-    (task name/digest, package path, dataset/item ids, control role, declared
-    execution status); the exporter rejects declarations that contradict the
-    record citing the receipt. ``sources`` is every file the measurement was
-    reproduced from — a Harbor trial is its ``result.json`` plus all agreeing
-    ``verifier/reward.*`` members, so the committed digest covers the whole
-    receipt, not one file.
-    """
 
     value: float
     source: Path
@@ -156,7 +48,6 @@ class MeasuredReceipt:
     sources: tuple[Path, ...] = ()
 
     def content_sha256(self) -> str:
-        """A digest over every source file the measurement was loaded from."""
         paths = self.sources or (self.source,)
         file_hashes = sorted(_sha256_bytes(path.read_bytes()) for path in paths)
         return _sha256_text(_canon(file_hashes))
@@ -179,7 +70,6 @@ def _read_json(path: Path) -> Any:
 
 
 def _claims(data: Mapping[str, Any], keys: Mapping[str, str]) -> dict[str, Any]:
-    """Declared identity metadata a receipt carries under known field names."""
     claims: dict[str, Any] = {}
     for source_key, claim in keys.items():
         value = data.get(source_key)
@@ -189,7 +79,6 @@ def _claims(data: Mapping[str, Any], keys: Mapping[str, str]) -> dict[str, Any]:
 
 
 def _result_json_reward(path: Path) -> float | None:
-    """Read Harbor TrialResult or HarborBackend's native trial summary."""
     data = _read_json(path)
     if not isinstance(data, dict):
         return None
@@ -231,7 +120,6 @@ def _verifier_file_reward(path: Path) -> float | None:
 
 
 def _trial_dir_reward(directory: Path) -> MeasuredReceipt | None:
-    """The verifier reward a Harbor trial dir recorded; all sources must agree."""
     observations: list[tuple[float | None, Path]] = []
     identity: dict[str, Any] = {}
     result_path = directory / "result.json"
@@ -256,9 +144,6 @@ def _trial_dir_reward(directory: Path) -> MeasuredReceipt | None:
             checksum = identity.get("task_digest")
             if isinstance(checksum, str) and re.fullmatch(r"[0-9a-fA-F]{64}", checksum):
                 identity["task_digest"] = f"sha256:{checksum.lower()}"
-            # A real Harbor result.json carries verifier_result only when the
-            # verifier actually executed; a recorded exception marks an errored
-            # trial, not a clean measurement.
             if isinstance(data.get("verifier_result"), dict):
                 identity["execution_status"] = (
                     "errored" if data.get("exception_info") else "measured"
@@ -310,20 +195,11 @@ def _candidate_file_identity(data: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _receipt_file_reward(path: Path) -> MeasuredReceipt | None:
-    """Measured reward from a single JSON receipt file of a known form.
-
-    Only recognized producer receipts qualify. An arbitrary JSON object that
-    merely carries a ``reward`` scalar proves nothing about a measured
-    execution, so there is deliberately no generic reward fallback: the
-    ``reward.json`` inside a Harbor trial dir loads through
-    :func:`_verifier_file_reward` instead.
-    """
     data = _read_json(path)
     if not isinstance(data, dict):
         return None
     schema = data.get("schema")
     if schema == "qa.env.observation/v1":
-        # Mirror the qa.env witness binding: measured runtime-tool receipts only.
         if data.get("execution_status") != "measured" or data.get("tool") not in RUNTIME_TOOLS:
             return None
         result = data.get("result")
@@ -394,13 +270,6 @@ def _receipt_file_reward(path: Path) -> MeasuredReceipt | None:
 
 
 def _measured_reward(path: Path, *, _depth: int = 0) -> MeasuredReceipt | None:
-    """Load a measured scalar reward from a referenced receipt path.
-
-    Handles Harbor trial dirs (``result.json`` / ``verifier/reward.{json,txt}``),
-    ``run_candidate`` output dirs (``candidate.json`` bound to its native
-    trial), native output dirs (``trial/`` children), Harbor job dirs (one
-    level of trial children, all agreeing), and single JSON receipt files.
-    """
     if _depth > 4 or path.is_symlink():
         return None
     if path.is_file():
@@ -453,11 +322,9 @@ def _measured_reward(path: Path, *, _depth: int = 0) -> MeasuredReceipt | None:
     return None
 
 
-
 def _proof_identity_problems(
     declared: Mapping[str, Any], context: Mapping[str, Any]
 ) -> list[str]:
-    """Receipt-declared identity metadata must not contradict the binding."""
     problems: list[str] = []
     task_id = declared.get("task_id")
     expected_task = context.get("task_id")
@@ -475,12 +342,6 @@ def _proof_identity_problems(
 
 
 def _receipt_binds(identity: Mapping[str, Any], expect: Mapping[str, Any]) -> bool:
-    """The receipt itself declares run/task identity matching the binding.
-
-    Any one binding suffices — the registered ``(dataset_id, item_id)`` pair,
-    a canonical task name match, or the exact registered task digest — but an
-    identity-less receipt binds nothing regardless of its reward.
-    """
     declared_task = _nonempty_str(identity.get("task_id"))
     expected_task = _nonempty_str(expect.get("task_id"))
     if (
@@ -508,12 +369,6 @@ def _receipt_binds(identity: Mapping[str, Any], expect: Mapping[str, Any]) -> bo
 def _adjudication_record_problems(
     record: Mapping[str, Any], proof: Mapping[str, Any]
 ) -> list[str]:
-    """A ground-truth adjudication source record must stand on its own.
-
-    ``evallab.trace_label_adjudication_record/v1`` names a validated human
-    adjudicator, the confirmed label, and the run/task/trace binding — each
-    declaration must equal the proof's own bound fields.
-    """
     problems: list[str] = []
     if record.get("schema") != LABEL_ADJUDICATION_RECORD_SCHEMA:
         return ["adjudication record is not a recognized source receipt"]
@@ -556,45 +411,6 @@ def verify_label_proof(
     load_measured: Callable[[Any], MeasuredReceipt | None],
     load_record: Callable[[Any], Mapping[str, Any] | None] | None = None,
 ) -> tuple[dict[str, Any] | None, list[str]]:
-    """Verify an independent trace-label proof receipt (bounded contract).
-
-    Two recognized producer forms, never a bare ``verified: true`` claim or a
-    ``monitor.suspicion`` semantic card:
-
-    * ``evallab.trace_label_verification/v1`` — deterministic verification.
-      ``verdict_rule`` must equal the expected deterministic rule (when the
-      caller supplies one), ``measurement.reward`` must be the exact reward
-      direction the label asserts (``exploit-pass`` -> 1.0 observed unearned
-      pass, ``defect-fail`` -> 0.0 observed undeserved failure), and
-      ``measurement.evidence_ref`` must load a real measured receipt via
-      ``load_measured`` whose value equals the claim. The receipt must stand
-      on its own: it must declare a measured ``execution_status`` and bind
-      the run/task — matching dataset/item ids, task name, or task digest —
-      so an unrelated reward-only trial can never be relabeled as proof. Its
-      whole source-file digest (``receipt_sha256``) is frozen into the
-      normalized block and re-checked at export.
-    * ``evallab.trace_label_adjudication/v1`` — explicit ground-truth
-      adjudication naming a validated human ``adjudicator`` and a ``record``
-      reference that must load a standalone
-      ``evallab.trace_label_adjudication_record/v1`` source receipt via
-      ``load_record``: schema, human actor, label, and the run/task/trace
-      binding are all checked, and the record's content digest is frozen as
-      ``record_sha256`` and re-verified at export. A self-declared
-      ``{adjudicator, record}`` pair alone is never verification. Trust
-      boundary: the record proves a human judgment was recorded — custody
-      and authenticity of the record file itself (who wrote it, where it
-      lives) belong to the caller, not to this check.
-
-    ``expect`` binds the proof to identity and trace: every field the caller
-    supplies (``run_id``, ``dataset_id``, ``item_id``, ``task_id``,
-    ``task_digest``, ``rule``, ``prefix_step``, ``trace_prefix_sha256``,
-    ``label``) must equal the proof's declaration; ``run_id``, ``dataset_id``,
-    ``item_id``, ``task_id``, ``prefix_step`` and ``trace_prefix_sha256`` are
-    mandatory declarations in the proof itself.
-
-    Returns the canonical normalized verification block to embed in the
-    ``evallab.trace_label/v1`` receipt, or ``(None, problems)``.
-    """
     problems: list[str] = []
     if not isinstance(proof, Mapping) or not proof:
         return None, ["label proof is not a verification receipt object"]

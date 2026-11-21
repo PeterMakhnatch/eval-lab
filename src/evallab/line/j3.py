@@ -1,8 +1,3 @@
-"""Frozen subscription-only J3 reader inside the line's AutoReview stage.
-
-Cache and trace records contain typed scores and custody hashes, never model prose.
-The pure renderer is a port of the frozen ov1104 views, not a research-runtime import.
-"""
 from __future__ import annotations
 
 import asyncio
@@ -32,7 +27,6 @@ from evallab.line.j3_view import (
 ROUTE = "openai-codex/gpt-6.1-terra"
 RUBRIC_SHA = "7e7cb3c4686423ad137ecbfa726be97f54e5a05805157e3d8e8adbc5250afc83"
 TEMPLATE_SHA = "d447dc31c7c496a278b4f8cc2daecc547e8aa1d9689dc1de115e77cd72574592"
-# The v1 cache identity stays frozen; decision thresholds are a separate policy.
 CACHE_THRESHOLD = 89
 REVIEW_THRESHOLD = 61
 DROP_THRESHOLD = 100
@@ -45,7 +39,6 @@ def mode(spec: dict[str, Any]) -> str:
 
 
 def prepare(item: hd.RolloutItem) -> tuple[str, list[str]]:
-    """Reproduce native build_dev prompts byte-for-byte, without rewards or run labels."""
     try:
         prompts = _prompts(item)
     except (ValueError, TypeError, KeyError, AttributeError):
@@ -89,7 +82,6 @@ def _number(value: Any, *, integer: bool = False) -> bool:
 
 
 def validate(value: Any) -> dict[str, Any]:
-    """Refuse schema extensions, free text, labels, and malformed accounting before reuse."""
     if not isinstance(value, dict) or set(value) != _READING_KEYS:
         raise ValueError("invalid J3 reading schema")
     if value["schema"] != "evallab.j3_reading/v1":
@@ -132,7 +124,6 @@ def cache_files(spec: dict[str, Any]) -> list[Path]:
 
 
 def load_cache(spec: dict[str, Any], *, ordering: bool = False) -> dict[str, dict[str, Any]]:
-    """Ordering may reuse both caches; decision policy reads only its own declared cache."""
     rows: dict[str, dict[str, Any]] = {}
     files = cache_files(spec) if ordering else (
         [hd.check_declared_path(spec["autoreview"]["j3"]["cache"])]
@@ -150,7 +141,6 @@ def load_cache(spec: dict[str, Any], *, ordering: bool = False) -> dict[str, dic
 
 
 def priority(value: dict[str, Any] | None, item: hd.RolloutItem | None = None) -> int | float | None:
-    """The maximum complete, input-bound, attested J3 score; no decision policy."""
     if value is None:
         return None
     validate(value)
@@ -185,7 +175,6 @@ def combine(prior: hd.StageVerdict, value: dict[str, Any], item: hd.RolloutItem 
 
 
 async def _live_windows(prompts: list[str]) -> list[dict[str, Any]]:
-    """Use only auth-gateway stdio. No fallback, retries, service changes, or paid client."""
     config = os.environ.get("PI_CONFIG_FILES") or "/private/tmp/ev1105/shared/nofallback.yml"
     process = await asyncio.create_subprocess_exec(
         "omp", "--config", config, "auth-gateway", "stdio",
@@ -249,7 +238,7 @@ async def _live_windows(prompts: list[str]) -> list[dict[str, Any]]:
             window["latency_s"] = time.monotonic() - started
             windows.append(window)
             if window["error"] == "unattested":
-                break  # Stop this batch immediately; never continue on an unknown route.
+                break
     finally:
         if process.returncode is None:
             process.kill()

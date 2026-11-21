@@ -1,26 +1,3 @@
-"""Public-corpus admission and the durable production work journal.
-
-Construct ``CorpusRegistry(repo_root, frozen_eval_token=...)`` from committed local
-indices, then share ``ContinuousWorkQueue(database, registry=registry)`` across
-workers. A database is either a SQLite path/``sqlite:///`` URL or a PostgreSQL
-``postgresql://`` DSN. Use a dedicated production database (or PostgreSQL schema).
-No corpus downloads, model calls, or dispatch happen on construction.
-
-Every event and its outbox entry commit together; qualifying results and their
-chained jobs commit in that same transaction. ``events`` is append-only, including
-at the database boundary. Global sequence allocation is serialized until commit,
-so a durable consumer cannot skip a slower, uncommitted event. Outbox publication
-is at-least-once: publish the envelope using event_id as the broker deduplication
-key, then call ``mark_published``. Publication and job acknowledgement are separate.
-
-Jobs require registry-resolved dataset_id/item_id. Caller-provided split labels
-never authorize admission. TEST (including MiMo's permanently held-out tasks) is
-sealed unless a token configured on the registry is explicitly passed to that
-operation. Tokens are not persisted and are not inherited by later operations.
-Leases require heartbeat renewal and are fenced by unguessable lease tokens;
-expired workers cannot acknowledge jobs reclaimed by another worker.
-"""
-
 from __future__ import annotations
 
 import csv
@@ -34,14 +11,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-#: Systems that own leased jobs. Only these may enqueue ``*_task`` work.
 DATASETS = ("tb4-audit-v1", "mimo-defect-map-v1", "cheatbench-actions-v1", "hacktrace-act-v1")
 _BARE_NUMBER = re.compile(r"[0-9]+")
 
 
 class SplitLockError(ValueError):
-    """A sealed corpus item was not explicitly authorized for frozen evaluation."""
-
+    pass
 
 
 @dataclass(frozen=True)
@@ -80,9 +55,7 @@ def _json(value: Any) -> str:
 
 
 def source_record_digest(record: Any) -> str:
-    """Hash a source record using the queue's canonical JSON encoding."""
     return "sha256:" + hashlib.sha256(_json(record).encode()).hexdigest()
-
 
 
 def _jsonl(path: Path) -> Iterator[dict[str, Any]]:
@@ -97,17 +70,6 @@ def _jsonl(path: Path) -> Iterator[dict[str, Any]]:
 
 
 class CorpusRegistry:
-    """Index the four public local corpora without opening task/answer bytes.
-
-    TB4 task records and finding records are both addressable by their native
-    identifiers. MiMo records use ``record_id`` (task plus historical package
-    digest), not a mutable latest-version alias. Canonical split assignments can
-    only tighten a local row's split, never turn TEST back into DEV. The TEST lock
-    follows task names/digests across corpus records as well as individual ids.
-
-    Only the four canonical corpus keys feed that global lock: assignments under
-    secondary key ids tighten solely their own ``(key_id, item_id)`` rows.
-    """
 
     def __init__(
         self, repo_root: str | Path | None = None, *, frozen_eval_token: str | None = None
@@ -125,7 +87,6 @@ class CorpusRegistry:
         self._assignment_names: dict[tuple[str, str], str] = {}
         self._assigned_test_names: set[str] = set()
         self._assigned_test_ids: set[str] = set()
-        # Split of each canonical index task name, TEST winning across records.
         self._index_names: dict[tuple[str, str], str] = {}
         keys = self.repo_root / "research/answer-keys"
         assignments: dict[tuple[str, str], str] = {}
@@ -163,7 +124,6 @@ class CorpusRegistry:
                         self._assigned_test_ids.add(item_id)
                         if row.get("task"):
                             self._assigned_test_names.add(self.task_name(row["task"]))
-                    # Secondary assignments do not become global queue seals.
                     if split == "test" and row.get("task") and key_id in DATASETS:
                         self._sealed_names.add(self.task_name(row["task"]))
         self._assignments = assignments
@@ -205,7 +165,6 @@ class CorpusRegistry:
 
     @staticmethod
     def task_name(task: str) -> str:
-        """The normalized task name, without namespace prefixes or version suffixes."""
         return _identity(task.rsplit("/", 1)[-1].split("@", 1)[0])
 
     def _add(
@@ -261,12 +220,6 @@ class CorpusRegistry:
         task_id: str | None = None,
         task_digest: str | None = None,
     ) -> str | None:
-        """The seal a bare identity hits (``item_id``/``task name``/``task digest``).
-
-        Item ids, canonical task names, and task digests a canonical TEST row
-        sealed stay sealed wherever they reappear, including inside external
-        registrations and nested provenance. ``None`` means unsealed.
-        """
         if item_id is not None and _identity(item_id) in self._sealed_ids:
             return "item_id"
         if task_id is not None and self.task_name(task_id) in self._sealed_names:
@@ -276,13 +229,6 @@ class CorpusRegistry:
         return None
 
     def sealed_identifiers(self) -> frozenset[str]:
-        """Text seals: canonical identities and secondary TEST task names, not item labels.
-
-        Bare numeric item ids (row indices such as CheatBench's ``44``) are not
-        distinctive text: as substrings they match inside digests, counts, and
-        line numbers. They stay sealed as exact structured identities through
-        :meth:`sealed_identity` and per-key assignments, never as text seals.
-        """
         return frozenset(
             value for value in (
                 self._sealed_ids | self._sealed_names | self._sealed_digests
@@ -292,7 +238,6 @@ class CorpusRegistry:
         )
 
     def has_assignment_authority(self) -> bool:
-        """Whether a validated, nonempty split ledger was loaded into this registry."""
         digest = getattr(self, "split_assignments_digest", None)
         return (
             isinstance(digest, str)
@@ -303,20 +248,11 @@ class CorpusRegistry:
         )
 
     def has_split_assignments(self, key_id: str) -> bool:
-        """Whether this key has authoritative per-item split assignments."""
         return _identity(key_id) in self._assignment_keys
 
     def assigned_split(
         self, key_id: str, *, item_id: str | None = None, task_id: str | None = None,
     ) -> str | None:
-        """Resolve assignment identities without opening task or answer content.
-
-        Secondary keys retain their own split locks, not global seals. TEST wins
-        across item-id/name aliases; ``None`` means no explicit assignment and
-        must not authorize a DEV row for a key with split assignments. A
-        canonical key with no ledger rows (MiMo) resolves through its own
-        identity index: the record id or normalized task name.
-        """
         key_id = _identity(key_id)
         item_id = None if item_id is None else _identity(item_id)
         task_id = None if task_id is None else _identity(task_id)
@@ -342,11 +278,6 @@ class CorpusRegistry:
     def assigned_test_anywhere(
         self, *, item_id: str | None = None, task_id: str | None = None,
     ) -> bool:
-        """Whether any assignment key marks this item or canonical task TEST.
-
-        Retrieval uses the stricter cross-key guard even where queue admission
-        retains a secondary key's local split contract.
-        """
         return (
             item_id is not None and _identity(item_id) in self._assigned_test_ids
         ) or (
@@ -359,9 +290,7 @@ class CorpusRegistry:
         )
 
     def get(self, dataset_id: str, item_id: str) -> CorpusItem:
-        """Resolve native identifiers, raising KeyError for unregistered input."""
         item = self._items[_identity(dataset_id), _identity(item_id)]
-        # Defensive copies keep callers from changing future admission metadata.
         return CorpusItem(
             item.dataset_id,
             item.item_id,
@@ -398,6 +327,5 @@ class CorpusRegistry:
                 f"TEST split is sealed: {dataset_id}/{item_id}; explicit frozen-eval token required"
             )
         return item
-
 
 

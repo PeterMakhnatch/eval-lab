@@ -1,52 +1,3 @@
-"""Read-only drift check: does the task package on disk still match a job lock?
-
-A Harbor job records, per trial, the task package it ran in the job-level
-``lock.json`` (``trials[].task.digest`` and ``trials[].task.path``). Task
-packages are edited in place over time, so a lock digest from the past may no
-longer describe the directory that sits at that path today. This module
-recomputes the digest of the directory as it exists *now* and reports, per
-lock trial, whether it still matches.
-
-Digest algorithm
-----------------
-The recomputation uses Harbor's default local-task package digest, exactly as
-implemented by ``harbor_task_digest`` in ``evallab.registry`` (this module
-re-implements it with the standard library only, because ``registry`` imports
-pydantic; the algorithm below is a verbatim copy of the file set, ignore
-rules, ordering, and framing):
-
-* file set: top-level ``task.toml``, ``instruction.md``, ``README.md`` (when
-  present) plus every file under ``environment/``, ``tests/``, ``solution/``,
-  and ``steps/`` (when present);
-* ignored: anything under a ``__pycache__`` directory, ``.DS_Store``,
-  ``*.pyc`` / ``*.swp`` / ``*.swo``, and names ending in ``~``;
-* ordering: ascending POSIX relative path;
-* framing: for each file, feed ``f"{relative}\\0{sha256_hex_of_bytes}\\n"``
-  into one SHA-256; the result is ``"sha256:" + hexdigest``.
-
-This is *not* ``task_directory_digest`` (the registry's whole-tree digest,
-which frames lines as ``f"{file_digest}  ./{relative}\\n"`` over every file).
-Verified against a real job on 2026-11-18: for
-``runs/checkpoint-oracle-20260814`` the lock digest
-``sha256:2c16dfb2...`` equals ``harbor_task_digest`` of
-``library/tasks/event-summary`` and differs from its
-``task_directory_digest``, so the lock namespace is the Harbor one.
-
-Two digest namespaces — never join them
----------------------------------------
-Job lock digests (``lock.json`` -> ``trials[].task.digest``, Harbor package
-digest, ``sha256:``-prefixed) and trial ``task_checksum`` values
-(``<trial>/result.json`` -> ``task_checksum``, a bare hex string computed by
-Harbor over a different definition) are **different namespaces**. They are
-both SHA-256-shaped strings about "the task", which makes them easy to
-confuse, but they are not comparable and must never be joined, compared, or
-used as keys for one another. This module reads only lock digests and never
-reads ``task_checksum``. (``evallab.job_verify`` states the same rule.)
-
-The check is strictly read-only: it opens files to hash them and writes
-nothing, to the job directory, the task directory, or anywhere else.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -70,11 +21,6 @@ _IGNORED_SUFFIXES = {".pyc", ".swp", ".swo"}
 
 
 def harbor_task_digest(task_dir: Path) -> str:
-    """Reproduce Harbor's default local-task package digest for ``task_dir``.
-
-    Verbatim re-implementation of ``evallab.registry.harbor_task_digest``;
-    see the module docstring for the exact file set and framing.
-    """
     files: list[Path] = []
     for relative in _TOP_LEVEL_FILES:
         path = task_dir / relative
@@ -110,7 +56,6 @@ def _as_str(value: Any) -> str | None:
 
 
 def _read_object(path: Path) -> dict[str, Any]:
-    """Best-effort JSON object read; ``{}`` for missing/malformed/non-object."""
     if not path.is_file():
         return {}
     try:
@@ -121,14 +66,6 @@ def _read_object(path: Path) -> dict[str, Any]:
 
 
 def _trial_names(job_dir: Path) -> list[dict[str, Any]]:
-    """Trial identities from trial subdirectories, for naming lock entries.
-
-    Job lock trials carry no trial name (verified across the local run
-    corpus: trial keys are schema/task/agent/environment/... only), so names
-    come from each trial directory's ``result.json`` (``trial_name``), with
-    the trial's own ``lock.json`` task block kept for matching. Directories
-    without a readable ``result.json`` object are skipped.
-    """
     found: list[dict[str, Any]] = []
     if not job_dir.is_dir():
         return found
@@ -158,13 +95,6 @@ def _match_trial_name(
     task: dict[str, Any],
     pool: list[dict[str, Any]],
 ) -> str | None:
-    """Pop the trial-directory entry that belongs to one lock trial.
-
-    Prefer an exact (name, digest, path) match against the trial's own lock
-    task block, then (name, digest), then name alone; fall back to pool order
-    (lock trials of one task are interchangeable, so positional assignment
-    among same-task trials does not change any status).
-    """
     if not pool:
         return None
     lock_name = _as_str(task.get("name"))
@@ -183,9 +113,6 @@ def _match_trial_name(
         return points
 
     best = max(range(len(pool)), key=lambda i: score(pool[i]))
-    # Every candidate describes a *different* task; do not mislabel. (A pool
-    # entry with an empty task block carries no evidence either way, so
-    # positional assignment remains acceptable there.)
     if (
         score(pool[best]) == 0
         and pool[best]["task"]
@@ -201,16 +128,6 @@ def _resolve_task_dir(
     job_dir: Path,
     task_root: Path | None,
 ) -> Path | None:
-    """Locate the on-disk task directory for one lock task block.
-
-    Lock ``path`` values in the wild are both absolute
-    (``/Users/.../library/tasks/event-summary``) and repo-relative
-    (``library/tasks/event-summary``), and an absolute path can be stale
-    after a checkout moves. ``task_root``, when given, is tried as both a
-    repository root (repo-relative lock paths resolve under it) and a tasks
-    root (``<task_root>/<task name>``). The first existing directory wins;
-    ``None`` means the task cannot be found on this machine.
-    """
     raw_path = _as_str(task.get("path"))
     task_name = _as_str(task.get("name"))
     candidates: list[Path] = []
@@ -235,47 +152,6 @@ def _resolve_task_dir(
 
 
 def verify_job_digests(job_dir: Path, *, task_root: Path | None = None) -> dict[str, Any]:
-    """Compare a job's lock task digests with the task directories on disk now.
-
-    Parameters
-    ----------
-    job_dir:
-        Harbor job directory containing the job-level ``lock.json``.
-    task_root:
-        Optional root used to resolve task directories when the lock path is
-        relative or stale (tried as repository root and as tasks root; see
-        ``_resolve_task_dir``). When omitted, lock paths are used as recorded.
-
-    Returns a JSON-serializable dict::
-
-        {
-          "job_dir": str,
-          "lock_path": str,
-          "algorithm": "harbor_task_digest",
-          "algorithm_note": str,
-          "harbor_version": str | None,
-          "trials": [
-            {
-              "trial_name": str | None,      # from trial result.json
-              "task_name": str | None,       # lock task name
-              "lock_digest": str | None,     # lock task digest, verbatim
-              "current_digest": str | None,  # recomputed now, if found
-              "status": "match" | "drift" | "task_missing" | "no_lock_digest",
-              "algorithm": "harbor_task_digest",
-              "task_path": str | None,        # lock task path, verbatim
-              "resolved_task_path": str | None,
-            }, ...
-          ],
-          "summary": {"match": int, "drift": int,
-                      "task_missing": int, "no_lock_digest": int},
-          "ok": bool,  # True iff trials is non-empty and every status is match
-        }
-
-    A missing or unreadable job ``lock.json`` is reported, not raised:
-    ``trials`` is empty and an ``"error"`` key explains why. Trial
-    ``task_checksum`` values are never read (different namespace; see the
-    module docstring).
-    """
     job_dir = Path(job_dir)
     resolved_root = Path(task_root) if task_root is not None else None
     lock_path = job_dir / "lock.json"

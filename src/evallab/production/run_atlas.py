@@ -1,5 +1,3 @@
-"""Read-only run projection, identity blinding, and source redaction."""
-
 from __future__ import annotations
 
 import hashlib
@@ -16,13 +14,9 @@ from evallab.cheatbench_fidelity import blind_atif, blind_atif_step_origins, fin
 STATE_ROOT = Path.home() / ".local/state/evallab-prod-live"
 DEFAULT_DATABASE = STATE_ROOT / "cloud-trace-db.sqlite"
 CHEATBENCH_DATASET = "cheatbench-actions-v1"
-# Our own Harbor/MiMo/TB runs in the cloud DB. ``qa-trace-sft-v0`` is derived
-# from CheatBench rows and ``goodfire-reward-hack-data`` is external.
 GOODFIRE_DATASET = "goodfire-reward-hack-data"
 
 
-# Source and benchmark names are replaced in rendered text so the reader cannot
-# infer the benchmark (and with it the base rate) from paths or prompts.
 SOURCE_TERMS = (
     r"good[-_ ]?fire", r"cheat[-_ ]?bench", r"impossible[-_ ]?bench", r"hack[-_ ]?bench",
     r"hack[-_ ]?trace", r"reward[-_]hack[-_]data", r"terminal[-_ ]?wrench",
@@ -35,13 +29,11 @@ SOURCE_TERMS = (
     r"(?<![\w.])opus(?:[-_ ][0-9]+(?:[-_.][0-9]+)*)?(?![\w])",
 )
 SOURCE_PLACEHOLDER = "[source]"
-# Our own task prompts can name their split ("DEV benchmark task").
 SPLIT_PROVENANCE_PATTERN = re.compile(r"\b(?:DEV|TEST|HELDOUT)(?=\s+benchmark\s+task\b)")
 SPLIT_PLACEHOLDER = "[split]"
 
 
 def source_pattern(extra_terms: Iterable[str] = ()) -> re.Pattern[str]:
-    """``SOURCE_TERMS`` plus literal ids such as dataset ids, longest first."""
     literals = []
     for term in sorted({term.strip() for term in extra_terms if term and term.strip()}, key=len, reverse=True):
         if term.casefold() == "opus":
@@ -54,14 +46,8 @@ def source_pattern(extra_terms: Iterable[str] = ()) -> re.Pattern[str]:
 SOURCE_NAME_PATTERN = source_pattern()
 
 
-# --------------------------------------------------------------------------- #
-# runs
-# --------------------------------------------------------------------------- #
-
-
 @dataclass(frozen=True)
 class AtlasRun:
-    """One rollout before blinding; ``doc`` is ATIF-shaped with original step ids."""
 
     run_id: str
     source: str
@@ -81,7 +67,6 @@ _IDENTITY_SQL = (
 
 
 def connect_readonly(database: Path) -> sqlite3.Connection:
-    """Open the cloud trace DB read-only; the atlas never writes to it."""
     if not database.is_file():
         raise FileNotFoundError(f"cloud trace database not found: {database}")
     connection = sqlite3.connect(f"file:{database}?mode=ro", uri=True, check_same_thread=False)
@@ -90,7 +75,6 @@ def connect_readonly(database: Path) -> sqlite3.Connection:
 
 
 def admitted_task_ids(connection: sqlite3.Connection, registry: Any) -> frozenset[str]:
-    """DEV tasks that pass the shared cross-key admission gate."""
     from evallab.production.cloud_trace_db import admitted_cloud_task_ids
 
     identities = [dict(row) for row in connection.execute(_IDENTITY_SQL)]
@@ -115,7 +99,6 @@ def cloud_trace_ids(
     trust_tiers: Sequence[str] | None = None,
     trace_ids: Sequence[str] | None = None,
 ) -> list[str]:
-    """Admitted DEV trace ids, optionally narrowed, in a stable order."""
     clauses = ["lower(c.split) = 'dev'"]
     params: list[Any] = []
     for column, values in (
@@ -133,7 +116,6 @@ def cloud_trace_ids(
 
 
 def _arguments(value: Any) -> dict[str, Any]:
-    """ATIF tool-call arguments are objects; native rows often store JSON strings."""
     if isinstance(value, Mapping):
         return dict(value)
     if isinstance(value, str):
@@ -146,7 +128,6 @@ def _arguments(value: Any) -> dict[str, Any]:
 
 
 def unpack_legacy_tool_calls(calls: Iterable[Any]) -> list[dict[str, Any]]:
-    """Unpack legacy ATIF function_name == "tool" + arguments.raw JSON-list artifacts."""
     unpacked: list[dict[str, Any]] = []
     for call in calls:
         if not isinstance(call, Mapping):
@@ -236,14 +217,6 @@ def _tool_calls(tool_name: str | None, command: str | None) -> list[dict[str, An
 
 
 def cloud_doc(connection: sqlite3.Connection, trace_id: str) -> dict[str, Any]:
-    """Native DB steps -> an ATIF-shaped document keyed by original ``step_index``.
-
-    From ``flags_json`` only ``reasoning_content``, ``tool_call_id`` and the
-    structural ``on_final_parent_path`` are read; publisher judge flags,
-    passages and labels in that column are never read. Nodes explicitly off the
-    final parent path are resampled alternatives, not part of the run, and are
-    dropped. Tool results attach to the agent step that called them, as in ATIF.
-    """
     steps: list[dict[str, Any]] = []
     owners: dict[str, dict[str, Any]] = {}
     last_agent: dict[str, Any] | None = None
@@ -308,7 +281,6 @@ def cloud_runs(
     trace_ids: Sequence[str] | None = None,
     skip: Iterable[str] = (),
 ) -> Iterator[AtlasRun]:
-    """Admitted DEV rollouts from the cloud trace DB, read-only."""
     skipped = set(skip)
     connection = connect_readonly(database)
     try:
@@ -340,7 +312,6 @@ def cheatbench_runs(
     item_ids: Sequence[str] | None = None,
     skip: Iterable[str] = (),
 ) -> Iterator[AtlasRun]:
-    """CheatBench DEV items from the answer-key registry (full trajectory view)."""
     skipped = set(skip)
     wanted = set(item_ids) if item_ids else None
     for item in registry.items(dataset_id=dataset_id, split="dev"):
@@ -356,21 +327,14 @@ def cheatbench_runs(
         yield AtlasRun(run_id=item.item_id, source=dataset_id, split="DEV", outcome="unknown", doc=doc)
 
 
-# --------------------------------------------------------------------------- #
-# blinding and rendering
-# --------------------------------------------------------------------------- #
-
-
 @dataclass(frozen=True)
 class BlindRun:
-    """What the model may see: renumbered steps plus the private id map."""
 
     steps: list[dict[str, Any]]
     origins: list[Any]
 
 
 def blind_run(run: AtlasRun) -> BlindRun:
-    """Allowlist ``steps`` only, apply :func:`blind_atif`, and fail closed on leaks."""
     allowlisted = {"schema_version": run.doc.get("schema_version"), "steps": run.doc.get("steps") or []}
     opaque = "run-" + hashlib.sha256(run.run_id.encode()).hexdigest()[:16]
     blinded = blind_atif(allowlisted, item_id=opaque)

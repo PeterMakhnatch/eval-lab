@@ -1,26 +1,3 @@
-"""Setup fingerprints and reference-profile gates for MiMo runs (HAR-149).
-
-On 2026-10-01 every MiMo trial ran with the sandbox network open and nobody
-noticed: nothing compared a run's setup with the intended setup. This module
-makes that comparison a software check.
-
-A setup fingerprint records, per trial and per batch:
-
-- harness id and version;
-- server: model revision, SGLang image digest, tool-call parser, reasoning
-  parser, context length;
-- the sampling actually sent: temperature, top_p, top_k;
-- the lock mode as applied, from ``egress-lock.json``;
-- task bytes and digest, and the ledger status at launch;
-- step and token budgets.
-
-A reference profile per measured setup lives in
-``research/setup-profiles/`` (see its README). Dispatch refuses a MiMo batch
-whose fingerprint differs from the named reference unless the deviation is
-explicitly listed in the spec. ``evallab preflight --spec`` runs the same
-comparison before anything is approved, at $0, without Daytona or Modal.
-"""
-
 from __future__ import annotations
 
 import ast
@@ -44,10 +21,6 @@ PARSER_SOURCE_RELATIVE = "src/evallab/mimo_tool_calls.py"
 TASK_LEDGER_RELATIVE = "research/experiments/python-task-ledger/ledger.csv"
 TASK_VARIANTS_RELATIVE = "library/task-variants"
 
-#: Fingerprint fields compared against the reference. Deployment identity
-#: (server.model_revision, server.sglang_image) is recorded but never
-#: compared: the reference pins behaviour, not which container serves it.
-#: lock.mode and the selected task-admission proof are hard gates, never deviations.
 COMPARED_FIELDS = (
     "harness.id",
     "harness.additions",
@@ -66,12 +39,8 @@ COMPARED_FIELDS = (
     "budgets.cost_limit_usd",
 )
 
-#: Compared fields a spec deviation may cover. The lock and task-admission
-#: proof cannot be waived by declaration.
 DEVIATION_ELIGIBLE_FIELDS = frozenset(name for name in COMPARED_FIELDS if name != "lock.mode")
 
-# Request caps are compared to native steps; cumulative token ceilings only to
-# sourced reference token budgets, never to the per-call context window.
 CEILING_REFERENCES = {
     "budgets.max_requests": "budgets.step_limit",
     "budgets.max_input_tokens": "budgets.max_input_tokens",
@@ -82,12 +51,10 @@ CEILING_REFERENCES = {
 
 
 def package_repo_root() -> Path:
-    """The checkout running this code (``src/evallab`` two levels up)."""
     return Path(__file__).resolve().parents[2]
 
 
 def discover_repo_root(start: Path) -> Path | None:
-    """Walk up from *start* to the checkout holding the fingerprint assets."""
     current = start.resolve() if start.is_file() else start.resolve()
     if current.is_file():
         current = current.parent
@@ -100,7 +67,6 @@ def discover_repo_root(start: Path) -> Path | None:
 
 
 def resolve_repo_root(explicit: Path | None, start: Path) -> Path:
-    """Explicit root, else discovery from *start*, else the running checkout."""
     if explicit is not None:
         return explicit.resolve()
     discovered = discover_repo_root(start)
@@ -108,11 +74,6 @@ def resolve_repo_root(explicit: Path | None, start: Path) -> Path:
 
 
 def read_serve_config(repo_root: Path) -> dict[str, Any]:
-    """Read server settings from the repo's serve config without importing it.
-
-    ``serve.py`` imports Modal, so it is parsed as an AST: $0, no server or
-    credentials needed. Missing constants read as ``None`` with the reason.
-    """
     path = repo_root / SERVE_CONFIG_RELATIVE
     fields: dict[str, Any] = {
         "model_id": None,
@@ -137,11 +98,8 @@ def read_serve_config(repo_root: Path) -> dict[str, Any]:
                     constants[target.id] = ast.literal_eval(node.value)
                 except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
                     continue
-    # SGLANG_IMAGE pins a manifest-list digest (``repo@sha256:...``).
     image = constants.get("SGLANG_IMAGE")
     if isinstance(image, str):
-        # A parenthesized implicit-concat assignment is an Expr, not Assign,
-        # so fall back to a textual read for the digest line.
         fields["sglang_image"] = image
     if fields["sglang_image"] is None:
         digest = _sglang_digest_text(path)
@@ -177,7 +135,6 @@ def read_serve_config(repo_root: Path) -> dict[str, Any]:
 
 
 def _sglang_digest_text(path: Path) -> str | None:
-    """The ``lmsysorg/sglang@sha256:...`` pin from the raw config text."""
     try:
         text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeError):
@@ -190,7 +147,6 @@ def _sglang_digest_text(path: Path) -> str | None:
 
 
 def _sglang_flag_text(path: Path, flag: str) -> str | None:
-    """The value following an SGLang launch flag in ``sglang_command``."""
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
     except (OSError, UnicodeError):
@@ -203,12 +159,6 @@ def _sglang_flag_text(path: Path, flag: str) -> str | None:
 
 
 def tool_call_parser_name(repo_root: Path) -> tuple[str, str]:
-    """(parser name, source) for the MiMo route normalizer.
-
-    ``none`` when the normalizer is absent: without it nothing rewrites the
-    native ``<tool_call><function=...>`` markup into Terminus JSON, so a
-    reference that requires a parser refuses.
-    """
     source = (repo_root / PARSER_SOURCE_RELATIVE).as_posix()
     if (repo_root / PARSER_SOURCE_RELATIVE).is_file():
         return "mimo-native", source
@@ -216,13 +166,6 @@ def tool_call_parser_name(repo_root: Path) -> tuple[str, str]:
 
 
 def sampling_sent(model: str | None) -> dict[str, Any]:
-    """The sampling actually sent on the MiMo route.
-
-    The proxy enforces the generation config on every call
-    (``containers/zai_openapi_secret_proxy.py`` forces temperature/top_p/top_k
-    and strips reasoning_effort), so the harness-requested values do not
-    decide. Values mirror ``MIMO_SELFHOSTED_*`` in execution contracts.
-    """
     from evallab.execution_contracts import (
         BREAKER_SELFHOSTED_SAMPLING,
         MIMO_SELFHOSTED_TEMPERATURE,
@@ -258,13 +201,6 @@ def sampling_sent(model: str | None) -> dict[str, Any]:
 
 
 def lock_posture(declared: bool | None, effective: bool, *, source: str) -> dict[str, Any]:
-    """Declared setup posture plus the resolved intent.
-
-    Only an explicit ``egress_lock: true`` counts as ``locked``: the
-    2026-10-01 run was open because the lock was implicit, never pinned.
-    The resolved intent (code default) is reported alongside so preflight
-    shows what the trial fingerprint will later observe.
-    """
     return {
         "mode": "locked" if declared is True else "open",
         "declared": declared,
@@ -274,11 +210,6 @@ def lock_posture(declared: bool | None, effective: bool, *, source: str) -> dict
 
 
 def task_bytes_and_digest(task_dir: Path) -> tuple[int, str]:
-    """(total bytes, package digest) of the task directory.
-
-    The digest reuses ``registry.compute_task_digests`` — the same package
-    digest the runner stages — so there is exactly one task identity.
-    """
     from evallab.registry import compute_task_digests
 
     total = sum(
@@ -290,7 +221,6 @@ def task_bytes_and_digest(task_dir: Path) -> tuple[int, str]:
 def ledger_binding(
     repo_root: Path, task_id: str | None, package_digest: str | None
 ) -> dict[str, Any]:
-    """Ledger status at launch, via the canonical task index."""
     from evallab.counts import task_index_for
 
     if not task_id:
@@ -316,7 +246,6 @@ def ledger_binding(
 def _harness_settings(
     spec: Any, repo_root: Path, request: Any = None
 ) -> tuple[dict[str, Any], int | None]:
-    """Read the same pinned tree the runner loads; additions default off."""
     additions: dict[str, Any] = {}
     step_limit = None
     tree_path = getattr(request, "harness_tree_path", None)
@@ -364,7 +293,6 @@ def _setup_fields(
     repo_root: Path,
     request: Any = None,
 ) -> dict[str, Any]:
-    """Behavior inputs shared by the recorded fingerprint and Harbor's lock."""
     from evallab.execution_contracts import (
         is_breaker_selfhosted_model,
         parse_breaker_selfhosted_model,
@@ -503,7 +431,6 @@ def build_intended_fingerprint(
     repo_root: Path,
     request: Any = None,
 ) -> dict[str, Any]:
-    """The setup a dispatch is about to run, from the real $0 path."""
     setup = _setup_fields(
         spec=spec,
         task_dir=task_dir,
@@ -555,12 +482,6 @@ def build_intended_fingerprint(
 
 
 def lock_setup_fingerprint(request: Any, *, repo_root: Path | None = None) -> str:
-    """Canonical behavior inputs carried in Harbor's lock-covered agent env.
-
-    Task bytes, ledger status, spec names and explanatory source paths are not
-    behavior inputs: including them would defeat Harbor's task-semver reuse and
-    regrade rules. Native agent/environment kwargs remain independently locked.
-    """
     from evallab.execution_contracts import is_breaker_selfhosted_model, is_mimo_family_model
 
     root = resolve_repo_root(repo_root, request.task)
@@ -581,8 +502,6 @@ def lock_setup_fingerprint(request: Any, *, repo_root: Path | None = None) -> st
         or is_mimo_family_model(request.model)
         or is_breaker_selfhosted_model(request.model)
     }
-    # Harbor content-locks instructions and skills itself; their temporary
-    # staging locations must not invalidate otherwise identical setup inputs.
     inputs["harness"]["additions"] = {
         key: value
         for key, value in inputs["harness"]["additions"].items()
@@ -603,7 +522,6 @@ def lock_setup_fingerprint(request: Any, *, repo_root: Path | None = None) -> st
 def _egress_request(
     task_dir: Path, agent: str, model: str | None, declared: bool | None, environment: str
 ) -> Any:
-    """Minimal request shape for the egress-lock resolution."""
     from evallab.execution_contracts import RunRequest
 
     return RunRequest(
@@ -618,14 +536,6 @@ def _egress_request(
 
 
 def trial_fingerprint(intended: dict[str, Any], trial_dir: Path) -> dict[str, Any]:
-    """The observed setup of one landed trial: lock as enforced.
-
-    Reads ``egress-lock.json``: an absent file reads ``open`` (the pre-HAR-140
-    default was off and no run used the opt-in), matching ``trial_treatment``.
-    ``locked`` requires :func:`lock_enforced`: a provider acknowledgement
-    alone (``applied`` on a Daytona record without in-sandbox verification,
-    HAR-205) reads ``open`` and is named as such in ``observed_source``.
-    """
     observed = dict(intended)
     lock = dict(intended.get("lock") or {})
     record_path = trial_dir / "egress-lock.json"
@@ -653,7 +563,6 @@ def trial_fingerprint(intended: dict[str, Any], trial_dir: Path) -> dict[str, An
 
 
 def load_reference_profile(repo_root: Path, name: str) -> dict[str, Any]:
-    """Load one checked-in reference profile by name."""
     path = repo_root / SETUP_PROFILES_DIRNAME / f"{name}.yaml"
     if not path.is_file():
         known = sorted(
@@ -675,7 +584,6 @@ def load_reference_profile(repo_root: Path, name: str) -> dict[str, Any]:
 
 
 def default_profile_name(repo_root: Path) -> str | None:
-    """The single checked-in profile, or None when the choice is ambiguous."""
     profiles_dir = repo_root / SETUP_PROFILES_DIRNAME
     if not profiles_dir.is_dir():
         return None
@@ -686,7 +594,6 @@ def default_profile_name(repo_root: Path) -> str | None:
 
 
 def _reference_value(profile: dict[str, Any], field: str) -> tuple[Any, bool, str]:
-    """(value, sourced, source-or-reason) for one compared field."""
     section, _, key = field.partition(".")
     node = profile.get(section)
     if not isinstance(node, dict):
@@ -710,11 +617,6 @@ def _fingerprint_value(fingerprint: dict[str, Any], field: str) -> Any:
 def compare_fingerprint(
     fingerprint: dict[str, Any], profile: dict[str, Any]
 ) -> list[dict[str, Any]]:
-    """Every compared field where the setup differs from the reference.
-
-    Unsourced reference fields and unknown setup values never diff: nothing
-    can differ from an unknown value.
-    """
     diffs: list[dict[str, Any]] = []
     for field in COMPARED_FIELDS:
         reference_field = CEILING_REFERENCES.get(field, field)
@@ -740,7 +642,6 @@ def compare_fingerprint(
 def check_deviations(
     diffs: list[dict[str, Any]], deviations: list[dict[str, Any]]
 ) -> tuple[list[dict[str, Any]], list[str]]:
-    """(uncovered diffs, stale-deviation reasons) for the listed deviations."""
     uncovered: list[dict[str, Any]] = []
     stale: list[str] = []
     by_field: dict[str, list[dict[str, Any]]] = {}
@@ -768,7 +669,6 @@ def check_deviations(
 
 
 def _variant_record_paths(repo_root: Path, digest: str) -> Iterator[Path]:
-    """Try native digest filenames first without dropping legacy record lookup."""
     root = repo_root / TASK_VARIANTS_RELATIVE
     raw = digest.removeprefix("sha256:")
     preferred = (
@@ -783,7 +683,6 @@ def _variant_record_paths(repo_root: Path, digest: str) -> Iterator[Path]:
 
 
 def registered_variant(repo_root: Path, task_id: str | None, digest: str | None) -> str | None:
-    """Record path of a ``library/task-variants`` variant of ``task_id`` with this digest."""
     if not task_id or not digest:
         return None
     for path in _variant_record_paths(repo_root, digest):
@@ -799,31 +698,14 @@ def registered_variant(repo_root: Path, task_id: str | None, digest: str | None)
     return None
 
 
-#: Transforms that never change the behavior under test: verifier-only scoring
-#: (``rewardkit-integrity@1``) or task-health metadata (``task-health-tags@1``).
-#: A task package is admitted by lineage only when every transform in its
-#: variant chain is on this allowlist (HAR-173). Environment and instruction
-#: transforms (e.g. ``env-prefetch-network@1``) are never admitted this way.
 LINEAGE_ALLOWLISTED_TRANSFORMS = frozenset({"rewardkit-integrity@1", "task-health-tags@1"})
 
-#: The only variant-record status that counts as verified for lineage admission.
-#: Matches the ``validated`` verdict ``counts`` and the task ledger already use;
-#: a ``candidate`` record has not had its locked nop validated yet.
 LINEAGE_VERIFIED_STATUS = "validated"
 
 
 def variant_lineage_summary(
     repo_root: Path, task_id: str | None, digest: str | None
 ) -> dict[str, Any]:
-    """Best-effort lineage of a task package for the fingerprint (HAR-173).
-
-    Returns ``record`` (repo-relative lineage-record path), ``status``,
-    ``parent_digest`` (the newest record's parent package digest),
-    ``parent_digests`` (every ancestor package digest, newest first),
-    ``transform_chain`` (every transform, newest first) and ``chain_error``.
-    All record fields are None/empty when the package is not a recorded variant.
-    Never raises: the gate turns gaps into refusals, not crashes.
-    """
     from evallab.task_variants import RECORDS_DIRNAME, LineageError, lineage_chain
 
     summary: dict[str, Any] = {
@@ -885,13 +767,6 @@ def variant_lineage_summary(
 def _campaign_scopes(
     repo_root: Path, reference_profile: str | None
 ) -> dict[str, tuple[frozenset[str], frozenset[str]]]:
-    """Campaign lineage scopes declared by the named profile, if any.
-
-    Returns ``{scope_name: (transforms, package_digests)}`` from the
-    profile's ``campaign_lineage`` section. Anything malformed — no
-    profile, no section, wrong shapes — yields no scopes, so
-    non-campaign packages keep facing the global allowlist unchanged.
-    """
     if not reference_profile:
         return {}
     try:
@@ -916,8 +791,6 @@ def _campaign_scopes(
     return scopes
 
 
-
-
 def lineage_ledger_binding(
     repo_root: Path,
     task_id: str | None,
@@ -925,18 +798,6 @@ def lineage_ledger_binding(
     *,
     reference_profile: str | None = None,
 ) -> dict[str, Any]:
-    """Admit a verified verifier-only variant by lineage against the ledger (HAR-173).
-
-    The gate admits the package only when ALL hold: (a) its variant record is
-    verified (``validated`` — the same verdict ``counts`` and the ledger use,
-    since the gate cannot re-run the locked nop itself); (b) every transform in
-    its chain is verifier-only or metadata-only (``rewardkit-integrity@1``,
-    ``task-health-tags@1``), or is admitted for this exact package by the
-    named profile's ``campaign_lineage`` scope (never globally); (c) its
-    parent chain reaches the ledger's ``run_digest`` for that task, so the
-    ledger stays the root of trust.
-    Returns ``admitted`` plus the ``reason`` and the lineage fields.
-    """
     from evallab.counts import task_index_for
 
     summary = variant_lineage_summary(repo_root, task_id, package_digest)
@@ -953,12 +814,6 @@ def lineage_ledger_binding(
     if summary["chain_error"]:
         binding["reason"] = f"variant lineage is broken: {summary['chain_error']}"
         return binding
-    # Per-edge campaign scoping: the final edge is judged under the scope
-    # listing the package's own digest; ancestor edges under the scope
-    # listing the digest the final edge's parent produced (the headline
-    # endpoint a pin repair builds on). A pin endpoint whose parent is
-    # not a listed headline digest gets no pin scope at all, and any
-    # other digest gets none either — never a global union of scopes.
     scopes = _campaign_scopes(repo_root, reference_profile)
     headline = scopes.get("headline", (frozenset(), frozenset()))
     pin = scopes.get("pin_diagnostic", (frozenset(), frozenset()))
@@ -1000,12 +855,6 @@ def lineage_ledger_binding(
         )
         return binding
     if package_digest in pin[1]:
-        # A pin endpoint is a repair ON a headline record: the final edge
-        # must itself be the scoped repair transform (a globally allowed
-        # edge does not make it a pin repair), and the headline parent
-        # must pass its own lineage admission — validated status and a
-        # chain admitted under the headline set reaching the same
-        # run_digest. Transform-set inclusion alone is not admission.
         final_transform = summary["transform_chain"][0] if summary["transform_chain"] else None
         if final_transform not in pin[0]:
             binding["reason"] = (
@@ -1046,16 +895,6 @@ def lineage_ledger_binding(
 
 
 def _validate_modelfree_setup(fingerprint: dict[str, Any], repo_root: Path) -> dict[str, Any]:
-    """Gates for model-free (nop/oracle) MiMo runs: lock resolution and ledger.
-
-    No reference profile, no harness/server/sampling comparison: there is no
-    model setup to compare. The lock passes on the effective resolution (the
-    default locks MiMo tasks on Daytona; an explicit opt-out is already
-    refused by the egress-lock validation), so census specs pass unchanged.
-    A registered task variant of the named task (``library/task-variants``,
-    any status) also passes: its nop is how a repair gets validated before
-    the ledger can run it.
-    """
     reasons: list[str] = []
     lock = fingerprint["lock"]
     if lock["effective"] != "locked":
@@ -1080,17 +919,6 @@ def _validate_modelfree_setup(fingerprint: dict[str, Any], repo_root: Path) -> d
 
 
 def validate_mimo_setup(request: Any, repo_root: Path) -> dict[str, Any]:
-    """Refuse a MiMo batch whose setup differs from its named reference.
-
-    Lives on the real dispatch validate path: ``validate_request`` calls it
-    for every spec-driven MiMo run, before anything is approved or spent.
-    Returns the intended fingerprint for the caller to persist.
-
-    Model-free agents (nop/oracle) have no model, sampling, server or harness
-    setup, so they skip the reference requirement and those comparisons. They
-    keep the gates that matter: the effective egress-lock resolution and the
-    ledger binding.
-    """
     from evallab.execution_contracts import CONTROL_AGENTS
 
     spec = request.experiment_spec
@@ -1111,9 +939,6 @@ def validate_mimo_setup(request: Any, repo_root: Path) -> dict[str, Any]:
     from evallab.exploit_probe import PREAMBLE as EXPLOIT_PROBE_PREAMBLE
 
     if getattr(spec, "extra_instruction_path", None) == EXPLOIT_PROBE_PREAMBLE:
-        # HAR-161 exploit probe: an adversarial task-quality check, not a
-        # capability measurement, so there is no reference setup to match.
-        # It keeps the gates that matter: locked sandbox and ledger binding.
         return _validate_modelfree_setup(fingerprint, repo_root)
     name = spec.reference_profile
     if not name:
@@ -1188,7 +1013,6 @@ def validate_mimo_setup(request: Any, repo_root: Path) -> dict[str, Any]:
 def _render_modelfree_preflight(
     lines: list[str], fingerprint: dict[str, Any], repo_root: Path
 ) -> tuple[str, bool]:
-    """Preflight text for a model-free MiMo spec: lock resolution and ledger only."""
     lines = [
         *lines,
         "",
@@ -1216,7 +1040,6 @@ def _render_modelfree_preflight(
 
 
 def render_spec_preflight(spec_path: Path, repo_root: Path) -> tuple[str, bool]:
-    """Dry-run one spec file against its reference at $0. Returns (text, ok)."""
     from evallab.execution_contracts import CONTROL_AGENTS, is_mimo_run
     from evallab.schemas import ExperimentSpec
 
@@ -1406,7 +1229,6 @@ def _short(value: Any) -> Any:
 def write_batch_fingerprint(
     job_dir: Path, fingerprint: dict[str, Any], trial_dirs: list[Path]
 ) -> None:
-    """Persist the batch fingerprint and one observed fingerprint per trial."""
     job_dir.mkdir(parents=True, exist_ok=True)
     (job_dir / FINGERPRINT_FILENAME).write_text(
         json.dumps(fingerprint, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -1421,7 +1243,6 @@ def write_batch_fingerprint(
 
 
 def maybe_write_fingerprints(job_dir: Path, fingerprint: dict[str, Any]) -> str | None:
-    """Best-effort fingerprint persistence; never fails the run. Returns error or None."""
     try:
         trial_dirs = [
             candidate

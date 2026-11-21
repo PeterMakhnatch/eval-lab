@@ -1,5 +1,3 @@
-"""DEV-only label joins for retained scoring consumers (no model calls)."""
-
 from __future__ import annotations
 
 import json
@@ -51,7 +49,6 @@ def _read_labels(
     connection: sqlite3.Connection, registry: CorpusRegistry, *,
     required: set[str], wanted: set[str] | None = None,
 ) -> tuple[dict[str, _Label], set[str]]:
-    """Check identity-only rows before reading any scored receipt's labels."""
     checked: set[str] = set()
     for run_id in sorted(required):
         _check(registry, checked, run_id)
@@ -119,12 +116,6 @@ def _read_labels(
 def load_labels(
     *, database: Path, repo_root: Path, run_ids: Iterable[str] | None = None,
 ) -> dict[str, bool | None]:
-    """Join DEV labels for scoring consumers; unknown/unjudged ids are omitted.
-
-    A requested TEST, cross-key TEST, or non-admitted run raises rather than
-    silently disappearing. ``None`` denotes Goodfire's considered-only stratum,
-    not a negative. No trajectories or model inputs are read.
-    """
     wanted = None if run_ids is None else set(run_ids)
     with closing(connect_readonly(database)) as connection:
         labels, _ = _read_labels(

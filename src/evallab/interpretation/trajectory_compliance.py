@@ -1,10 +1,3 @@
-"""Per-trial data compliance records (Engineer-Data).
-
-Consumes settled catalog+CAS identity and evidence views read-only.
-Does not own feature_registry.py, sql/, producers, traj_card, or CLI.
-Never mints identities. Never synthesizes empty-schema values.
-"""
-
 from __future__ import annotations
 
 import hashlib

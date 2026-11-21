@@ -1,4 +1,3 @@
-"""Action-labelled views of the existing IssueBank and canonical trajectory IR."""
 from __future__ import annotations
 
 import hashlib
@@ -15,7 +14,6 @@ SOURCES = ("goodfire-action-v1", "impossible-task-final", "goodfire-action-v2",
 
 
 def load_rows(repo_root: Path, state_root: Path | None = None) -> list[IssueItem]:
-    """Return source/protocol-specific rows, including attempted and unjudged rows."""
     for source in SOURCES:
         exclusion = source_exclusion(source)
         if exclusion:
@@ -40,7 +38,6 @@ def load_rows(repo_root: Path, state_root: Path | None = None) -> list[IssueItem
 
 
 def load_trajectory(row: IssueItem, *, repo_root: Path) -> TrajectoryIR:
-    """Load the hash-bound actor view and mark only resolved source action steps."""
     exclusion = row.gold_exclusion()
     if exclusion:
         raise ValueError(f"Excluded gold source {exclusion['name']}: {exclusion['reason']}")

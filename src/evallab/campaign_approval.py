@@ -1,49 +1,3 @@
-"""One approval per experiment campaign instead of one per run ID (HAR-175).
-
-Built on the existing ``evallab campaign`` machinery, not beside it: admission
-runs inside :class:`evallab.queue.PolicyGate.decide` (the same gate that owns
-the per-ID ``human_approved`` path), spend is accounted from the existing
-queue states plus the ledger-backed settled costs the catalog already
-computes, exhaustion reuses the existing queue ``STOP`` fence (running trials
-are never killed), setup matching reuses the HAR-149 ``setup_fingerprint``
-vocabulary with the HAR-156 ceiling comparison, infra-excluded trials reuse
-the canonical :func:`evallab.counts.classify_counts` verdict, and escalation
-reuses ``lin comment`` on the campaign's card.
-
-A campaign records the budget (USD) plus the pinned cost envelope
-(staging-time expected and worst-case cost with its formula), the allowed
-task list (task ids and package digests), the reference profile plus the
-allowed declared deviations, the lock requirement, the backstop floor for
-trial ceilings, the queue cwd, and the submitter. Research-Harbor approves it ONCE, as Peter's delegate.
-The approval is an append-only, attributable record (``approvals.jsonl``) and
-the campaign content is digest-pinned and immutable after approval: any later
-content change is a gate defect that refuses admission and escalates.
-
-Specs claim a campaign with the explicit ``ExperimentSpec.campaign_id`` field.
-Matching specs are admitted automatically with policy rule
-``campaign:<campaign-id>``; nothing is approved per ID. Any mismatch is
-refused with a specific reason code and the spec stays waiting/refused: it is
-never silently admitted. Specs without a campaign keep the per-ID path
-exactly as it is.
-
-Standing rules inside a campaign:
-
-- **Replacement:** an infra-excluded trial (canonical counts ``excluded`` /
-  ``infra``) gets exactly ONE automatic replacement: a cloned spec with
-  ``campaign_replaces`` lineage to the original. A replacement's own infra
-  failure is not replaced again.
-- **Budget:** reservations plus settled GPU, sandbox and ledger-backed model
-  spend stay inside the campaign budget. Self-hosted and zero-estimate Daytona
-  specs reserve expected wave-model cost; unavailable settled sources
-  retain the remaining reservation rather than becoming free.
-- **Exhaustion:** new launches stop via the existing ``STOP`` fence while
-  running trials finish untouched.
-
-Escalation to Research-Harbor happens only on a budget or rule breach, or a
-gate defect: one escalation event plus one ``lin comment`` to the campaign's
-card per (spec, reason). Routine admissions are silent.
-"""
-
 from __future__ import annotations
 
 import csv
@@ -73,15 +27,11 @@ SCHEMA_CAMPAIGN = "experiment-campaign/v1"
 SCHEMA_APPROVAL = "experiment-campaign-approval/v1"
 SCHEMA_ESCALATION = "experiment-campaign-escalation/v1"
 
-#: Campaign state lives with the existing campaign state root so there is one
-#: mechanism, one directory tree, one set of conventions.
 CAMPAIGN_STATE_ROOT = Path("runs/campaigns")
 CAMPAIGN_FILENAME = "campaign.json"
 APPROVALS_FILENAME = "approvals.jsonl"
 ESCALATIONS_FILENAME = "escalations.jsonl"
 
-#: Queue states mirrored from evallab.queue.QUEUE_STATES (importing queue here
-#: would cycle: queue imports this module for the campaign gate branch).
 QUEUE_STATES: tuple[str, ...] = (
     "proposed",
     "pending",
@@ -95,7 +45,6 @@ QUEUE_STATES: tuple[str, ...] = (
 RESERVED_STATES = frozenset({"approved", "running"})
 SETTLED_STATES = frozenset({"done", "failed"})
 
-#: Reason codes for campaign admission refusals. Each mismatch has its own.
 REASON_UNKNOWN = "campaign_unknown"
 REASON_NOT_APPROVED = "campaign_not_approved"
 REASON_QUEUE_MISMATCH = "campaign_queue_mismatch"
@@ -114,9 +63,6 @@ REASON_SAMPLING_PENDING = "campaign_sampling_pending"
 REASON_SAMPLING_CLASSIFIED = "campaign_sampling_classified"
 REASON_SAMPLING_INVALID = "campaign_sampling_invalid"
 
-#: Refusals that escalate to Research-Harbor (escalation event + lin comment).
-#: Routine setup/profile/lock/deviation mismatches stay silent in waiting with
-#: their reason; only a budget or rule breach, or a gate defect, pages out.
 ESCALATING_REASONS = frozenset(
     {
         REASON_BUDGET_EXHAUSTED,
@@ -129,7 +75,6 @@ ESCALATING_REASONS = frozenset(
 
 
 class CampaignApprovalError(RuntimeError):
-    """A campaign file, approval, or admission check failed closed."""
 
     def __init__(self, reason_code: str, message: str) -> None:
         super().__init__(message)
@@ -141,7 +86,6 @@ class _FrozenContract(ContractModel):
 
 
 class CampaignTaskAllowance(_FrozenContract):
-    """One task on the campaign allowlist, as the ledger knows it."""
 
     task_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]+$")
     package_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
@@ -152,16 +96,6 @@ class CampaignTaskAllowance(_FrozenContract):
 
 
 class CampaignAdaptiveSampling(_FrozenContract):
-    """Beta(1,1) predictive confidence in the finite HAR-168 outcome band.
-
-    Always means all M gated passes; never means zero; sometimes means mixed.
-    A mixed prefix is conclusive. Homogeneous prefixes integrate the remaining
-    Bernoulli draws under the posterior; this is not confidence that latent p
-    equals exactly zero/one. At .95, M=2 saves nothing; M=4 saves an expected
-    5*p*(1-p) draws by stopping mixed prefixes. Predictive misclassification
-    risk at an early stop is <= 1-target_confidence under the stated prior,
-    not a uniform frequentist guarantee (the simulation measures that error).
-    """
 
     target_confidence: float = Field(default=0.95, gt=0.5, le=1)
     seed: int = 20261007
@@ -170,7 +104,6 @@ class CampaignAdaptiveSampling(_FrozenContract):
 def adaptive_band(
     outcomes: list[bool], max_attempts: int, target_confidence: float = 0.95
 ) -> tuple[str | None, float]:
-    """Return a certified finite-campaign band and its predictive confidence."""
     if max_attempts < 1 or len(outcomes) > max_attempts or not 0.5 < target_confidence <= 1:
         raise ValueError("invalid adaptive sampling horizon or confidence")
     if not outcomes:
@@ -185,12 +118,6 @@ def adaptive_band(
 
 
 class CampaignCeilingFloor(_FrozenContract):
-    """Backstop floor: no trial ceiling may bind before these reference limits.
-
-    Only set fields bind. Each set field reuses the HAR-156 comparison
-    direction: a spec ceiling below the floor differs from the reference and
-    is refused (``campaign_ceiling_below_floor``).
-    """
 
     max_requests: int | None = Field(default=None, ge=1)
     max_input_tokens: int | None = Field(default=None, ge=1)
@@ -200,12 +127,6 @@ class CampaignCeilingFloor(_FrozenContract):
 
 
 class CampaignSampling(_FrozenContract):
-    """Pinned sampling, exactly as ``setup_fingerprint.sampling_sent`` reports.
-
-    Non-selfhosted routes pin no sampling here (all None); the equality check
-    then holds trivially and temperature-style differences must arrive as
-    declared deviations, where the allowlist judges them.
-    """
 
     temperature: float | None = None
     top_p: float | None = None
@@ -213,54 +134,24 @@ class CampaignSampling(_FrozenContract):
 
 
 class CampaignCostEstimate(_FrozenContract):
-    """Pinned cost envelope for one campaign (HAR-188).
-
-    Part of the approvable content so Research-Harbor approves the envelope,
-    not just the budget cap: ``expected_usd`` is the staging-time estimate
-    for the full campaign, ``worst_case_usd`` is every trial billing its
-    per-trial ceiling (realized spend is still fenced at ``budget_usd`` plus
-    at most one wave of in-flight ceilings by the standing budget gate),
-    and ``formula`` records how the numbers were derived.
-    """
 
     expected_usd: float = Field(gt=0)
     worst_case_usd: float = Field(gt=0)
     formula: str = Field(min_length=1)
 
 
-#: HAR-168 measured rates reused by the HAR-188 breadth cost envelope.
-#: GPU/bridge upper ($2.90/h) and Daytona ($0.23148/h/sandbox) come from the
-#: ignored HAR-168 controller (har164 ``runs/har168/campaign.py``); the $1.28
-#: batch is its fresh measured-time upper, not an invoice-backed price.
 HAR168_GPU_HOURLY_USD = 2.90
 HAR168_DAYTONA_HOURLY_USD = 0.23148
 HAR168_FOUR_RUN_BATCH_USD = 1.28
 HAR168_TRIAL_CEILING_USD = 0.6
-#: Effective batch wall from the HAR-168 fresh 4-run batch, measured at 4
-#: concurrent trials; whether 19 trials on one server decode slower is
-#: unknown (HAR-168 records no per-trial wall times or server throughput).
 HAR168_BATCH_WALL_HOURS = HAR168_FOUR_RUN_BATCH_USD / (
     HAR168_GPU_HOURLY_USD + 4 * HAR168_DAYTONA_HOURLY_USD
 )
-#: Cold server start before the first wave, in hours.
 COLD_START_HOURS = 4 / 60
-#: Max concurrent Daytona sandboxes: the HAR-163 clamp
-#: ``floor((limit * safety - used - pending - reserve) / per_sandbox)``
-#: (``dispatch_guards.daytona_tick_allowance``) admits 19 on an idle account
-#: (200 * 0.8 - 0 - 0 - 8) / 8; lower whenever the account is busy.
 DAYTONA_WAVE_CONCURRENCY = 19
 
 
 def wave_cost_estimate(n_trials: int) -> CampaignCostEstimate:
-    """Concurrent-wave cost envelope for ``n_trials`` on one warm server.
-
-    The batch runs in waves of at most ``DAYTONA_WAVE_CONCURRENCY`` trials
-    while the GPU server stays warm for the whole wall time: ``w =
-    ceil(n / 19)`` waves, GPU ``(cold start + w * T) * $2.90/h``, Daytona ``n
-    * T * $0.23148/h``. Worst case is every trial billing its $0.60
-    per-trial ceiling; realized spend stays inside the budget plus at most
-    one wave of in-flight ceilings (see ``fenced_spend_bound``).
-    """
     if n_trials < 1:
         raise ValueError(f"wave_cost_estimate needs at least 1 trial, got {n_trials}")
     waves = -(-n_trials // DAYTONA_WAVE_CONCURRENCY)
@@ -280,9 +171,7 @@ def wave_cost_estimate(n_trials: int) -> CampaignCostEstimate:
     )
 
 
-
 class ExperimentCampaign(_FrozenContract):
-    """The approvable content of one experiment campaign (HAR-175)."""
 
     schema_version: Literal["experiment-campaign/v1"] = SCHEMA_CAMPAIGN
     campaign_id: str = Field(min_length=1, max_length=80, pattern=r"^[a-z0-9][a-z0-9-]*$")
@@ -331,7 +220,6 @@ class ExperimentCampaign(_FrozenContract):
 
 
 class CampaignApprovalRecord(_FrozenContract):
-    """One append-only, attributable campaign approval (the once-approval)."""
 
     schema_version: Literal["experiment-campaign-approval/v1"] = SCHEMA_APPROVAL
     campaign_id: str = Field(min_length=1, max_length=80)
@@ -341,7 +229,6 @@ class CampaignApprovalRecord(_FrozenContract):
 
 
 class CampaignEscalation(_FrozenContract):
-    """One escalation to Research-Harbor: event plus lin comment."""
 
     schema_version: Literal["experiment-campaign-escalation/v1"] = SCHEMA_ESCALATION
     campaign_id: str = Field(min_length=1, max_length=80)
@@ -359,21 +246,17 @@ def _canonical_json(value: Any) -> str:
 
 
 def campaign_content_digest(campaign: ExperimentCampaign | Mapping[str, Any]) -> str:
-    """Digest-pin the campaign content (HAR-175 immutability anchor)."""
     payload = (
         campaign.model_dump(mode="json", exclude_none=True)
         if isinstance(campaign, ExperimentCampaign)
         else json.loads(json.dumps(campaign))
     )
-    # The new default preserves approvals signed before this pin existed.
-    # Non-default attempts remain immutable, approvable campaign content.
     if payload.get("attempts_per_task") == 1:
         payload.pop("attempts_per_task")
     return "sha256:" + hashlib.sha256(_canonical_json(payload).encode()).hexdigest()
 
 
 def campaign_dir(repo_root: Path, campaign_id: str) -> Path:
-    """State directory for one campaign; the id spelling cannot escape it."""
     if not campaign_id or any(
         character not in "abcdefghijklmnopqrstuvwxyz0123456789-" for character in campaign_id
     ):
@@ -387,10 +270,7 @@ def campaigns_root(repo_root: Path) -> Path:
     return repo_root.resolve() / CAMPAIGN_STATE_ROOT
 
 
-
-
 def load_campaign(repo_root: Path, campaign_id: str) -> ExperimentCampaign:
-    """Load a frozen campaign file (approval checked separately)."""
     path = campaign_dir(repo_root, campaign_id) / CAMPAIGN_FILENAME
     try:
         return ExperimentCampaign.model_validate_json(path.read_text(encoding="utf-8"))
@@ -411,7 +291,6 @@ def load_campaign(repo_root: Path, campaign_id: str) -> ExperimentCampaign:
 
 
 def read_approvals(repo_root: Path, campaign_id: str) -> list[CampaignApprovalRecord]:
-    """Every recorded approval for one campaign (append-only log)."""
     path = campaign_dir(repo_root, campaign_id) / APPROVALS_FILENAME
     if not path.is_file():
         return []
@@ -422,12 +301,9 @@ def read_approvals(repo_root: Path, campaign_id: str) -> list[CampaignApprovalRe
     return records
 
 
-
-
 def load_approved_campaign(
     repo_root: Path, campaign_id: str
 ) -> tuple[ExperimentCampaign, CampaignApprovalRecord]:
-    """Load a campaign plus its once-approval, verifying the digest pin."""
     campaign = load_campaign(repo_root, campaign_id)
     approvals = read_approvals(repo_root, campaign_id)
     if not approvals:
@@ -453,12 +329,6 @@ def load_approved_campaign(
 
 
 def intended_sampling(agent: str | None, model: str | None) -> CampaignSampling:
-    """Pinned sampling for an agent+model, from the same source preflight prints.
-
-    Mirrors ``setup_fingerprint._setup_fields``: the mimoagent route sends
-    ``mimoagent_worker.SAMPLING`` (temperature 1.0), every other route sends
-    ``sampling_sent(model)``. A model-only comparison is wrong for mimoagent.
-    """
     if agent == "mimoagent":
         from evallab.mimoagent_worker import SAMPLING
 
@@ -478,7 +348,6 @@ def intended_sampling(agent: str | None, model: str | None) -> CampaignSampling:
 
 
 def _serving_manifest_error(campaign: ExperimentCampaign, repo_root: Path) -> str | None:
-    """A changed HF/image/config pin cannot inherit an old breaker approval."""
     from evallab.execution_contracts import is_breaker_selfhosted_model
 
     if not is_breaker_selfhosted_model(campaign.model):
@@ -504,12 +373,6 @@ def check_campaign_admission(
     committed_usd: float,
     defer_sampling: bool = False,
 ) -> PolicyDecision:
-    """Pure campaign admission check: every mismatch has its own reason.
-
-    ``committed_usd`` is the campaign spend excluding the candidate spec
-    (reservations plus settled actuals); the caller computes it from the
-    queue so this stays a pure comparison.
-    """
     rule = f"campaign:{campaign.campaign_id}"
     if repo_root is None:
         return PolicyDecision(
@@ -686,13 +549,6 @@ def _task_csv(path: Path) -> dict[str, dict[str, str]]:
 
 
 def oracle_confirmation(repo_root: Path, task_id: str, package_digest: str) -> tuple[bool, str]:
-    """Confirm an explicit oracle+nop label, never infer one from solve tags.
-
-    HAR-191 sweep rows supersede pilots. If the sweep is absent, the same
-    ledger/control sources are used; sound nop or model passes alone do not
-    establish a reference solution. Only exact packages or the existing
-    verified metadata/verifier-only lineage may inherit a ledger label.
-    """
     from evallab.setup_fingerprint import lineage_ledger_binding
     from evallab.task_health_tags import LEDGER, LOCKED_NOP, health_tag
 
@@ -776,7 +632,6 @@ def _sample_outcome(repo_root: Path, spec: ExperimentSpec) -> bool | None:
 def adaptive_task_outcomes(
     repo_root: Path, campaign: ExperimentCampaign, task_id: str
 ) -> list[bool]:
-    """Contiguous settled draws; infra consumes no scientific attempt."""
     rows = _campaign_queue_specs(repo_root, campaign.campaign_id)
     originals: dict[int, tuple[str, ExperimentSpec]] = {}
     for state, spec in sorted(
@@ -893,12 +748,6 @@ def adaptive_admission_refusal(
 def adaptive_priority(
     repo_root: Path, campaign: ExperimentCampaign, spec: ExperimentSpec
 ) -> tuple[float, float, str]:
-    """Cheap information first; explicit historical estimates beat fallback estimates.
-
-    Task-history uncertainty only orders tasks: it never certifies capability
-    on this model/package. Seeded hashes break ties, independent of submission
-    IDs. Settled uncertain follow-ups precede unstarted tasks' first draws.
-    """
     allowance = next(item for item in campaign.tasks if item.task_id == spec.task_id)
     history_path = repo_root / "research/experiments/python-task-ledger/task_history.csv"
     history = _task_csv(history_path).get(spec.task_id or "", {})
@@ -914,13 +763,6 @@ def adaptive_priority(
 def reconcile_adaptive_sampling(
     executor: Any, *, parallel: int | None, spec_ids: set[str] | None = None
 ) -> None:
-    """Release a priority wave under the tick lock, using existing admission.
-
-    Wave width is capped by campaign concurrency, executor capacity and the
-    HAR-163 Daytona allowance. The existing HAR-189 gate reserves each draw;
-    no alternate accounting is introduced. Follow-ups precede unstarted
-    tasks, so budget stops leave at most one wave partially informative.
-    """
     root = executor.repo_root
     waiting = executor.queue.list_specs("waiting")
     for path, spec in executor.queue.list_specs("approved"):
@@ -1019,7 +861,6 @@ def _freeze(value: Any) -> Any:
 
 
 def _usd(value: Any) -> float | None:
-    """A usable cost, preserving unknown/invalid amounts rather than zeroing."""
     if isinstance(value, bool):
         return None
     try:
@@ -1030,40 +871,23 @@ def _usd(value: Any) -> float | None:
 
 
 def _campaign_trial_count(campaign: ExperimentCampaign) -> int:
-    """Approved task count times the explicit attempts pin, never inferred."""
     return len(campaign.tasks) * campaign.attempts_per_task
 
 
 def _wave_reservation_per_trial(campaign: ExperimentCampaign) -> float:
-    """Average expected wave cost, preserving full-width concurrency.
-
-    Reserving HAR-168's $0.60 per trial would cap a $5 campaign at eight
-    concurrent trials and force extra GPU waves. The expected per-trial cost
-    instead admits the model's intended wave while measured actuals and the
-    printed in-flight overrun bound keep the fence conservative.
-    """
     trials = _campaign_trial_count(campaign)
     if campaign.execution is not None and campaign.cost_estimate is not None:
-        # A separately approved HAR-192 all-in envelope replaces only the
-        # historical Daytona/A100 planning input, not the reservation mechanism.
         return campaign.cost_estimate.expected_usd / trials
     return wave_cost_estimate(trials).expected_usd / trials
 
 
 def _reservation_usd(raw: Mapping[str, Any], campaign: ExperimentCampaign) -> float:
-    """Reserve wave-model expected cost per trial, times spec attempts.
-
-    A larger declared estimate wins. Self-hosted and zero-estimate Daytona
-    specs use the campaign wave average; positive non-selfhosted estimates
-    retain the existing reservation policy.
-    """
     from evallab.modal_ops import is_selfhosted_model
 
     estimate = _usd(raw.get("est_cost_usd")) or 0.0
     if (
         is_selfhosted_model(raw.get("model"))
         or (raw.get("environment") == "daytona" and estimate == 0)
-        # Locked Docker rents a shared VM even for model-free controls.
         or (
             raw.get("environment") == "docker"
             and campaign.execution is not None
@@ -1074,8 +898,6 @@ def _reservation_usd(raw: Mapping[str, Any], campaign: ExperimentCampaign) -> fl
         count = attempts if isinstance(attempts, int) and attempts > 0 else 1
         return count * max(estimate, _wave_reservation_per_trial(campaign))
     return estimate
-
-
 
 
 def _read_meter_json(path: Path) -> dict[str, Any]:
@@ -1113,7 +935,6 @@ def _trial_identity(
 
 
 def _meter_model_host(root: Path, raw: Mapping[str, Any]) -> str:
-    """Keep new Runpod/unknown campaigns out of the historical Modal bill pool."""
     campaign_id = raw.get("campaign_id")
     if not isinstance(campaign_id, str) or not campaign_id:
         return "modal"
@@ -1127,15 +948,6 @@ def _meter_model_host(root: Path, raw: Mapping[str, Any]) -> str:
 def _modal_allocations(
     root: Path, specs: list[tuple[str, dict[str, Any]]], jobs: list[JobRecord]
 ) -> dict[str, tuple[float, bool]]:
-    """Split one app's UTC-day bill by summed trial/day wall-time overlaps.
-
-    Startup, warm and idle time stay in the billed pool. Concurrent trials
-    each contribute their overlap seconds; the denominator includes other
-    campaigns and unclaimed jobs, not just the campaign being metered.
-    Native identities deduplicate copies retained in sibling worktrees.
-    Only existing read-only billing/report and evidence readers are used;
-    an absent/lagging/failed report leaves the trial's reservation in place.
-    """
     from evallab.modal_billing import fetch_modal_billing_report
     from evallab.modal_ops import MODAL_APP_NAME, is_selfhosted_model
     from evallab.results import discover_job_dirs
@@ -1163,8 +975,6 @@ def _modal_allocations(
         billing = fetch_modal_billing_report(start=first, end=last, repo_root=root, resolution="d")
     except Exception:
         return {}
-    # One daily report only: daily and hourly reports are alternatives, never
-    # additive sources. Repeated copies of a row cannot double the app pool.
     billed: dict[tuple[str, str, date], float] = {}
     for row in billing:
         cost = _usd(row.cost_usd)
@@ -1239,8 +1049,6 @@ def _modal_allocations(
             for identity, weight in weights.items():
                 if identity in targets and weight > 0:
                     shares[identity] = shares.get(identity, 0.0) + pool * weight / denominator
-    # Every day touched by a trial must be present: a partially available bill
-    # cannot silently turn its missing days into free GPU time.
     incomplete: set[str] = set()
     for identity, (start, finish) in targets.items():
         day = start.astimezone(UTC).date()
@@ -1259,7 +1067,6 @@ def _modal_allocations(
 
 
 def _daytona_trial_usd(job: JobRecord, trial: TrialRecord) -> float | None:
-    """Rate recorded sandbox resources and wall time through spend day's card."""
     from evallab.spend_day import _read_task_toml_env, parse_dt, trial_daytona_resources
     from evallab.task_qualification import estimate_cost_usd
 
@@ -1286,7 +1093,6 @@ def _daytona_trial_usd(job: JobRecord, trial: TrialRecord) -> float | None:
             usage_env[target] = int(value * multiplier)
     task = trial.lock.get("task") or trial.config.get("task") or {}
     task_path = task.get("path") if isinstance(task, Mapping) else None
-    # Recorded usage wins over requested overrides and task-family fallbacks.
 
     task_name = str(trial.result.get("task_name") or "")
     (cpus, memory, storage), _basis = trial_daytona_resources(
@@ -1387,11 +1193,8 @@ def _campaign_meter(
                     else:
                         amounts["daytona"] = sandbox
                 elif raw.get("environment") == "docker" and loaded.execution is not None:
-                    # Shared VM rent is not present in the Modal GPU report.
-                    # Keep its unknown share reserved instead of settling it at $0.
                     unknown = True
                 measured_trial = math.fsum(amounts.values())
-                # One overrun cannot erase another unmeasurable trial's hold.
                 if unknown:
                     unmeasured += max(0.0, trial_estimate - measured_trial)
                 for source, amount in amounts.items():
@@ -1410,12 +1213,6 @@ def campaign_spend_usd(
     *,
     exclude_spec_id: str | None = None,
 ) -> tuple[float, float, float]:
-    """(reserved, settled, total), including GPU, sandbox and model API spend.
-
-    Waiting specs hold nothing. Unknown settled components retain the remaining
-    reserved resource envelope; zero ledger API cost never implies free GPU.
-    ``exclude_spec_id`` excludes charges, not that trial's allocation weight.
-    """
     reserved, settled, _breakdown = _campaign_meter(
         repo_root, campaign_id, exclude_spec_id=exclude_spec_id
     )
@@ -1423,23 +1220,10 @@ def campaign_spend_usd(
 
 
 def campaign_spend_breakdown(repo_root: Path, campaign_id: str) -> dict[str, float]:
-    """Read-only per-source committed totals; sum equals campaign_spend_usd total.
-
-    ``unmeasured_reserved`` includes approved/running reservations and remaining
-    conservative envelopes for settled trials with unavailable measurements.
-    Modal amounts are app-day allocations, Daytona amounts use the existing
-    list-price estimate path, and model API amounts use ledger-backed columns.
-    """
     return _campaign_meter(repo_root, campaign_id)[2]
 
 
 def campaign_admission_refusal(gate: Any, spec: ExperimentSpec) -> PolicyDecision | None:
-    """Campaign gate branch for PolicyGate.decide. None means checks passed.
-
-    Failures return the refusal (each mismatch keeps its own reason); the
-    caller (PolicyGate) then runs the standing billable ceilings with the
-    campaign approval standing in for the per-ID authorization.
-    """
     repo_root: Path | None = getattr(gate, "repo_root", None)
     campaign_id = spec.campaign_id or ""
     if repo_root is None:
@@ -1452,7 +1236,6 @@ def campaign_admission_refusal(gate: Any, spec: ExperimentSpec) -> PolicyDecisio
         campaign, _approval = load_approved_campaign(repo_root, campaign_id)
     except CampaignApprovalError as exc:
         if exc.reason_code == REASON_UNKNOWN:
-            # A claim on nothing approvable is a routine mismatch, silent.
             try:
                 load_campaign(repo_root, campaign_id)
             except CampaignApprovalError:
@@ -1492,12 +1275,10 @@ def _refusal_or_none(
 
 
 def should_escalate(reason_code: str | None) -> bool:
-    """Only a budget or rule breach, or a gate defect, pages Research-Harbor."""
     return reason_code in ESCALATING_REASONS
 
 
 def read_escalations(repo_root: Path, campaign_id: str) -> list[CampaignEscalation]:
-    """Every recorded escalation for one campaign (corrupt lines are skipped)."""
     path = campaign_dir(repo_root, campaign_id) / ESCALATIONS_FILENAME
     if not path.is_file():
         return []
@@ -1512,8 +1293,6 @@ def read_escalations(repo_root: Path, campaign_id: str) -> list[CampaignEscalati
     return records
 
 
-#: Test seam for the ``lin comment`` call. Production leaves this None so
-#: escalation shells out to the real ``lin`` CLI; tests assign a stub.
 LIN_RUNNER: Callable[..., Any] | None = None
 
 
@@ -1527,13 +1306,6 @@ def escalate(
     actor: str = "campaign-gate",
     lin_runner: Callable[..., Any] | None = None,
 ) -> CampaignEscalation:
-    """Write one escalation event plus one lin comment to the campaign's card.
-
-    Deduplicated per (spec, reason): a repeated refusal reuses the recorded
-    escalation instead of paging again. ``lin_runner`` (or the ``LIN_RUNNER``
-    test seam) stubs the ``lin comment`` call; production shells out and
-    records whether it posted.
-    """
     target_dir = campaign_dir(repo_root, campaign.campaign_id)
     target_dir.mkdir(parents=True, exist_ok=True)
     for existing in read_escalations(repo_root, campaign.campaign_id):
@@ -1582,7 +1354,6 @@ def escalate_after_refusal(
     *,
     lin_runner: Callable[..., Any] | None = None,
 ) -> CampaignEscalation | None:
-    """Escalate a campaign refusal when the code is a breach or defect."""
     if not should_escalate(decision.reason_code):
         return None
     campaign_id = spec.campaign_id or ""
@@ -1603,7 +1374,6 @@ def escalate_after_refusal(
 
 
 def trial_is_infra_excluded(trial_result: Mapping[str, Any], rewards: Mapping[str, Any]) -> bool:
-    """Canonical infra classification: counts excluded with reason infra."""
     from evallab.counts import classify_counts
     from evallab.step_layers import classify_stop_reason
 
@@ -1626,7 +1396,6 @@ def trial_is_infra_excluded(trial_result: Mapping[str, Any], rewards: Mapping[st
 
 
 def replacement_clone(spec: ExperimentSpec) -> ExperimentSpec:
-    """Clone one infra-excluded spec with lineage; exactly one generation."""
 
     base = spec.name
     suffix = "-r1"
@@ -1644,11 +1413,9 @@ def replacement_clone(spec: ExperimentSpec) -> ExperimentSpec:
 
 
 def replacement_needed(spec: ExperimentSpec, queue_specs: list[ExperimentSpec]) -> bool:
-    """Whether this spec may still earn its one automatic replacement."""
     if spec.campaign_id is None or spec.spec_id is None:
         return False
     if spec.campaign_replaces is not None:
-        # A replacement's own infra failure is not replaced again.
         return False
     return not any(
         item.campaign_replaces == spec.spec_id and item.campaign_id == spec.campaign_id
@@ -1661,14 +1428,6 @@ def reconcile_campaign_replacements(
     *,
     report: Callable[[str], None] | None = None,
 ) -> int:
-    """Submit at most one replacement per infra-excluded campaign trial.
-
-    Scans done/failed campaign specs through the real queue states, classifies
-    each landed trial with the canonical counts verdict, and submits a cloned
-    spec with lineage for each infra-excluded original that has none yet.
-    Escalation on a refused replacement rides the normal submit path.
-    Never raises: a scan failure is reported, never a tick failure.
-    """
     repo_root: Path = executor.repo_root
     root = campaigns_root(repo_root)
     if not root.is_dir():
@@ -1727,7 +1486,5 @@ def _job_has_infra_excluded_trial(repo_root: Path, spec: ExperimentSpec) -> bool
         return False
     job = load_job(candidate)
     return any(trial_is_infra_excluded(trial.result, trial.rewards) for trial in job.trials)
-
-
 
 

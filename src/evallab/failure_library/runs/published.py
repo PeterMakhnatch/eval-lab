@@ -1,5 +1,3 @@
-"""Pinned public execution tables and oracle-labeled rollout sources."""
-
 from __future__ import annotations
 
 SOURCES = {

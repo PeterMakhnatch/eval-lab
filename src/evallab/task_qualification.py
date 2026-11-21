@@ -1,5 +1,3 @@
-"""Stored qualification table names and resource cost estimates."""
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -33,13 +31,6 @@ def estimate_cost_usd(
     storage_mb: int | None,
     rate_backend: str = "daytona",
 ) -> float | None:
-    """Sandbox cost under the active rate card, else null.
-
-    Only the rate-card backend is priced (today: Daytona list prices, see
-    ``DAYTONA_RATE_CARD``). Missing cpus/memory count as 0, and missing
-    storage counts as 0 billable GiB: the lab never invents a disk size to
-    make a trial look more expensive.
-    """
     rates = RATE_CARDS.get(rate_backend)
     if rates is None or backend != rate_backend:
         return None

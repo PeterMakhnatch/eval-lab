@@ -1,17 +1,3 @@
-"""Durable Trajectory Quality Ledger and Inspection Engine.
-
-Evaluates trial evidence and ATIF trajectories before semantic or model-based
-analysis. Persists deterministic trial-level `trajectory_quality_reports.parquet`
-and reason-coded `trajectory_quality_findings.parquet`.
-
-Guarantees:
-- Raw Harbor evidence is never modified or deleted.
-- Raw jobs and trials are cataloged before quality disposition.
-- Malformed or infrastructure-failed trials remain catalog-visible but are
-  marked `is_analysis_ready = False`.
-- Re-ingestion and quality evaluation are deterministic and idempotent.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -177,13 +163,6 @@ def evaluate_trial_quality(
     trial_id_override: str | None = None,
     evaluated_at: str | None = None,
 ) -> tuple[TrajectoryQualityReport, list[TrajectoryQualityFinding]]:
-    """Deterministically audit a single trial directory.
-
-    Re-ingestion and evaluation are guaranteed idempotent.
-    Select ``agent/trajectory.json`` when present, otherwise ``trajectory.json``,
-    matching the readiness and runtime IR readers. A malformed preferred file
-    remains a quality failure rather than being replaced by the fallback.
-    """
     trial_dir = Path(trial_dir).resolve()
     result_json_path = trial_dir / "result.json"
     traj_json_path = trial_dir / "agent" / "trajectory.json"
@@ -191,7 +170,6 @@ def evaluate_trial_quality(
         traj_json_path = trial_dir / "trajectory.json"
     exception_txt_path = trial_dir / "exception.txt"
 
-    # 1. Resolve trial and job identities
     result_data: dict[str, Any] = {}
     if result_json_path.is_file():
         try:
@@ -221,8 +199,6 @@ def evaluate_trial_quality(
     is_ingestable = True
     is_analysis_ready = True
 
-    # 2. Check for Infrastructure and Runner Exceptions
-    # If exception.txt or unprojectable crash exists, it must be quarantined, not given reward 0.
     if exception_txt_path.is_file():
         try:
             exc_text = exception_txt_path.read_text(encoding="utf-8").strip()
@@ -245,7 +221,6 @@ def evaluate_trial_quality(
         status = QualityStatus.QUARANTINE
         is_analysis_ready = False
 
-    # Check result.json error/exception status
     res_exc = (result_data.get("agent_result") or {}).get("exception") or result_data.get("exception")
     if res_exc and status != QualityStatus.QUARANTINE:
         quarantine_reason = f"runner_exception:{str(res_exc)[:80]}"
@@ -264,9 +239,7 @@ def evaluate_trial_quality(
         status = QualityStatus.QUARANTINE
         is_analysis_ready = False
 
-    # 3. Check ATIF Trajectory Integrity
     if not traj_json_path.is_file():
-        # Check if it's an oracle or nop control run
         agent_name = (
             (result_data.get("agent_info") or {}).get("name") or result_data.get("agent_name") or ""
         )
@@ -284,7 +257,6 @@ def evaluate_trial_quality(
                     message="Control trial does not produce ATIF trajectory",
                 )
             )
-            # Controls are valid in catalog but do not undergo agent behavior analysis
             is_analysis_ready = False
             if status == QualityStatus.PASS:
                 status = QualityStatus.PASS
@@ -305,13 +277,11 @@ def evaluate_trial_quality(
             status = QualityStatus.FAIL
             is_analysis_ready = False
     else:
-        # Parse and validate ATIF structure
         try:
             traj_raw = json.loads(traj_json_path.read_text(encoding="utf-8"))
             if not isinstance(traj_raw, dict):
                 raise ValueError("ATIF root must be a JSON object")
 
-            # Check schema version
             schema_ver = traj_raw.get("schema_version", "")
             if not schema_ver or not schema_ver.startswith("ATIF"):
                 findings.append(
@@ -346,7 +316,6 @@ def evaluate_trial_quality(
                 if status == QualityStatus.PASS:
                     status = QualityStatus.WARN
             else:
-                # Validate step structure and sequence
                 last_step_id = -1
                 for idx, step in enumerate(steps):
                     if not isinstance(step, dict):
@@ -390,7 +359,6 @@ def evaluate_trial_quality(
                             status = QualityStatus.WARN
                     last_step_id = step_id
 
-                    # Check tool call / observation pairing
                     tool_calls = step.get("tool_calls") or []
                     observation = step.get("observation") or {}
                     observations = observation.get("results") or []
@@ -414,7 +382,6 @@ def evaluate_trial_quality(
                             status = QualityStatus.WARN
 
         except Exception as exc:
-            # Projection / parsing exception becomes an explicit quality failure, never reward 0
             quarantine_reason = f"atif_parse_error:{type(exc).__name__}"
             findings.append(
                 TrajectoryQualityFinding(
@@ -465,18 +432,12 @@ def persist_quality_ledger(
     findings: Sequence[TrajectoryQualityFinding],
     derived_root: Path,
 ) -> tuple[Path, Path]:
-    """Persist quality reports and findings into deterministic Parquet tables.
-
-    Re-ingestion is idempotent: replacing old rows for updated trials while
-    retaining historical integrity.
-    """
     derived_root = Path(derived_root).resolve()
     derived_root.mkdir(parents=True, exist_ok=True)
 
     reports_path = derived_root / f"{QUALITY_REPORT_TABLE}.parquet"
     findings_path = derived_root / f"{QUALITY_FINDINGS_TABLE}.parquet"
 
-    # Merge with existing data if present to ensure idempotency
     existing_reports: dict[str, dict[str, Any]] = {}
     if reports_path.is_file():
         try:
@@ -489,7 +450,6 @@ def persist_quality_ledger(
     for r in reports:
         existing_reports[r.trial_id] = r.to_dict()
 
-    # Sort deterministically by job_id, trial_id
     sorted_reports = sorted(
         existing_reports.values(), key=lambda r: (r.get("job_id", ""), r.get("trial_id", ""))
     )

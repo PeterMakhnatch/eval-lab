@@ -1,4 +1,3 @@
-"""Task registry and development checkpoint command registration."""
 from __future__ import annotations
 
 import argparse

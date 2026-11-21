@@ -1,28 +1,3 @@
-"""Counterfactual regrade for QA Trace T3: replay a stored pass against newer graders.
-
-The *newer graders* of a MiMo code task (:func:`newer_graders`) are its
-``mimo-clean-v6`` package (:func:`v6_grader`, the built row of the v6
-manifest) and every test-repaired ``verifier-repair@*`` variant whose package
-still hashes to its record (:func:`repaired_graders`). A repair derived from a
-raw-grader package gets ``separate-verifier@10`` composed over it
-(:func:`separate_over`) so raw repairs also grade in a separate verifier.
-
-Retained diffs use the model-free oracle-script matrix path, or the canonical
-native candidate runner when an explicit cloud app/label policy is configured.
-The native executor owns setup, isolation, artifact collection and grading.
-This is a new control, not a recovered original workspace or trajectory.
-Without a diff, a retained snapshot uses
-native Harbor ``trial regrade`` against the immutable source trial. Missing
-artifacts and ATIF are never fabricated.
-
-A grader is valid only when its nop scores 0 and its reference fix scores 1.
-Missing reference evidence leaves the grader unvalidated, not valid. Oracle/nop
-controls establish this execution gate, not semantic correctness. No model is
-ever invoked. Local replays hold the host-wide Docker FIFO lock; cloud backends
-are paid, so every cloud execution (controls included) is charged to a
-:class:`evallab.regrade.CloudSpendGate` first and needs the lab's pinned Harbor.
-"""
-
 from __future__ import annotations
 
 import base64
@@ -53,25 +28,13 @@ REPAIR_PREFIX = "verifier-repair@"
 MIMO_DATASET = "mimo-v2.6-rl"
 SNAPSHOT_ARCHIVE = "workspace.tgz"
 ENGINE_VERSION = "qa-trace-counterfactual/4"
-#: One in-flight native replay per process; the host FIFO coordinates tabs.
 DOCKER_SLOTS = threading.BoundedSemaphore(1)
-#: Execution backends the replay engine can target. Cloud runs skip the local
-#: Docker FIFO and the one-container process gate (both exist only to protect the
-#: host). Daytona's MiMo egress lock refuses tasks with phase network policies
-#: (every mimo-clean-v6 package), so Modal is the cloud backend for v6 replays.
 ENVIRONMENTS = ("docker", "daytona", "modal")
 
-#: Logical execution: agent+verifier patch replay, or a verifier-only regrade;
-#: not an allocation/preparation unit. October 17, 2026 Modal CPU replay evidence
-#: (169 paired jobs, 338 native 2-CPU/8-GiB allocations) gives a $0.006446 mean
-#: resource/lifecycle estimate, cross-checked against metered app CPU/memory.
-#: $0.01 is >50% above that mean, not a bound on observed tails or provider bills.
-#: Slow/larger workloads and other providers need their own explicit estimate.
 CLOUD_USD_PER_EXECUTION = 0.01
 
 
 def check_backend(environment: str, spend_gate: CloudSpendGate | None) -> None:
-    """Refuse an unknown backend, or a paid one without a spend gate and the pinned Harbor."""
     from evallab.regrade import lab_harbor_problem
 
     if environment not in ENVIRONMENTS:
@@ -111,7 +74,6 @@ def _local_docker_gate(environment: str, label: str) -> contextlib.AbstractConte
 
 @dataclass(frozen=True)
 class GraderSelection:
-    """One resolved selection route, retaining a raw repair's original selection."""
 
     transform: str
     variant_digest: str
@@ -140,7 +102,6 @@ class GraderSelection:
 
 @dataclass(frozen=True)
 class Grader:
-    """One physical final grader, with every selection route retained as provenance."""
 
     task_name: str
     transform: str
@@ -206,11 +167,6 @@ def _verify_package(package: Path, expected: str) -> None:
 
 
 def canonical_graders(candidates: Sequence[Grader]) -> list[Grader]:
-    """Group only resolved full packages; verify every claimed path before execution.
-
-    Equivalent copies are allowed, but each must reproduce its claimed digest.
-    Repeated selections remain repeated provenance, never repeated measurements.
-    """
     claims: dict[Path, tuple[str, str]] = {}
     grouped: dict[tuple[str, str], list[Grader]] = {}
     references: dict[str, tuple[str, str]] = {}
@@ -252,7 +208,6 @@ def canonical_graders(candidates: Sequence[Grader]) -> list[Grader]:
 
 
 def is_separate(package: Path) -> bool:
-    """Whether the package grades in its own verifier container from a snapshot."""
     toml = tomllib.loads((package / "task.toml").read_text(encoding="utf-8"))
     return toml.get("verifier", {}).get("environment_mode") == "separate"
 
@@ -270,10 +225,6 @@ def _v6_rows(manifest: Path) -> dict[str, dict[str, str]]:
 
 
 def v6_grader(task_name: str, repo_root: Path, *, manifest: Path | None = None) -> Grader | None:
-    """The task's ``mimo-clean-v6`` package (built row of the v6 manifest).
-
-    A selected built package must exist and reproduce ``final_digest``.
-    """
     from evallab.mimo_clean import MANIFEST_V6_REL
     from evallab.storage.paths import shared_checkout_root
 
@@ -318,11 +269,6 @@ def _records(task_name: str, repo_root: Path) -> list[tuple[Path, Any]]:
 
 
 def repair_records(paths: list[Path]) -> list[tuple[Path, Any]]:
-    """``verifier-repair@*`` lineage records under ``paths`` (files or directories).
-
-    Generated records are never committed (``.gitignore``), so a repair landed
-    in another checkout is passed in by path.
-    """
     from evallab.task_variants import VariantRecord
 
     files = [f for p in paths for f in ([p] if p.is_file() else sorted(p.rglob("*.json")))]
@@ -331,22 +277,13 @@ def repair_records(paths: list[Path]) -> list[tuple[Path, Any]]:
         try:
             record = VariantRecord.model_validate_json(path.read_text(encoding="utf-8"))
         except ValueError:
-            continue  # not a lineage record
+            continue
         if record.transform.startswith(REPAIR_PREFIX):
             out.append((path, record))
     return out
 
 
 def separate_over(parent: Path, task_name: str, repo_root: Path, *, via: str) -> Grader | None:
-    """Find or derive ``separate-verifier@10`` over a raw-grader ``parent``.
-
-    A test repair derived from a raw MiMo package grades in the agent's own
-    container, which a stored pass no longer has; composing ``@10`` keeps the
-    repaired tests and grades the snapshot instead. The derivation is
-    deterministic, so a throwaway derive names the digest and an existing
-    shared package that hashes to it is reused (its record may live in another
-    checkout). ``via`` names the chain in the grader's transform.
-    """
     from evallab.mimo_clean import derive_marker
     from evallab.separate_verifier import derive_separate_verifier_v10
     from evallab.task_variants import RECORDS_DIRNAME, VariantExistsError, default_variants_root
@@ -362,7 +299,6 @@ def separate_over(parent: Path, task_name: str, repo_root: Path, *, via: str) ->
     digest12 = planned.variant_digest.removeprefix("sha256:")[:12]
     package = default_variants_root(repo_root) / _slug(task_name) / digest12
     if not (package / "task.toml").is_file():
-        # Another worker may derive the same package first; the digest check decides.
         with contextlib.suppress(VariantExistsError):
             derive_separate_verifier_v10(parent, marker=marker, repo_root=repo_root)
     _verify_package(package, planned.variant_digest)
@@ -378,11 +314,6 @@ def separate_over(parent: Path, task_name: str, repo_root: Path, *, via: str) ->
 def repaired_graders(
     task_name: str, repo_root: Path, extra: Sequence[tuple[Path, Any]] = ()
 ) -> list[Grader]:
-    """Test-repaired graders for the task: committed records plus ``extra``.
-
-    A repair whose package is a separate verifier (e.g. derived from a v6
-    package) grades as is; a raw-grader repair gets ``@10`` composed over it.
-    """
     from evallab.task_variants import default_variants_root
 
     found = [
@@ -431,15 +362,11 @@ def newer_graders(
     *,
     manifest: Path | None = None,
 ) -> list[Grader]:
-    """The task's final graders, grouped after every selection and composition."""
     v6 = v6_grader(task_name, repo_root, manifest=manifest)
     return canonical_graders(([v6] if v6 else []) + repaired_graders(task_name, repo_root, repairs))
 
 
 def strip_binary_artifacts(diff: str) -> tuple[str, list[str]]:
-    """Drop whole per-file stanzas for paths ``separate-verifier@10`` drops from a
-    kept change (``__pycache__``, compiled objects); returns (kept diff, dropped paths).
-    """
     from evallab.separate_verifier import is_binary_artifact_path
 
     kept: list[str] = []
@@ -490,12 +417,6 @@ def _replay_patch(
     environment: str = "docker",
     spend_gate: CloudSpendGate | None = None,
 ) -> dict[str, Any]:
-    """Run the recorded change as a model-free native oracle-script control.
-
-    This is a new patch replay, not a recovered original workspace or ATIF.
-    The canonical executor owns setup, isolation, collection and native jobs.
-    A cloud replay is charged to ``spend_gate`` before it runs.
-    """
     from evallab.execution_contracts import new_ulid
     from evallab.registry import compute_task_digests
     from evallab.regrade import SpendCapReached
@@ -514,9 +435,6 @@ def _replay_patch(
         from evallab.candidate_runner import run_candidate
         from evallab.upstream_grader import _CLEANUP_SECONDS
 
-        # Matrix controls cannot carry sandbox labels. The canonical artifact
-        # runner owns the complete cloud policy and full-resource reservation;
-        # do not double-charge the older logical-execution estimate as well.
         output = repo_root / "runs" / "qa-trace-regrade" / f"qa-replay-{new_ulid().lower()}"
         submission: dict[str, Any] = {"patch": diff} if diff else {"files": {}}
         result = run_candidate(
@@ -530,7 +448,6 @@ def _replay_patch(
             spend_ledger=spend_gate.spend_ledger,
             modal_app_name=spend_gate.modal_app_name,
             billing_tag=spend_gate.billing_tag,
-            # Native admission includes cleanup inside the one-hour lifetime.
             timeout_seconds=3600 - _CLEANUP_SECONDS,
             output_dir=output,
         )
@@ -565,8 +482,6 @@ def _replay_patch(
     scripts = root / "scripts"
     scripts.mkdir(parents=True, exist_ok=True)
     script_path = scripts / f"{script_digest}.sh"
-    # Different graders can replay the same content-addressed script at once.
-    # Never truncate the path a sibling native execution is already reading.
     temporary: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(
@@ -622,7 +537,6 @@ def _replay_patch(
 
 
 def source_digest(trial_dir: Path) -> str:
-    """Bind cached replays to retained source bytes, not a trial directory name."""
     from evallab.separate_verifier import SNAP_DIR, TRAJECTORY_ARTIFACT
 
     digest = hashlib.sha256()
@@ -657,12 +571,6 @@ def replay(
     environment: str = "docker",
     spend_gate: CloudSpendGate | None = None,
 ) -> dict[str, Any]:
-    """Regrade a recorded snapshot or natively replay its recorded diff.
-
-    Missing source artifacts are never invented. Diff-only inputs become new,
-    explicitly labelled native oracle-script controls, not patched trial records.
-    A cloud ``environment`` needs ``spend_gate``; each execution is charged to it.
-    """
     from evallab.execution_contracts import new_ulid
     from evallab.heldout_verifier import scan_agent_diff
     from evallab.regrade import (
@@ -755,7 +663,6 @@ def replay(
 
 
 def reference_patch(task_name: str, repo_root: Path) -> str | None:
-    """The validated reference fix (oracle pass + nop fail) for a MiMo task, if any."""
     from evallab.mimo_clean import REFERENCE_INDEX_REL, load_reference_index, oracle_info_from_index
 
     index_path = repo_root / REFERENCE_INDEX_REL
@@ -768,7 +675,6 @@ def reference_patch(task_name: str, repo_root: Path) -> str | None:
 
 
 def cached_controls(grader: Grader, work: Path, *, repo_root: Path) -> dict[str, Any] | None:
-    """The grader's stored controls, if they still match its grader, engine and reference."""
     cache = work / "controls.json"
     if not cache.is_file():
         return None
@@ -805,11 +711,6 @@ def grader_controls(
     environment: str = "docker",
     spend_gate: CloudSpendGate | None = None,
 ) -> dict[str, Any]:
-    """Nop/reference execution gate, bound to grader, engine and reference bytes.
-
-    Missing references or failed executions remain unvalidated. Results are
-    never treated as evidence of semantic correctness.
-    """
     canonical_graders([grader])
     cached = cached_controls(grader, work, repo_root=repo_root)
     if cached is not None:

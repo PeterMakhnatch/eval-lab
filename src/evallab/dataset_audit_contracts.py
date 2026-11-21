@@ -1,9 +1,3 @@
-"""Dataset-neutral contracts for task audit observations and projections.
-
-Verdicts route work; they do not admit a task or certify a candidate repair.
-Package digests and Harbor lock digests deliberately remain separate fields.
-"""
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -25,7 +19,6 @@ SHA256_PATTERN = r"^sha256:[0-9a-f]{64}$"
 
 
 class AuditSource(ContractModel):
-    """A cited input, with absence and binding limits retained explicitly."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -36,7 +29,6 @@ class AuditSource(ContractModel):
 
 
 class AuditTask(ContractModel):
-    """One selected package, not an invented native trial or admission record."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -65,7 +57,6 @@ class AuditDataset(ContractModel):
 
 
 class AuditObservation(ContractModel):
-    """Scientific findings are separate from execution/coverage status."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -85,6 +76,4 @@ class AuditRecord(ContractModel):
     verdict_sources: tuple[AuditSource, ...] = ()
     tags: tuple[str, ...] = ()
     stages: dict[AuditStage, AuditObservation] = Field(default_factory=dict)
-    # Existing HAR-186 facet payloads. No trial data or self-referential audit
-    # payload is embedded here; consumers attach independently bound trials.
     facets: dict[str, JsonValue] = Field(default_factory=dict)

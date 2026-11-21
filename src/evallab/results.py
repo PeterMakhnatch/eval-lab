@@ -138,18 +138,6 @@ def _load_object(path: Path) -> JsonObject:
 
 
 def _try_load_object(path: Path) -> JsonObject:
-    """Best-effort object load used only by job *discovery*.
-
-    A candidate ``result.json`` that is not valid JSON is not a job-shaped
-    Harbor result, and discovery must skip it and keep scanning rather than
-    abort the whole tree. The canonical example is a faithfully-promoted failed
-    trial artifact: an agent wrote a diagnostic scalar before the JSON document
-    (``3\n{...}``), and that malformed file must stay as evidence while every
-    default scan (``status``, ``trajectories``, ``nightly``, ``cards``,
-    ``screen``, ``quota``, ``ingest``, ``analyst``, ``lance``) still finds the
-    real jobs around it. ``load_job``/``load_trial`` deliberately keep calling
-    ``_load_object`` and fail closed on malformed JSON for a *selected* job.
-    """
     try:
         return _load_object(path)
     except (json.JSONDecodeError, UnicodeError):
@@ -210,9 +198,6 @@ def load_trial(trial_dir: Path) -> TrialRecord:
     result = _load_object(trial_dir / "result.json")
     verifier_result = result.get("verifier_result") or {}
     raw_rewards = verifier_result.get("rewards") or {}
-    # HAR-455: mirror probe03.normalize_reward. A boolean or non-finite value is
-    # unscored, so it never becomes a reward dimension or primary_reward. Keep
-    # -1 stored; task_catalog filters it and non-finite values at query time.
     rewards = {
         str(name): float(value)
         for name, value in raw_rewards.items()
@@ -276,30 +261,6 @@ def load_job(job_dir: Path) -> JobRecord:
 
 
 def _is_bookkeeping(relative: Path) -> bool:
-    """True for a path inside a dot-prefixed bookkeeping directory.
-
-    Discovery here is depth-agnostic (``rglob``), which is deliberate — it is the
-    one reader that finds a job wherever it landed. The cost is that it also
-    finds directories that are job-*shaped* but are not evaluation output:
-
-    - the queue archives an abandoned transient attempt by *moving* the whole job
-      directory, job-level ``result.json`` and all, to
-      ``<jobs-root>/.transient-attempts/<name>/attempt-<n>`` (``queue.py:1053``);
-    - the executor keeps its logs under ``<jobs-root>/.executor``
-      (``runner.py:540``);
-    - Harbor caches regrade sources as a complete job under
-      ``<jobs-root>/.sources/<uuid>/<job>`` (Harbor 0.21.0
-      ``trial/regrade.py:175``, ``download/downloader.py:118``).
-
-    Without this, one real job with two retried attempts is reported as three
-    completed jobs, inflating ``evallab status``, the consumption ledger
-    (``quota.py:717``), ``compare``, and every cohort built from these roots.
-    ``explorer.py`` already excludes dot-prefixed directories (``_is_job_dir``);
-    this is the same rule, for the same reason, on the other discovery path.
-
-    A root named *explicitly* is never filtered — naming a path is a request, not
-    a discovery, which is how ``harbor view <dir>`` behaves too.
-    """
     return any(part.startswith(".") for part in relative.parts)
 
 
@@ -318,9 +279,6 @@ def discover_job_dirs(roots: Iterable[Path]) -> list[Path]:
             candidate = result_path.parent
             if _is_bookkeeping(candidate.relative_to(root)):
                 continue
-            # A candidate that fails to parse (e.g. a malformed trial artifact
-            # faithfully preserved as evidence) is not a job; skip it, never
-            # abort the scan.
             result = _try_load_object(result_path)
             if "n_total_trials" in result and "stats" in result and result.get("finished_at"):
                 discovered[candidate] = None

@@ -1,4 +1,3 @@
-"""Live trial monitoring command registration."""
 from __future__ import annotations
 
 import argparse

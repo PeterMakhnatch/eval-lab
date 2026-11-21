@@ -1,24 +1,3 @@
-"""Independent model-call capture for Harbor trials.
-
-Harness trajectories are agent-controlled: installed agents write them inside
-the container (``/logs/agent``), a root agent can delete them, and timeouts or
-cancels can skip conversion, so a missing trajectory is ambiguous on its own.
-The vendor proxies (``containers/*_secret_proxy.py``) record usage only, never
-bodies. This module owns the independent record: a launcher-agnostic recording
-reverse proxy (host process) plus attribution of captured calls to Harbor
-trials and a per-trial completeness verdict against the harness ATIF.
-
-Layout of a capture directory::
-
-    <capture_dir>/calls.jsonl      one JSON record per proxied call (append + flush)
-    <capture_dir>/capture.json     manifest written at startup
-    <capture_dir>/provenance.json  ProvenanceMetadata-compatible sidecar at close
-
-``link`` writes derived Parquet (``model_calls``, ``trial_capture``) plus a
-``capture_link.json`` receipt under the resolved derived root, next to the
-existing ``job_id=<uuid>/`` projections.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -35,22 +14,15 @@ LINK_RECEIPT_SCHEMA = "evallab.model_capture_link/v1"
 DEFAULT_PORT = 0
 DEFAULT_BIND = "127.0.0.1"
 
-#: ATIF trajectory candidates, mirroring
-#: ``evallab.evidence.capture_authority`` so both readers agree on filenames.
 TRAJECTORY_CANDIDATES = ("agent/trajectory.json", "trajectory.json", "agent/trajectory.jsonl")
 
-#: Control agents never emit trajectories and never call models; both records
-#: empty is their normal state, not missing evidence.
 CONTROL_AGENTS = frozenset({"nop", "oracle"})
 
 _WS_RE = re.compile(r"\s+")
 _ROUTE_RE = re.compile(r"^/t/([^/]{1,128})/(.*)$")
 _TOKEN_RE = re.compile(r"^[A-Za-z0-9_.\-]{1,128}$")
 
-#: Request headers kept on the record. Auth-shaped headers are never selected,
-#: so client credentials cannot reach ``calls.jsonl`` by header.
 
-#: Headers never forwarded upstream alongside an injected provider key.
 _AUTH_HEADERS = frozenset(
     {"authorization", "x-api-key", "api-key", "cookie", "proxy-authorization"}
 )
@@ -69,18 +41,11 @@ _HOP_BY_HOP = frozenset(
 )
 
 
-# --------------------------------------------------------------------------- #
-# Small helpers
-# --------------------------------------------------------------------------- #
-
-
 def utc_now_iso() -> str:
-    """Current UTC time as an ISO-8601 ``Z`` string."""
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
 def parse_ts(value: Any) -> datetime | None:
-    """Parse an ISO-8601 timestamp; ``None`` when absent or malformed."""
     if not isinstance(value, str) or not value.strip():
         return None
     try:
@@ -93,14 +58,12 @@ def parse_ts(value: Any) -> datetime | None:
 
 
 def normalize_text(value: Any) -> str:
-    """Collapse whitespace for stable cross-record comparison."""
     if not isinstance(value, str):
         return ""
     return _WS_RE.sub(" ", value).strip()
 
 
 def sha256_file(path: Path) -> str:
-    """Hex SHA-256 of a file's bytes."""
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
@@ -109,7 +72,6 @@ def sha256_file(path: Path) -> str:
 
 
 def classify_kind(path: str) -> str:
-    """Classify an upstream path by suffix (route prefix already stripped)."""
     clean = path.split("?", 1)[0].rstrip("/") or "/"
     if clean.endswith("/chat/completions"):
         return "chat"
@@ -122,11 +84,6 @@ def classify_kind(path: str) -> str:
     if clean.endswith("/messages"):
         return "anthropic_messages"
     return "unknown"
-
-
-# --------------------------------------------------------------------------- #
-# Request message extraction (shared by attribution and verdicts)
-# --------------------------------------------------------------------------- #
 
 
 def _content_text(content: Any) -> str:
@@ -146,7 +103,6 @@ def _content_text(content: Any) -> str:
 
 
 def request_message_pairs(kind: str, body: Any) -> list[tuple[str, str]]:
-    """Ordered ``(role, text)`` pairs of one request body, best-effort."""
     if not isinstance(body, dict):
         return []
     pairs: list[tuple[str, str]] = []
@@ -210,41 +166,14 @@ def _responses_input_texts(value: Any) -> list[tuple[str, str]]:
 
 
 def first_user_text(kind: str, body: Any) -> str:
-    """Normalized first user-role text of a request, or ``""``."""
     for role, text in request_message_pairs(kind, body):
         if role == "user" and normalize_text(text):
             return normalize_text(text)
     return ""
 
 
-# --------------------------------------------------------------------------- #
-# Response extraction: one shared SSE + usage canonicalization
-# --------------------------------------------------------------------------- #
-# Mirrors the behavior of the vendor proxies (``containers/*_secret_proxy.py``,
-# ``_canonicalize_sse_and_usage``): split on blank lines, read ``data:`` lines,
-# skip ``[DONE]``, parse each event as JSON. Unlike the metered proxies this
-# module never rejects an upstream body shape: unparsable events are skipped
-# for extraction but the raw bytes are always recorded and forwarded.
-
-
-# --------------------------------------------------------------------------- #
-# Recorder, manifest, provenance
-# --------------------------------------------------------------------------- #
-
-
-# --------------------------------------------------------------------------- #
-# Recording reverse proxy
-# --------------------------------------------------------------------------- #
-
-
-# --------------------------------------------------------------------------- #
-# Link: attribute captured calls to trials, judge completeness
-# --------------------------------------------------------------------------- #
-
-
 @dataclass
 class TrialEvidence:
-    """Everything ``link`` knows about one Harbor trial."""
 
     name: str
     trial_id: str | None
@@ -262,7 +191,6 @@ class TrialEvidence:
 
 
 def iter_trial_dirs(job_dir: str | Path) -> list[Path]:
-    """Trial directories directly under a Harbor job directory, sorted by name."""
     job = Path(job_dir)
     found: list[Path] = []
     if not job.is_dir():
@@ -289,7 +217,6 @@ def _load_json(path: Path) -> dict[str, Any] | None:
 
 
 def _atif_documents(trial_dir: Path) -> list[dict[str, Any]]:
-    """Load the ATIF document plus Harbor continuation segments, best-effort."""
     documents: list[dict[str, Any]] = []
     for candidate in TRAJECTORY_CANDIDATES:
         path = trial_dir / candidate
@@ -320,7 +247,6 @@ def _atif_documents(trial_dir: Path) -> list[dict[str, Any]]:
 
 
 def _resolve_instruction(result: dict[str, Any], job_dir: Path) -> str | None:
-    """Normalized task instruction for a trial, via the job's task path."""
     config = result.get("config")
     if not isinstance(config, dict):
         return None
@@ -347,7 +273,6 @@ def _resolve_instruction(result: dict[str, Any], job_dir: Path) -> str | None:
 
 
 def _job_attempt_id(job_dir: Path) -> str | None:
-    """Job attempt id the runner's secret proxy stamps as the capture route token."""
     metadata = _load_json(job_dir / "lab-metadata.json")
     usage = metadata.get("provider_usage") if isinstance(metadata, dict) else None
     if isinstance(usage, dict):
@@ -358,7 +283,6 @@ def _job_attempt_id(job_dir: Path) -> str | None:
 
 
 def collect_trial_evidence(trial_dir: str | Path, job_dir: str | Path) -> TrialEvidence:
-    """Gather ATIF texts, the agent-execution window, and the instruction."""
     directory = Path(trial_dir)
     result = _load_json(directory / "result.json") or {}
     config = result.get("config") if isinstance(result.get("config"), dict) else {}
@@ -411,8 +335,6 @@ def collect_trial_evidence(trial_dir: str | Path, job_dir: str | Path) -> TrialE
                         evidence.atif_agent_texts.append(text)
                 elif source == "user" and text:
                     evidence.atif_user_texts.append(text)
-        # Present means a trajectory document with a non-empty step list was
-        # readable; agent-step counts below decide truncated vs complete.
         evidence.atif_present = any(
             isinstance(document.get("steps"), list) and len(document["steps"]) > 0
             for document in documents
@@ -432,7 +354,6 @@ def _is_prefix(shorter: list[tuple[str, str]], longer: list[tuple[str, str]]) ->
 
 
 def _conversations(calls: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
-    """Group calls into conversations by message-prefix chaining (time order)."""
     ordered = sorted(calls, key=lambda c: (str(c.get("started_at") or ""), int(c.get("seq") or 0)))
     groups: list[list[dict[str, Any]]] = []
     tails: list[list[tuple[str, str]]] = []
@@ -453,7 +374,6 @@ def _conversations(calls: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
 
 
 def kind_of(call: dict[str, Any]) -> str:
-    """Classify a stored call record by its (stripped) path."""
     path = call.get("path")
     return classify_kind(path if isinstance(path, str) else "")
 
@@ -465,8 +385,6 @@ def _anchor_match(root_first_user: str, trial: TrialEvidence) -> bool:
         return True
     if trial.instruction and root_first_user == trial.instruction:
         return True
-    # full instruction.md inside a larger first user message), so containment
-    # either way anchors — guarded so short greetings cannot match vacuously.
     instruction = trial.instruction or ""
     if len(instruction) < _MIN_ANCHOR_CHARS or len(root_first_user) < _MIN_ANCHOR_CHARS:
         return False
@@ -483,7 +401,6 @@ def _window_contains(trial: TrialEvidence, start: datetime | None, end: datetime
 
 @dataclass
 class Attribution:
-    """Call-to-trial assignment produced by ``link_capture``."""
 
     assigned: dict[int, str] = field(default_factory=dict)
     method: dict[int, str] = field(default_factory=dict)
@@ -493,10 +410,6 @@ class Attribution:
 
 
 def attribute_calls(calls: list[dict[str, Any]], trials: list[TrialEvidence]) -> Attribution:
-    """Assign calls to trials: route token, then session, then conversation chaining.
-
-    A present route token foreign to this job stays unassigned (never chained).
-    """
     by_name: dict[str, list[TrialEvidence]] = {}
     for trial in trials:
         by_name.setdefault(trial.name, []).append(trial)
@@ -521,13 +434,6 @@ def attribute_calls(calls: list[dict[str, Any]], trials: list[TrialEvidence]) ->
                 attribution.unassigned.append(seq)
                 continue
             else:
-                # Runner-stamped job attempt id (secret proxy ``/t/<token>/``
-                # prefix): exact for one-trial jobs. A multi-trial job shares
-                # one attempt id, so those calls fall through to conversation
-                # chaining instead of going ambiguous here. A token foreign
-                # to this job (another job's calls in a shared capture)
-                # stays unassigned here: it must never be claimed by
-                # session/conversation chaining below.
                 job_candidates = [t for t in trials if t.attempt_id == token]
                 if len(job_candidates) == 1:
                     matched, how = job_candidates, "route_token"
@@ -575,17 +481,6 @@ def attribute_calls(calls: list[dict[str, Any]], trials: list[TrialEvidence]) ->
     return attribution
 
 
-# --------------------------------------------------------------------------- #
-# Completeness verdicts
-# --------------------------------------------------------------------------- #
-
-#: Per-trial completeness of the harness trajectory against the independent
-#: record. ``capture_missing`` also covers the both-absent corner (no ATIF and
-#: no captured calls): with zero evidence on either side an idle control agent
-#: is indistinguishable from a full bypass, so the operator must check the
-#: ``agent_execution`` window in ``result.json``; the receipt says so.
-
-
 def _captured_texts(calls: list[dict[str, Any]]) -> list[str]:
     texts: list[str] = []
     for call in calls:
@@ -608,19 +503,10 @@ _MIN_ALNUM_MATCH = 32
 
 
 def _alnum(text: str) -> str:
-    """Lowercased alphanumeric skeleton: immune to code fences, JSON syntax,
-    key renaming (``"analysis": "x"`` vs ``Analysis: x``), and whitespace."""
     return _ALNUM_RE.sub("", text.lower())
 
 
 def _turn_present(text: str, atif_texts: list[str]) -> bool:
-    """Whether a captured turn survives anywhere in the ATIF agent messages.
-
-    Plain containment covers verbatim records; the alphanumeric fallback covers
-    harnesses that store a parsed rendering (e.g. Terminus keeps ``Analysis: …``
-    while the model emitted fenced ``{"analysis": "…"}``). The fallback needs a
-    32-char skeleton on both sides so short greetings cannot match vacuously.
-    """
     if any(_contains(text, agent_text) for agent_text in atif_texts):
         return True
     skeleton = _alnum(text)
@@ -638,7 +524,6 @@ def _turn_present(text: str, atif_texts: list[str]) -> bool:
 def judge_trial(
     trial: TrialEvidence, calls: list[dict[str, Any]], *, ambiguous: bool
 ) -> dict[str, Any]:
-    """Judge one trial; ``calls`` are the captured calls assigned to it."""
     texts = _captured_texts(calls)
     verdict: str
     first_divergence: dict[str, Any] | None = None
@@ -695,11 +580,6 @@ def judge_trial(
         "atif_present": trial.atif_present,
         "first_divergence": first_divergence,
     }
-
-
-# --------------------------------------------------------------------------- #
-# link: Parquet output and receipt
-# --------------------------------------------------------------------------- #
 
 
 def _model_calls_schema() -> Any:
@@ -763,7 +643,6 @@ def link_capture(
     derived_root: str | Path | None = None,
     repo_root: str | Path | None = None,
 ) -> dict[str, Any]:
-    """Attribute a capture to a job's trials; write Parquet + receipt; return summary."""
     from evallab.evidence.parquet_io import write_table_atomic
     from evallab.storage.fs import durable_mkdir
     from evallab.storage.paths import derived_root_from_environment
@@ -881,16 +760,6 @@ def link_capture(
         json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
     return receipt
-
-
-# --------------------------------------------------------------------------- #
-# Report lookup
-# --------------------------------------------------------------------------- #
-
-
-# --------------------------------------------------------------------------- #
-# Operator smoke: one live call through secret proxy -> capture -> upstream
-# --------------------------------------------------------------------------- #
 
 
 SMOKE_KEY_ENV = "MIMO_SELFHOSTED_API_KEY"

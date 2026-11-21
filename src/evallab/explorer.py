@@ -1,5 +1,3 @@
-"""Read-only report rendering and secret redaction for evidence consumers."""
-
 from __future__ import annotations
 
 import re
@@ -27,7 +25,6 @@ _SECRET_TEXT_PATTERNS = (
 
 
 def redact_text(text: str) -> str:
-    """Redact common bearer/key-shaped values before a UI can render them."""
     redacted = text
     for pattern in _SECRET_TEXT_PATTERNS:
         redacted = pattern.sub("[redacted]", redacted)
@@ -47,7 +44,6 @@ def _redact_value(value: Any) -> Any:
 
 
 def redact_mapping(mapping: dict[str, Any]) -> dict[str, Any]:
-    """Redact credential-shaped keys and nested string values recursively."""
     clean: dict[str, Any] = {}
     for key, value in mapping.items():
         if any(marker in str(key).upper() for marker in _SECRET_MARKERS):

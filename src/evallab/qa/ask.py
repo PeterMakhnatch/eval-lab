@@ -1,5 +1,3 @@
-"""Read-only evidence tools for a sealed QA Trace workspace."""
-
 from __future__ import annotations
 
 from pathlib import Path, PurePosixPath
@@ -10,7 +8,6 @@ MAX_READ_LINES = 200
 
 
 class WorkspaceTools:
-    """A capability limited to the sealed file inventory, with no executable tools."""
 
     def __init__(
         self, root: Path, files: set[str], *, max_read_lines: int = MAX_READ_LINES,
@@ -21,7 +18,6 @@ class WorkspaceTools:
         self.max_read_lines = max_read_lines
         self.default_read_lines = default_read_lines
         self.max_chars = max_chars
-        #: Clip an over-long range to the window (with a continuation note) instead of refusing it.
         self.clamp_reads = clamp_reads
 
     def _relative(self, raw: str) -> str:

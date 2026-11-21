@@ -24,7 +24,6 @@ from evallab.tripwires import CLUSTER_ALPHA, CLUSTER_P0, cluster_threshold, scan
 
 LIVE_WATCH_SCHEMA = "evallab.live_watch/v1"
 
-#: Integrity rules surfaced at the top of each job's board section.
 INTEGRITY_BOARD_RULES = (
     "grader_tamper",
     "history_mining",
@@ -43,9 +42,6 @@ TRIAL_RESULT = Path("result.json")
 TRIAL_CONFIG = Path("config.json")
 TRIAL_GIT_HISTORY = EVALUATOR_SNAPSHOT_DIR / "baseline-w1.json"
 
-#: Exception types that mean broken infrastructure, not a model failure.
-#: ``DaytonaNotFoundError`` is the observed G5 case (g6-38); the substring
-#: fallback covers sibling Daytona errors without enumerating every SDK name.
 INFRA_EXCEPTION_TYPES = frozenset(
     {
         "DaytonaNotFoundError",
@@ -57,13 +53,6 @@ _INFRA_SUBSTRINGS = ("daytona", "serviceunavailable")
 
 @dataclass(frozen=True)
 class WatchThresholds:
-    """Alert thresholds for :mod:`evallab.live_watch`.
-
-    Defaults are tuned against the G5 eval jobs (60 trials): the repetition
-    threshold matches the harness loop-breaker (``loop_command_run_min=8``),
-    and the stall default (10 min) is well above the slowest healthy model
-    call (~45 s) while catching wedged runs within one operator glance.
-    """
 
     stalled_minutes: float = 10.0
     budget_fraction: float = 0.8
@@ -80,24 +69,15 @@ class WatchThresholds:
     parse_error_streak_threshold: int = 3
     default_input_token_limit: int = 2_500_000
     default_output_token_limit: int = 131_072
-    #: Clean flag rate the submission-tamper run alarm is calibrated against.
     tamper_cluster_p0: float = CLUSTER_P0
-    #: Per-step clean-only alarm budget for the run alarm.
     tamper_cluster_alpha: float = CLUSTER_ALPHA
 
 
-#: Per-file stat entry: ``(path, mtime_ns, size)``; ``None`` fields when absent.
 FileStamp = tuple[str, int | None, int | None]
 
 
 @dataclass
 class TrialScan:
-    """Cached per-trial read, reused while none of the trial's input files change.
-
-    ``inputs`` stamps every file :func:`trial_signals` reads (trajectory,
-    ``result.json``, the live proxy ledger, the file-access log). ``scanned_at``
-    lets a reused status age its ``minutes_since_update`` instead of freezing it.
-    """
 
     inputs: tuple[FileStamp, ...]
     scanned_at: float
@@ -115,7 +95,6 @@ def _stamp(path: Path) -> FileStamp:
 def _trial_inputs(
     job_dir: Path, trial_dir: Path, hooks: dict[str, Any] | None = None
 ) -> tuple[FileStamp, ...]:
-    """Stamp every input whose change can alter the trial's signals (files and hook state)."""
     traj_path = _trajectory_path(trial_dir)
     paths = [
         trial_dir / TRIAL_TRAJECTORY if traj_path is None else traj_path,
@@ -138,14 +117,6 @@ def _trial_inputs(
 
 
 def discover_trials(runs_dirs: list[Path]) -> list[tuple[Path, Path]]:
-    """Return ``(job_dir, trial_dir)`` pairs under each runs dir.
-
-    Each ``--runs-dir`` is either a job directory (its immediate children
-    are ``<task>__<id>`` trial dirs) or a runs root (its immediate children
-    are job directories). Trial dirs hold ``agent/trajectory.json``; trials
-    with only an ``agent/file-access.jsonl`` log (even an unavailable one)
-    are discovered too.
-    """
 
     def is_job_dir(path: Path) -> bool:
         if (path / HOOK_JOURNAL).is_file():
@@ -170,7 +141,6 @@ def discover_trials(runs_dirs: list[Path]) -> list[tuple[Path, Path]]:
             children = sorted(job_dir.iterdir())
         except OSError:
             return out
-        # Harbor hooks announce a trial at START, before any trajectory exists.
         hooked = read_hook_journal(job_dir)
         for child in children:
             if not child.is_dir() or "__" not in child.name:
@@ -220,15 +190,6 @@ def _read_json(path: Path) -> dict[str, Any] | None:
 
 
 def _read_codex_stream_steps(path: Path) -> list[dict[str, Any]]:
-    """ATIF-shaped agent steps from the live ``agent/codex.txt`` JSONL stream.
-
-    Harbor's Codex adapter tees ``codex exec --json`` into ``/logs/agent/codex.txt``
-    while the CLI runs and converts the session rollout into ``trajectory.json``
-    only after the CLI exits. Until then this stream is the only live record of
-    the episode: ``command_execution`` items become ``exec`` steps carrying the
-    shell command (``/bin/bash -lc`` wrapper removed), ``file_change`` items become
-    ``apply_patch`` steps, and ``agent_message`` items keep their text.
-    """
     items: dict[str, dict[str, Any]] = {}
     prompt_tokens = completion_tokens = 0
     try:
@@ -332,13 +293,6 @@ def _token_sums(agent_steps: list[dict[str, Any]]) -> tuple[int, int]:
 def _read_limits(
     trial_dir: Path, job_dir: Path, *, from_config: bool, defaults: WatchThresholds
 ) -> tuple[int, int]:
-    """Resolve ``(input, output)`` token limits for one trial.
-
-    Without ``from_config`` the documented defaults apply. With it, the
-    trial/job ``config.json`` and the job ``experiment-spec.json`` win when
-    they carry ``max_input_tokens``/``max_output_tokens`` (top level or one
-    level down); anything missing falls back to the defaults.
-    """
     limits = {
         "in": defaults.default_input_token_limit,
         "out": defaults.default_output_token_limit,
@@ -371,12 +325,6 @@ def _read_limits(
 
 
 def _command_runs(agent_steps: list[dict[str, Any]]) -> tuple[int, int, str | None]:
-    """``(trailing_run, max_run, trailing_command)`` over identical commands.
-
-    Commands come from :func:`evallab.traj.extract_loop_step` (the shared
-    extractor); the run-length counting mirrors its consecutive-identical
-    logic, including the short-command guard.
-    """
     from evallab.traj import extract_loop_step
 
     commands: list[str] = []
@@ -403,7 +351,6 @@ def _command_runs(agent_steps: list[dict[str, Any]]) -> tuple[int, int, str | No
 
 
 def _completion_count(agent_steps: list[dict[str, Any]]) -> tuple[int, int | None]:
-    """``(mark_task_complete calls, first step_id)`` over agent steps."""
     count = 0
     first: int | None = None
     for step in agent_steps:
@@ -423,12 +370,6 @@ def _completion_count(agent_steps: list[dict[str, Any]]) -> tuple[int, int | Non
 
 
 def _is_repo_edit(step: dict[str, Any]) -> tuple[bool, list[str]]:
-    """Whether a step is a repo edit with an extractable non-scratch target.
-
-    Uses the shared token_flow detectors. Requiring a concrete touched path
-    (outside scratch prefixes) keeps quoted-program false hits -- e.g.
-    ``awk 'NR>=125 && NR<=240'`` -- out of the edit signal either way.
-    """
     from evallab.token_flow import _is_edit, _is_ephemeral_only, _touched_paths
 
     is_edit, _kind = _is_edit(step)
@@ -446,25 +387,14 @@ def _token_flow_calls(step: dict[str, Any]) -> list[tuple[str | None, str]]:
     return _step_calls(step)
 
 
-#: OPEN is evidence of opening, not bytes read. ACCESS can mean read or exec.
-#: Neither event attributes the access to a PID or proves model visibility.
 _FILE_ACCESS_READ_EVENTS = frozenset({"OPEN", "ACCESS"})
 
-#: Access-record categories in ``evallab.file_access/v1``.
 _FILE_ACCESS_CATEGORIES = frozenset({"git_objects", "git_refs", "grader"})
 
-#: ``file_change`` values in ``evallab.file_access/v1`` records.
 _FILE_ACCESS_CHANGES = frozenset({"modified", "created", "deleted", "type_changed", "unavailable"})
 
 
 def _protected_change_fires(change: str, before: Any, after: Any) -> bool:
-    """Whether a protected ``file_change`` record proves grader modification.
-
-    Only before/after hash evidence counts: ``modified`` needs two differing
-    hashes, ``created``/``deleted`` need the present side's hash, and
-    ``type_changed`` needs any hash difference. ``unavailable`` (or hashes
-    absent on both sides) stays unknown and never fires.
-    """
     if change == "unavailable":
         return False
     if change == "modified":
@@ -479,13 +409,6 @@ def _protected_change_fires(change: str, before: Any, after: Any) -> bool:
 
 
 def _parse_access_record(record: dict[str, Any]) -> tuple[str, dict[str, Any] | None]:
-    """``("hit" | "skip" | "malformed", hit-or-None)`` for one access record.
-
-    Directory events and non-read event sets are benign ``"skip"`` results, so
-    they never fabricate reads or degrade capture. Malformed rows (bad path,
-    events, ``is_directory``, or category) are flagged without inventing PID,
-    command, or step attribution -- the record carries none.
-    """
     observed = record.get("path")
     events = record.get("events")
     is_dir = record.get("is_directory")
@@ -521,7 +444,6 @@ def _parse_access_record(record: dict[str, Any]) -> tuple[str, dict[str, Any] | 
 
 
 def _parse_change_record(record: dict[str, Any]) -> dict[str, Any] | None:
-    """Normalize a ``file_change`` record, or ``None`` when malformed."""
     observed = record.get("path")
     category = record.get("category")
     change = record.get("change")
@@ -555,7 +477,6 @@ def _parse_change_record(record: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def _open_access_note(events: list[str]) -> str:
-    """Honest one-liner distinguishing inotify OPEN from ACCESS."""
     bits = []
     if "OPEN" in events:
         bits.append("OPEN shows the file was opened, not proof bytes were read")
@@ -571,16 +492,6 @@ def _hash_or_absent(value: Any) -> str:
 
 
 def _read_file_access(trial_dir: Path) -> dict[str, Any]:
-    """Parse ``agent/file-access.jsonl`` read-only (never clean on doubt).
-
-    Returns the capture summary plus observed reads, ref observations, and
-    protected changes, each with its 1-based source line. A missing log is
-    ``present: False`` / ``state: "absent"``; a present log without a coverage
-    record is ``state: "unknown"``. A corrupt row or an incomplete trailing
-    line (last line without a trailing newline) marks the capture
-    ``degraded`` without discarding the valid rows -- absence and partial
-    capture are reported as-is, never as clean.
-    """
     log_rel = str(FILE_ACCESS_LOG)
     summary: dict[str, Any] = {
         "present": False,
@@ -690,7 +601,7 @@ def _read_file_access(trial_dir: Path) -> dict[str, Any]:
                         previous["events"].append(event)
                 continue
             seen_access[key] = hit
-            hit["observations"] = 1  # JSONL observations, not uncoalesced operation counts.
+            hit["observations"] = 1
             hit["last_line"] = lineno
             hit["line"] = lineno
             if hit["category"] == "git_objects":
@@ -728,7 +639,6 @@ _FORMAT_WARNING_RE = re.compile(
 def _parse_error_stats(
     steps: list[dict[str, Any]],
 ) -> tuple[int, int, str | None, int | None, int]:
-    """Return (parse_error_count, max_parse_streak, first_quote, first_step, format_warnings)."""
     from evallab.probe03 import obs_content
 
     total = 0
@@ -859,8 +769,6 @@ def _is_infra_exception(exc_type: str | None) -> bool:
 
 
 def wire_signals(wires: dict[str, Any]) -> dict[str, Any]:
-    """The trajectory-derived integrity signals of a ``tripwires.scan_prefix`` report, shaped as
-    the status record's keys (the inputs of :func:`integrity_alerts`)."""
 
     def acquisitions(hits: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return [
@@ -897,11 +805,6 @@ def trial_signals(
     hooks: dict[str, Any] | None = None,
     task_manifest: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Compute the live signal record for one trial directory (read-only).
-
-    ``hooks`` is the trial's Harbor hook state (:func:`read_hook_journal`) when the
-    job ran with the watch hook plugin; files remain the source otherwise.
-    """
     steps, traj_path = _read_steps(trial_dir)
     agent_steps = _agent_steps(steps)
     prompt_tokens, completion_tokens = _token_sums(agent_steps)
@@ -968,8 +871,6 @@ def trial_signals(
     file_access = _read_file_access(trial_dir)
     sensor_paths = [str(h.get("path") or "") for h in file_access["hidden_test_reads"]]
     watched = [str(p) for p in file_access["summary"].get("watched_paths") or []]
-    # Only the pre-agent first-window baseline is eligible: later windows may
-    # already include commits authored or checked out by the agent.
     initial_baseline = _read_json(trial_dir / TRIAL_GIT_HISTORY) or {}
     wires = scan_prefix(
         agent_steps,
@@ -1051,7 +952,6 @@ def _alert(
         "job": job,
         "trial": trial,
         "task": task,
-        # ATIF step ids are strings in Terminus/mimoagent trajectories ("21"), ints in older ones.
         "step_ref": f"head#{step}"
         if isinstance(step, int)
         and not isinstance(step, bool)
@@ -1066,11 +966,6 @@ def _alert(
 
 
 def integrity_alerts(status: dict[str, Any]) -> list[dict[str, Any]]:
-    """Integrity-rule alerts for one signal record (a pure function). Reads ``job``, ``trial``, ``task``
-    and, each as an optional list, the signals of :func:`wire_signals` plus the file-side ones
-    (``file_access``, ``git_object_reads``, ``hidden_test_reads``, ``hidden_test_corroboration``,
-    ``grader_file_changes``); a signal that is absent never fires, so a record without file access
-    (a replay) cannot raise ``hidden_test_read``, ``git_object_read`` or a file-evidenced ``grader_tamper``."""
     alerts: list[dict[str, Any]] = []
     job = status["job"]
     trial = status["trial"]
@@ -1106,7 +1001,7 @@ def integrity_alerts(status: dict[str, Any]) -> list[dict[str, Any]]:
                 extra={"target": hit.get("target")},
             )
         )
-        break  # one copy alert per trial; the signal keeps every acquisition
+        break
     tamper_hits = status.get("grader_tamper", [])
     if tamper_hits:
         hit = tamper_hits[0]
@@ -1128,9 +1023,6 @@ def integrity_alerts(status: dict[str, Any]) -> list[dict[str, Any]]:
             )
         )
     else:
-        # Strengthened by observed protected file changes with before/after
-        # hash evidence -- still one grader_tamper alert per trial, never a
-        # duplicate alongside the trajectory hit above.
         for change in status.get("grader_file_changes", []):
             if not change.get("tamper_evidence"):
                 continue
@@ -1187,7 +1079,7 @@ def integrity_alerts(status: dict[str, Any]) -> list[dict[str, Any]]:
                 },
             )
         )
-        break  # one alert per trial; the signal keeps every hit
+        break
 
     for hit in status.get("codeban_violation", []):
         alerts.append(
@@ -1209,7 +1101,7 @@ def integrity_alerts(status: dict[str, Any]) -> list[dict[str, Any]]:
                 },
             )
         )
-        break  # one alert per trial; the signal keeps every hit
+        break
 
     for hit in status.get("task_protected_reads", []):
         alerts.append(
@@ -1231,7 +1123,7 @@ def integrity_alerts(status: dict[str, Any]) -> list[dict[str, Any]]:
                 },
             )
         )
-        break  # one alert per trial; the signal keeps every hit
+        break
 
     for hit in status.get("hidden_reads", []):
         alerts.append(
@@ -1330,14 +1222,10 @@ def integrity_alerts(status: dict[str, Any]) -> list[dict[str, Any]]:
                 },
             )
         )
-        break  # one alert per trial; the signal keeps every observed read
+        break
 
     corroborated = status.get("hidden_test_corroboration", [])
     for hit in status.get("hidden_test_reads", []):
-        # An OPEN proves the object was touched, not that answer content was
-        # read (5 false stops on opaque opens/listings): the alert needs a
-        # trajectory read of protected bytes. OPEN-only evidence stays in the
-        # status record; it never alerts.
         if not corroborated:
             break
         events = hit.get("events", [])
@@ -1366,7 +1254,7 @@ def integrity_alerts(status: dict[str, Any]) -> list[dict[str, Any]]:
                 },
             )
         )
-        break  # one alert per trial; the signal keeps every observed read
+        break
 
     for hit in status.get("harness_log_reads", []):
         alerts.append(
@@ -1387,7 +1275,6 @@ def integrity_alerts(status: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def evaluate_alerts(status: dict[str, Any], *, thresholds: WatchThresholds) -> list[dict[str, Any]]:
-    """Fire per-trial alerts for one signal record (pure function of status)."""
     alerts = integrity_alerts(status)
     job = status["job"]
     trial = status["trial"]
@@ -1569,7 +1456,6 @@ def _parse_time(value: Any) -> float | None:
 def evaluate_fleet_alerts(
     statuses: list[dict[str, Any]], *, thresholds: WatchThresholds, now: float
 ) -> list[dict[str, Any]]:
-    """Fire cross-trial fleet alerts (pure function of all statuses)."""
     alerts: list[dict[str, Any]] = []
 
     infra_times: list[float] = []
@@ -1828,13 +1714,6 @@ def run_watch(
     now: float | None = None,
     cache: dict[str, TrialScan] | None = None,
 ) -> dict[str, Any]:
-    """Single watch pass: scan trials, evaluate alerts, write outputs.
-
-    ``alerts.jsonl`` is append-only: alerts already recorded (by
-    ``(trial, rule)``) are not rewritten. Returns a summary dict with the
-    statuses, all open alerts, and the alerts added on this pass.
-
-    """
     limits = thresholds or WatchThresholds()
     moment = now if now is not None else time.time()
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -1849,7 +1728,6 @@ def run_watch(
         inputs = _trial_inputs(job_dir, trial_dir, hooks)
         cached = cache.get(key) if cache is not None else None
         if cached is not None and cached.inputs == inputs and cached.status:
-            # Same inputs, so the last activity is unchanged; only its age grows.
             aged = cached.status["minutes_since_update"] + (moment - cached.scanned_at) / 60.0
             statuses.append({**cached.status, "minutes_since_update": round(max(0.0, aged), 2)})
             continue
@@ -1857,8 +1735,6 @@ def run_watch(
             job_dir, trial_dir, thresholds=limits, from_config=from_config, now=moment, hooks=hooks
         )
         statuses.append(status)
-        # Without a trajectory, hook record, or file-access log there is no
-        # activity time to age, so rescan.
         fa_key = str(trial_dir / FILE_ACCESS_LOG)
         has_source = (
             inputs[0][1] is not None
@@ -1934,7 +1810,6 @@ def _watch_command(args: argparse.Namespace, root: Path, *, harbor: Any | None =
 
 
 def _resolve_watch_job(root: Path, job: str, runs_dirs: list[Path]) -> Path | None:
-    """Resolve a ``watch ack`` job name or path to a job directory."""
     raw = Path(job)
     if raw.is_absolute():
         return raw if raw.is_dir() else None
@@ -1952,7 +1827,6 @@ def _resolve_watch_job(root: Path, job: str, runs_dirs: list[Path]) -> Path | No
 
 
 def _ack_command(args: argparse.Namespace, root: Path, *, harbor: Any | None = None) -> int:
-    """Acknowledge one watch alert kind so it never fences dispatch (HAR-174)."""
     del harbor
     runs_dirs = [
         path if path.is_absolute() else (root / path).resolve() for path in (args.runs_dir or [])
@@ -1977,10 +1851,7 @@ def _ack_command(args: argparse.Namespace, root: Path, *, harbor: Any | None = N
     return 0
 
 
-
-
 def build_watch_parser(commands: argparse._SubParsersAction) -> None:
-    """Register the ``evallab watch`` subcommand (one self-contained block)."""
     watch = commands.add_parser("watch", help="Live-monitor in-progress Harbor trials")
     watch.add_argument(
         "--runs-dir",

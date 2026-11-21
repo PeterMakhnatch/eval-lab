@@ -1,24 +1,3 @@
-"""Provider-neutral agent profiles and credential preflight seams (M003).
-
-An AgentProfile is the immutable identity of one runnable agent
-configuration: Harbor adapter + exact model pin + auth mode + secret-source
-*identifier* (never the secret) + requirements, capabilities, resources, and
-limits, with a stable content digest.
-This module also owns credential availability for the doctor and executor.
-Probe results contain no credential values.
-
-Hard rules encoded here rather than remembered:
-
-- Subscription credentials remain the default. API-key profiles may name only
-  explicitly admitted provider environment sources.
-- Probes return availability, expiry, and reason only — no secret material —
-  and run through the same injected seams execution uses.
-- Qualification is a ladder of separate states (declared → installed →
-  credential-ready → smoke-passed → canary-qualified); nothing is assumed.
-- Auth failure is a *preflight stop*, never a trial that scores reward zero.
-- Only independently observed facts are recorded as verified.
-"""
-
 from __future__ import annotations
 
 import contextlib
@@ -60,7 +39,6 @@ from evallab.execution_contracts import (
     subscription_environment,
 )
 
-# API-key-style variables remain forbidden outside explicitly admitted sources.
 _FORBIDDEN_KEY_MARKERS = ("API_KEY", "API_TOKEN", "_SECRET", "ACCESS_KEY")
 DEEPSEEK_CREDENTIAL_NAMES = frozenset({"DEEPSEEK_API_KEY", "MSWEA_API_KEY"})
 ZAI_OPENAPI_CREDENTIAL_NAMES = frozenset({"ZAI_OPENAPI_API_KEY"})
@@ -119,7 +97,6 @@ class ProfileLimits(BaseModel):
 
 
 class AgentProfile(BaseModel):
-    """Immutable identity of one runnable agent configuration."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -154,7 +131,6 @@ class AgentProfile(BaseModel):
         effort: str | int | None = None,
         max_tokens: int | None = None,
     ) -> AgentProfile:
-        """Record explicit inference settings at request time."""
         settings = ProfileInferenceSettings(effort=effort, max_tokens=max_tokens)
         return self.model_copy(update={"inference_settings": settings})
 
@@ -165,7 +141,6 @@ class AgentProfile(BaseModel):
         effective_endpoint_base: str | None = None,
         provider_returned_model_id: str | None = None,
     ) -> AgentProfile:
-        """Record distinct identity fields on the profile."""
         updates: dict[str, Any] = {}
         if requested_selector is not None:
             updates["requested_selector"] = requested_selector
@@ -251,7 +226,6 @@ class AgentProfile(BaseModel):
         return self
 
     def canonical_json(self) -> str:
-        """Deterministic serialization: sorted keys, no whitespace variance."""
         return json.dumps(self.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
 
     @property
@@ -261,11 +235,6 @@ class AgentProfile(BaseModel):
 
 @dataclass(frozen=True)
 class ProbeResult:
-    """Outcome of a credential probe: availability, expiry, reason. Nothing else.
-
-    Deliberately not capable of carrying secret material: three typed fields,
-    no free-form payload.
-    """
 
     ok: bool
     expires_at: datetime | None = None
@@ -283,12 +252,6 @@ def _utc_now() -> datetime:
 
 @dataclass(frozen=True)
 class KeychainProbe:
-    """Probe a macOS keychain service for existence — exit status only.
-
-    The same injected runner/environment seams execution uses; the secret
-    value is never requested with ``-w`` into captured output, never parsed,
-    never returned.
-    """
 
     security_runner: SecurityRunner
     service: str
@@ -313,10 +276,6 @@ _EXPIRY_KEYS = ("expires_at", "expire_at", "expiry", "expires")
 
 @dataclass(frozen=True)
 class AuthFileProbe:
-    """Probe a subscription auth file. Reads structure for expiry only.
-
-    Token values are never returned, logged, or attached to the result.
-    """
 
     home: Path
     relative_path: str
@@ -354,11 +313,6 @@ class AuthFileProbe:
 
 @dataclass(frozen=True)
 class OpenCodeProviderAuthProbe:
-    """Check one provider entry in OpenCode's owner-only auth store.
-
-    Only provider identity and credential presence influence the result. Secret
-    values are never returned, logged, or attached to the readiness record.
-    """
 
     home: Path
     relative_path: str
@@ -388,7 +342,6 @@ class OpenCodeProviderAuthProbe:
 
 @dataclass(frozen=True)
 class EnvironmentPresenceProbe:
-    """Check admitted credential names for non-empty values without returning them."""
 
     environment: Mapping[str, str]
     names: tuple[str, ...]
@@ -416,19 +369,6 @@ def _parse_expiry(value: object) -> datetime | None:
 
 @dataclass(frozen=True)
 class CliSessionProbe:
-    """Ask a subscription CLI whether it currently holds a session.
-
-    Some subscription CLIs keep their credential in an opaque internal store
-    rather than a readable auth file or a keychain item — `cursor-agent` is the
-    case that forced this seam: `~/.cursor/` holds only UI config, no keychain
-    entry exists, and the only honest way to know whether the lane can run is to
-    ask the CLI. Probing a config file instead would report "available" while the
-    session was expired, which is worse than reporting nothing.
-
-    Structure only: the probe reads the command's **exit status** and matches its
-    stdout against an expected marker. It never captures, stores or forwards a
-    token, and the command it runs must never be one that prints a secret.
-    """
 
     argv: tuple[str, ...]
     expect: str
@@ -468,17 +408,8 @@ class CliSessionProbe:
 
 @dataclass(frozen=True)
 class GatewayStdioProbe:
-    """Ask ``omp auth-gateway stdio`` whether it starts, without spending quota.
-
-    The child prints one JSON line (``{"ready": true, ...}``) before reading
-    requests, so this probe spawns it, reads that line, and terminates it --
-    no request is ever sent, so no subscription allowance is consumed. It
-    never captures, stores or forwards a credential: OMP's login stays in
-    the operator context and only the ready flag is observed.
-    """
 
     argv: tuple[str, ...] = ("omp", "auth-gateway", "stdio")
-    # Same bound the bridge applies to the child's ready line (READY_TIMEOUT_SECONDS).
     timeout_seconds: float = 120.0
     runner: Callable[[Sequence[str], float], str | None] | None = None
 
@@ -531,7 +462,6 @@ class GatewayStdioProbe:
 
 @dataclass(frozen=True)
 class DeclaredUnavailableProbe:
-    """For providers with no independently observed working setup in this lab."""
 
     reason: str
 
@@ -541,11 +471,6 @@ class DeclaredUnavailableProbe:
 
 @dataclass(frozen=True)
 class PreflightDecision:
-    """Fail-closed dispatch decision, distinct from any trial outcome.
-
-    ``stop`` means the trial must not start; a stopped preflight can never be
-    recorded as reward zero because no trial exists to score.
-    """
 
     proceed: bool
     profile_digest: str
@@ -575,30 +500,16 @@ def preflight(profile: AgentProfile, probe: ProbeFn | None) -> PreflightDecision
     )
 
 
-
 _MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9./_-]*(?::[A-Za-z0-9][A-Za-z0-9._-]*)?$")
 
 
 def pinned_model(model: str | None) -> str | None:
-    """The profile pin a run's model selector inherits.
-
-    Fine-tuned weights selected on top of a pinned base inherit the base's
-    profile: an admitted self-hosted LoRA adapter selector
-    (``selfhosted/<native>:<adapter>``, ``MIMO_SELFHOSTED_ADAPTERS``) collapses
-    onto the self-hosted base selector. Anything else is its own pin.
-    """
     if model in MIMO_SELFHOSTED_MODEL_SELECTORS:
         return MIMO_SELFHOSTED_MODEL_SELECTOR
     return model
 
 
 def validate_model_pin(profile: AgentProfile, model: str | None) -> None:
-    """A run's model must match its profile's pin exactly (or inherit it).
-
-    A fine-tuned selector (Tinker checkpoint or admitted self-hosted LoRA
-    adapter) pins the same profile as its base model: the base determines
-    pricing, context, and credential; the suffix only selects sampled weights.
-    """
     if profile.model is None:
         if model is not None:
             raise ValueError(f"control profile {profile.profile_id} takes no model")
@@ -610,11 +521,6 @@ def validate_model_pin(profile: AgentProfile, model: str | None) -> None:
         )
     if not _MODEL_RE.fullmatch(profile.model):
         raise ValueError(f"malformed model pin {profile.model!r}")
-
-
-# ---------------------------------------------------------------------------
-# Built-in profiles: only observed facts are marked verified.
-# ---------------------------------------------------------------------------
 
 
 def builtin_profiles() -> dict[str, AgentProfile]:
@@ -660,7 +566,7 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                 model="anthropic/claude-fable-5",
                 auth_mode="subscription-keychain",
                 secret_source="keychain:harbor-practice-claude-oauth",
-                verified_facts=(),  # model string follows Harbor convention; unproven here
+                verified_facts=(),
             ),
             AgentProfile(
                 profile_id="claude-code-haiku-5-5",
@@ -668,7 +574,7 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                 model="anthropic/claude-haiku-5-5",
                 auth_mode="subscription-keychain",
                 secret_source="keychain:harbor-practice-claude-oauth",
-                verified_facts=(),  # cheapest Claude Code model; unproven here
+                verified_facts=(),
             ),
             AgentProfile(
                 profile_id="claude-code-gateway-haiku-5-5",
@@ -680,7 +586,7 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                     "credential-transport:host-loopback-proxy",
                     "billing:subscription-no-api-charge",
                 ),
-                verified_facts=(),  # gateway lane; unproven until the first trial
+                verified_facts=(),
             ),
             *(
                 AgentProfile(
@@ -693,7 +599,7 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                         "credential-transport:host-loopback-proxy",
                         "billing:subscription-no-api-charge",
                     ),
-                    verified_facts=(),  # same gateway lane as Haiku; unproven until a trial
+                    verified_facts=(),
                 )
                 for model in ("sonnet-5-5", "opus-5-5")
             ),
@@ -1072,10 +978,6 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                     "2026-09: self-hosted fine-tuned GLM checkpoint endpoint seam with mini-swe-agent added",
                 ),
             ),
-            # Cursor lane. Verified in this lab on 2026-08-19: `cursor-agent status`
-            # reported a live session and `cursor-agent -f -p …` returned the exact
-            # requested string, so this lane is observed working rather than declared.
-            # Peter's default is grok-4.6 **high**, explicitly not the -fast variant.
             AgentProfile(
                 profile_id="cursor-grok-4.6-high",
                 adapter="cursor-cli",
@@ -1128,11 +1030,6 @@ def builtin_profiles() -> dict[str, AgentProfile]:
     }
 
 
-#: Profiles that must not dispatch until a run in THIS lab proves them.
-#: claude-code is NOT here: its keychain probe is real (observed integration);
-#: what is unproven is its model string, which the qualification ladder
-#: expresses as "credential-ready but never smoke-passed".
-#: Retired built-in profiles remain refused if a caller supplies one explicitly.
 DECLARED_UNAVAILABLE: frozenset[str] = frozenset({"gemini-cli-declared", "grok-cli-declared"})
 
 
@@ -1145,7 +1042,6 @@ def default_probe_for(
     clock: Clock = _utc_now,
     environment: Mapping[str, str] | None = None,
 ) -> ProbeFn | None:
-    """Wire the standard probe for a profile through injected seams only."""
     if profile.auth_mode == "none":
         return None
     if profile.profile_id in DECLARED_UNAVAILABLE and not profile.verified_facts:
@@ -1203,8 +1099,6 @@ MIMO_SELFHOSTED_API_CREDENTIAL = "mimo_selfhosted_api_environment"
 BREAKER_SELFHOSTED_API_CREDENTIAL = "breaker_selfhosted_api_environment"
 OPENROUTER_API_CREDENTIAL = "openrouter_api_environment"
 GLM_SELFHOSTED_API_CREDENTIAL = "glm_selfhosted_api_environment"
-# Agents whose runs require a credential. Control agents (oracle, nop) are
-# deliberately absent: they must run with no credential at all.
 AGENT_CREDENTIAL_REQUIREMENTS: dict[str | tuple[str, str], str] = {
     "claude-code": CLAUDE_OAUTH,
     ("claude-code", "claude-gateway/claude-haiku-5-5"): CLAUDE_GATEWAY,
@@ -1235,10 +1129,6 @@ _OPENROUTER_TERMINUS_PROFILE = _PROFILES["terminus-2-openrouter-mimo-v2-6-flash"
 
 
 def _security_exit_status(args: list[str]) -> int:
-    """Run /usr/bin/security for existence only; output is discarded unread.
-
-    The ``-w`` flag (print the secret) is deliberately not used anywhere.
-    """
     completed = subprocess.run(
         ["/usr/bin/security", *args],
         stdin=subprocess.DEVNULL,
@@ -1290,13 +1180,6 @@ def probe_cursor_session() -> bool:
 
 
 def probe_cursor_session_result() -> ProbeResult:
-    """Ask `cursor-agent` whether it holds a session.
-
-    Cursor keeps its credential in an opaque internal store: `~/.cursor/` holds
-    only UI config and no keychain item exists, so a file probe would report
-    "available" while the session was actually expired. Asking the CLI is the
-    only honest check. Exit status and a stdout marker only — never a token.
-    """
     probe = CliSessionProbe(argv=("cursor-agent", "status"), expect="logged in")
     try:
         return probe(_CURSOR_PROFILE)
@@ -1346,7 +1229,6 @@ def probe_glm_selfhosted_api_result(
     return probe(_GLM_SELFHOSTED_BASE_PROFILE)
 
 
-
 def probe_mimo_selfhosted_api() -> bool:
     return probe_mimo_selfhosted_api_result().ok
 
@@ -1354,7 +1236,6 @@ def probe_mimo_selfhosted_api() -> bool:
 def probe_mimo_selfhosted_api_result(
     environment: Mapping[str, str] | None = None,
 ) -> ProbeResult:
-    """Require both the SGLang api-key value and the pinned Modal upstream."""
     source = os.environ if environment is None else environment
     if source.get("MIMO_SELFHOSTED_API_KEY") and source.get("EVALLAB_MIMO_SELFHOSTED_UPSTREAM"):
         return ProbeResult(ok=True)
@@ -1368,7 +1249,6 @@ def probe_mimo_selfhosted_api_result(
 def probe_breaker_selfhosted_api_result(
     environment: Mapping[str, str] | None = None,
 ) -> ProbeResult:
-    """Configuration presence only; never warm or bill the GPU during discovery."""
     source = os.environ if environment is None else environment
     if source.get(BREAKER_SELFHOSTED_KEY_ENV) and source.get(BREAKER_SELFHOSTED_UPSTREAM_ENV):
         return ProbeResult(ok=True)
@@ -1432,7 +1312,6 @@ def available_credentials(home: Path | None = None) -> frozenset[str]:
 def missing_credential_for(
     agent: str, available: frozenset[str], model: str | None = None
 ) -> str | None:
-    """Name the credential *agent* needs but which is not available, if any."""
     if model is not None:
         required = AGENT_CREDENTIAL_REQUIREMENTS.get((agent, model))
         if required is not None:
@@ -1467,14 +1346,6 @@ def missing_credential_for(
     return required
 
 
-# Default model per agent, derived from the profile registry (single source of
-# truth). The codex pin is proven (2026-08-06 harbor-practice run); the
-# claude-code pin follows Harbor's convention but is unverified until a smoke
-# run passes — pin models explicitly in specs for comparisons.
-#: The profile that supplies each adapter's default model. Explicit rather than
-#: "last profile wins": several profiles share the `cursor-cli` adapter, so a
-#: comprehension over the registry would let iteration order pick the default —
-#: which silently chose Gemini over Peter's stated grok-4.6 default once already.
 DEFAULT_PROFILE_FOR_ADAPTER: dict[str | tuple[str, str], str] = {
     "codex": "codex-gpt-5.6-terra",
     "claude-code": "claude-code-fable-5",

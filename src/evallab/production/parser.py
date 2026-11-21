@@ -1,4 +1,3 @@
-"""Production CLI declarations without database or detector imports."""
 from __future__ import annotations
 
 import argparse
@@ -50,7 +49,6 @@ def _plan(args: argparse.Namespace, root: Path, **kwargs: Any) -> int:
 
 
 def _queue_options(parser: argparse.ArgumentParser) -> None:
-    # Suppressed child defaults preserve options supplied before the subcommand.
     parser.add_argument(
         "--repo-root", type=Path, default=argparse.SUPPRESS,
         help="Corpus/source root (default: the current Eval Lab workspace)",
@@ -58,7 +56,6 @@ def _queue_options(parser: argparse.ArgumentParser) -> None:
 
 
 def register_production_parser(commands: Any) -> None:
-    """Register deterministically without opening databases, brokers, or models."""
     production = commands.add_parser(
         "prod", help="Export admitted DEV evidence",
         description=(
@@ -145,7 +142,6 @@ def register_production_parser(commands: Any) -> None:
 
 
 def register_run_health_parser(commands: Any) -> None:
-    """``evallab run-health``; registration opens no database."""
     parser = commands.add_parser(
         "run-health", help="Run Health: deterministic loop/runaway/latency/infra features and findings",
     )

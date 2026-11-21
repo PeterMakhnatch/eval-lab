@@ -1,5 +1,3 @@
-"""MiMo task identity and page-name plugin helpers."""
-
 from __future__ import annotations
 
 import re
@@ -10,7 +8,6 @@ _TASK_PREFIXES = (f"{DATASET_ID}/", f"{DATASET_ID}__")
 
 
 def recognizes_task(task_id: str) -> bool:
-    """Recognize the leaf or either exact native MiMo namespace spelling."""
     for prefix in _TASK_PREFIXES:
         if task_id.startswith(prefix):
             task_id = task_id.removeprefix(prefix)

@@ -1,11 +1,3 @@
-"""Static checks for task dependency pins and verifier network access.
-
-`task_lint` owns the package rules. This module owns four dependency-drift
-rules: an install that will drift after authoring, an install that runs while
-grading, a verifier network download without a checksum, and an install from an
-agent-written dependency list. All screen source text; none executes a task file.
-"""
-
 from __future__ import annotations
 
 import json
@@ -20,11 +12,6 @@ if TYPE_CHECKING:
     from evallab.task_lint import Finding
 
 
-# Imported benchmark packages keep their upstream bytes, and this repository
-# must not edit a registered task in place. Each entry names the package, the
-# task-relative file, and the requirement that stays floating there. Naming the
-# drift keeps the scan scope honest instead of narrowing the scan to hide it;
-# tests/test_task_install_lint.py pins the entry and the library warning set.
 _FROZEN_UNPINNED: dict[tuple[str, str], frozenset[str]] = {
     ("tau3-retail-1", "environment/runtime-server/Dockerfile"): frozenset(
         {"fastmcp>=3.0"}
@@ -62,7 +49,6 @@ _ARTIFACT_SUBSTITUTION = re.compile(
 
 
 def _option_end(tokens: list[str], index: int) -> int:
-    """Return the index of the first token after the leading option list."""
     while index < len(tokens):
         token = tokens[index]
         if token == "--":
@@ -125,7 +111,6 @@ def _install_specs(arguments: list[str], *, uvx: bool) -> list[str]:
     specs: list[str] = []
     index = 0
     options = True
-    # `uv tool install --from SPEC command` installs SPEC; the operand is a name.
     skip_command = False
     while index < len(arguments):
         argument = arguments[index]
@@ -173,7 +158,6 @@ def _install_tokens(line: str, *, dockerfile: bool) -> list[str]:
         if instruction is None:
             return []
         line = instruction[1].strip()
-        # Docker RUN flags such as `--mount=type=cache` precede the command.
         parts = line.split(None, 1)
         while parts and parts[0].startswith("--"):
             line = parts[1] if len(parts) > 1 else ""
@@ -194,16 +178,13 @@ def _is_dockerfile(path: Path) -> bool:
 
 
 def _download_command(command: list[str]) -> bool:
-    """True when one command clones a repository or fetches a URL operand."""
     head = PurePosixPath(command[0]).name
     if head in {"curl", "wget"}:
-        # An option-only command such as `curl --version` downloads nothing.
         return any(not token.startswith("-") for token in command[1:])
     return head == "git" and "clone" in command[1:]
 
 
 def _checksum_command(command: list[str]) -> bool:
-    """True when one command verifies bytes with a sha256 check file."""
     head = PurePosixPath(command[0]).name
     arguments = command[1:]
     if not any(token in {"-c", "--check"} for token in arguments):
@@ -212,7 +193,6 @@ def _checksum_command(command: list[str]) -> bool:
         return True
     if head != "shasum":
         return False
-    # `shasum` defaults to sha1, so a 256 bit algorithm must be explicit.
     for index, token in enumerate(arguments):
         if token in {"-a256", "--algorithm=256"}:
             return True
@@ -222,7 +202,6 @@ def _checksum_command(command: list[str]) -> bool:
 
 
 def _task_sources(task_dir: Path) -> list[Path]:
-    """Return every Dockerfile and shell file the package builds or runs."""
     sources = [
         path
         for path in task_dir.rglob("*")
@@ -232,7 +211,6 @@ def _task_sources(task_dir: Path) -> list[Path]:
 
 
 def _python_install_inputs(arguments: list[str]) -> Iterator[str]:
-    """Yield requirement files and positional operands, not other option values."""
     index = 0
     options = True
     while index < len(arguments):
@@ -253,7 +231,6 @@ def _python_install_inputs(arguments: list[str]) -> Iterator[str]:
 
 
 def _xargs_inputs(command: list[str]) -> tuple[list[str], list[str]]:
-    """Return xargs input files and the command after its leading options."""
     files: list[str] = []
     index = 1
     while index < len(command):
@@ -301,7 +278,6 @@ def _agent_dependency_artifacts(
         for match in _ARTIFACT_SUBSTITUTION.finditer(line):
             value = match.group("dollar") or match.group("backtick")
             references.append(value[1:-1] if value.startswith(("'", '"')) else value)
-    # Token matching and raw substitutions share one source-order deduplication.
     return sorted(
         dict.fromkeys(reference for reference in references if reference in artifacts),
         key=line.find,
@@ -309,8 +285,6 @@ def _agent_dependency_artifacts(
 
 
 def lint_installs(task_dir: Path, artifacts: Sequence[str] = ()) -> list[Finding]:
-    """Screen dependency drift and verifier network access without executing them."""
-    # Imported here: task_lint imports this module while it loads.
     from evallab.task_lint import Finding
 
     findings: list[Finding] = []
@@ -362,8 +336,6 @@ def lint_installs(task_dir: Path, artifacts: Sequence[str] = ()) -> list[Finding
                     runtime_install |= bool(following) and PurePosixPath(
                         following[0]
                     ).name in {"sh", "bash", "zsh", "dash", "ksh"}
-            # A Dockerfile RUN must carry its own check; a shell script may
-            # verify the bytes anywhere in the file.
             if download and not (dockerfile and checksum):
                 network_download_line = network_download_line or number
             if not dockerfile:

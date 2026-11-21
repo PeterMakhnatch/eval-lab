@@ -1,5 +1,3 @@
-"""Laminar trace identity and Signals configuration."""
-
 from __future__ import annotations
 
 import hashlib
@@ -22,17 +20,14 @@ LAMINAR_ENDPOINT_ENV = "EVALLAB_LAMINAR_ENDPOINT"
 
 
 def trial_trace_id(trial_name: str) -> str:
-    """32-hex OTel trace id for a trial, stable across passes and replays."""
     return hashlib.sha256(f"evallab-trial:{trial_name}".encode()).hexdigest()[:32]
 
 
 def laminar_trace_uuid(trial_name: str) -> str:
-    """The trial's trace id as Laminar stores it (``traces.id`` / ``trace_id`` UUID)."""
     return str(uuid.UUID(hex=trial_trace_id(trial_name)))
 
 
 def _sdk_trace_reference(trial_dir: Path) -> tuple[str | None, str | None] | None:
-    """None means no SDK marker; unknown SDK identity never becomes a projection."""
     try:
         raw = (trial_dir / "laminar-trace.json").read_text(encoding="utf-8")
     except FileNotFoundError:
@@ -59,24 +54,18 @@ def _trial_cloud_trace_uuid(trial_dir: Path) -> str | None:
     return reference[0] if reference is not None else laminar_trace_uuid(trial_dir.name)
 
 
-# ---------------------------------------------------------------- Signals as code
-
 _JUDGE_ONLY_TRACE = (
     " Judge only from what the agent did and saw in this trace; ignore trace metadata such as"
     " rewards or job names."
 )
 
-#: Explicit opt-in tag. Bulk trace-store exports never set it; a caller adds it
-#: to a trace's root span only for a deliberate, separately authorized Signals run.
 SIGNAL_OPT_IN_TAG = "evallab.signals=on"
-#: Trace-association attribute Laminar lifts into the trace's tag set.
 SIGNAL_OPT_IN_FILTER = {
     "column": "tags",
     "operator": "includes",
     "value": [SIGNAL_OPT_IN_TAG],
 }
 
-#: The four HAR-166 Signals. ``evallab laminar signals apply`` creates or updates them by name.
 SIGNALS: tuple[dict[str, Any], ...] = (
     {
         "name": "copied_upstream_fix",
@@ -219,7 +208,6 @@ def _json_call(
     return json.loads(raw) if raw else None
 
 
-#: BYOK route for Signals on Laminar Cloud: Z.ai's OpenAI-compatible pay-as-you-go endpoint.
 ZAI_PROFILE_NAME = "evallab-zai"
 ZAI_BASE_URL = "https://api.z.ai/api/paas/v4"
 ZAI_SIGNAL_MODEL = "glm-5.3-flash"
@@ -229,7 +217,6 @@ ZAI_KEY_ENV = "ZAI_OPENAPI_API_KEY"
 def ensure_zai_profile(
     *, api_key: str, zai_key: str, endpoint: str = LAMINAR_ENDPOINT, opener: Callable[..., Any] = urlopen
 ) -> str:
-    """Id of the workspace LLM profile that routes Signals to Z.ai, creating it once."""
     call = {"api_key": api_key, "endpoint": endpoint, "opener": opener}
     profiles = (_json_call("GET", "/v1/llm-profiles", **call) or {}).get("llmProfiles", [])
     found = next((p for p in profiles if p.get("name") == ZAI_PROFILE_NAME), None)
@@ -258,10 +245,6 @@ def apply_signals(
     llm_profile_id: str | None = None,
     model: str = ZAI_SIGNAL_MODEL,
 ) -> list[dict[str, Any]]:
-    """Create or update each of :data:`SIGNALS` by exact name; returns the server's Signals.
-
-    Laminar Cloud creates API Signals only with an LLM profile (``llm_profile_id``).
-    """
     assert_not_signal_selectable(
         lambda query, parameters: _sql(
             query, parameters, api_key=api_key, endpoint=endpoint, opener=opener
@@ -274,7 +257,6 @@ def apply_signals(
     applied = []
     for definition in SIGNALS:
         schema = definition["structuredOutput"]
-        # The API rejects a schema without ``required`` (docs say it is auto-filled; it is not).
         output = {**schema, "required": list(schema["properties"])}
         body = {**_SIGNAL_DEFAULTS, **definition, "structuredOutput": output, **route}
         current = existing.get(definition["name"])
@@ -310,7 +292,6 @@ def _sql(query: str, parameters: dict[str, Any], **call: Any) -> list[dict[str, 
     return list((data or {}).get("data") or [])
 
 
-
 def _laminar_command(args: Any, root: Path, *, harbor: Any | None = None) -> int:
     del harbor
     import sys
@@ -330,7 +311,6 @@ def _laminar_command(args: Any, root: Path, *, harbor: Any | None = None) -> int
             profile = ensure_zai_profile(api_key=key, zai_key=zai_key, endpoint=endpoint)
         applied = apply_signals(api_key=key, endpoint=endpoint, llm_profile_id=profile)
     except RuntimeError as exc:
-        # Without --byok-zai, Laminar Cloud only accepts patches to Signals made in the UI.
         print(f"laminar: {exc}", file=sys.stderr)
         return 1
     for signal in applied:

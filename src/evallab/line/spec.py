@@ -1,5 +1,3 @@
-"""DEV-only line specifications; paid execution is never implicit."""
-
 from __future__ import annotations
 
 import math
@@ -14,12 +12,10 @@ from evallab.line.io import file_keys, read_json
 
 
 def _refuse_final_link(spelled: Path) -> None:
-    """A declared input that is itself a symlink is refused BEFORE the path is resolved:
-    ``check_dev_path_allowed`` resolves it, which would hand the no-follow reader the target."""
     try:
         mode = os.lstat(spelled).st_mode
     except OSError:
-        return  # absent: the reader reports it
+        return
     if stat.S_ISLNK(mode):
         raise ValueError(f"declared input is a symlink: {spelled}")
 
@@ -75,8 +71,6 @@ def load_spec(path: Path) -> dict[str, Any]:
         )
     if explicit_action is not None and policy.get("weak", explicit_action) != explicit_action:
         raise ValueError("task_action and task_policy.weak disagree; set only one")
-    # Keep the optional legacy alias absent when the policy supplies weak's action.
-    # Inserting a default alias would turn a valid policy into a conflict on reload.
     if "weak" not in policy:
         spec.setdefault("task_action", "review")
     policy.setdefault("weak", spec.get("task_action", "review"))
@@ -164,7 +158,6 @@ def load_spec(path: Path) -> dict[str, Any]:
     if not isinstance(judge, dict) or not isinstance(judge.get("write"), bool):
         raise ValueError("judge needs queue and boolean write")
     judge["queue"] = absolute(judge.get("queue"))
-    # Optional Station export override; otherwise use the Station's canonical state.
     if judge.get("verdicts"):
         judge["verdicts"] = absolute(judge["verdicts"])
     policy_section = spec.get("labels_policy")
@@ -179,12 +172,6 @@ def load_spec(path: Path) -> dict[str, Any]:
 
 
 def _refuse_shared_files(spec: dict[str, Any]) -> None:
-    """No two declared inputs of different kinds may be one file (hard link, case variant).
-
-    A labels file that is also the task-status file, a manifest or a cache would feed answers to
-    a decision stage. Repeating one file within a kind (a labels file shared by two sources) is
-    fine.
-    """
     from evallab.production.judge_station import STATE_DIR
 
     kinds: dict[str, list[str]] = {

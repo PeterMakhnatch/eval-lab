@@ -1,7 +1,3 @@
-"""Native statistics and full-cohort missingness accounting.
-
-No detector, threshold fitting on score rows, or inference belongs here.
-"""
 from __future__ import annotations
 
 import importlib.util
@@ -14,11 +10,10 @@ from functools import cache
 from pathlib import Path
 from typing import Any
 
-Row = tuple[str, int, float]  # (cluster, label, score)
+Row = tuple[str, int, float]
 INF = float("inf")
 
 
-# ----------------------------------------------------------------------------- statistics
 def wilson(k: int, n: int, z: float = 1.959964) -> tuple[float | None, float | None]:
     if n <= 0:
         return (None, None)
@@ -30,7 +25,6 @@ def wilson(k: int, n: int, z: float = 1.959964) -> tuple[float | None, float | N
 
 
 def auroc(rows: Sequence[Row]) -> float | None:
-    """Mann-Whitney AUROC with ties counted 0.5; None when a class is missing."""
     pos = [s for _, y, s in rows if y == 1]
     neg = [s for _, y, s in rows if y == 0]
     if not pos or not neg:
@@ -43,7 +37,7 @@ def auroc(rows: Sequence[Row]) -> float | None:
         j = i
         while j + 1 < n and scored[j + 1][0] == scored[i][0]:
             j += 1
-        avg_rank = (i + j) / 2 + 1  # 1-based average rank of the tie block
+        avg_rank = (i + j) / 2 + 1
         rank_sum += avg_rank * sum(1 for k in range(i, j + 1) if scored[k][1] == 1)
         i = j + 1
     n_pos, n_neg = len(pos), len(neg)
@@ -106,7 +100,6 @@ def _auroc_from_blocks(blocks: Sequence[Block], w: Sequence[int]) -> float | Non
 
 
 def bootstrap_auroc(rows: Sequence[Row], b: int, seed: int) -> tuple[float | None, float | None]:
-    """Cluster bootstrap 95% CI of AUROC (percentile)."""
     groups = _by_cluster(rows)
     keys = list(groups)
     if len(keys) < 2 or auroc(rows) is None:
@@ -132,7 +125,6 @@ def bootstrap_auroc(rows: Sequence[Row], b: int, seed: int) -> tuple[float | Non
 def bootstrap_auroc_diff(
     rows_a: Mapping[str, Row], rows_b: Mapping[str, Row], b: int, seed: int
 ) -> tuple[float | None, float | None, float | None]:
-    """Paired cluster bootstrap of AUROC(a) - AUROC(b) over the run_keys both cover."""
     common = sorted(set(rows_a) & set(rows_b))
     if not common:
         return (None, None, None)
@@ -163,7 +155,6 @@ def bootstrap_auroc_diff(
 
 
 def choose_threshold(dev_rows: Sequence[Row], target_fpr: float) -> float:
-    """Highest-recall threshold whose FPR on the DEV negatives is <= target; +inf if none."""
     neg = sorted((s for _, y, s in dev_rows if y == 0), reverse=True)
     pos = [s for _, y, s in dev_rows if y == 1]
     if not neg:
@@ -180,7 +171,6 @@ def choose_threshold(dev_rows: Sequence[Row], target_fpr: float) -> float:
 
 
 def rates_at(rows: Sequence[Row], t: float, abstained_neg: int = 0, abstained_pos: int = 0) -> dict[str, Any]:
-    """Recall and FPR at threshold t; abstained rows count as not flagged."""
     tp = sum(1 for _, y, s in rows if y == 1 and s >= t)
     fp = sum(1 for _, y, s in rows if y == 0 and s >= t)
     n_pos = sum(1 for _, y, _ in rows if y == 1) + abstained_pos
@@ -209,7 +199,6 @@ def rates_at(rows: Sequence[Row], t: float, abstained_neg: int = 0, abstained_po
 
 @cache
 def retained(name: str) -> Any:
-    """Import source-native view and paired-row definitions until their callers migrate."""
     directory = Path(__file__).resolve().parents[3] / "research/experiments/ov1104-detbench"
     path = directory / f"{name}.py"
     spec = importlib.util.spec_from_file_location(f"evallab_score_retained_{name}", path)
@@ -242,7 +231,6 @@ def threshold(value: float | str | None) -> float | None:
 
 
 def binary_rows(runs: dict[str, dict]) -> dict[str, dict]:
-    """Null, attempted, and unjudged states never become controls."""
     return {key: row for key, row in runs.items() if type(row.get("label")) is int and row["label"] in (0, 1)}
 
 
@@ -256,7 +244,6 @@ def _interval(values: list[float], draws: int) -> dict[str, Any]:
 
 def clustered_rates(runs: dict[str, dict], flags: dict[str, bool], *, draws: int, seed: int,
                     other: dict[str, bool] | None = None) -> dict[str, dict]:
-    """Resample task families; missing predictions contribute no flag, not no row."""
     groups: dict[str, list[int]] = defaultdict(lambda: [0, 0, 0, 0, 0, 0])
     for key, row in runs.items():
         y = row["label"]
@@ -273,7 +260,6 @@ def clustered_rates(runs: dict[str, dict], flags: dict[str, bool], *, draws: int
 
 
 def clustered_count_rates(groups: dict[str, list[tuple[int, int]]], *, draws: int, seed: int) -> list[dict]:
-    """Bootstrap task-level numerator/denominator counts, including paired differences."""
     clusters = list(groups.values())
     count = len(clusters[0]) if clusters else 0
     samples: list[list[float]] = [[] for _ in range(count)]
@@ -335,7 +321,6 @@ def measure(runs: dict[str, dict], predictions: dict[str, dict], thresholds: dic
 
 def paired(runs: dict[str, dict], predictions: dict[str, dict], baseline: str,
            thresholds: dict, baseline_thresholds: dict, *, draws: int, seed: int) -> dict:
-    """Both methods use exactly one shared set, including all paired denominators."""
     field = {"characters": "n_chars", "steps": "n_steps"}[baseline]
     matched, _ = retained("length_metrics").prepare_rows(binary_rows(runs), predictions)
     selected = {row.run_key: runs[row.run_key] for row in matched}

@@ -1,4 +1,3 @@
-"""Count the admitted seed without opening trajectory payloads."""
 from collections import Counter
 from typing import Any
 

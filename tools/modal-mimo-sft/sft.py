@@ -50,15 +50,12 @@ from typing import Any
 import modal
 
 MODEL_ID = "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B"
-# Hugging Face commit of the release weights (2026-09-22); same pin as serve.
 MODEL_REVISION = "2367e865d009c13ac81713a2878291d33ab28177"
 APP_NAME = "evallab-mimo-v26-9b-sft"
 
 EXPORT_CONTRACT = "evallab.sft_terminus/1"
 CONVERSATIONS_FILE = "conversations.jsonl"
 MANIFEST_FILE = "manifest.json"
-# `tool` is the template's own role for tool results (mimoagent rows); its turns never
-# carry loss, and render_and_mask still verifies every prefix and mask.
 ALLOWED_ROLES = frozenset({"system", "user", "assistant", "tool"})
 
 WEIGHTS_VOLUME = "evallab-mimo-v26-9b-weights"
@@ -67,34 +64,13 @@ WEIGHTS_MOUNT = "/weights"
 SFT_MOUNT = "/sft"
 BASE_DIR = f"{WEIGHTS_MOUNT}/{MODEL_ID}/{MODEL_REVISION}"
 
-# Modal A100-80GB time rate, identical to the HAR-90 serve container shape
-# (1x A100-80GB, 4 CPU, 16 GiB): $2.4984 + $0.18864 + $0.127872 per hour.
-# Source: modal.com/pricing via src/evallab/execution_contracts.py
-# MIMO_SELFHOSTED_SERVER_USD_PER_HOUR (2026-09-28).
 MODAL_USD_PER_HOUR = 2.814912
-# Measured throughput for the time estimate (HAR-129 dry run, 2026-10-01):
-# one step over 3 Terminus segments, 143,829 sequence tokens (longest
-# 51,700), took 256.9 s on one A100-80GB with fla kernels, gradient
-# checkpointing and the chunked selected-token loss. Every token of a sample
-# costs a forward and backward, so the estimate counts sequence tokens, not
-# trained tokens. Shorter samples run faster per token.
 MEASURED_TRAIN_THROUGHPUT_TOK_S = 560.0
 
-# Training per-row ceiling, independent of the served context. Raising the
-# serving window does not qualify longer training sequences.
 DEFAULT_MAX_LENGTH = 65536
-# Trained positions per lm_head chunk in the selected-token loss: 4096 x
-# 248320 fp32 logits is about 4 GiB, recomputed in backward.
 LOSS_CHUNK_TOKENS = 4096
-# A row longer than max_length is refused with its label, never truncated:
-# a cut row would train on a partial target. Recorded in every receipt.
 LENGTH_POLICY = "refuse rows longer than max_length; never truncate"
 
-# PEFT LoRA targets restricted to modules SGLang v0.5.20 serves for qwen3_5:
-# SUPPORTED_LORA_TARGET_MODULES (python/sglang/srt/utils/common.py) mapped
-# through Qwen3_5ForCausalLM.packed_modules_mapping onto qkv_proj/o_proj/
-# gate_up_proj/down_proj. Linear-attention in_proj_qkvz/out_proj are left
-# out of the default (see README.md).
 DEFAULT_LORA_TARGET_MODULES = [
     "q_proj",
     "k_proj",
@@ -118,17 +94,6 @@ DEFAULTS = {
     "seed": 42,
 }
 
-# Exact GPU-dep pins for the Modal training image. transformers==5.12.1 is
-# the version stamped in the model's own config.json ("transformers_version")
-# and ships src/transformers/models/qwen3_5/modeling_qwen3_5.py (verified at
-# tag v5.12.1); trl==1.14.0 requires transformers>=4.56.2 and natively folds
-# an `assistant_masks` dataset column into labels. All versions verified
-# present on PyPI 2026-09-29. flash-linear-attention / fla-core 0.5.2 (pure
-# Triton wheels, PyPI 2026-07-27) give transformers the fused gated-delta-rule
-# kernels for the 24 linear-attention layers; without them it falls back to
-# a slow torch loop. tokenizers and jinja2 match this project's uv.lock (the
-# qualified G3 reader), and train_remote refuses to start if the GPU image's
-# render stack differs from the stack that ran the dry run.
 TRAIN_IMAGE_PACKAGES = [
     "torch==2.14.0",
     "transformers==5.12.1",
@@ -148,11 +113,6 @@ _THINK_PREFIX_RE = re.compile(r"\A<think>\n(.*?)\n</think>(?:\n\n|\n)?(.*)\Z", r
 
 class SftError(Exception):
     """Loud failure: broken contract, broken mask invariant, or bad data."""
-
-
-# ---------------------------------------------------------------------------
-# Export verification (mirrors src/evallab/sft_tinker.py verify/load shape)
-# ---------------------------------------------------------------------------
 
 
 def _sha256_file(path: Path) -> str:
@@ -276,11 +236,6 @@ def verify_export(data_dir: Path) -> Export:
     )
 
 
-# ---------------------------------------------------------------------------
-# Rendering + assistant-only masks (shared by dry-run and Modal training)
-# ---------------------------------------------------------------------------
-
-
 def split_think_prefix(content: str) -> tuple[str | None, str]:
     """Split a leading ``<think>...</think>`` block (export reasoning policy).
 
@@ -345,7 +300,7 @@ def get_tokenizer(tokenizer_dir: str | None = None) -> Any:
 @dataclass
 class Rendered:
     input_ids: list[int]
-    mask: list[int]  # 1 = assistant-generated (trained), 0 = masked (-100)
+    mask: list[int]
     assistant_turns: int
 
     @property
@@ -410,7 +365,6 @@ def render_and_mask(
             raise SftError(f"{label}: completion falls outside the template's assistant mask")
         mask = [int(pos >= start) for pos in range(len(ids))]
     else:
-        # Verified prefix property + cross-check against the template markers.
         derived = [0] * len(ids)
         previous = 0
         for end in range(1, len(tmpl) + 1):
@@ -646,10 +600,6 @@ def build_receipt(
     return receipt
 
 
-# ---------------------------------------------------------------------------
-# Modal app (nothing here executes until train/merge pass --confirm-spend)
-# ---------------------------------------------------------------------------
-
 train_image = modal.Image.debian_slim(python_version="3.12").pip_install(*TRAIN_IMAGE_PACKAGES)
 weights_volume = modal.Volume.from_name(WEIGHTS_VOLUME, create_if_missing=True)
 sft_volume = modal.Volume.from_name(SFT_VOLUME, create_if_missing=True)
@@ -753,7 +703,6 @@ def build_trainer(
         processing_class=tokenizer,
         peft_config=peft_config,
     )
-    # compute_loss already divides by the accumulated token count.
     trainer.model_accepts_loss_kwargs = True
     return trainer
 
@@ -878,8 +827,6 @@ def train_remote(export_rel: str, run_name: str, config: dict[str, Any]) -> dict
         trust_remote_code=False,
         output_loading_info=True,
     )
-    # The checkpoint is the multimodal Qwen3_5ForConditionalGeneration; the
-    # text-only class must find every one of its own weights in it.
     if loading.get("missing_keys"):
         raise RuntimeError(f"base weights missing for {sorted(loading['missing_keys'])[:5]}")
     model.config.use_cache = False
@@ -927,8 +874,6 @@ def train_remote(export_rel: str, run_name: str, config: dict[str, Any]) -> dict
         },
         "log_history": trainer.state.log_history,
     }
-    # Plain JSON both on the volume and over the wire: log_history can hold
-    # tensors, which the CPU-only local client cannot unpickle.
     receipt = json.loads(json.dumps(receipt, default=float))
     (out_dir / "receipt.json").write_text(json.dumps(receipt, indent=2, sort_keys=True))
     sft_volume.commit()
@@ -981,14 +926,7 @@ def merge_remote(adapter_rel: str, merged_rel: str) -> dict[str, Any]:
     }
 
 
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
-
-
 def _upload_export(data_dir: Path, dest_rel: str) -> None:
-    # The destination is named by the manifest digest, so a re-upload writes
-    # the same bytes.
     volume = modal.Volume.from_name(SFT_VOLUME, create_if_missing=True)
     with volume.batch_upload(force=True) as batch:
         batch.put_directory(str(data_dir), dest_rel)

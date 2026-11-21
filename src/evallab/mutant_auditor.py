@@ -1,27 +1,3 @@
-"""STING-style reference-patch semantic mutation auditing.
-
-A grader that accepts the reference patch proves little on its own: the hidden
-tests may pin only the one behaviour its author happened to check. This module
-takes the reference patch of a task, locates the Python lines it *adds*, and
-derives small semantic mutants of that code (a dropped guard, a flipped
-boundary, an omitted keyword argument, ...). Each mutant is then run through the
-task's own grader with the reference patch applied first; a mutant that still
-scores ``reward == 1.0`` is a container-executed proof that the grader does not
-pin that behaviour ("surviving mutant", as in STING / SWE-ABS).
-
-Deterministic by construction: no model is involved, candidate order is fixed,
-and every mutant is checked to parse and to differ from the reference at the
-AST level (never a syntax error, never a whitespace-only no-op). Mutants are
-restricted to added lines of the reference patch so each one targets the
-behaviour the task asks for, not unrelated repository code.
-
-Execution happens through the Modal shortcut channel (``ModalBackend``), one
-sandbox per cell: a probe cell applies the reference patch and dumps the
-post-patch sources (also the reference control: the original grader must award
-1.0), then one cell per mutant writes the mutated file over the patched tree.
-Cells are consumed by their ``result.json`` marker and never rerun.
-"""
-
 from __future__ import annotations
 
 import ast
@@ -44,7 +20,6 @@ from evallab.modal_cells import (
     modal_cell_runner,
 )
 
-#: Fixed operator priority; the first mutants of a task come from distinct operators in this order.
 MUTATOR_ORDER: tuple[str, ...] = (
     "boundary_flip",
     "equality_flip",
@@ -59,7 +34,6 @@ DEFAULT_MUTANTS = 3
 APPLIED_MARKER = "MUTANT_APPLIED"
 PROBE_MARKER = "MUTANT_PROBE"
 PROBE_DONE_MARKER = "MUTANT_PROBE_DONE"
-#: Pricing constants re-exported from modal_cells
 
 _COMPARE_FLIPS: dict[type[ast.cmpop], tuple[str, str, str]] = {
     ast.Lt: ("boundary_flip", "<", "<="),
@@ -77,11 +51,7 @@ def sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
 
-# --------------------------------------------------------------------------- patch geometry
-
-
 def added_lines(patch: str) -> dict[str, set[int]]:
-    """Post-image line numbers added per file by a unified diff (``b/`` paths, deletions skipped)."""
     out: dict[str, set[int]] = {}
     current: str | None = None
     new_line = 0
@@ -112,12 +82,10 @@ def added_lines(patch: str) -> dict[str, set[int]]:
             new_line += 1
         elif raw.startswith(" ") or raw == "":
             new_line += 1
-        # '-' lines and '\ No newline at end of file' do not advance the new image
     return out
 
 
 def python_targets(patch: str) -> dict[str, set[int]]:
-    """Non-test ``.py`` files the patch adds lines to, with their added post-image line numbers."""
     return {
         path: lines
         for path, lines in added_lines(patch).items()
@@ -125,12 +93,8 @@ def python_targets(patch: str) -> dict[str, set[int]]:
     }
 
 
-# --------------------------------------------------------------------------- mutants
-
-
 @dataclass(frozen=True)
 class Mutant:
-    """One semantic mutant: the full mutated file plus its provenance."""
 
     path: str
     operator: str
@@ -159,7 +123,6 @@ def _indent(line: bytes) -> bytes:
 def _replace_span(
     lines: list[bytes], start: int, end: int, replacement: bytes
 ) -> tuple[bytes, ...]:
-    """Replace 1-based inclusive line span with one replacement line."""
     newline = b"\n" if lines[start - 1].endswith(b"\n") or end < len(lines) else b""
     return tuple(lines[: start - 1] + [replacement + newline] + lines[end:])
 
@@ -307,7 +270,6 @@ def _constant_candidates(node: ast.Constant, lines: list[bytes]) -> list[_Candid
 
 
 def candidates(source: str, added: set[int]) -> list[_Candidate]:
-    """Every operator application whose anchor line is an added line, in source order."""
     tree = ast.parse(source)
     lines = source.encode().splitlines(keepends=True)
     found: list[_Candidate] = []
@@ -332,7 +294,6 @@ def candidates(source: str, added: set[int]) -> list[_Candidate]:
 
 
 def _valid(candidate: _Candidate, reference_dump: str) -> str | None:
-    """Mutated source when it parses and differs from the reference AST, else None."""
     try:
         text = b"".join(candidate.lines).decode()
         tree = ast.parse(text)
@@ -344,11 +305,6 @@ def _valid(candidate: _Candidate, reference_dump: str) -> str | None:
 def generate_mutants(
     path: str, source: str, added: set[int], *, limit: int = DEFAULT_MUTANTS
 ) -> list[Mutant]:
-    """Up to ``limit`` valid mutants of ``source`` anchored on ``added`` lines.
-
-    Selection prefers distinct operators (in :data:`MUTATOR_ORDER`), then
-    distinct lines; every mutant parses and differs from the reference AST.
-    """
     reference_dump = ast.dump(ast.parse(source))
     valid: list[tuple[_Candidate, str]] = []
     seen: set[str] = set()
@@ -402,7 +358,6 @@ def _build_mutants(
 def mutants_for_patch(
     patch: str, sources: Mapping[str, str], *, limit: int = DEFAULT_MUTANTS
 ) -> list[Mutant]:
-    """Spread ``limit`` mutants over the patch's Python targets (round-robin by file order)."""
     per_file = [
         generate_mutants(path, sources[path], lines, limit=limit)
         for path, lines in sorted(python_targets(patch).items())
@@ -414,13 +369,6 @@ def mutants_for_patch(
             if index < len(mutants):
                 chosen.append(mutants[index])
     return chosen[:limit]
-
-
-#: Operators outside :data:`MUTATOR_ORDER`: used only to widen the pool of *fresh* mutants
-#: (certifier probe/eval sets), never by :func:`generate_mutants`, so existing selections do not move.
-
-
-# --------------------------------------------------------------------------- container scripts
 
 
 def _write(path: str, body: str) -> str:
@@ -436,7 +384,6 @@ def _apply_reference(reference_patch: str) -> str:
 
 
 def probe_script(*, workdir: str, reference_patch: str, targets: Iterable[str]) -> str:
-    """Apply the reference patch, then dump each target's post-patch bytes as one marker line."""
     body = "".join(
         f"test -f {t} || exit 1\necho {PROBE_MARKER} {t} $(base64 < {t} | tr -d '\\n')\n"
         for t in targets
@@ -450,7 +397,6 @@ def probe_script(*, workdir: str, reference_patch: str, targets: Iterable[str]) 
 
 
 def mutant_script(*, workdir: str, reference_patch: str, mutant: Mutant) -> str:
-    """Apply the reference patch, overwrite one file with the mutant, prove the bytes landed."""
     return (
         f"set -u\ncd {workdir} || exit 1\n"
         + _apply_reference(reference_patch)
@@ -461,7 +407,6 @@ def mutant_script(*, workdir: str, reference_patch: str, mutant: Mutant) -> str:
 
 
 def parse_probe(agent_log: str) -> dict[str, str]:
-    """Post-patch sources dumped by :func:`probe_script`; empty when the probe never finished."""
     if PROBE_DONE_MARKER not in agent_log:
         return {}
     sources: dict[str, str] = {}
@@ -482,9 +427,6 @@ def mutant_applied(agent_log: str, mutant: Mutant) -> bool:
     return f"{APPLIED_MARKER} {mutant.operator} {mutant.path}:{mutant.line} {mutant.sha256}" in (
         agent_log
     )
-
-
-# --------------------------------------------------------------------------- execution
 
 
 def _workdir(package: Path) -> str:
@@ -521,14 +463,6 @@ def audit_task(
     limit: int = DEFAULT_MUTANTS,
     submit: Callable[[Callable[[], dict[str, Any]]], Future[dict[str, Any]]] | None = None,
 ) -> dict[str, Any]:
-    """Probe, derive mutants, run them against the original (and optionally repaired) grader.
-
-    Returns the audit record also written to ``out_dir/audit.json``. A survivor
-    counts only when the mutant's applied marker is present and the reference
-    control scored 1.0 on that grader (the repaired control is the qualification
-    receipt's 3/3 reference passes, not re-run here). ``submit`` may run cells
-    concurrently; it must return an object with ``result()``.
-    """
     targets = sorted(python_targets(reference_patch))
     record: dict[str, Any] = {
         "task_id": task_id,
@@ -604,11 +538,6 @@ def _finish(out_dir: Path, record: dict[str, Any]) -> dict[str, Any]:
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "audit.json").write_text(json.dumps(record, indent=2) + "\n")
     return record
-
-
-# --------------------------------------------------------------------------- CLI
-
-
 
 
 def _audit_mutants_command(args: Any, root: Path, *, harbor: Any = None) -> int:

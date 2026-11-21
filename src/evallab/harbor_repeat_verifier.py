@@ -1,37 +1,3 @@
-"""Repeat-verification Harbor verifier for HAR-83 verifier stability (§4.2.1).
-
-Opt-in custom verifier: after the agent finishes, it runs the task's own
-verifier ``k`` times on the same final container state and records every run
-(reward or null, exit code, duration, stdout-tail digest) to
-``/logs/verifier/stability.json``. It reports the FIRST run's reward as the
-trial reward, so it never changes the result it audits.
-
-Two validity guards keep the audit honest:
-
-- Harbor's default verifier never clears ``reward.{txt,json}``: it reads
-  whatever file exists. Before every run with index ≥ 1 the repeat verifier
-  removes both reward files in the container (``rm -f`` as root) and on the
-  host, so a run that dies before writing is recorded as ``reward=null``
-  instead of inheriting the previous run's stale reward.
-- After all runs, the host ``verifier/`` top level holds exactly what a
-  normal single-verify trial would contain for run 0 (``reward.txt``,
-  ``test-stdout.txt``, ``agent.diff``, …) plus ``verifier/repeat/<i>/`` with
-  each run's files and ``stability.json``. Per-run files are moved aside
-  between runs, which also clears the Docker bind mount.
-
-Harbor 0.24 hook::
-
-    harbor run --path <task> --agent nop \\
-        --verifier evallab.harbor_repeat_verifier:RepeatVerifier \\
-        --verifier-kwarg repeat_n=3
-
-The hook replaces the default verifier for the trial (``trial.py``
-``_run_shared_verifier`` calls ``VerifierFactory.create_verifier_from_config``,
-which honors ``import_path`` + ``kwargs``), so this class subclasses
-``harbor.verifier.base.BaseVerifier`` and delegates each run to Harbor's
-default ``harbor.verifier.verifier.Verifier`` from the locked core runtime.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -57,7 +23,6 @@ REPEAT_DIRNAME = "repeat"
 
 
 def _coerce_repeat_n(raw: Any) -> int:
-    """Coerce the ``repeat_n`` verifier kwarg (Harbor passes strings)."""
     try:
         value = int(str(raw).strip())
     except (TypeError, ValueError) as exc:
@@ -68,7 +33,6 @@ def _coerce_repeat_n(raw: Any) -> int:
 
 
 def _scalar_reward(rewards: Any) -> float | None:
-    """Reduce a Harbor rewards dict to one scalar for the stability table."""
     if rewards is None:
         return None
     if not isinstance(rewards, dict) or not rewards:
@@ -81,7 +45,6 @@ def _scalar_reward(rewards: Any) -> float | None:
 
 
 def _stdout_tail_digest(test_stdout_path: Path) -> str | None:
-    """Sha256 of the last bytes of the downloaded test stdout (null if absent)."""
     try:
         data = test_stdout_path.read_bytes()[-STDOUT_TAIL_BYTES:]
     except OSError:
@@ -96,13 +59,6 @@ def _harbor_version() -> str:
 
 
 class _ExecRecorder:
-    """Proxy around a Harbor environment that records ``exec`` return codes.
-
-    Harbor's ``Verifier`` API surfaces only the parsed reward, not the test
-    script's exit code, so the repeat verifier watches the exec calls the
-    inner verifier makes. The test run is the last exec that is not the
-    ``chmod +x`` preparation step.
-    """
 
     def __init__(self, wrapped: Any) -> None:
         self._wrapped = wrapped
@@ -131,10 +87,8 @@ def _test_exit_code(calls: list[dict[str, Any]]) -> int | None:
 
 
 class RepeatVerifier(BaseVerifier):
-    """Run the task verifier ``repeat_n`` times; report the first reward."""
 
     def __init__(self, *, repeat_n: Any = DEFAULT_REPEAT_N, **kwargs: Any) -> None:
-        # Harbor 0.24 passes the required task, paths and environment by keyword.
         super().__init__(**kwargs)
         self._passthrough = kwargs
         self._repeat_n = _coerce_repeat_n(repeat_n)
@@ -173,17 +127,10 @@ class RepeatVerifier(BaseVerifier):
         return self.trial_paths.verifier_dir
 
     def _container_reward_paths(self) -> tuple[str, str]:
-        """Reward file paths from the pinned Harbor layout for the task OS."""
         env_paths = EnvironmentPaths.for_os(self.environment.os)
         return str(env_paths.reward_text_path), str(env_paths.reward_json_path)
 
     async def _clear_reward_files(self) -> None:
-        """Remove stale reward files (container + host) before reruns.
-
-        Harbor's verifier reads whatever reward file exists, so without this
-        a run that dies before writing would inherit the previous run's
-        reward and look falsely stable.
-        """
         txt, js = self._container_reward_paths()
         try:
             await self.environment.exec(f"rm -f {txt} {js}", user="root")
@@ -196,7 +143,6 @@ class RepeatVerifier(BaseVerifier):
                 self._logger.warning("repeat verifier could not clear host %s: %s", attr, exc)
 
     def _snapshot_run(self, index: int, snapshots_ok: set[int]) -> None:
-        """Preserve this run's host verifier files under ``repeat/<index>/``."""
         src = self._host_verifier_dir()
         dst = src / REPEAT_DIRNAME / str(index)
         try:
@@ -216,7 +162,6 @@ class RepeatVerifier(BaseVerifier):
             self._logger.warning("repeat verifier could not snapshot run %d: %s", index, exc)
 
     def _restore_run(self, index: int, snapshots_ok: set[int]) -> None:
-        """Restore one run's files to the verifier top level (run 0 at the end)."""
         if index not in snapshots_ok:
             self._logger.warning("repeat verifier skips restore of run %d (no snapshot)", index)
             return

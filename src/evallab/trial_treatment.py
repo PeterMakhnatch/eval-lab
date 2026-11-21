@@ -16,9 +16,7 @@ CAPTURE_TABLE = Path(CAPTURE_TABLE_FILENAME).stem
 
 TREATMENT_SCHEMA = "evallab.trial_treatment/v1"
 
-#: Value of a setting that does not apply to the trial (a nop agent's model).
 NOT_APPLICABLE = "n/a"
-#: A sampling parameter the harness did not send; the provider default applies.
 PROVIDER_DEFAULT = "default"
 
 MIMO_SELFHOSTED_PREFIX = "selfhosted/"
@@ -27,11 +25,8 @@ PARSER_SOURCE = "src/evallab/mimo_tool_calls.py"
 PROXY_SOURCE = "containers/zai_openapi_secret_proxy.py"
 SERVE_SOURCE = "tools/modal-mimo-serve/serve.py"
 
-#: Agents that never call a model.
 NO_MODEL_AGENTS = frozenset({"nop", "oracle"})
 
-#: Key fields, in hashing order. :data:`TASK_FIELDS` are excluded from
-#: ``setup_key``.
 KEY_FIELDS = (
     "task_version_digest",
     "backend",
@@ -59,12 +54,9 @@ KEY_FIELDS = (
     "max_total_tokens",
     "cost_limit_usd",
 )
-#: Fields the task version determines (its digest and its own agent timeout).
 TASK_FIELDS = ("task_version_digest", "agent_timeout_seconds")
 SETUP_FIELDS = tuple(name for name in KEY_FIELDS if name not in TASK_FIELDS)
 
-#: Terminus-2 constructor defaults (harbor 0.21), filled into the harness
-#: config so an omitted kwarg and its explicit default hash alike.
 _TERMINUS_DEFAULTS: dict[str, Any] = {
     "parser_name": "json",
     "max_turns": None,
@@ -75,7 +67,6 @@ _TERMINUS_DEFAULTS: dict[str, Any] = {
 }
 _TERMINUS_AGENTS = frozenset({"terminus-2", "terminus_2"})
 
-#: Agent kwargs that are sampling, not harness configuration.
 _SAMPLING_KWARGS = frozenset({"temperature", "reasoning_effort", "max_thinking_tokens"})
 _SAMPLING_LLM_KWARGS = frozenset({"temperature", "top_p", "top_k", "max_tokens"})
 _THINKING_BODY_KEYS = frozenset({"reasoning_effort", "chat_template_kwargs"})
@@ -85,64 +76,13 @@ _CONTINUATION_RE = re.compile(r"^trajectory\.cont-(\d+)\.json$")
 _SUMMARIZATION_RE = re.compile(r"^trajectory\.summarization-.+\.json$")
 
 
-
-
-
-
-
-
-
-
-
-
 class _Absent:
-    """A path that does not exist at a known commit."""
+    pass
 
 
 ABSENT = _Absent()
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#: Markers Harbor's Terminus-2 loop writes to trial.log while handling an
-#: overflowing context (exact substrings, grounded in HAR-90 0758-b/c).
 _LOG_REACTIVE = "Context length exceeded"
 _LOG_PROACTIVE = "Proactively summarizing"
 _LOG_PROACTIVE_ERROR = "Error in proactively summarizing"
@@ -154,28 +94,6 @@ _LOG_FALLBACK_FAILED = "Even fallback chat failed"
 _LOG_FALLBACK_OK = "Even fallback chat succeeded"
 _LOG_SUMMARY_SAVED = "Summary subagent trajectory saved to"
 _LOG_QUESTIONS_SAVED = "Questions subagent trajectory saved to"
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 def _matching_trials(
@@ -197,7 +115,6 @@ def _matching_trials(
 
 
 def _table_paths(catalog: Path) -> dict[str, Path]:
-    """Resolve one immutable snapshot, or the pre-snapshot migration inputs."""
     filenames = (TREATMENT_TABLE_FILENAME, CAPTURE_TABLE_FILENAME)
     snapshot = parquet_snapshot_paths(catalog / ".trial-tables")
     if snapshot is not None:
@@ -208,7 +125,6 @@ def _table_paths(catalog: Path) -> dict[str, Path]:
 
 
 def table_paths(catalog: Path) -> dict[str, Path]:
-    """Pin a complete treatment/capture pair; refuse partial legacy projections."""
     paths = _table_paths(catalog)
     if not paths:
         return {}
@@ -217,8 +133,6 @@ def table_paths(catalog: Path) -> dict[str, Path]:
             "incomplete treatment/capture catalog; rerun tasks treatment-collect "
             "for the source jobs"
         )
-    # Older collectors could leave different trial sets or collection timestamps
-    # after a partial write. File existence alone does not establish consistency.
     import pyarrow.parquet as pq
 
     keys = [

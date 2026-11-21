@@ -31,11 +31,6 @@ def wilson_interval(
 
 
 def pass_at_k_probability(attempt_probability: float, k: int) -> float:
-    """Model-based independent-attempt power-planning transform, not an empirical estimator.
-
-    This is ``1 - (1-p)**k``. It is not realized first-k (any/all over ordered attempts)
-    and it is not the Chen/Yao combinatorial estimator computed from observed (n, c, k).
-    """
     if not 0 <= attempt_probability <= 1:
         raise ValueError("attempt probability must be between zero and one")
     if k < 1:

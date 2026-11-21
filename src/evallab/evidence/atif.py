@@ -287,11 +287,6 @@ def _load_json(path: Path) -> tuple[Any | None, str | None]:
 
 
 def _validate_atif_v1(payload: JsonObject) -> str | None:
-    """Validate the retained ATIF-v1 contract, including lab custody metadata.
-
-    Admission must not change when an execution SDK is installed or upgraded.
-    Current native SDK models do not own these retained redaction extensions.
-    """
     schema_version = payload.get("schema_version")
     if schema_version not in SUPPORTED_SCHEMA_VERSIONS:
         return f"unsupported schema_version {schema_version!r}"
@@ -490,7 +485,6 @@ def _document_validation(
 
 
 def command_exit_code(result: JsonObject) -> int | None:
-    """Exit code a command observation records in ``extra.{exit_code,returncode,return_code}``."""
     extra = result.get("extra")
     if not isinstance(extra, dict):
         return None
@@ -502,7 +496,6 @@ def command_exit_code(result: JsonObject) -> int | None:
 
 
 def _step_llm_call_count(raw_step: JsonObject, metrics: JsonObject) -> int:
-    """Declared ``llm_call_count``; Harbor ATIF omits it, so a step with token usage counts one call."""
     declared = _optional_int(raw_step.get("llm_call_count"))
     if declared is not None:
         return declared
@@ -541,8 +534,6 @@ def _project_payload(
         metrics = _as_object(raw_step.get("metrics"))
         if metrics is None:
             metrics = {}
-        # raw_content Terminus steps carry no native tool_calls; the calls the
-        # harness accepted come from the recorded step layers instead.
         calls = effective_tool_calls(raw_step)
         observation = _as_object(raw_step.get("observation"))
         if observation is None:
@@ -656,7 +647,6 @@ def _atif_mechanical_capture_is_complete(
     projections: list[TrialTrajectoryProjection],
     llm_request_projection: TrialTrajectoryProjection,
 ) -> bool:
-    """Return whether valid ATIF facts cover the request ring's known mechanics."""
     valid_documents = {
         trajectory.document_id
         for projection in projections
@@ -934,12 +924,6 @@ def ingest_and_project(
     root: Path,
     output_root: Path,
 ) -> IngestProjectionResult:
-    """Land completed jobs in the catalog, then rebuild their derived Parquet.
-
-    Catalog transactions finish before any Parquet write begins. A filesystem or
-    Arrow failure is therefore returned to the caller for event attribution and
-    never rolls back the searchable job/trial catalog.
-    """
     from evallab import database
     from evallab.evidence.facts import ingest_catalog
 
@@ -947,9 +931,6 @@ def ingest_and_project(
     derived_root = output_root.resolve()
     database.initialize(database_url)
     cataloged_jobs = database.ingest(database_url, ordered_jobs, root=root)
-    # Index document-level and deterministic facts before touching Parquet. The
-    # paths describe the deterministic target even when a later write is recorded
-    # as a projection exception.
     projections_by_job: dict[str, dict[str, TrialTrajectoryProjection]] = {}
     ingest_catalog(
         database_url,
@@ -976,13 +957,6 @@ def project_jobs(
     output_root: Path,
     projections_by_job: dict[str, dict[str, TrialTrajectoryProjection]] | None = None,
 ) -> tuple[tuple[ExportedTable, ...], tuple[ProjectionFailure, ...]]:
-    """Project raw jobs without requiring the PostgreSQL catalog.
-
-    This is the deterministic, Docker-free half of the composed ingestion path.
-    The full path remains :func:`ingest_and_project`, which catalogs first and
-    then delegates here. Keeping one projection implementation lets CI exercise
-    real Parquet writes while a local smoke also proves PostgreSQL agreement.
-    """
     from evallab.evidence.facts import rebuild_from_raw
 
     ordered_jobs = sorted(jobs, key=lambda item: item.id)
@@ -1008,7 +982,7 @@ def project_jobs(
                 )
             else:
                 rebuilt = rebuild_from_raw([job], derived_root)
-        except Exception as exc:  # Projection failure is data, not an agent result.
+        except Exception as exc:
             failures.append(
                 ProjectionFailure(
                     job_id=job.id,
@@ -1066,11 +1040,6 @@ def check_projection_invariant(
     *,
     catalog_rows_loader: CatalogRowsLoader = _load_catalog_projection_rows,
 ) -> ProjectionInvariant:
-    """Check catalog jobs against complete Parquet trial partitions.
-
-    A catalog job without a complete partition is acceptable only while its job
-    ID has a recorded projection-failure reason in the append-only queue events.
-    """
     catalog_rows = catalog_rows_loader(database_url)
     catalog_trials: dict[str, set[str]] = defaultdict(set)
     for job_id, _job_name, trial_id in catalog_rows:

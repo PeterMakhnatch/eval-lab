@@ -1,14 +1,3 @@
-"""Idempotent, crash-safe publication of an increment's review/audit runs to a Judge Station queue.
-
-The Station queue format and its idempotent appender
-(``append_judge_queue_entry``: one row per ``run_id``, a repeated run is skipped)
-alone does not protect a long-running watcher: two writers can race its read-then-append, and a
-crash can leave a torn last line. This module adds, around the same helper, an exclusive lock
-and a copy-append-fsync-rename so the queue file is always either the old or the new complete
-file. The queue named in a watch config is owned by that watcher (one writer); a foreign writer
-that appends without taking this lock is outside what this can protect against.
-"""
-
 from __future__ import annotations
 
 import fcntl
@@ -23,7 +12,6 @@ from evallab.line.watch_state import WatchError, fsync_directory
 
 
 def read_queue_rows(queue: Path) -> list[dict[str, Any]]:
-    """The rows of a queue file; a malformed line raises instead of being skipped."""
     if not os.path.lexists(queue):
         return []
     rows: list[dict[str, Any]] = []
@@ -31,7 +19,7 @@ def read_queue_rows(queue: Path) -> list[dict[str, Any]]:
         if not line.strip():
             continue
         try:
-            row = hd.strict_json_loads(line)  # a repeated key is refused, not resolved
+            row = hd.strict_json_loads(line)
         except ValueError:
             row = None
         if not isinstance(row, dict) or not isinstance(row.get("run_id"), str):
@@ -45,7 +33,6 @@ def read_queue_ids(queue: Path) -> list[str]:
 
 
 def publish(queue: Path, rows: list[dict[str, Any]]) -> int:
-    """Append the rows whose run is not queued yet; return how many were added."""
     from evallab.production.judge_station import QueueEntry, append_judge_queue_entry
 
     queue.parent.mkdir(parents=True, exist_ok=True)

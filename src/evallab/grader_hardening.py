@@ -1,29 +1,3 @@
-"""``grader-hardening@1``: auto-load reset (L1) and JUnit report gate (L3) for single-container MiMo graders.
-
-The upstream MiMo ``tests/test.sh`` resets an *enumerated* list of test files, runs the hidden test command in the
-agent's own container and writes ``reward.txt`` from the command's exit status. Two cheap, tested layers close the
-routes that need only the ability to create files (ds-tq2-hook-hardening-20261030, executed validation in
-research/experiments/h1-grader-hardening-20261030):
-
-* **L1** restores or deletes every auto-load/config file *by pattern over the tree* (``conftest.py``,
-  ``sitecustomize.py``, ``usercustomize.py``, ``pytest.ini``, ``tox.ini``, ``setup.cfg``, ``pyproject.toml``,
-  ``*.pth``) after the enumerated reset and before the hidden patch is applied, so a hidden test's own ``conftest.py``
-  still lands. Untracked or ignored files under dependency directories (``node_modules``, virtualenvs,
-  ``site-packages``) are left alone, and every deletion is logged to ``$V/l1-removed.txt``.
-* **L3** asks every pytest process for a ``--junitxml`` report (``PYTEST_ADDOPTS``, because the real command is an
-  opaque ``mimo_test_command.sh`` wrapper) at a path chosen at grade time, and gives reward 1 only if the command exits
-  0 *and* the report exists, holds at least the reference test count and has no failure, error or extra skip. A
-  missing report fails closed.
-
-Not closed by this transform, by design: code running in the grader's own interpreter or environment (a ``.pth`` in
-a writable site directory that forges the report) needs a separate verifier container; a runner that clears
-``PYTEST_ADDOPTS`` (see ``separate_verifier``) defeats L3; plugin entry points installed after setup are not reset.
-
-The reference count comes from a real oracle run of the package and is stored in ``tests/expected_report.json``. The
-transform refuses to build without it unless ``allow_degraded`` is set, so a gate that accepts "one passing test" is
-never produced silently. Packages whose runner is not pytest get L1 only, and only with ``allow_no_report_gate``.
-"""
-
 from __future__ import annotations
 
 import base64
@@ -51,7 +25,6 @@ _FINAL_ECHO = 'echo "test command exited $RC"\n'
 
 
 def l1_block(pattern: str = AUTOLOAD_PATTERN) -> str:
-    """The L1 shell block resetting every file whose path matches the ``case`` ``pattern``."""
     return f"""\
 # grader-hardening@1 L1: reset every auto-load/config file by pattern, not by the enumerated list above
 l1_is_autoload() {{ case "$1" in {pattern}) return 0 ;; esac; return 1; }}
@@ -121,7 +94,6 @@ def _replace_once(text: str, old: str, new: str, what: str) -> str:
 
 
 def build_env_command(patch_text: str) -> str:
-    """Text of the ``test_command.sh`` inside the base64 ``mimo_build_env`` tarball the hidden patch ships, if any."""
     blob: list[str] = []
     capture = False
     for line in patch_text.splitlines():
@@ -149,7 +121,6 @@ def build_env_command(patch_text: str) -> str:
 def build_test_sh(
     parent_text: str, *, with_report_gate: bool, l1_pattern: str = AUTOLOAD_PATTERN
 ) -> str:
-    """Parent ``tests/test.sh`` plus L1 (resetting ``l1_pattern``) and, when ``with_report_gate``, L3."""
     if "grader-hardening@1" in parent_text:
         raise VariantInvalid("parent is already grader-hardened")
     text = _replace_once(

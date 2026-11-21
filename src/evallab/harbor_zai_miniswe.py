@@ -1,12 +1,3 @@
-"""Z.ai OpenAPI credential isolation for Harbor's generic mini-swe-agent adapter.
-
-Harbor 0.22 MiniSweAgent copies ``model_connection.env`` into ``exec_as_agent``,
-and ``BaseInstalledAgent._exec`` logs that mapping. Docker serializes the
-same mapping into compose exec argv. This wrapper never places the Z.ai Open Platform
-provider key in that environment. Model transport authenticates through an internal proxy
-that alone mounts the file-backed secret.
-"""
-
 from __future__ import annotations
 
 import os
@@ -49,7 +40,6 @@ def _scrubbed_connection_env(connection: ResolvedModelConnection) -> dict[str, s
 
 
 class SecretSafeZaiMiniSweAgent(MiniSweAgent):
-    """MiniSweAgent that talks only to the internal Z.ai OpenAPI credential proxy."""
 
     def __init__(self, *args: Any, model_name: str | None = None, **kwargs: Any) -> None:
         if model_name is not None:

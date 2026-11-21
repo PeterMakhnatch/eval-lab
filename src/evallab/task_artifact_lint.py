@@ -1,9 +1,3 @@
-"""Own one static rule screening declared artifacts against separate verifier paths.
-
-The paths are those a separate verifier grades from. This module never executes
-task content.
-"""
-
 from __future__ import annotations
 
 import posixpath
@@ -33,8 +27,6 @@ _PROTECTED_ROOTS = (
 
 
 def lint_artifact_overwrites(task_dir: Path, artifacts: Sequence[str]) -> list[Finding]:
-    """Screen artifacts after the caller confirms separate verifier mode."""
-    # Imported here: task_lint imports this module while it loads.
     from evallab.task_lint import Finding
 
     findings: list[Finding] = []

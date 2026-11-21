@@ -1,5 +1,3 @@
-"""Read-only operator snapshot of completed Harbor evidence and lab stores."""
-
 from __future__ import annotations
 
 import json
@@ -312,8 +310,6 @@ def _queue_items(
                 )
                 continue
             detail = f"{state} {spec.task} agent={spec.agent}"
-            # HAR-162: running jobs show their dispatch-attached watch
-            # output (alert count plus the latest critical rule, if any).
             if state == "running" and watch_root is not None:
                 from evallab import auto_watch as _auto_watch
 
@@ -434,7 +430,6 @@ def build_status_snapshot(
     postgres_url: str | None = None,
     generated_at: datetime | None = None,
 ) -> StatusSnapshot:
-    """Pure reader. Never creates directories, never writes files."""
 
     layout = resolve_status_layout(root)
     lab_checkout = (layout.root / "src" / "evallab").is_dir() or (

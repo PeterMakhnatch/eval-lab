@@ -16,7 +16,6 @@ from evallab.results import JobRecord, TrialRecord, duration_seconds
 from evallab.runner import transient_provider_exception
 from evallab.schemas import CanaryDriftObservation
 
-# Retry only the PostgreSQL deadlock victim, after its transaction has closed.
 CATALOG_DEADLOCK_MAX_ATTEMPTS = 4
 CATALOG_DEADLOCK_BACKOFF_SECONDS = (0.05, 0.1, 0.2)
 
@@ -24,14 +23,6 @@ CATALOG_DEADLOCK_BACKOFF_SECONDS = (0.05, 0.1, 0.2)
 def _run_catalog_transaction[T](
     database_url: str, work: Callable[[psycopg.Connection[Any]], T]
 ) -> T:
-    """Run ``work`` in one catalog transaction, retrying only deadlocks.
-
-    ``work`` receives a fresh connection per attempt covering both statement
-    and commit-time ``DeadlockDetected`` failures: the ``with`` block commits
-    on clean exit and rolls back on error, so a failed attempt never leaves
-    partial rows behind. Retries replay the caller's already-materialized
-    batch, preserving atomicity and the exact successful count.
-    """
     attempt = 0
     while True:
         try:
@@ -86,22 +77,12 @@ def _exception_type(result: dict[str, Any]) -> str | None:
     return str(value) if value else None
 
 
-#: Exceptions that end the agent's run while Harbor still runs the verifier:
-#: agent timeouts, trial ceilings, and the harness's active repetition stop.
 AGENT_STOP_EXCEPTIONS = frozenset({"AgentTimeoutError", "TrialBudgetExhaustedError", "LoopBreakStop"})
 
 
 def count_consecutive_harness_failures(
     trials: Iterable[tuple[str | None, float | None]],
 ) -> int:
-    """Count the latest uninterrupted run of harness failures, newest first.
-
-    Each trial is ``(exception_type, primary_reward)``. Provider capacity
-    (``transient_harness``) is neutral noise. A trial the verifier scored after
-    the agent ran out of time, hit a trial ceiling, or was stopped for an active
-    loop ran end to end: the stop is the agent's outcome, not a broken harness,
-    so it ends the run like a clean trial.
-    """
     count = 0
     for exception_type, reward in trials:
         if exception_type == "transient_harness":
@@ -129,13 +110,6 @@ def _executemany(
 
 
 def _job_cost_block(job: JobRecord) -> dict[str, Any]:
-    """Authoritative per-run spend block for one job's lab-metadata.
-
-    Prefers the runner's finalize ``cost`` block; recomputes from the proxy
-    ledger for jobs finalized before it existed (e.g. recovered runs). The
-    ledger-derived figure wins over Harbor/litellm's ``agent_result`` estimate
-    whenever a proxy ledger exists for the job.
-    """
     metadata = job.metadata if isinstance(job.metadata, dict) else {}
     block = metadata.get("cost")
     if (
@@ -151,14 +125,6 @@ def _job_cost_block(job: JobRecord) -> dict[str, Any]:
 
 
 def trial_cost_columns(job: JobRecord, trial: TrialRecord) -> dict[str, float | None]:
-    """Per-trial ``(cost_usd, attempted_cost_usd)`` for one catalog row.
-
-    One proxy ledger covers the whole Harbor process, so a multi-trial job
-    splits the ledger's used/attempted cost evenly across its trials: the
-    daily sums still equal the ledger. Without any proxy ledger the trial
-    keeps Harbor's own ``agent_result.cost_usd`` figure (controls and
-    subscription lanes bill nothing through the proxy).
-    """
     metadata = job.metadata if isinstance(job.metadata, dict) else {}
     provider_usage = metadata.get("provider_usage")
     if isinstance(provider_usage, dict) and isinstance(
@@ -190,9 +156,6 @@ def trial_cost_columns(job: JobRecord, trial: TrialRecord) -> dict[str, float | 
 def ingest_job(connection: psycopg.Connection[Any], job: JobRecord, *, root: Path) -> None:
     stats = job.result.get("stats") or {}
     evidence_path = _relative_or_absolute(job.path, root)
-    # A named local evidence directory can be intentionally regenerated before
-    # publication. The filesystem remains authoritative, so remove a stale row
-    # that points at the same path but carries the superseded Harbor UUID.
     connection.execute(
         "DELETE FROM jobs WHERE evidence_path = %s AND id <> %s",
         (evidence_path, job.id),
@@ -262,11 +225,6 @@ def ingest_job(connection: psycopg.Connection[Any], job: JobRecord, *, root: Pat
     if job.trials:
         trial_rows = []
         for trial in job.trials:
-            # ONE authoritative path: the proxy ledger (via the finalize cost
-            # block) wins over Harbor/litellm's agent_result estimate whenever
-            # a ledger exists for the job; otherwise the trial keeps Harbor's
-            # own figure. Attempted (unresolved-reservation) cost rides along
-            # so the policy gate can spend used + attempted as a ceiling.
             spend = trial_cost_columns(job, trial)
             trial_rows.append(
                 {
@@ -394,9 +352,6 @@ def ingest_job(connection: psycopg.Connection[Any], job: JobRecord, *, root: Pat
 
 
 def ingest(database_url: str, jobs: Iterable[JobRecord], *, root: Path) -> int:
-    # Materialize once so a deadlock retry replays the identical batch: the
-    # caller may hand us a one-shot generator that a second attempt could not
-    # otherwise re-read, and replaying preserves the exact returned count.
     pending = list(jobs)
 
     def _write(connection: psycopg.Connection[Any]) -> int:
@@ -416,14 +371,6 @@ def ping(database_url: str) -> str:
 
 
 def identity(database_url: str) -> str:
-    """Return ``host:port/dbname`` for a connection string, never a credential.
-
-    An operator reading a green catalog line has no way to tell which database
-    produced it; the same check reported two different counts in one M009
-    session because `DATABASE_URL` differed (F-11). Only host, port, and
-    database name are read out of the parsed connection info, so a password
-    embedded in the URL cannot reach an operator surface or a log.
-    """
     try:
         info = conninfo_to_dict(database_url)
     except psycopg.Error:
@@ -435,17 +382,6 @@ def identity(database_url: str) -> str:
 
 
 def daily_cost_usd(database_url: str, day: date) -> float:
-    """Return spend for the explicit UTC policy day, independent of DB settings.
-
-    Gate rule (HAR-104): the policy gate spends ``used + attempted`` as a
-    conservative ceiling. Catalog ``cost_usd`` is settled ledger usage only;
-    ``attempted_cost_usd`` is the unresolved-reservation ceiling for trials
-    whose calls never reconciled. Summing both keeps the $20/day gate from
-    spending reservations twice (once as attempted, later as used would
-    double-count if a trial re-ingested after settling — instead each ingest
-    overwrites both columns from the same ledger, so used + attempted always
-    equals the ledger's current ceiling).
-    """
     with psycopg.connect(database_url, connect_timeout=2) as connection:
         row = connection.execute(
             """
@@ -460,7 +396,6 @@ def daily_cost_usd(database_url: str, day: date) -> float:
 
 
 def consecutive_harness_failures(database_url: str) -> int:
-    """Count the most recent uninterrupted run of infrastructure exceptions."""
     with psycopg.connect(database_url, connect_timeout=2) as connection:
         rows = connection.execute(
             """
@@ -476,7 +411,6 @@ def consecutive_harness_failures(database_url: str) -> int:
 
 
 def digest_trials(database_url: str, day: date) -> list[tuple[Any, ...]]:
-    """Return deterministic trial facts for one catalog-local calendar day."""
     with psycopg.connect(database_url, connect_timeout=2) as connection:
         return list(
             connection.execute(

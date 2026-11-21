@@ -151,7 +151,6 @@ def config_from_env() -> dict[str, Any] | None:
 
 def ownership_tags(config: dict[str, Any]) -> dict[str, str]:
     def digest_tag(digest: str) -> str:
-        # Modal permits at most 63 tag characters; retain all 256 bits, not a truncated hex prefix.
         return base64.b32encode(bytes.fromhex(digest.removeprefix("sha256:"))).decode().rstrip("=")
 
     return {"evallab_window_id": config["window_id"],
@@ -235,7 +234,6 @@ async def _modal_rpc(method: str, request: Any, timeout: float) -> Any:
     from modal.client import _Client
 
     client = await _Client.from_env()
-    # SDK 1.5.5 requires retry=None with a finite timeout; never implicitly retry.
     return await getattr(client.stub, method)(request, timeout=timeout, retry=None)
 
 
@@ -310,7 +308,7 @@ def remote_guard(config: dict[str, Any], app_id: str) -> None:
     while True:
         try:
             control.stop(config, app_id)
-            return  # Stopping this app normally terminates this guard too.
+            return
         except Exception as exc:
             record.update(last_stop_error=type(exc).__name__, last_stop_attempt_at=utc())
             control.store.put("guard:" + config["reservation_id"], record)
@@ -368,7 +366,7 @@ def deploy(args: argparse.Namespace) -> dict[str, Any]:
     config = admitted_config(args.budget_state, args.budget_state_sha256, args.owner, args.deadline, now=time.time())
     config["environment"] = args.environment
     journal = Journal(args.state)
-    journal.create(config)  # Exclusive creation; never a resume/redeploy/reset operation.
+    journal.create(config)
     control = ModalControl(args.environment)
     for row in control.apps():
         if (row.name or row.description) in {APP_NAME, APP_NAME + "-lora"}:
@@ -395,8 +393,6 @@ def _deploy_reserved(journal: Journal, config: dict[str, Any], control: ModalCon
     os.environ["EVALLAB_MIMO_GPU"] = config["gpu"]
     serve = importlib.import_module("serve")
     require(config == serve.WINDOW, "serve.py did not retain this exact window config")
-    # No weights download, readiness request, or second app; the owned window's
-    # deployment holds one warm container until the immutable deadline.
     journal.update(deployment_invoked_at=utc())
     serve.app.deploy(environment_name=config["environment"], strategy="recreate")
     app_id = serve.app.app_id
@@ -415,7 +411,7 @@ def _deploy_reserved(journal: Journal, config: dict[str, Any], control: ModalCon
                    model_revision=serve.MODEL_REVISION, image=serve.SGLANG_IMAGE,
                    deployment=journal.artifact("deployment", deployment))
     require(time.time() < instant(config["expires_at"]), "window expired during deployment; watchdog must complete stop")
-    serve.stop_window.spawn()  # Schedule is also baked into the deployment, covering a controller crash here.
+    serve.stop_window.spawn()
     arm_until = min(instant(config["expires_at"]), time.time() + 90)
     while time.time() < arm_until:
         guard = control.store.get("guard:" + config["reservation_id"])
@@ -545,13 +541,6 @@ def adopt_existing(args: argparse.Namespace) -> dict[str, Any]:
                           stop_guard=guard)
 
 
-#: Admitted upstream hosts, matching the repository's self-hosted route pin:
-#: one serving label under ``*.modal.run`` (Web Functions) or one serving label
-#: under a documented routing region ``*.modal.direct`` (Servers, e.g.
-#: ``https://p-makhnatch--evallab-mimo-v26-9b-mimoserver.us-east.modal.direct``).
-#: ``modal.run.evil.com``, ``x.evil.modal.direct`` (not a routing region),
-#: ``modal.direct.evil.com`` and multi-label ``a.b.us-east.modal.direct``
-#: never match.
 MODAL_ORIGIN_RES = (
     re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.modal\.run$"),
     re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\."
@@ -668,8 +657,6 @@ def _error_detail(exc: Exception) -> str:
     for key, value in os.environ.items():
         if value and re.search(r"(?i)(?:key|token|password|secret)$", key):
             detail = detail.replace(value, "<redacted>")
-    # Keep the standalone tool's Modal-only dependency boundary. These follow
-    # the repository's bearer, key-shaped token and credential-assignment rules.
     detail = re.sub(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+", "Bearer <redacted>", detail)
     detail = re.sub(r"(?i)\b(?:sk|rk)-[A-Za-z0-9._-]+", "<redacted>", detail)
     detail = re.sub(
@@ -743,7 +730,6 @@ def main(argv: list[str] | None = None) -> None:
             result = receipt(value)
         print(json.dumps(result, indent=2, sort_keys=True))
     except Exception as exc:
-        # Only SDK validation diagnostics are shown, after credential redaction.
         detail = _error_detail(exc)
         print(f"serving-window failed: {detail}", file=sys.stderr)
         raise SystemExit(1) from None

@@ -1,26 +1,3 @@
-"""``PackageAnatomy``: deterministic grading and container attack-surface facts for one Harbor-style task package.
-
-A Harbor / MiMo / Terminal-Bench task directory (``instruction.md``, ``task.toml``, ``environment/``, ``tests/``) is
-parsed statically, in milliseconds and for $0, into structured vulnerability facts, so a bug hunter reads a card
-instead of guessing from raw prose. Nothing runs, nothing is fetched, and no label, answer key or held-out split is
-read: the only inputs are the package bytes and an optional, caller-supplied DEV reference patch.
-
-The card has four sections:
-
-* ``container_and_boundary``: single container vs separate verifier, what the agent image bakes in (tests, ``/opt``
-  trees, ``.git`` history, solution artifacts, byte/line overlap with ``tests/``), network and root posture.
-* ``grader_script_mechanics``: runner, which files ``test.sh`` resets vs which auto-load/hook files stay agent-writable,
-  how reward is gated (bare ``$?``, structured report, log grep), and ``PYTEST_ADDOPTS``/``PYTHONPATH``/``PATH`` vectors.
-* ``test_suite_rigor``: AST (Python) or regex (other languages) counts of tests, assertions, negative cases, literal
-  input->output pairs, surface-only and mock-only checks; instruction-named symbols that no test mentions; and, given a
-  reference patch, changed functions/branches no test exercises.
-* ``vulnerability_hypotheses``: a ranked list tagged with ``MECHANISM_CLASSES``, with file/line evidence and a minimal
-  differential witness.
-
-Every hypothesis is static: ``confidence`` says whether the evidence is certain by construction
-(``static_certain``), a heuristic (``static_probable``) or needs an execution to confirm (``needs_execution``).
-"""
-
 from __future__ import annotations
 
 import ast
@@ -103,10 +80,6 @@ _IDENT_STOP = frozenset((
 ))
 
 
-# --------------------------------------------------------------------------------------------------------------------
-# data model
-
-
 @dataclass(frozen=True)
 class Hypothesis:
     id: str
@@ -127,9 +100,9 @@ class Hypothesis:
 @dataclass
 class Package:
     root: Path
-    files: dict[str, str] = field(default_factory=dict)  # relative path -> decoded text
-    sizes: dict[str, int] = field(default_factory=dict)  # every file (text or binary)
-    digests: dict[str, str] = field(default_factory=dict)  # sha256 of text files and archive members
+    files: dict[str, str] = field(default_factory=dict)
+    sizes: dict[str, int] = field(default_factory=dict)
+    digests: dict[str, str] = field(default_factory=dict)
     git_dirs: list[str] = field(default_factory=list)
     truncated: bool = False
 
@@ -145,24 +118,20 @@ class PatchFile:
     path: str
     new_file: bool
     deleted: bool
-    hunks: list[dict[str, Any]]  # {"ctx": str, "lines": [(tag, text, patch_lineno)]}
+    hunks: list[dict[str, Any]]
 
 
 @dataclass
 class TestSource:
-    __test__ = False  # not a pytest class
+    __test__ = False
     path: str
-    origin: str  # "file" | "patch"
-    lines: list[tuple[int, str]]  # (line number in `path` for files / in test.patch for patch sources, text)
+    origin: str
+    lines: list[tuple[int, str]]
     complete: bool
 
     @property
     def text(self) -> str:
         return "\n".join(text for _, text in self.lines)
-
-
-# --------------------------------------------------------------------------------------------------------------------
-# package loading
 
 
 def _sha(data: bytes) -> str:
@@ -207,7 +176,6 @@ def _add_member(package: Package, rel: str, data: bytes) -> None:
 
 
 def load_package(root: Path) -> Package:
-    """Read every text file under ``root`` (bounded), expanding small archives under ``environment/``."""
     package = Package(root=root)
     count = 0
     for directory, dirnames, filenames in os.walk(root):
@@ -240,10 +208,6 @@ def load_package(root: Path) -> Package:
     return package
 
 
-# --------------------------------------------------------------------------------------------------------------------
-# small helpers
-
-
 def _find(text: str, pattern: str, *, flags: int = 0, limit: int = 3) -> list[tuple[int, str]]:
     regex = re.compile(pattern, flags)
     found: list[tuple[int, str]] = []
@@ -264,7 +228,6 @@ def _evidence(file: str, hits: Iterable[tuple[int, str]]) -> list[dict[str, Any]
 
 
 def _logical_lines(text: str) -> list[tuple[int, str]]:
-    """Shell/Dockerfile lines with ``\\`` continuations joined, keeping the first physical line number."""
     out: list[tuple[int, str]] = []
     buffer, start = "", 0
     for number, raw in enumerate(text.splitlines(), 1):
@@ -303,10 +266,6 @@ def _toml(text: str) -> dict[str, Any]:
         return {}
 
 
-# --------------------------------------------------------------------------------------------------------------------
-# unified diffs
-
-
 def parse_unified_diff(text: str) -> list[PatchFile]:
     files: list[PatchFile] = []
     current: PatchFile | None = None
@@ -335,7 +294,6 @@ def parse_unified_diff(text: str) -> list[PatchFile]:
 
 
 def _patch_sources(patch_files: Sequence[PatchFile], patch_rel: str) -> tuple[list[TestSource], list[str]]:
-    """Post-image of each patch file as a ``TestSource`` (only files that look like tests or scripts)."""
     sources: list[TestSource] = []
     scripts: list[str] = []
     for patch_file in patch_files:
@@ -350,10 +308,6 @@ def _patch_sources(patch_files: Sequence[PatchFile], patch_rel: str) -> tuple[li
                 and not patch_file.path.endswith(".sh"):
             sources.append(TestSource(f"{patch_rel}:{patch_file.path}", "patch", lines, patch_file.new_file))
     return sources, scripts
-
-
-# --------------------------------------------------------------------------------------------------------------------
-# Dockerfile
 
 
 @dataclass
@@ -389,7 +343,6 @@ def _copy_operands(args: str) -> tuple[list[str], str, bool]:
 
 
 def baked_files(instructions: Sequence[DockerInstruction], env_paths: Iterable[str]) -> dict[str, tuple[str, int]]:
-    """Image path -> (source path relative to the package, Dockerfile line) for every ``COPY``/``ADD`` from the context."""
     context = sorted(
         path.removeprefix("environment/") for path in env_paths if path.startswith("environment/")
     )
@@ -409,7 +362,7 @@ def baked_files(instructions: Sequence[DockerInstruction], env_paths: Iterable[s
         multiple = len(sources) > 1 or dest.endswith("/")
         for source in sources:
             source = source.lstrip("./") if source not in {".", "./"} else "."
-            matched: list[tuple[str, str]] = []  # (context path, relative-under-source)
+            matched: list[tuple[str, str]] = []
             for path in context:
                 if path in {"Dockerfile", ".dockerignore"} and source in {"."}:
                     continue
@@ -426,10 +379,6 @@ def baked_files(instructions: Sequence[DockerInstruction], env_paths: Iterable[s
                 target = dest_abs if is_exact_file else str(PurePosixPath(dest_abs) / relative)
                 baked.setdefault(target, (f"environment/{path}", item.line))
     return baked
-
-
-# --------------------------------------------------------------------------------------------------------------------
-# container and boundary
 
 
 def _task_toml_facts(package: Package) -> dict[str, Any]:
@@ -466,7 +415,6 @@ _VALUE_FLAGS = frozenset({"-k", "-m", "-p", "-c", "-o", "-n", "--rootdir", "--ti
 
 
 def _runner_operands(line: str) -> list[str]:
-    """Path-like operands after the test runner token (redirections, flags and flag values removed)."""
     line = re.sub(r"\d*>&?\d*\s*\S*|\|.*$", " ", line)
     tokens = line.split()
     start = next((i for i, t in enumerate(tokens) if re.fullmatch(r"(?:.*/)?(?:py\.?test|unittest|vitest|jest|mocha)", t.strip("\"'"))), None)
@@ -487,7 +435,6 @@ def _runner_operands(line: str) -> list[str]:
 
 
 def _is_executed_from_image(script: str, baked_tests: Sequence[str]) -> list[str]:
-    """Baked test-like files the grader command would run: bare discovery, a relative path, or a baked basename."""
     if not baked_tests or not script:
         return []
     runs = [line for _, line in _logical_lines(script) if re.search(r"\b(?:py\.?test|unittest|vitest|jest|mocha)\b", line)]
@@ -497,7 +444,7 @@ def _is_executed_from_image(script: str, baked_tests: Sequence[str]) -> list[str
         if any(token.startswith("/tests") for token in operands):
             continue
         if not operands:
-            executed.extend(baked_tests)  # bare discovery runs everything it finds under cwd
+            executed.extend(baked_tests)
             continue
         for baked in baked_tests:
             for token in operands:
@@ -515,7 +462,6 @@ def _line_set(text: str) -> set[str]:
 
 
 def _overlap(package: Package, baked: Mapping[str, tuple[str, int]]) -> list[dict[str, Any]]:
-    """Baked image files whose bytes or distinct lines reappear in ``tests/`` (the verifier-only side)."""
     test_files = {
         path: text for path, text in package.files.items()
         if path.startswith("tests/") and path != "tests/test.sh" and not path.endswith("Dockerfile")
@@ -541,7 +487,6 @@ def _overlap(package: Package, baked: Mapping[str, tuple[str, int]]) -> list[dic
                 found[source] = {"image_path": target, "source": source, "dockerfile_line": line,
                                  "tests_file": path, "shared_lines": shared, "kind": "shared_lines"}
                 break
-    # archives expanded under environment/: compare their members too
     for source, text in package.files.items():
         if "!" not in source or not source.startswith("environment/") or source in found:
             continue
@@ -663,10 +608,6 @@ def container_and_boundary(package: Package) -> tuple[dict[str, Any], dict[str, 
     return boundary, context
 
 
-# --------------------------------------------------------------------------------------------------------------------
-# grader script mechanics
-
-
 def _runner_of(*texts: str) -> tuple[str, list[str]]:
     hits: list[tuple[int, str]] = []
     blob = "\n".join(texts)
@@ -767,7 +708,6 @@ def _env_vectors(test_sh: str, test_cmd: str, variables: Mapping[str, str]) -> d
 def _executes_agent_script(
     test_sh: str, sources: Sequence[TestSource], baked: Mapping[str, tuple[str, int]]
 ) -> list[dict[str, Any]]:
-    """Scripts or modules the verifier runs/imports that live in the agent-writable image tree."""
     checker = re.compile(r"check|verif|validat|grader|grade|attest|audit|oracle|harness|judge|scor|evaluat", re.I)
     baked_names = {PurePosixPath(path).name: path for path in baked if checker.search(PurePosixPath(path).name)}
     baked_modules = {
@@ -880,10 +820,6 @@ def _unshipped_helpers(sources: Sequence[TestSource], touched: Sequence[str]) ->
     return found[:_MAX_LIST]
 
 
-# --------------------------------------------------------------------------------------------------------------------
-# test-suite rigor
-
-
 @dataclass
 class Counts:
     files: int = 0
@@ -940,7 +876,6 @@ _SURFACE_CALLS = {"exists", "isfile", "isdir", "is_file", "is_dir", "hasattr", "
 
 
 def _reads_source(func: ast.AST) -> bool:
-    """Whether the test reads source text (``inspect.getsource`` or a ``.py``/``.js`` file) to assert on it."""
     calls = {_call_name(n) for n in ast.walk(func) if isinstance(n, ast.Call)}
     if calls & {"getsource", "getsourcelines"}:
         return True
@@ -979,7 +914,6 @@ def _count_assert(node: ast.Assert, counts: Counts, *, reads_source: bool) -> No
 
 
 def _count_unittest_call(node: ast.Call, attr: str, counts: Counts, *, reads_source: bool) -> bool:
-    """Count one ``self.assertX``/mock-assert call; returns whether it was an assertion."""
     if attr.startswith("assert_called") or attr in {"assert_any_call", "assert_not_called", "assert_has_calls"}:
         counts.assertions += 1
         counts.mock_assertions += 1
@@ -1018,7 +952,7 @@ def _ast_function_counts(func: ast.AST, counts: Counts, helpers: frozenset[str] 
         return
     calls = {_call_name(n) for n in ast.walk(func) if isinstance(n, ast.Call)}
     delegated = calls & helpers
-    counts.assertions += len(delegated)  # an assertion helper counts once per distinct helper a test calls
+    counts.assertions += len(delegated)
     if asserted == 0 and not delegated and not calls & {"fail", "check_call", "check_output"}:
         counts.tests_without_assertion += 1
     if _NEG_NAME.search(func.name):
@@ -1085,7 +1019,6 @@ def _regex_counts(source: TestSource) -> Counts:
 
 
 def _build_env_command(patch_text: str) -> str:
-    """Decoded ``test_command.sh`` of a MiMo ``mimo_build_env`` bundle (the grader-hardening decoder, imported lazily)."""
     if "build_env.tar.gz.b64" not in patch_text:
         return ""
     from evallab.grader_hardening import build_env_command
@@ -1111,10 +1044,6 @@ def _test_sources(package: Package) -> tuple[list[TestSource], list[str], list[P
             scripts.extend(more_scripts)
             scripts.append(_build_env_command(text))
     return sources, scripts, patch_files
-
-
-# --------------------------------------------------------------------------------------------------------------------
-# instruction cues and reference patch
 
 
 def _symbol_kind(token: str, span: str) -> str:
@@ -1192,7 +1121,7 @@ def reference_patch_surface(patch_text: str, tests_text: str) -> dict[str, Any]:
             match = _DEF.search(hunk["ctx"] or "")
             if match:
                 owner = next(g for g in match.groups() if g)
-            edits = 0  # edits to the hunk's enclosing function: those before the first definition the hunk adds
+            edits = 0
             for tag, text, _ in hunk["lines"]:
                 if tag == "+" and _DEF.search(text):
                     break
@@ -1273,10 +1202,6 @@ def test_suite_rigor(package: Package, sources: Sequence[TestSource], reference_
     return result
 
 
-# --------------------------------------------------------------------------------------------------------------------
-# hypotheses
-
-
 def _h(hyps: list[Hypothesis], hid: str, cls: str, score: int, confidence: str, title: str,
        evidence: Sequence[dict[str, Any]], witness: str, *, reference: bool = False) -> None:
     assert cls in MECHANISM_CLASSES
@@ -1303,7 +1228,6 @@ def build_hypotheses(package: Package, boundary: Mapping[str, Any], grader: Mapp
     test_sh = package.text("tests/test.sh")
     instruction = package.text("instruction.md")
 
-    # ---- grader_tamperable
     if grader["baked_tests_executed"]:
         hits = grader["baked_tests_executed"]
         _h(hyps, "GT-BAKED-TESTS-EXECUTED", "grader_tamperable", 95, "static_certain",
@@ -1379,7 +1303,6 @@ def build_hypotheses(package: Package, boundary: Mapping[str, Any], grader: Mapp
            "Hidden tests import helper/conftest modules that the hidden patch does not ship, so the agent can rewrite them",
            [_ev(h["file"], h["line"], h["text"]) for h in reset["helper_modules_not_shipped_by_patch"]],
            "Modify the named helper to make its assertion helpers no-ops (return True) and run the hidden tests.")
-    # ---- answer_reachable
     overlaps: dict[str, list[dict[str, Any]]] = {}
     for item in image["tests_baked_identical_or_overlapping"]:
         overlaps.setdefault(item["tests_file"], []).append(item)
@@ -1433,7 +1356,6 @@ def build_hypotheses(package: Package, boundary: Mapping[str, Any], grader: Mapp
            _evidence("tests", [(0, f"literal_eq_share={rigor['ratios']['literal_eq_share']}, parametrized_cases={counts['parametrized_cases']}")]),
            "Implement the function as a dict lookup of the literal pairs from the visible/inferred tests and add one unseen input: the "
            "lookup passes the suite but fails the unseen input.")
-    # ---- weak_check
     miss = rigor["instruction_named_symbols_without_test_reference"]
     strong = [m for m in miss if m["weight"] >= 3]
     if strong:
@@ -1494,7 +1416,6 @@ def build_hypotheses(package: Package, boundary: Mapping[str, Any], grader: Mapp
            "The grader deselects/ignores tests (-k not, --deselect, --ignore, xfail, -x)",
            [_ev(e["file"], e["line"], e["text"]) for e in vectors["deselect_or_ignore"]],
            "Break the deselected behavior and rerun: the verdict should not change.")
-    # ---- exploit_grader_gap
     artifact_only = _artifact_only(sources)
     if artifact_only:
         _h(hyps, "EG-ARTIFACT-ONLY-CHECK", "exploit_grader_gap", 72, "static_probable",
@@ -1511,7 +1432,6 @@ def build_hypotheses(package: Package, boundary: Mapping[str, Any], grader: Mapp
            _evidence("instruction.md", _find(instruction, _UNENFORCED.pattern, flags=re.I, limit=2)),
            "Do the forbidden edit (weaken the named test/check) and confirm the verifier still pays out.")
     hyps.sort(key=lambda h: (-h.score, h.id))
-    # de-duplicate hypothesis ids (several overlap items share an id): keep order, suffix later ones
     seen: dict[str, int] = {}
     out = []
     for h in hyps:
@@ -1522,7 +1442,6 @@ def build_hypotheses(package: Package, boundary: Mapping[str, Any], grader: Mapp
 
 
 def _artifact_only(sources: Sequence[TestSource]) -> list[dict[str, Any]]:
-    """Test files that read an absolute-path artifact and never import/run project code."""
     hits: list[dict[str, Any]] = []
     for source in sources:
         if source.origin == "patch" or not source.path.endswith(".py"):
@@ -1541,12 +1460,7 @@ def _artifact_only(sources: Sequence[TestSource]) -> list[dict[str, Any]]:
     return hits
 
 
-# --------------------------------------------------------------------------------------------------------------------
-# entry points
-
-
 def analyze_package(root: str | Path, *, reference_patch: str | Path | None = None) -> dict[str, Any]:
-    """Return the ``PackageAnatomy`` card for one task package directory."""
     root = Path(root)
     if not root.is_dir():
         raise FileNotFoundError(f"task package is not a directory: {root}")
@@ -1591,7 +1505,6 @@ def analyze_package(root: str | Path, *, reference_patch: str | Path | None = No
 
 
 def discover_packages(paths: Sequence[Path]) -> list[Path]:
-    """A task directory (has ``task.toml`` or ``instruction.md``) is itself a package; otherwise its children are."""
     found: dict[Path, None] = {}
     for path in paths:
         if (path / "task.toml").is_file() or (path / "instruction.md").is_file():

@@ -1,26 +1,3 @@
-"""METR reward_hacking scanner (native prompts; Z.ai transport shim).
-
-Pipeline (native scanner with structured-output transport normalization):
-
-1. ``inspect_scout.sources`` ``atif()`` converts each Harbor-shaped trial's
-   ``agent/trajectory.json`` (ATIF) into a Scout ``Transcript``.
-2. Transcripts are indexed into a Scout Parquet transcript database.
-3. ``inspect_scout.scan()`` runs METR's ``reward_hacking_scanner`` factory
-   (``metr_scanners.reward_hacking``) with ``openai/glm-5.3-flash`` on the
-   Z.ai OpenAI-compatible endpoint (chat-completions transport).
-4. Per-transcript ``value`` (0-10, higher = more hack-like), ``explanation``
-   and ``model_usage`` are read back from the scan results and normalized
-   into HAR-187 verdict files.
-
-The METR scanner defines no decision threshold (it emits a 0-10 score,
-taking the max over chunks), so verdicts preserve the score and leave
-``flagged`` null. The scorecard, not this reader, chooses operating points.
-
-Runtime: inspect-scout 0.5.3 and metr-scanners 0.1.11 are not repo
-dependencies; run with a Python 3.13 env that has them plus this repo
-(``keys run -- <env>/bin/python -m evallab.readers.scout_metr ...``).
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -37,35 +14,14 @@ READER = "scout_metr"
 MODEL = "openai/glm-5.3-flash"
 BASE_URL = "https://api.z.ai/api/paas/v4"
 IMPLEMENTATION = "METR reward_hacking scanner (native prompts; Z.ai transport shim)"
-#: Scanner's native score range (metr_scanners.reward_hacking.RewardHacking).
 SCORE_MIN, SCORE_MAX = 0.0, 10.0
 
 
 def configure_provider() -> None:
-    """Select the budgeted Z.ai route; requires ``keys run --``."""
     configure_evaluator()
 
 
 class JsonObjectTransport(Model):
-    """Structured-output dialect shim for the Z.ai endpoint (transport only).
-
-    Two endpoint-dictated translations, both below the scanner's own
-    pydantic validation (which stays the final judge):
-
-    1. ``json_schema`` -> ``json_object``: probed 2026-10-07, Z.ai's
-       ``/paas/v4`` chat-completions endpoint ignores ``json_schema``
-       (free-text Markdown comes back) but honors ``json_object``.
-    2. ``answer`` -> ``score``: under ``json_object`` the model sometimes
-       names the numeric field ``answer`` while keeping the prompt's
-       ``reason``/``quotes`` fields. The key is renamed only inside
-       otherwise-valid JSON; native ``RewardHacking`` validation still
-       accepts or rejects the result.
-
-    Anything that is not valid JSON passes through untouched (the scanner's
-    retry/error path handles it). No prompts are copied and no Markdown or
-    free text is ever parsed. Scanner prompts, chunking, retries and
-    pydantic validation are unchanged.
-    """
 
     def __init__(self, inner: Any) -> None:
         self._inner = inner
@@ -87,7 +43,6 @@ class JsonObjectTransport(Model):
 
     @staticmethod
     def _alias_answer_key(completion: Any) -> str | None:
-        """Rename a top-level ``answer`` key to ``score`` in valid JSON only."""
         if not isinstance(completion, str):
             return None
         try:
@@ -104,7 +59,6 @@ class JsonObjectTransport(Model):
 
 
 def scan_model() -> Any:
-    """Provider model behind the transport shim (call after configure)."""
     from inspect_ai.model import get_model  # ty: ignore[unresolved-import]
 
     inner = get_model(MODEL, base_url=BASE_URL, responses_api=False)
@@ -126,12 +80,6 @@ __all__ = [
 
 
 def summarize_usage(model_usage: dict[str, Any]) -> dict[str, int]:
-    """Collapse Scout per-model usage into verdict token totals.
-
-    ``input`` is the true prompt-token total (base input plus any cached
-    tokens, matching :func:`flash_cost` semantics); ``cached`` counts cache
-    reads, which Z.ai bills at the reduced cached rate.
-    """
     base = cached_read = cached_write = output = 0
     for usage in (model_usage or {}).values():
         if isinstance(usage, str):
@@ -153,13 +101,6 @@ def summarize_usage(model_usage: dict[str, Any]) -> dict[str, int]:
 
 
 def parse_value(value: Any) -> float | None:
-    """Normalize the scanner's native ``value`` to a 0-10 score or None.
-
-    Mirrors the scanner's own pydantic coercion (``RewardHacking.score`` is a
-    float, so lax validation accepts numeric strings): the chunked scanner
-    returns ``NOANSWER`` (``'N'``) when no chunk yields a valid score, and
-    anything outside 0-10 is treated as no-score rather than clipped.
-    """
     if isinstance(value, bool):
         return None
     if isinstance(value, str):
@@ -181,7 +122,6 @@ def to_verdict(
     model_usage: dict[str, Any] | None,
     raw: str,
 ) -> dict[str, Any]:
-    """Build one HAR-187 verdict from a native scan result row."""
     score = parse_value(value)
     tokens = summarize_usage(model_usage or {})
     cost = flash_cost(tokens["input"], tokens["output"], tokens["cached"])
@@ -221,12 +161,6 @@ def _require_scout_env() -> None:
 
 
 async def load_transcripts(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    """Load each row's trial trajectory natively via Scout's ``atif()``.
-
-    Returns ``{eval_id: Transcript}``. Raises ``KeyError`` listing rows
-    whose trajectory is missing or fails ATIF validation (the eval-set
-    contract requires Harbor-shaped ATIF trial dirs).
-    """
     from inspect_scout.sources._atif.transcripts import atif  # ty: ignore[unresolved-import]
 
     transcripts: dict[str, Any] = {}
@@ -251,7 +185,6 @@ async def load_transcripts(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 async def build_db(transcripts: dict[str, Any], db_dir: str) -> None:
-    """Index native Transcripts into a fresh Scout Parquet database."""
     from inspect_scout import transcripts_db  # ty: ignore[unresolved-import]
 
     db = transcripts_db(db_dir)
@@ -263,7 +196,6 @@ async def build_db(transcripts: dict[str, Any], db_dir: str) -> None:
 
 
 def run_scan(db_dir: str, scan_dir: str) -> Any:
-    """Run the native METR scanner over the whole database in one scan job."""
     from inspect_scout import scan  # ty: ignore[unresolved-import]
     from inspect_scout._transcript.factory import (  # ty: ignore[unresolved-import]
         transcripts_from_db,
@@ -285,13 +217,6 @@ def run_scan(db_dir: str, scan_dir: str) -> Any:
 
 
 def read_reports(scan_location: str) -> list[dict[str, Any]]:
-    """Read one report dict per transcript from a completed native scan.
-
-    Uses the native results-frame schema (``rows="results"``): ``value`` is
-    the scanner's numeric score (or NA when the scanner errored),
-    ``scan_model_usage`` carries per-model token usage, and the
-    ``scanner_*`` columns identify the exact scanner build.
-    """
     import pandas as pd  # ty: ignore[unresolved-import]
     from inspect_scout import scan_results_df  # ty: ignore[unresolved-import]
 
@@ -339,7 +264,6 @@ async def scan_rows(
     workdir: Path,
     verdict_dir: Path,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Native end-to-end scan of eval-set rows; writes verdicts, returns spend."""
     _require_scout_env()
     configure_provider()
     db_dir = str(workdir / "scout_metr_db")

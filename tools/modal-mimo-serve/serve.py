@@ -1,30 +1,3 @@
-"""Serve XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B on Modal with SGLang (HAR-90).
-
-One A100-80GB, 262144-token context, OpenAI-compatible ``/v1/chat/completions``. Every
-``/v1`` call must carry ``Authorization: Bearer <SGLANG_API_KEY>``; the key
-comes from the Modal Secret ``evallab-mimo-v26-9b-api-key``. Weights live on
-the Modal Volume ``evallab-mimo-v26-9b-weights``. At most one container runs;
-without an admitted owned window it scales to zero after the configured idle
-window (default 300 seconds), while an owned window holds that one container
-warm for the window's bounded life.
-
-From the repository root::
-
-    # once per revision, CPU only (no GPU is billed while downloading)
-    uv run --project tools/modal-mimo-serve --locked \\
-        modal run tools/modal-mimo-serve/serve.py::download_weights
-    # deploy / stop
-    uv run --project tools/modal-mimo-serve --locked \\
-        modal deploy tools/modal-mimo-serve/serve.py
-    uv run --project tools/modal-mimo-serve --locked \\
-        modal app stop evallab-mimo-v26-9b
-
-Every request must send ``chat_template_kwargs: {"enable_thinking": true}``.
-SGLang's ``mimo`` reasoning parser only splits ``<think>`` into
-``reasoning_content`` when it is set; otherwise the reasoning text lands in
-``content``. The Eval Lab proxy provider ``mimo_selfhosted`` enforces this.
-"""
-
 from __future__ import annotations
 
 import json
@@ -45,11 +18,7 @@ import serving_window  # noqa: E402
 
 APP_NAME = "evallab-mimo-v26-9b"
 MODEL_ID = "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B"
-# Hugging Face commit of the release weights (2026-09-22).
 MODEL_REVISION = "2367e865d009c13ac81713a2878291d33ab28177"
-# lmsysorg/sglang:v0.5.20-runtime (CUDA 13.0; ships the qwen3_5 model and the
-# `mimo` reasoning parser). Pinned by manifest-list digest; Modal's host driver
-# (580.x, CUDA 13.0) runs it.
 SGLANG_IMAGE = (
     "lmsysorg/sglang@sha256:00b02004501e402332827ffd5343a225a8960d99adc990b37d6f31085b8f6800"
 )
@@ -64,7 +33,6 @@ MODEL_DIR = WEIGHTS_ROOT / MODEL_ID / MODEL_REVISION
 
 
 def _bounded_env_int(name: str, default: int, minimum: int, maximum: int) -> int:
-    """Reject malformed or out-of-policy deploy-time integers before registration."""
     try:
         value = int(os.environ.get(name, str(default)))
     except ValueError as exc:
@@ -97,7 +65,6 @@ image = (
         {
             "HF_XET_HIGH_PERFORMANCE": "1",
             "HF_HUB_DISABLE_TELEMETRY": "1",
-            # Remote imports must retain the resolved deployment configuration.
             "EVALLAB_MIMO_GPU": GPU,
             "EVALLAB_MIMO_MAX_RUNNING_REQUESTS": str(MAX_RUNNING_REQUESTS),
             "EVALLAB_MIMO_SCALEDOWN_WINDOW_SECONDS": str(SCALEDOWN_WINDOW_SECONDS),
@@ -112,7 +79,6 @@ app = modal.App(APP_NAME, tags=serving_window.ownership_tags(WINDOW)) if WINDOW 
 
 @app.function(image=image, volumes={WEIGHTS_ROOT: weights}, cpu=4.0, timeout=30 * MINUTES)
 def download_weights() -> str:
-    """Download the pinned revision into the volume (idempotent)."""
     from huggingface_hub import snapshot_download
 
     if (MODEL_DIR / "config.json").exists():
@@ -138,17 +104,11 @@ if WINDOW is not None:
         schedule=modal.Period(seconds=60),
     )
     def stop_window() -> None:
-        """Independent guard in this app, not another serving app or GPU."""
         assert WINDOW is not None and app.app_id is not None
         serving_window.remote_guard(WINDOW, app.app_id)
 
 
 def _relay_redacted(stream: IO[bytes], secret: str) -> None:
-    """Copy SGLang's merged output to the container log with the key removed.
-
-    SGLang logs ``server_args=`` (including ``api_key``) at startup; the key
-    must never reach Modal's log store.
-    """
     for raw in iter(stream.readline, b""):
         sys.stdout.write(raw.decode("utf-8", "replace").replace(secret, "<redacted>"))
         sys.stdout.flush()
@@ -173,7 +133,6 @@ def _wait_ready(process: subprocess.Popen[bytes], api_key: str) -> None:
 
 
 def sglang_command(api_key: str) -> list[str]:
-    """The SGLang launch command; ``serve_lora.py`` reuses it unchanged."""
     return [
         "python3",
         "-m",
@@ -190,18 +149,14 @@ def sglang_command(api_key: str) -> list[str]:
         str(CONTEXT_LENGTH),
         "--dtype",
         "bfloat16",
-        # Active model requests, not task lanes; keep automatic shared KV sizing.
         "--max-running-requests",
         str(MAX_RUNNING_REQUESTS),
-        # CUDA graphs are independent of the scheduler's active-request cap.
         "--cuda-graph-max-bs-decode",
         "16",
         "--host",
         "0.0.0.0",
         "--port",
         str(PORT),
-        # Prometheus /metrics (running/queued requests, throughput, KV usage)
-        # for the HAR-126 telemetry sampler; observability only.
         "--enable-metrics",
         "--api-key",
         api_key,
@@ -215,8 +170,6 @@ def sglang_command(api_key: str) -> list[str]:
     memory=SERVER_MEMORY,
     volumes={WEIGHTS_ROOT: weights},
     secrets=[modal.Secret.from_name(SECRET_NAME, required_keys=["SGLANG_API_KEY"])],
-    # An owned admitted window keeps its one model container warm for the
-    # window's bounded life; unowned deployments still scale to zero when idle.
     min_containers=1 if WINDOW is not None else 0,
     max_containers=1,
     buffer_containers=0,
@@ -224,8 +177,6 @@ def sglang_command(api_key: str) -> list[str]:
     startup_timeout=20 * MINUTES,
     exit_grace_period=30,
     port=PORT,
-    # SGLang's --api-key authenticates every /v1 call. Modal proxy tokens are
-    # not used: the Eval Lab proxy carries exactly one upstream credential.
     unauthenticated=True,
 )
 class MimoServer:

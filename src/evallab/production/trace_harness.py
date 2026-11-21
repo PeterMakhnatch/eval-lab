@@ -1,5 +1,3 @@
-"""Shared trace-findings contracts for retained Gold and online readers."""
-
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
@@ -32,13 +30,7 @@ SUMMARY_WORDS = MAX_SUMMARY_WORDS
 SUMMARY_CHARS = MAX_SUMMARY_CHARS
 
 
-# --------------------------------------------------------------------------- #
-# the shared input
-# --------------------------------------------------------------------------- #
-
-
 def actor_inputs_available(steps: Iterable[Mapping[str, Any]]) -> bool:
-    """Some agent-authored step has message text or a tool call (the export rule)."""
     from evallab.production.cloud_trace_export import _actor_inputs_available
 
     return _actor_inputs_available(list(steps))
@@ -46,12 +38,6 @@ def actor_inputs_available(steps: Iterable[Mapping[str, Any]]) -> bool:
 
 @dataclass(frozen=True)
 class HarnessRun:
-    """One run as every detector receives it.
-
-    ``steps`` are the ATIF-shaped steps with original ``step_id`` values; every
-    ``evidence_steps`` entry a detector emits is an original step id. ``blind``
-    is the allowlisted, renumbered view model readers must use.
-    """
 
     run_id: str
     source: str
@@ -59,7 +45,6 @@ class HarnessRun:
     outcome: str
     steps: tuple[Mapping[str, Any], ...]
     actor_inputs_available: bool
-    # Health facts only: never included in atlas_run/blind() or model prompts.
     meta: Mapping[str, Any] = field(default_factory=dict, repr=False, compare=False)
     _blind: list[BlindRun] = field(default_factory=list, repr=False, compare=False)
 
@@ -78,15 +63,9 @@ class HarnessRun:
         return [step.get("step_id") for step in self.steps]
 
     def blind(self) -> BlindRun:
-        """Blinded view, computed once per run and shared by every detector."""
         if not self._blind:
             self._blind.append(blind_run(self.atlas_run))
         return self._blind[0]
-
-
-# --------------------------------------------------------------------------- #
-# trace-findings/v1
-# --------------------------------------------------------------------------- #
 
 
 def now_utc() -> str:
@@ -104,11 +83,6 @@ def finding(
     summary: str = "", input_tokens: int = 0, output_tokens: int = 0, cost_usd: float = 0.0,
     latency_ms: int = 0, produced_at: str | None = None,
 ) -> dict[str, Any]:
-    """Build one validated ``trace-findings/v1`` record.
-
-    Trim the summary and cap cited steps (lowest ids first) to the shared
-    ``trace_findings._finding`` contract.
-    """
     record = {
         "run_id": run_id, "detector": detector, "detector_version": detector_version,
         "reader_model": reader_model, "verdict": verdict,
@@ -125,11 +99,6 @@ def finding(
 
 
 def validate_finding(record: Mapping[str, Any]) -> list[str]:
-    """Reasons a record breaks ``trace-findings/v1``; empty when valid.
-
-    ``trace_findings._finding`` supplies the shared value rules.
-    The harness also requires an exact field set and a ``provider/id`` reader.
-    """
     errors = [f"missing field {name}" for name in FINDING_FIELDS if name not in record]
     errors += [f"unexpected field {name}" for name in sorted(set(record) - set(FINDING_FIELDS))]
     if errors:
@@ -147,14 +116,8 @@ def validate_finding(record: Mapping[str, Any]) -> list[str]:
     return errors
 
 
-# --------------------------------------------------------------------------- #
-# detectors
-# --------------------------------------------------------------------------- #
-
-
 @dataclass(frozen=True)
 class HarnessOptions:
-    """Shared settings handed to every detector factory."""
 
     database: Path = DEFAULT_DATABASE
     repo_root: Path = Path(".")

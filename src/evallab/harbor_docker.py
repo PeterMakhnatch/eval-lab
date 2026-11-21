@@ -1,19 +1,3 @@
-"""Fail-closed, single-container Harbor 0.24 Docker execution.
-
-The final Compose overlay puts ``main`` in ``network_mode: none`` at creation;
-there is no network-enabled setup interval, sidecar, or delayed disconnect.
-Host-side Docker exec/copy still work. Image builds/pulls are host operations,
-not sandbox traffic, and are not covered by this runtime egress lock. Agents
-needing sandbox network during setup are deliberately incompatible.
-
-This is network isolation, not a VM/container-escape guarantee. The Docker daemon
-and host are trusted; an external daemon administrator can change containers.
-Only Harbor's own trial log/artifact binds are accepted. Their host directories
-must not contain secrets, sockets, or links to other host data. Linux Docker
-Desktop can exercise containment, but says nothing about Hetzner performance.
-CPU/memory/storage handling and stop/delete semantics remain Harbor-native.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -49,14 +33,6 @@ _SECURITY_OPTIONS = {"no-new-privileges", "no-new-privileges:true"}
 
 
 def verifier_context_must_build(environment_dir: Path, docker_image: str | None) -> bool:
-    """True when this build context is a separate-verifier ``tests/`` tree.
-
-    Harbor copies ``[environment].docker_image`` onto the verifier when
-    ``[verifier.environment]`` is absent. With ``force_build`` false it then
-    runs that agent image and never builds ``tests/Dockerfile``, and it does
-    not upload tests into a separate verifier. ``/tests/test.sh`` is missing.
-    The agent context (``environment/``) keeps the prebuilt image.
-    """
     if not docker_image:
         return False
     context = Path(environment_dir)
@@ -68,19 +44,7 @@ def verifier_context_must_build(environment_dir: Path, docker_image: str | None)
 
 
 class LockedDockerEnvironment(DockerEnvironment):
-    """Native Docker lifecycle with an explicit, immutable egress lock.
 
-    Import through ``evallab.harbor_docker:LockedDockerEnvironment`` and pass
-    ``egress_lock=True``. No-network phases and baseline restores are logical
-    assertions: the container stays network=none throughout. Other policy
-    switches and network allowlists are refused, not adapted.
-    GPU/device passthrough is outside this CPU sandbox's qualified boundary.
-    """
-
-    #: Only subclasses that extend every creation-time lock setting to each
-    #: additional Compose service (e.g. host isolation with task sidecars) may
-    #: accept a task-provided Compose file. The explicit egress-lock backend
-    #: itself stays strict single-container.
     _allow_task_compose = False
 
     def __init__(
@@ -165,13 +129,10 @@ class LockedDockerEnvironment(DockerEnvironment):
 
     @staticmethod
     def _requires_egress_control(**kwargs: Any) -> bool:
-        # Native's sidecar is neither used nor probed (including on Darwin).
         return False
 
     @property
     def capabilities(self) -> EnvironmentCapabilities:
-        # Harbor requires this capability for a phase that differs logically
-        # from the task baseline, even though our Docker network never changes.
         return EnvironmentCapabilities(
             disable_internet=True, mounted=True, dynamic_network_policy=True
         )
@@ -184,12 +145,9 @@ class LockedDockerEnvironment(DockerEnvironment):
             raise ValueError("egress_lock refuses network policy switches")
 
     async def _apply_network_policy(self, network_policy: NetworkPolicy) -> None:
-        """Assert a logical phase without changing the creation-time lock."""
         self.validate_network_policy_support(network_policy)
         if not self._lock_confirmed:
             raise RuntimeError("egress_lock phase assertions require a confirmed lock")
-        # Harbor updates its logical policy after this assertion. Baseline
-        # restoration never reconnects this network=none container.
 
     def _allowed_mounts(self) -> dict[str, Path]:
         paths = EnvironmentPaths()
@@ -288,8 +246,6 @@ class LockedDockerEnvironment(DockerEnvironment):
         return json.loads(await self._daemon_output(*command))
 
     async def _resolved_compose_services(self) -> dict[str, Any]:
-        # Resolve actual native overlays before creation. Output-to-file avoids
-        # mixing Compose warnings with JSON and is deleted immediately (env).
         path = self._docker_compose_paths[-1].with_name("resolved.json")
         try:
             await super()._run_docker_compose_command(
@@ -346,12 +302,6 @@ class LockedDockerEnvironment(DockerEnvironment):
         return main
 
     async def _sandbox_interface_states(self, container_id: str | None = None) -> dict[str, str]:
-        """Corroborate daemon attachment evidence with a kernel interface census.
-
-        Detached namespaces can retain down pseudo-devices (tunl0, sit0, ...).
-        The sandbox lacks NET_ADMIN; daemon-side attachment evidence remains
-        authoritative, rather than trusting this in-container census alone.
-        """
         cid = container_id or self._container_id
         assert cid is not None
         output = await self._daemon_output(
@@ -527,9 +477,6 @@ class LockedDockerEnvironment(DockerEnvironment):
     async def _validate_network_attachments(self, attachments: Any) -> None:
         if attachments == {}:
             return
-        # Docker may report the built-in `none` pseudo-network, which creates
-        # only loopback, rather than an empty Networks map. Never trust its name
-        # alone: confirm the driver's native daemon identity and empty addresses.
         if not isinstance(attachments, dict) or set(attachments) != {"none"}:
             raise RuntimeError("egress_lock Docker container has network attachments")
         endpoint = attachments["none"]
@@ -635,7 +582,6 @@ class LockedDockerEnvironment(DockerEnvironment):
             raise
 
     async def prepare_logs_for_host(self) -> None:
-        # Do not exec even cleanup commands in an unconfirmed container.
         if self._lock_confirmed:
             await super().prepare_logs_for_host()
 

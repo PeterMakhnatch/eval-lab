@@ -1,9 +1,3 @@
-"""Read-only static checks for Harbor task verifier trust boundaries.
-
-These findings screen declarations and files; they do not certify verifier
-correctness or replace oracle, NOP, and negative-mutant control runs.
-"""
-
 from __future__ import annotations
 
 import json
@@ -33,7 +27,6 @@ class Finding:
 
 
 def _docker_sources(arguments: str) -> list[str]:
-    """Use the workbench's flag/JSON/shlex pattern, retaining operand validation."""
     payload = arguments.strip()
     while payload.startswith("--"):
         parts = payload.split(maxsplit=1)
@@ -44,7 +37,6 @@ def _docker_sources(arguments: str) -> list[str]:
             raise ValueError("malformed COPY/ADD flag; use --name=value")
         if not separator and name not in {"link", "parents", "keep-git-dir"}:
             raise ValueError(f"flag --{name} needs an explicit --{name}=value")
-    # The last operand is the destination, never a source.
     operands = json.loads(payload) if payload.startswith("[") else shlex.split(payload)
     if (
         not isinstance(operands, list)
@@ -157,14 +149,6 @@ def _artifact_contract_findings(task_dir: Path, artifacts: Sequence[str]) -> lis
 
 
 def _hidden_docker_source(source: str, context: Path) -> bool:
-    """Screen one COPY/ADD source operand against the Docker build context.
-
-    Harbor builds environment/Dockerfile with environment/ as the build context,
-    so a source naming tests or solution enters the agent image only from that
-    context. An operand that resolves to an existing context path is the task's
-    own agent-visible material; one that escapes the context, follows a symlink
-    out of it, or matches nothing still reaches for hidden verifier inputs.
-    """
     if not {"tests", "solution"}.intersection(PurePosixPath(source.casefold()).parts):
         return False
     root = context.resolve()
@@ -182,7 +166,6 @@ _GIT_CLONE = re.compile(r"(?<![\w-])git\s+clone(?![\w-])")
 
 
 def _from_operands(arguments: str) -> tuple[str, str | None]:
-    """Return the image operand and the optional stage name of one FROM line."""
     tokens = arguments.split()
     while tokens and tokens[0].startswith("--"):
         tokens.pop(0)
@@ -195,7 +178,6 @@ def _from_operands(arguments: str) -> tuple[str, str | None]:
 def _from_findings(
     dockerfile: Path, line_number: int, arguments: str, stages: set[str]
 ) -> list[Finding]:
-    """Warn when a base image can resolve to different bytes at build time."""
     image, stage = _from_operands(arguments)
     resolved = image.casefold()
     is_stage = resolved in stages
@@ -228,7 +210,6 @@ def _from_findings(
 
 
 def _run_findings(dockerfile: Path, line_number: int, arguments: str) -> list[Finding]:
-    """Warn when a Dockerfile clone takes a branch or tag head instead of a commit."""
     if not _GIT_CLONE.search(arguments) or _GIT_COMMIT.search(arguments):
         return []
     return [
@@ -327,7 +308,6 @@ def _one_line(text: str) -> str:
 
 
 def _parse_source(path: Path, bash: str | None) -> str | None:
-    """Return the parser message for one source file, or None when it parses."""
     if path.suffix == ".sh":
         if bash is None:
             return None
@@ -338,8 +318,6 @@ def _parse_source(path: Path, bash: str | None) -> str | None:
             errors="replace",
             check=False,
         )
-        # bash 4 and newer report an unterminated heredoc as a warning on stderr
-        # while still exiting 0, so a diagnostic alone is enough to fail.
         if result.returncode != 0 or result.stderr.strip():
             detail = _one_line(result.stderr) or f"exit {result.returncode}"
             return f"bash -n: {detail}"
@@ -359,12 +337,10 @@ def _parse_source(path: Path, bash: str | None) -> str | None:
 
 
 def _bash_parser() -> str | None:
-    """The bash that parses shell sources, or None when bash is not on PATH."""
     return shutil.which("bash")
 
 
 def _lint_sources(task_dir: Path) -> list[Finding]:
-    """Parse task sources statically; nothing here executes or writes task content."""
     bash = _bash_parser()
     findings: list[Finding] = []
     for directory, suffixes in _SOURCE_PARSERS:
@@ -378,7 +354,6 @@ def _lint_sources(task_dir: Path) -> list[Finding]:
 
 
 def lint_task(task_dir: Path) -> list[Finding]:
-    """Inspect one task without executing or modifying any task content."""
     findings: list[Finding] = []
     artifact_findings: list[Finding] = []
     declared: list[str] = []
@@ -457,11 +432,6 @@ def lint_task(task_dir: Path) -> list[Finding]:
 
 
 def _task_packages(root: Path) -> Iterator[Path]:
-    """Task directories below `root`, skipping hidden directories.
-
-    A directory that holds `task.toml` is one task, and its subdirectories are
-    never searched.
-    """
     pending = [root]
     while pending:
         for child in pending.pop().iterdir():
@@ -474,12 +444,6 @@ def _task_packages(root: Path) -> Iterator[Path]:
 
 
 def discover_tasks(paths: Sequence[Path]) -> list[Path]:
-    """Expand task packages under each path, sorted by posix path.
-
-    A path that is itself a task stays one task. Any other existing directory
-    is searched recursively, so collection roots may nest packages. A path that
-    does not exist stays one candidate, and lint reports its missing manifest.
-    """
     tasks: dict[Path, None] = {}
     for path in paths:
         if path.is_dir() and not (path / "task.toml").is_file():

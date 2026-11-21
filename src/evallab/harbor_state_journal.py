@@ -1,11 +1,3 @@
-"""Passive filesystem state journal for Harbor Docker trials.
-
-The observer runs in a separate container in the Docker host PID namespace. It
-reads the task root through ``/proc/<target-pid>/root/app`` and writes only to a
-host directory mounted into the observer. The task container receives no mount,
-file, environment variable, executable, or prompt change.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -27,7 +19,6 @@ class Monitor:
 
 
 def compose_project_name(trial_name: str) -> str:
-    """Reproduce Harbor's Docker Compose project naming for an agent environment."""
     name = f"{trial_name}__env".lower()
     if not re.match(r"^[a-z0-9]", name):
         name = "0" + name
@@ -43,7 +34,6 @@ def monitor_command(
     watch_root: str,
     max_hash_bytes: int,
 ) -> list[str]:
-    """Build a sidecar command that does not mutate or mount into the target."""
     return [
         "docker",
         "run",
@@ -97,7 +87,6 @@ def _atomic_json(path: Path, value: dict[str, Any]) -> None:
 
 
 class StateJournalPlugin:
-    """Attach a fail-open, model-invisible state observer to Docker trials."""
 
     def __init__(
         self,
@@ -115,9 +104,6 @@ class StateJournalPlugin:
         self.image_error: str | None = None
         self.monitors: dict[str, Monitor] = {}
         self.observer_enabled = os.environ.get("EVALLAB_STATE_JOURNAL") != "off"
-        # HAR-165: single CLI plugin constraint keeps Harbor's --plugin list at
-        # one entry. Laminar lifecycle rides along here without touching the
-        # Docker observer below.
         self._laminar: Any | None = None
         try:
             from evallab.harbor_laminar import LaminarTrialPlugin
@@ -130,7 +116,7 @@ class StateJournalPlugin:
         if self.observer_enabled:
             try:
                 self.image = await self._ensure_image()
-            except Exception as exc:  # fail-open observability must never fail a trial
+            except Exception as exc:
                 self.image_error = f"{type(exc).__name__}: {exc}"
         else:
             self.image_error = "disabled by EVALLAB_STATE_JOURNAL=off"
@@ -269,7 +255,7 @@ class StateJournalPlugin:
                 await asyncio.sleep(0.05)
             await self._stop(trial_id)
             raise RuntimeError("observer did not become ready before agent execution")
-        except Exception as exc:  # fail-open: absence is explicit, task continues untouched
+        except Exception as exc:
             self._unavailable(output, f"{type(exc).__name__}: {exc}")
 
     async def _on_agent_ended(self, event: Any) -> None:

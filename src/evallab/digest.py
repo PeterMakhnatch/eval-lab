@@ -73,12 +73,10 @@ control run can never be classified as noise by this rule.
 
 
 def is_lab_self_test(trial: DigestTrial) -> bool:
-    """True for a run the lab generated to test itself rather than a model."""
     return trial.job_name.startswith(SELF_TEST_JOB_PREFIX)
 
 
 def event_belongs_to_report_day(event: QueueEvent, day: date) -> bool:
-    """Prefer a nightly event's semantic report date over its wall-clock date."""
     if event.report_date is not None:
         return event.report_date == day.isoformat()
     return event.occurred_at.astimezone().date() == day
@@ -185,10 +183,6 @@ class DigestRenderer:
         try:
             lines.extend(digest_section(self._preflight_loader()))
         except Exception as exc:
-            # The preflight is a report about other reports; a failure in it must
-            # never cost the nightly its trials, spend, or queue sections. Naming
-            # the failure is the honest degradation — an omitted section would
-            # read as "nothing to warn about".
             lines.extend(
                 [
                     "## Preflight",
@@ -298,10 +292,6 @@ class DigestRenderer:
             )
         }
         lines.append("- Depth: " + ", ".join(f"{key}={value}" for key, value in depths.items()))
-        # `list_specs` raises on any spec file this build cannot validate. Once
-        # `ExperimentSpec.purpose` becomes required (WS-E item 1), every spec
-        # queued before that landed is one such file — and a stale queue entry
-        # must not be able to take down the whole nightly digest.
         try:
             waiting = self.queue.list_specs("waiting")
             unreadable = ""
@@ -470,8 +460,6 @@ class DigestRenderer:
         *,
         empty: str,
     ) -> None:
-        # A self-test that raised is real signal about the harness, so it stays
-        # a row. Only clean self-tests collapse into the summary below.
         reported = [
             trial for trial in trials if trial.exception_type or not is_lab_self_test(trial)
         ]
@@ -537,21 +525,6 @@ class DigestRenderer:
         return []
 
     def _reason_for(self, spec_id: str) -> str:
-        """The most recently *recorded* refusal rationale for this spec.
-
-        Ordered by the `occurred_at` inside each record rather than by filename.
-        `write_reason` names files `{spec_id}-{ULID}.json` (queue.py:808), and a
-        ULID orders lexically only down to its 48-bit millisecond: two reasons
-        written inside the same millisecond sort at random, because the low 80
-        bits are. Since #65 made two reasons per spec ordinary — submit records
-        `paid_run_unauthorized`, a later tick records the real refusal — the
-        digest could print the earlier one as the current state.
-
-        `occurred_at` is microsecond-resolution, so this narrows the tie window
-        rather than closing it; an exact tie falls back to glob order. Making it
-        total would mean ordering from the event log, which is a larger change
-        than this defect earns.
-        """
         recorded: list[QueueReason] = []
         for path in sorted(self.queue.reasons_dir.glob(f"{spec_id}-*.json")):
             try:
@@ -577,7 +550,6 @@ def _directory_bytes(root: Path) -> int:
 
 
 def _self_test_summary(trials: list[DigestTrial]) -> list[str]:
-    """One bullet per (task, agent) cohort, so a self-test is counted, not lost."""
     cohorts: dict[tuple[str, str], list[DigestTrial]] = {}
     for trial in trials:
         cohorts.setdefault((trial.task_name, trial.agent_name), []).append(trial)
@@ -593,8 +565,6 @@ def _self_test_summary(trials: list[DigestTrial]) -> list[str]:
         missing = len(cohort) - len(rewards)
         unscored = f", {missing} without a reward" if missing else ""
         plural = "" if len(cohort) == 1 else "s"
-        # A summary that names none of its members cannot be followed back to a
-        # run directory, so the cohort's most recent job stays quotable.
         latest = max(cohort, key=lambda trial: (trial.finished_at, trial.job_name))
         summary.append(
             f"- {len(cohort)} self-test trial{plural} — {task_name} / {agent_name}, "
@@ -604,14 +574,6 @@ def _self_test_summary(trials: list[DigestTrial]) -> list[str]:
 
 
 def _group_trials(trials: list[DigestTrial]) -> list[list[DigestTrial]]:
-    """One group per (job, task, agent), in first-seen order.
-
-    A canary job runs the attempt count `policy/canary-suite.yaml` declares, but
-    the catalog records no attempt ordinal — only an opaque Harbor trial name
-    (`event-summary__5E3btLv`). Numbering the rows `attempt 1..3` would invent a
-    sequence nothing recorded, so the honest rendering is one row per job with
-    the trial count and the full reward spread.
-    """
     groups: dict[tuple[str, str, str], list[DigestTrial]] = {}
     for trial in trials:
         groups.setdefault((trial.job_name, trial.task_name, trial.agent_name), []).append(trial)
@@ -619,15 +581,12 @@ def _group_trials(trials: list[DigestTrial]) -> list[list[DigestTrial]]:
 
 
 def _reward_spread(trials: list[DigestTrial]) -> str:
-    """Every recorded reward, so 1/1/0 can never render the same as 1/1/1."""
     rewards = sorted(trial.reward for trial in trials if trial.reward is not None)
     unscored = len(trials) - len(rewards)
     if not rewards:
         return "unscored" if len(trials) == 1 else f"{len(trials)} unscored"
     if not unscored and rewards[0] == rewards[-1]:
         return f"{rewards[0]:g}" if len(rewards) == 1 else f"{rewards[0]:g} ×{len(rewards)}"
-    # Sorted, never chronological: the catalog orders trials by an opaque name,
-    # so presenting them in order would imply a sequence it does not record.
     spread = ", ".join(f"{value:g}" for value in rewards)
     return f"{spread}, +{unscored} unscored" if unscored else spread
 
@@ -652,14 +611,6 @@ def _event_identity(event: QueueEvent) -> tuple[str, str, str]:
 def _collapse_identical_runs(
     events: list[QueueEvent],
 ) -> list[tuple[QueueEvent, QueueEvent, int]]:
-    """Fold each run of consecutive identical events into (first, last, count).
-
-    Identity deliberately excludes the timestamp, so a half-hourly heartbeat
-    collapses. It deliberately includes the reason code, so `tick_deferred |
-    executor_busy` never disappears into a run of `tick_deferred |
-    no_approved_specs`. A run of one is returned unchanged, which is what keeps
-    every distinct event on its own verbatim line.
-    """
     runs: list[tuple[QueueEvent, QueueEvent, int]] = []
     for event in events:
         if runs and _event_identity(runs[-1][0]) == _event_identity(event):
@@ -671,7 +622,6 @@ def _collapse_identical_runs(
 
 
 def _measured_calibration_records(repo_root: Path) -> tuple[list[JudgeCalibrationRecord], int]:
-    """Every committed judge-calibration record, split measured vs unreportable."""
     root = repo_root / "research/calibration/records"
     measured: list[JudgeCalibrationRecord] = []
     unreportable = 0
@@ -679,8 +629,6 @@ def _measured_calibration_records(repo_root: Path) -> tuple[list[JudgeCalibratio
         try:
             record = JudgeCalibrationRecord.model_validate_json(path.read_text())
         except (OSError, ValidationError):
-            # Not a calibration record: the directory also holds queue specs and
-            # DSPy run notes. Silence here is correct; inventing a judge is not.
             continue
         if record.status == "measured":
             measured.append(record)
@@ -690,14 +638,6 @@ def _measured_calibration_records(repo_root: Path) -> tuple[list[JudgeCalibratio
 
 
 def _judge_calibration_line(repo_root: Path) -> str:
-    """Report the measured calibration state, never a brief number.
-
-    `research/calibration/records/` is the committed record of every judge the
-    lab has measured. A judge is usable exactly when a measured record reaches
-    its own agreement floor *and* the judge was shown the family's evidence pack
-    (`evidence_digest`); a record scored without the evidence answered a
-    different question and is reported as such, never as calibrated.
-    """
     measured, unreportable = _measured_calibration_records(repo_root)
     stub = f" {unreportable} non-measured record(s) are not reportable." if unreportable else ""
     if not measured:

@@ -1,5 +1,3 @@
-"""``evallab failures bank``: the issue-bank inventory (build, stats, verify)."""
-
 from __future__ import annotations
 
 import argparse

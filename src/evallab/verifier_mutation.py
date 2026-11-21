@@ -1,40 +1,3 @@
-"""Verifier mutation testing for Harbor task packages.
-
-The most common grader defect is a verifier that accepts a wrong answer: in
-Tokenless's EnvCheck release, 35 of 66 published write-ups are "insufficient
-checking", and most of their inputs are one-token edits of the reference
-solution's own output (``lok`` -> ``not lok``, ``min`` -> ``max``, ``+`` ->
-``-``). This module searches for those inputs mechanically, the way mutation
-testing grades a test suite:
-
-1. **Capture** (two controls). The reference solution runs inside the task
-   environment and the target files it leaves behind are copied out through
-   Harbor's ``/logs/artifacts`` channel. The same copy without the reference
-   solution captures the untouched environment and is the negative control.
-2. **Coverage** (one more control, :mod:`evallab.verifier_coverage`). The
-   reference solution is graded once more by an instrumented copy of the
-   verifier that records which lines of the captured Python files the hidden
-   tests execute. Mutants on other lines survive by construction, so they are
-   not run; instead one *partial-fix* probe per file reverts the reference-fix
-   code the tests never run. Without a trustworthy trace every line is a
-   candidate, as before.
-3. **Mutate** (one blank control per file plus the selected mutants). Each
-   mutant is the reference solution followed by one small behavioural edit to
-   one captured file; a blank control truncates the file instead. The task's
-   own verifier grades every run. Edits include one-token swaps, dropping an
-   operand, and reverting one hunk of the reference solution's change.
-
-A file whose blank control still earns reward is not graded through that file.
-A mutant that earns full reward while its file's blank control earns zero is a
-*survivor*: a concrete input the verifier cannot tell apart from the reference
-solution. A survivor is a hypothesis, never a finding: it can be behaviour
-equivalent or change behaviour the instruction does not ask for. Confirmation
-is a human reading or an objective check.
-
-Every run is a solution-override control on the oracle channel through
-:func:`evallab.runner.run_matrix`: free, local Docker, no model.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -72,22 +35,16 @@ from evallab.verifier_coverage import (
 SCHEMA_REPORT = "evallab.verifier_mutation.report/v1"
 SCHEMA_HYPOTHESIS = "evallab.verifier_mutation.hypothesis/v1"
 
-#: Where captured files land inside the trial environment. Harbor 0.24 collects
-#: the agent environment's ``/logs/artifacts`` into ``<trial>/artifacts/logs/artifacts``.
 CAPTURE_ROOT = "/logs/artifacts/envcheck-capture"
 _CAPTURE_HOST = ("artifacts", "logs", "artifacts", "envcheck-capture")
 
-#: Captured files larger than this are not mutated.
 MAX_FILE_BYTES = 262_144
-#: Directory targets contribute at most this many files.
 MAX_FILES_PER_TARGET = 12
 MAX_WORKERS = 2
 
 _SKIP_PARTS = frozenset(
     {".git", "node_modules", "__pycache__", ".venv", "venv", "site-packages", "dist-packages"}
 )
-#: Build and package manifests: their fields are rarely the task's answer, and every
-#: dropped ``description`` key would otherwise surface as a survivor.
 _MANIFESTS = frozenset(
     {"package.json", "package-lock.json", "tsconfig.json", "jsconfig.json", "composer.json"}
 )
@@ -121,13 +78,7 @@ def language_of(path: str) -> Language | None:
     return None
 
 
-# --------------------------------------------------------------------------- #
-# Mutants
-# --------------------------------------------------------------------------- #
-
-
 class Mutant(ContractModel):
-    """One behavioural edit to one captured file, with its exact bytes."""
 
     id: str
     file: str
@@ -139,10 +90,7 @@ class Mutant(ContractModel):
     changed_line: bool
     patch: str
     mutated_sha256: str
-    #: Last line the edit touches (multi-line expressions, reverted hunks).
     end_line: int | None = None
-    #: Whether the hidden tests ran this edit's lines on the reference run; None
-    #: when coverage was not measured for the file.
     executed: bool | None = None
 
 
@@ -163,7 +111,6 @@ def _line_starts(source: bytes) -> list[int]:
 
 
 def _between_is_operator(segment: str, operator: str) -> int | None:
-    """Offset of ``operator`` in the text between two operands, if it is the only token."""
     index = segment.find(operator)
     if index < 0:
         return None
@@ -188,8 +135,6 @@ _BINOP_SWAPS: dict[type[ast.operator], tuple[str, str]] = {
     ast.Mult: ("*", "/"),
     ast.Div: ("/", "*"),
 }
-#: ``a - b`` -> ``a`` / ``b``: one operand of a set or arithmetic expression is
-#: dropped, e.g. the ``- {self.id}`` exclusion in an alias merge.
 _OPERAND_OPS = (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.BitOr, ast.BitAnd)
 _CALL_SWAPS = {"min": "max", "max": "min", "any": "all", "all": "any"}
 _FLAG_KEY = re.compile(
@@ -199,7 +144,6 @@ _FLAG_KEY = re.compile(
 
 
 def _boolean_names(tree: ast.AST) -> set[str]:
-    """Names assigned from comparisons, boolean operators or ``not`` anywhere in the module."""
     names: set[str] = set()
     for node in ast.walk(tree):
         value: ast.expr | None = None
@@ -333,7 +277,6 @@ def _python_edits(source: bytes) -> list[_Edit]:
             start, end = span(node)
             edits.append(_Edit("negate-boolean", start, end, f"not {node.id}".encode()))
         elif isinstance(node, ast.Dict):
-            # Output records name their flags; ``"landing_weight_ok": lok`` -> ``not lok``.
             for key, value in zip(node.keys, node.values, strict=True):
                 if (
                     isinstance(key, ast.Constant)
@@ -374,7 +317,6 @@ _C_SWAPS = {
 
 
 def _c_family_edits(source: bytes) -> list[_Edit]:
-    """Lexical operator swaps outside strings and comments; no parse, so no compile check."""
     try:
         text = source.decode("utf-8")
     except UnicodeDecodeError:
@@ -402,7 +344,6 @@ def _json_indent(text: str) -> int | None:
 
 
 def _json_mutations(value: Any, path: tuple[Any, ...] = ()) -> Iterable[tuple[str, tuple, Any]]:
-    """(operator, path, replacement) for each leaf flip and each structural drop."""
     if isinstance(value, bool):
         yield "boolean-constant", path, not value
     elif isinstance(value, int):
@@ -443,7 +384,6 @@ def _json_replace(document: Any, path: tuple, replacement: Any) -> Any:
 
 
 def _json_variants(source: bytes) -> list[tuple[str, bytes, str, str]]:
-    """(operator, mutated bytes, original summary, replacement summary)."""
     try:
         text = source.decode("utf-8")
         document = json.loads(text)
@@ -466,7 +406,6 @@ def _json_variants(source: bytes) -> list[tuple[str, bytes, str, str]]:
 
 
 def _changed_lines(base: bytes | None, oracle: bytes) -> set[int]:
-    """1-based oracle lines the reference solution added or rewrote (all when created)."""
     oracle_lines = oracle.decode("utf-8", errors="replace").splitlines()
     if base is None:
         return set(range(1, len(oracle_lines) + 1))
@@ -509,8 +448,6 @@ def _compiles(language: Language, mutated: bytes) -> bool:
 
 @dataclass(frozen=True)
 class _Hunk:
-    """One contiguous change of the reference solution: base[base_start:base_end]
-    became oracle[start:end] (0-based line indexes)."""
 
     base_start: int
     base_end: int
@@ -518,12 +455,10 @@ class _Hunk:
     end: int
 
     def oracle_lines(self) -> list[int]:
-        """1-based oracle lines the hunk wrote; a pure deletion's two neighbours."""
         return list(range(self.start + 1, self.end + 1)) or [self.start, self.start + 1]
 
 
 def _code_lines(language: Language, source: bytes) -> set[int]:
-    """Lines that carry behaviour: not blank, not a comment, not a docstring."""
     if language == "python":
         line_map = LineMap(source)
         if line_map.parsed:
@@ -537,7 +472,6 @@ def _code_lines(language: Language, source: bytes) -> set[int]:
 
 
 def _reference_hunks(language: Language, base: bytes, oracle: bytes) -> list[_Hunk]:
-    """The reference solution's changes to one file that touch code on either side."""
     old, new = base.splitlines(keepends=True), oracle.splitlines(keepends=True)
     code_old, code_new = _code_lines(language, base), _code_lines(language, oracle)
     matcher = difflib.SequenceMatcher(a=old, b=new, autojunk=False)
@@ -553,7 +487,6 @@ def _reference_hunks(language: Language, base: bytes, oracle: bytes) -> list[_Hu
 
 
 def _revert(base: bytes, oracle: bytes, hunks: Sequence[_Hunk]) -> bytes:
-    """The oracle file with ``hunks`` put back to their pre-solution text."""
     old, new = base.splitlines(keepends=True), oracle.splitlines(keepends=True)
     parts: list[bytes] = []
     cursor = 0
@@ -604,13 +537,6 @@ def _build_mutant(
 def generate_mutants(
     path: str, oracle: bytes, base: bytes | None = None
 ) -> list[tuple[Mutant, bytes]]:
-    """Every valid mutant of one captured file with its bytes, deduplicated.
-
-    Point edits come first in source order. When the file existed before the
-    reference solution (``base``), each hunk of the solution's change that
-    touches code is also reverted on its own (``revert-hunk``): a fix missing
-    that hunk must still fail.
-    """
     language = language_of(path)
     if language is None or len(oracle) > MAX_FILE_BYTES:
         return []
@@ -692,12 +618,6 @@ def generate_mutants(
 def partial_fix_mutant(
     path: str, oracle: bytes, base: bytes, hits: set[int]
 ) -> tuple[Mutant, bytes] | None:
-    """The reference solution minus every code hunk the tests never ran (``hits``).
-
-    This is the partial fix a verifier cannot tell apart from the full one when
-    its tests never execute those hunks. Python only (coverage is Python-only).
-    None when every hunk ran, or the result does not compile.
-    """
     if language_of(path) != "python":
         return None
     line_map = LineMap(oracle)
@@ -747,13 +667,6 @@ def _first_changed_line(before: bytes, after: bytes) -> int:
 
 
 def select_mutants(mutants: Sequence[Mutant], *, limit: int, seed: str = "") -> list[Mutant]:
-    """A deterministic sample balanced across files, then operators, preferring oracle lines.
-
-    Files take turns. Inside a file, pass one takes at most one mutant per line by
-    cycling over operator queues; pass two continues with what is left, same
-    order. Inside each operator queue, mutants on lines the reference solution
-    wrote come first, then a seeded hash order spreads picks across the file.
-    """
     if limit <= 0:
         return []
     by_file: dict[str, list[Mutant]] = {}
@@ -802,13 +715,7 @@ def _file_order(mutants: Sequence[Mutant], seed: str) -> list[Mutant]:
     return order
 
 
-# --------------------------------------------------------------------------- #
-# Control scripts
-# --------------------------------------------------------------------------- #
-
-
 def _wrap_reference(solve: str) -> str:
-    """Run the reference solution in a subshell so its ``exit``/``set -e`` stay scoped."""
     body = solve if solve.endswith("\n") else solve + "\n"
     return (
         f'(\n{body})\nenvcheck_rc=$?\nif [ "$envcheck_rc" -ne 0 ]; then exit "$envcheck_rc"; fi\n'
@@ -820,7 +727,6 @@ def _header(title: str, expect: int) -> str:
 
 
 def capture_script(solve: str | None, targets: Sequence[str]) -> str:
-    """Optionally run the reference solution, then copy each target out via /logs/artifacts."""
     lines = [_header("capture-oracle" if solve is not None else "capture-base", 1 if solve else 0)]
     if solve is not None:
         lines.append(_wrap_reference(solve))
@@ -856,11 +762,6 @@ def blank_script(solve: str, path: str) -> str:
     return _header(f"blank {path}", 0) + _wrap_reference(solve) + f": > {shlex.quote(path)}\n"
 
 
-# --------------------------------------------------------------------------- #
-# Plan and report contracts
-# --------------------------------------------------------------------------- #
-
-
 class MutationRun(ContractModel):
     name: str
     role: RunRole
@@ -889,14 +790,9 @@ class FileSummary(ContractModel):
     partial: int = 0
     unscored: int = 0
     note: str | None = None
-    #: Coverage of this file on the instrumented reference run: ``executed`` (the
-    #: hidden tests ran some of its lines), ``never-executed`` (they ran none),
-    #: ``unavailable`` (no usable trace) or ``not-traced`` (not Python).
     coverage: Literal["executed", "never-executed", "unavailable", "not-traced"] | None = None
     executed_lines: list[int] = []
-    #: Candidates not run because the hidden tests never execute their lines.
     unexecuted: int = 0
-    #: Code lines the reference solution wrote that the hidden tests never execute.
     untested_fix_lines: list[int] = []
 
 
@@ -918,13 +814,8 @@ class MutationReport(ContractModel):
     mutants: list[Mutant] = []
     runs: list[MutationRun] = []
     notes: list[str] = []
-    #: ``guided``: mutants on lines the hidden tests never run were skipped.
-    #: ``unavailable``: the coverage run gave no usable trace (see notes); mutants
-    #: were selected without it. ``disabled``: ``--no-coverage``.
     coverage: Literal["planned", "guided", "unavailable", "disabled"] = "planned"
-    #: Mutant runs by outcome: total, killed, survived, partial, uninformative, unscored.
     counts: dict[str, int] = {}
-    #: Ids of mutants that kept reward (survived or partial), in run order.
     survivors: list[str] = []
     limits: str
 
@@ -950,7 +841,6 @@ def _task_config(package: Path) -> dict[str, Any]:
 
 
 def declared_targets(config: dict[str, Any]) -> list[str]:
-    """Absolute artifact paths the task declares; these are what a separate verifier reads."""
     targets: list[str] = []
     for entry in config.get("artifacts") or []:
         source = entry if isinstance(entry, str) else (entry or {}).get("source")
@@ -967,10 +857,6 @@ def _slug(text: str, *, limit: int = 32) -> str:
 def _sha(text: str) -> str:
     return "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()
 
-
-# --------------------------------------------------------------------------- #
-# Execution
-# --------------------------------------------------------------------------- #
 
 MatrixRunner = Callable[[ExperimentMatrix, Path], list[dict[str, Any]]]
 
@@ -1040,10 +926,6 @@ class _Audit:
         )
 
     def execute(self, runs: list[MutationRun], phase: str, package: Path | None = None) -> None:
-        """Run ``runs`` as up to ``workers`` matrices and record status, reward, job dir.
-
-        ``package`` replaces the audited package (the coverage-instrumented copy).
-        """
         if not runs:
             return
         workers = max(1, min(self.workers, MAX_WORKERS, len(runs)))
@@ -1086,7 +968,6 @@ def _captured_root(repo_root: Path, run: MutationRun) -> Path | None:
 
 
 def _captured_files(root: Path | None, target: str) -> dict[str, bytes]:
-    """Container path -> bytes for one target (a file, or a bounded walk of a directory)."""
     if root is None:
         return {}
     host = root / target.strip("/")
@@ -1184,14 +1065,12 @@ def _classify_mutation_runs(report: MutationReport) -> None:
 
 
 def coverage_script(solve: str) -> str:
-    """The reference solution alone; the instrumented package's verifier records coverage."""
     return _header("coverage", 1) + _wrap_reference(solve)
 
 
 def _trace_reference(
     audit: _Audit, report: MutationReport, files: dict[str, bytes]
 ) -> tuple[Trace | None, str]:
-    """Grade the reference once with an instrumented verifier; the trace, or why not."""
     instrumented = audit.run_dir / "coverage-package" / audit.package.name
     try:
         instrument_package(audit.package, instrumented, files)
@@ -1227,11 +1106,6 @@ def _guide_by_coverage(
     oracle_bytes: dict[str, bytes],
     base_bytes: dict[str, bytes | None],
 ) -> None:
-    """Mark every candidate executed or not, and add one partial-fix probe per file.
-
-    Sets ``report.coverage`` to ``guided`` only when the trace is trustworthy:
-    the instrumented reference scored 1 and at least one audited file ran.
-    """
     summaries = {summary.path: summary for summary in report.files}
     python = {path: oracle_bytes[path] for path in generated if language_of(path) == "python"}
     for path in generated:
@@ -1297,14 +1171,6 @@ def run_mutation_audit(
     runner: MatrixRunner | None = None,
     coverage: bool = True,
 ) -> tuple[MutationReport, Path]:
-    """Capture the reference output, mutate it, and grade every mutant with the task's verifier.
-
-    With ``coverage`` (the default), one more reference run with an instrumented
-    verifier records which lines of the captured Python files the hidden tests
-    execute; mutants on other lines are not run (they survive by construction),
-    and one partial-fix probe per file reverts reference-fix code the tests
-    never run.
-    """
     root = Path(package).expanduser().resolve()
     config = _task_config(root)
     if config.get("steps"):
@@ -1432,7 +1298,6 @@ def run_mutation_audit(
 
     if coverage:
         _guide_by_coverage(audit, report, generated, oracle_bytes, base_bytes)
-    # Blank controls first: a file the verifier does not grade makes its mutants uninformative.
     blanks = [
         audit.stage("blank", f"blank-{index:02d}", blank_script(audit.solve, path), file=path)
         for index, path in enumerate(sorted(generated))
@@ -1453,8 +1318,6 @@ def run_mutation_audit(
                 "not score 0): " + ", ".join(sorted(missing))
             )
     elif report.coverage == "guided":
-        # A mutant on a line the tests never run survives by construction; the
-        # partial-fix probes go first because each is a whole candidate half-fix.
         probes = [mutant for mutant in pool if mutant.operator == "partial-fix"][:max_mutants]
         runnable = [
             mutant
@@ -1498,13 +1361,7 @@ def run_mutation_audit(
     return report, run_dir
 
 
-# --------------------------------------------------------------------------- #
-# Receipts
-# --------------------------------------------------------------------------- #
-
-
 def hypotheses(report: MutationReport) -> list[dict[str, Any]]:
-    """One candidate record per escaped mutant, shaped like an EnvCheck finding case."""
     by_id = {mutant.id: mutant for mutant in report.mutants}
     controls = {run.role: run.reward for run in report.runs if run.role.startswith("capture")}
     blanks = {run.file: run.reward for run in report.runs if run.role == "blank"}
@@ -1667,17 +1524,11 @@ def render_report(report: MutationReport) -> str:
     return "\n".join(lines)
 
 
-# --------------------------------------------------------------------------- #
-# CLI
-# --------------------------------------------------------------------------- #
-
-
 def _mutate_command(args: argparse.Namespace, root: Path, *, harbor: Any | None = None) -> int:
     del harbor
     output_dir = args.output_dir
     if output_dir is not None and not output_dir.is_absolute():
         output_dir = root / output_dir
-    # With --json, stdout carries exactly one JSON document; matrix progress goes to stderr.
     progress = contextlib.redirect_stdout(sys.stderr) if args.json else contextlib.nullcontext()
     try:
         with progress:

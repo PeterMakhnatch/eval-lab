@@ -1,50 +1,3 @@
-"""Separate-verifier transforms for MiMo task packages.
-
-The canonical producer is ``separate-verifier@10``; its shell fragments live
-under ``data/separate_verifier_v10/``. Earlier generations keep identifiers
-and template components used by @10, not duplicate receipt evaluators.
-The native ``har169-separate-verifier`` experiment still requires the @1 producer.
-
-``separate-verifier@1`` converts a shared-mode MiMo task package
-(``task.toml``, ``environment/``, ``tests/``) so hidden tests are bundled
-into the verifier environment only, and the agent's workspace reaches the
-verifier as a declared artifact.
-
-Mechanism (all Harbor 0.24 behavior cited inline):
-
-* ``[verifier] environment_mode = "separate"`` plus a ``tests/Dockerfile``
-  makes Harbor build the verifier image from ``tests/`` and never upload
-  ``/tests`` into the agent container (``verifier.py:124-131``
-  ``skip_tests_upload`` driven by ``bundled_tests``;
-  ``verifier_mode.py:96-116``).
-* The task-level ``artifacts`` entry plus ``[[verifier.collect]]`` hooks
-  snapshot the agent workspace after the agent phase (``trial.py:1443-1474``,
-  ``1475+``). The convention entry (``/logs/artifacts``) is implicit; the
-  snapshot lives outside it at :data:`SNAP_DIR` so the explicit declaration
-  never collides with the convention entry (a recorded ``skipped`` entry
-  would fail regrade coverage in ``regrade.py:430-452``).
-* ``tests/test.sh`` becomes a wrapper that restores the snapshot onto the
-  pristine checkout in the verifier image and then ``exec``s the original
-  grading script (renamed to ``tests/test-orig.sh``) byte-for-byte, so
-  grading logic is identical by construction.
-
-The original grading script depends on setup state (``/var/lib/mimo/base``
-and the hidden git dir) that only exists in the agent environment, so the
-@1 snapshot hook captures that state too.
-
-``separate-verifier@2`` ("patch-only verifier") closes the grading hole @1
-leaves open: the agent is root in its container (and @1 additionally
-restores the agent's own ``.git`` and base sha into the verifier), so
-tracked-conftest edits, ``sitecustomize``/``PATH`` tamper, background
-writers, and in-source ``atexit``/``pytest`` monkeypatches all grade 1
-without fixing the bug. The @2 verifier never trusts anything from the
-agent environment except repo file bytes: it reruns the bundled clean setup
-itself, computes ``BASE`` there, diffs the snapshot files with its own git
-under the BASE tree's ignore rules, drops test-infra paths, gates tamper
-signatures, then applies the hidden tests and grades with a structured
-junit check.
-"""
-
 from __future__ import annotations
 
 import base64
@@ -62,35 +15,17 @@ from evallab.purge_installed_copies import MARKER_V2 as PURGE_INSTALLED_COPIES_M
 from evallab.purge_installed_copies import SETUP_PYTHON_PATH
 from evallab.task_variants import VariantInvalid, VariantRecord, derive_task
 
-#: Transform id recorded in lineage.
 TRANSFORM_ID = "separate-verifier@1"
 
-#: Absolute container path of the agent snapshot. Declared in task-level
-#: ``artifacts``; re-materialized at the same path in the verifier env
-#: ("no translation", ``artifact_handler.py``).
 SNAP_DIR = "/var/tmp/mimo-separate"
 
-#: Agent trajectory consumed by verifier-side integrity criteria. Declared in
-#: task-level ``artifacts`` so Harbor carries it from the agent environment
-#: into the separate verifier at the same absolute path, which is also the
-#: integrity runner's default in-image location
-#: (``integrity_core.Roots.trajectory_path`` = ``/logs/agent/trajectory.json``).
-#: Collection is best-effort (``artifact_handler.py:287-341``): when the agent
-#: writes no trajectory (e.g. ``nop``) the manifest records ``failed`` and the
-#: trial still grades; the integrity runner then scores from empty inputs.
 TRAJECTORY_ARTIFACT = "/logs/agent/trajectory.json"
 
-#: Where the agent-setup state lives in these task images.
 MIMO_STATE_DIR = "/var/lib/mimo"
-
-#: Original grading script name after the rename.
-
-#: Verifier entry point (must stay the discovered test path).
 
 
 @dataclass(frozen=True)
 class ParentInfo:
-    """Validated facts about the parent package."""
 
     task_name: str
     workdir: str
@@ -99,7 +34,6 @@ class ParentInfo:
 
 
 def read_parent_info(parent_dir: Path | str) -> ParentInfo:
-    """Read and validate the parent package; raise :class:`VariantInvalid`."""
     parent = Path(parent_dir)
     try:
         config = tomllib.loads((parent / "task.toml").read_text(encoding="utf-8"))
@@ -138,12 +72,6 @@ def read_parent_info(parent_dir: Path | str) -> ParentInfo:
 
 
 def render_tests_dockerfile(docker_image: str) -> str:
-    """Verifier image: pristine repo plus bundled hidden tests.
-
-    The ``--platform`` pin keeps Apple Silicon hosts on the same amd64 image
-    the agent runs (Harbor builds with ``--platform`` of the daemon;
-    without the pin an amd64-only base fails to build for arm64).
-    """
     return (
         "# Separate-verifier image (separate-verifier@1): pristine repo checkout\n"
         "# plus the hidden tests bundled in. The agent image never sees /tests.\n"
@@ -154,14 +82,6 @@ def render_tests_dockerfile(docker_image: str) -> str:
 
 
 def render_snapshot_hook(workdir: str) -> str:
-    """Collect-hook command snapshotting workspace + setup state to SNAP_DIR.
-
-    Runs in the agent environment after the agent phase (``sh -c``; POSIX
-    only, no single quotes so it fits a TOML literal string). Captures the
-    base commit sha, the git dir (hidden or live), and the full worktree
-    except ``.git``. Always exits 0; the verifier wrapper fails loudly when
-    files are missing.
-    """
     return (
         f'SNAP="{SNAP_DIR}"; CWD="{workdir}"; M="{MIMO_STATE_DIR}"; '
         'mkdir -p "$SNAP"; '
@@ -180,12 +100,6 @@ def render_snapshot_hook(workdir: str) -> str:
 
 
 def render_probe_hook(workdir: str, marker: str) -> str:
-    """Collect-hook command proving hidden tests are absent from the agent env.
-
-    Lists ``/tests`` and greps the worktree for the hidden-test marker. Runs
-    BEFORE the snapshot hook so the snapshot tarballs are not scanned. Output
-    lands in the declared snapshot dir, hence in the trial artifacts.
-    """
     return (
         f'SNAP="{SNAP_DIR}"; CWD="{workdir}"; '
         'mkdir -p "$SNAP"; '
@@ -200,7 +114,6 @@ def render_probe_hook(workdir: str, marker: str) -> str:
 
 
 def render_wrapper_test_sh(workdir: str, marker: str) -> str:
-    """Verifier entry point: restore the snapshot, run the original grading."""
     return (
         "#!/bin/bash\n"
         "# separate-verifier@1 entry: restore the agent snapshot captured by the\n"
@@ -233,7 +146,6 @@ def render_wrapper_test_sh(workdir: str, marker: str) -> str:
 
 
 def render_task_toml(parent_text: str, *, snapshot_hook: str, probe_hook: str) -> str:
-    """Insert artifacts, separate mode, and collect hooks into task.toml text."""
     lines = parent_text.splitlines(keepends=True)
     try:
         schema_idx = next(i for i, line in enumerate(lines) if line.startswith("schema_version"))
@@ -247,7 +159,6 @@ def render_task_toml(parent_text: str, *, snapshot_hook: str, probe_hook: str) -
     lines.insert(
         schema_idx + 1, f'\nartifacts = [\n    "{SNAP_DIR}",\n    "{TRAJECTORY_ARTIFACT}",\n]\n'
     )
-    # Indices after verifier_idx shifted by the one insertion before them.
     verifier_idx += 1
     lines.insert(verifier_idx + 1, 'environment_mode = "separate"\n')
 
@@ -278,11 +189,6 @@ def build_changes(
     marker: str,
     solution_sh: bytes | None = None,
 ) -> tuple[dict[str, bytes | None], dict[str, Any]]:
-    """Build the ``derive_task`` changes mapping plus lineage inputs.
-
-    ``solution_sh`` adds an oracle-control reference solution when the parent
-    has none. Refuses to overwrite an existing solution.
-    """
     if not marker or not marker.strip():
         raise VariantInvalid("marker must be a nonempty hidden-test identifier")
     parent = Path(parent_dir)
@@ -331,7 +237,6 @@ def derive_separate_verifier(
     parent_source: dict[str, Any] | None = None,
     variants_root: Path | str | None = None,
 ) -> VariantRecord:
-    """Derive the ``separate-verifier@1`` variant of a MiMo task package."""
     changes, inputs = build_changes(parent_dir, marker=marker, solution_sh=solution_sh)
     return derive_task(
         parent_dir,
@@ -346,35 +251,14 @@ def derive_separate_verifier(
     )
 
 
-# --------------------------------------------------------------------------- #
-# separate-verifier@2 ("patch-only verifier")
-# --------------------------------------------------------------------------- #
-
-#: Transform id recorded in lineage.
-
-#: Subdirectory of the bundled tests holding the readable copy of the
-#: parent's clean setup chain (``environment/setup/*``). The @2 grader reruns
-#: it in the verifier container so BASE and the pristine checkout never come
-#: from the agent environment.
 V2_SETUP_SUBDIR = "tests/_verifier-setup"
 
-#: Scratch dir for the @2 grader. The junit report lands here (outside the
-#: repo, where the code under test cannot reach it); ``/var/lib/mimo`` itself
-#: is setup state (``chmod 700``, rewritten by setup.sh).
 V2_GRADE_DIR = "/var/lib/mimo-grade"
 
-#: Setup's system interpreter need not have pip. The existing cache-disabled
-#: cleanup branch removes cache directories directly; neither override belongs
-#: in the task's persistent environment or its test runner.
 SETUP_HELPER_ENV = {"PATH": SETUP_PYTHON_PATH, "PIP_NO_CACHE_DIR": "1"}
 
 
 def render_verifier_setup_bootstrap(*, tests_dir: str, state_dir: str, grade_dir: str) -> str:
-    """Run bundled setup before artifact seeding and restore its tests on exit.
-
-    Setup wipes /tests and /logs. The native backend invokes this only in the
-    dedicated verifier, under SETUP_HELPER_ENV, before Harbor uploads submissions.
-    """
     bundle_name = PurePosixPath(V2_SETUP_SUBDIR).name
     return f"""set -eu
 tests={shlex.quote(tests_dir)}
@@ -391,11 +275,6 @@ echo "native setup: ready marker observed"
 """
 
 
-#: Tamper signatures gated on added lines of the kept agent change. One
-#: Python constant so the list is testable; the rendered grader embeds the
-#: same alternation in ``grep -E`` (entries are valid both as Python ``re``
-#: and as ERE). Measured: 0 hits on added lines of all 192 HAR-191
-#: oracle-pass reference fixes.
 TAMPER_SIGNATURES: tuple[str, ...] = (
     r"\b_pytest\b",
     r"\bpytest_(runtest|configure|collection|sessionfinish|sessionstart|report|terminal|unconfigure)",
@@ -405,29 +284,20 @@ TAMPER_SIGNATURES: tuple[str, ...] = (
     r"\batexit\b",
 )
 
-#: Exact test-infra filenames dropped from the change (a legitimate fix never
-#: touches these).
 _TEST_INFRA_BASENAMES = frozenset(
     {"conftest.py", "pytest.ini", "tox.ini", "sitecustomize.py", "usercustomize.py"}
 )
 
-#: Logged reason when pytest demonstrably ran with our addopts yet no junit
-#: report survived: the report was suppressed, not merely unconfigured.
 JUNIT_MISSING_REASON = "junit missing after pytest start"
 
-#: How a task command can clear our ``PYTEST_ADDOPTS`` (and with it the
-#: junit report): shell unset, direct assignment/override, or ``env -u``.
 _ADDOPTS_CLEAR_RE = re.compile(
     r"unset\s+[^\n]*PYTEST_ADDOPTS|PYTEST_ADDOPTS\s*=|env\s+[^\n]*-u\s+PYTEST_ADDOPTS"
 )
 
-#: Base64 blobs that may hide the real test command (encoded shell commands
-#: are rarely shorter; hex SHAs decode to inert garbage either way).
 _B64_BLOB_RE = re.compile(r"[A-Za-z0-9+/]{40,}={0,2}")
 
 
 def _decode_b64_blobs(text: str) -> str:
-    """Append decoded base64 blobs found in ``text`` (best-effort)."""
     decoded = [text]
     for token in _B64_BLOB_RE.findall(text):
         try:
@@ -438,36 +308,20 @@ def _decode_b64_blobs(text: str) -> str:
 
 
 def resolve_command_text(test_command_sh: str, mimo_script: str | None, patch_text: str) -> str:
-    """Resolvable text of the task's test command for addopts/pytest checks.
-
-    Concatenates ``test_command.sh``, the ``mimo_test_command.sh`` it points
-    at (when available post-patch), and the command section of the hidden
-    test patch — decoding base64 blobs so encoded commands are inspected
-    too. All inputs are trusted verifier-side bundles, never agent bytes.
-    """
     parts = [test_command_sh, mimo_script or "", patch_text.split("mimo_test_command.sh")[-1]]
     return _decode_b64_blobs("\n".join(parts))
 
 
 def addopts_cleared(command_text: str) -> bool:
-    """Whether the resolved test command clears our ``PYTEST_ADDOPTS``."""
     return _ADDOPTS_CLEAR_RE.search(command_text) is not None
 
 
 def is_test_infra_filename(path: str) -> bool:
-    """Whether ``path`` is test infrastructure dropped by name (any directory)."""
     base = PurePosixPath(path).name
     return base in _TEST_INFRA_BASENAMES or base.endswith(".pth") or base.endswith("_test.go")
 
 
 def drop_reason(path: str, hidden_paths: Collection[str]) -> str | None:
-    """Name-based drop reason for ``path`` (``None`` keeps it).
-
-    Covers test-infra filenames and every path named in the hidden test
-    patch. Content-based drops (pytest-config hunks, Go ``TestMain``) need
-    file bytes; see :func:`is_pytest_config_tamper` and
-    :func:`declares_testmain`.
-    """
     if is_test_infra_filename(path):
         return "test-infra"
     if path in hidden_paths:
@@ -475,49 +329,7 @@ def drop_reason(path: str, hidden_paths: Collection[str]) -> str | None:
     return None
 
 
-# --------------------------------------------------------------------------- #
-# separate-verifier@4 ("rootdir-robust junit matching")
-# --------------------------------------------------------------------------- #
-# @4 keeps every @3 guarantee and changes only the pytest named-id presence
-# check: @3 exact-matches expected node ids (from test.patch/command, e.g.
-# ``tests/unit/test_x.py::test_y``) against junit-classname-derived ids, so a
-# pytest rootdir under ``tests/`` (e.g. the cloud-sql-connector family with
-# rootdir=/testbed/tests) yields classnames without the ``tests/`` segment
-# and grades a fully passing oracle 0 (missing=all). @4 matches expected ids
-# to junit cases by aligned path-suffix instead: module path components
-# compared from the right at '/' or '.' boundaries (either side may carry an
-# extra prefix), plus exact class-chain and test-name agreement (parametrize
-# ids keep the @3 prefix rule). No @2/@3 symbol or template byte changes, so
-# @2/@3 records stay valid.
-
-#: Transform id recorded in lineage.
-
-
 def render_snapshot_hook_v2(workdir: str, *, snap_dir: str = SNAP_DIR) -> str:
-    """Collect-hook command snapshotting workspace files only (``sh -c``; POSIX
-    only, no single quotes so it fits a TOML literal string).
-
-    Unlike @1 this captures neither ``/var/lib/mimo/base`` nor the git dir:
-    the @2 verifier reruns the clean setup itself and computes BASE there.
-    Only repo file bytes cross the boundary.
-
-    The tarball covers exactly the files the grader can see: tracked files
-    plus untracked files the worktree does not ignore (``git ls-files -c -o
-    --exclude-standard``). Regenerable dependency and cache trees
-    (``node_modules``, ``.venv``, ``.yarn/cache``, ``__pycache__``, build
-    outputs — anything the repo ignores) never enter the archive. This is
-    grading-neutral by construction: the @2+ grader diffs the snapshot with
-    ``git add -A`` under the BASE tree ignore rules, which never stages
-    ignored files either, and it reinstalls dependencies by rerunning the
-    bundled clean setup. Source trees that are tracked or simply not
-    ignored (``packages/``, ``vendor/``, new files the agent adds) still
-    cross intact. The @1 hook keeps its full-worktree tar: its grader
-    restores the snapshot verbatim and never reruns setup, so it genuinely
-    needs the installed dependencies.
-
-    Outside a git worktree (no ``.git``) the listing fails and the hook
-    falls back to the full-worktree tar minus ``.git``.
-    """
     return (
         f'SNAP="{snap_dir}"; CWD="{workdir}"; '
         'mkdir -p "$SNAP"; '
@@ -533,12 +345,6 @@ def render_snapshot_hook_v2(workdir: str, *, snap_dir: str = SNAP_DIR) -> str:
 
 
 def collect_verifier_setup_files(parent_dir: Path | str) -> dict[str, bytes]:
-    """Bundle the parent's clean setup chain (``environment/setup/*``) for the verifier.
-
-    Returns ``tests/_verifier-setup/<relpath>`` bytes for ``derive_task``.
-    Fail-closed: a missing ``setup.sh`` or a symlinked entry refuses, since
-    the grader could not reproduce the agent's setup.
-    """
     setup_dir = Path(parent_dir) / "environment" / "setup"
     if not (setup_dir / "setup.sh").is_file() or (setup_dir / "setup.sh").is_symlink():
         raise VariantInvalid("parent has no environment/setup/setup.sh for the @2 bundle")
@@ -557,29 +363,6 @@ def collect_verifier_setup_files(parent_dir: Path | str) -> dict[str, bytes]:
     return bundled
 
 
-# --------------------------------------------------------------------------- #
-# separate-verifier@3 ("multi-runner patch-only verifier")
-# --------------------------------------------------------------------------- #
-# @3 keeps every @2 guarantee for Python/pytest tasks and extends the same
-# patch-only shape to the non-Python runners measured over the 1,519
-# non-Python code tasks (task store
-# ``derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks``;
-# census: go-test 718 incl. opaque-wrap, jest 135, mocha 113, usecase-sh 81,
-# node 50+12, vitest 37, tap/ava/karma/jasmine ~40, pytest 14, make/ctest 11,
-# phpunit 7+13 opaque, rspec 4+16 opaque, junit-mvn/gradle 3+21 opaque,
-# cargo 1+5 opaque, forge 3, long tail ~120 incl. 532 fully opaque
-# build-env wrappers whose real command resolves only at grade time).
-#
-# Semantics change vs @2, so this is a new transform id; no @2 symbol or
-# template byte changes, and @2 records stay valid.
-
-#: Transform id recorded in lineage.
-
-#: New-file runner configs dropped from the kept agent change when the path
-#: is absent at BASE (an honest fix never adds runner configuration). The
-#: rendered grader embeds the same list as a shell ``case`` (see
-#: :func:`render_wrapper_test_sh_v3`); keep the two in sync (pinned by
-#: ``test_v3_new_infra_list_matches_grader``).
 V3_NEW_INFRA_BASENAMES = frozenset(
     {
         "jest.config.js",
@@ -623,8 +406,6 @@ V3_NEW_INFRA_BASENAMES = frozenset(
     }
 )
 
-#: Build-output dirs dropped from the kept change when absent at BASE (never
-#: fix content; may carry pre-planted structured reports).
 V3_BUILD_OUTPUT_DIR_RES = (
     r"(^|/)target/surefire-reports/",
     r"(^|/)target/failsafe-reports/",
@@ -636,12 +417,6 @@ _V3_BUILD_OUTPUT_RES_COMPILED = tuple(re.compile(p) for p in V3_BUILD_OUTPUT_DIR
 
 
 def is_v3_new_infra(path: str, *, in_base: bool) -> bool:
-    """Whether ``path`` is @3 test infrastructure dropped as a new file.
-
-    Only new files (absent at BASE) are dropped: tracked runner configs are
-    handled by :func:`v3_config_revert_reason` so honest tracked edits
-    survive unless their changed lines touch runner keys.
-    """
     if in_base:
         return False
     if PurePosixPath(path).name in V3_NEW_INFRA_BASENAMES:
@@ -688,7 +463,6 @@ _V3_CONFIG_HUNK_COMPILED = tuple(
 
 
 def v3_config_revert_reason(path: str, changed_lines: str) -> str | None:
-    """Rule label when a tracked config change touches runner keys (revert to BASE)."""
     base = PurePosixPath(path).name
     for label, names, pattern in _V3_CONFIG_HUNK_COMPILED:
         if base in names and pattern.search(changed_lines):
@@ -709,8 +483,6 @@ V3_TAMPER_SIGNATURES: tuple[str, ...] = TAMPER_SIGNATURES + (
     r"\bglobal\.(it|test|describe|fit)\s*=",
 )
 
-#: Scoped signatures: ``exit(0)`` is legitimate C/shell fix content, so it
-#: only gates Ruby/PHP paths (added lines of files with these extensions).
 V3_SCOPED_SIGNATURES: tuple[tuple[tuple[str, ...], str], ...] = (
     ((".rb",), r"\bexit\s*\(\s*0\s*\)|\bexit!\s*\(\s*0?\s*\)"),
     ((".php",), r"\bexit\s*\(\s*0\s*\)|\bdie\s*\(\s*0\s*\)"),
@@ -721,7 +493,6 @@ _V3_SCOPED_COMPILED = tuple(
 
 
 def v3_tamper_hit_for_file(path: str, added_lines: str) -> str | None:
-    """First @3 tamper signature matching a file's added lines (``None`` keeps)."""
     for signature in V3_TAMPER_SIGNATURES:
         if re.search(signature, added_lines):
             return signature
@@ -732,12 +503,6 @@ def v3_tamper_hit_for_file(path: str, added_lines: str) -> str | None:
     return None
 
 
-# --------------------------------------------------------------------------- #
-# @3 runner detection and structured output grading
-# --------------------------------------------------------------------------- #
-
-#: Runner ids detected from the resolved test command (first match wins).
-#: ``custom`` and silent families keep the exit-code fallback.
 V3_RUNNER_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("go-test", re.compile(r"(?<![\w])go\s+test\b|GO_BIN\"\s+test\b|\$GO_BIN\"\s+test")),
     ("jest", re.compile(r"(?<![\w])jest\b")),
@@ -763,7 +528,6 @@ V3_RUNNER_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
 
 
 def detect_runner(command_text: str) -> str:
-    """Detect the test runner from resolved command text (``custom`` fallback)."""
     for runner, pattern in V3_RUNNER_PATTERNS:
         if pattern.search(command_text):
             return runner
@@ -776,12 +540,6 @@ _UNITTEST_BAD_RE = re.compile(r"^(FAILED|ERROR)", re.MULTILINE)
 
 
 def evaluate_unittest(test_output: str, rc: int) -> int:
-    """Grade 1/0 from unittest text output plus the exit code.
-
-    A real unittest run always prints ``Ran N tests`` and ``OK``/``FAILED``
-    to stderr, so reward 1 iff ``rc == 0`` with ``N >= 1``, an ``OK`` line,
-    and no failure marker. Blank or exit-forced output grades 0.
-    """
     match = _UNITTEST_RAN_RE.search(test_output)
     ran = int(match.group(1)) if match else 0
     if rc != 0:
@@ -793,14 +551,6 @@ def evaluate_unittest(test_output: str, rc: int) -> int:
     return 1
 
 
-#: Verifier-owned pytest hook for commands that clear PYTEST_ADDOPTS (8
-#: Python tasks, e.g. 000666, all of which also set
-#: ``PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`` and clear ``PYTEST_PLUGINS``). A root
-#: ``conftest.py`` is always collected (not a plugin: autoload switches do
-#: not affect it), so appending this hook after the hidden-test apply gives
-#: a junit report no env scrubbing can remove. Appended, never clobbering a
-#: hidden-test conftest.py. Writes outside the repo where code under test
-#: cannot reach. Embedded base64-encoded in the grader.
 V3_CONFTEST_HOOK = (
     "# separate-verifier@3 hook: structured report for addopts-cleared runs.\n"
     "import os as _v3_os\n"
@@ -826,12 +576,6 @@ V3_CONFTEST_HOOK = (
     "        pass\n"
 )
 
-#: Verifier-owned pytest hook archiving each session's collected outcomes to
-#: a counter-suffixed report under ``MIMO_VERIFIER_ARCHIVE_DIR``. Appended to
-#: the root conftest.py for every pytest run after the hidden-test apply
-#: (never clobbering); a root conftest is always collected, so env scrubbing
-#: cannot remove it. Best effort: any failure is swallowed so a hook problem
-#: can never break grading. Embedded base64-encoded in the grader.
 V5_ARCHIVE_HOOK = (
     "# mimo-junit-archive/1: per-phase junit archive.\n"
     "import os as _v5_os\n"
@@ -881,72 +625,26 @@ V5_ARCHIVE_HOOK = (
     "        pass\n"
 )
 
-#: Transform id recorded in lineage.
 TRANSFORM_ID_V6 = "separate-verifier@6"
 
 
-#: Transform id recorded in lineage.
 TRANSFORM_ID_V8 = "separate-verifier@8"
 
 
-# --------------------------------------------------------------------------- #
-# separate-verifier@10: binary-artifact strip, runtime integrity, junit unittest
-# --------------------------------------------------------------------------- #
-# Closes the three holes Traces proved on canonical @8 packages
-# (2026-10-14 own-runs scan, finding 1):
-# 1. An unchecked-hash ``.pyc`` in ``__pycache__`` rode the kept snapshot
-#    unscanned (the tamper gate reads only text diff lines) and shadowed
-#    pristine source at grade time. @10 drops binary artifacts from the
-#    kept change, purges ``__pycache__``/``*.pyc`` before the agent run,
-#    and grades with ``PYTHONDONTWRITEBYTECODE=1`` plus a verifier-owned
-#    ``PYTHONPYCACHEPREFIX``.
-# 2. Appending ``pytest.Function.runtest = lambda self: None`` (plain or
-#    obfuscated) to an imported package ``__init__`` turned every test
-#    body into a no-op; junit then honestly reported all-pass. @10
-#    installs a verifier conftest hook that captures
-#    ``pytest.Function.runtest`` / ``_pytest.python.Function.runtest`` /
-#    ``unittest.TestCase.run`` at conftest import and, at session finish,
-#    records whether any identity changed; a change grades 0.
-# 3. Unittest was graded from stdout text, so printing ``Ran 1 test`` /
-#    ``OK`` and exiting 0 at import scored 1 with no test run. @10 grades
-#    unittest only from a structured junit report written by a
-#    verifier-owned ``sitecustomize`` shim (loaded via ``PYTHONPATH`` at
-#    interpreter startup, before test modules import the package), with
-#    the @6 fail-to-pass comparison over junit status maps. No junit
-#    cases, no reward. The shim also performs the ``TestCase.run``
-#    integrity check for pure-unittest commands.
-
-#: Transform id recorded in lineage.
 TRANSFORM_ID_V10 = "separate-verifier@10"
 
-#: Binary/build-artifact suffixes dropped from the kept agent change (@10).
 BINARY_ARTIFACT_SUFFIXES = frozenset(
     {".pyc", ".pyo", ".so", ".pyd", ".dll", ".dylib", ".o", ".a", ".class"}
 )
 
 
 def is_binary_artifact_path(path: str) -> bool:
-    """Whether a kept-change path is a binary artifact dropped at @10.
-
-    Covers ``__pycache__`` components and compiled-object suffixes; an
-    honest source fix never needs to ship precompiled bytes, and a
-    tracked pristine binary simply stays at its BASE bytes.
-    """
     pure = PurePosixPath(path)
     if "__pycache__" in pure.parts:
         return True
     return pure.suffix.lower() in BINARY_ARTIFACT_SUFFIXES
 
 
-
-
-#: Verifier-owned conftest hook (@10): captures test-runner internals at
-#: conftest import and records identity changes at session finish to
-#: ``$MIMO_VERIFIER_INTEGRITY_DIR/integrity.txt``. Chained after any
-#: previously appended ``pytest_sessionfinish`` (the @5 archiver) so both
-#: run. Best effort like the other hooks: a hook failure never breaks the
-#: test session; the grader treats a missing file as "not changed" and
-#: the structured junit rules still apply.
 V10_INTEGRITY_HOOK = (
     "# mimo-integrity/1: runner-internal integrity check.\n"
     "import os as _v10_os\n"
@@ -992,14 +690,6 @@ V10_INTEGRITY_HOOK = (
     "        pass\n"
 )
 
-#: Verifier-owned ``sitecustomize`` shim (@10): loaded at interpreter
-#: startup via ``PYTHONPATH`` for every test-command python. Records
-#: unittest outcomes into a junit report at ``MIMO_VERIFIER_UNITTEST_JUNIT``
-#: (written at exit, so an import-time ``sys.exit(0)`` yields an empty
-#: report) and checks ``unittest.TestCase.run`` /
-#: ``TextTestRunner.run`` identities captured at startup. Wraps only
-#: ``TextTestResult`` outcome methods; failures are swallowed so the shim
-#: can never break an honest run (the grader then simply sees no cases).
 V10_UNITTEST_SHIM = (
     "# mimo-unittest-shim/1: structured unittest outcomes + integrity.\n"
     "import atexit as _v10_atexit\n"
@@ -1072,7 +762,6 @@ V10_UNITTEST_SHIM = (
 )
 
 
-#: @10 agent run line: bytecode off, verifier pycache prefix, unittest shim.
 _V10_RUN_LINE = (
     'MIMO_VERIFIER_ARCHIVE_DIR="$JUNIT_PHASES" '
     'MIMO_VERIFIER_UNITTEST_JUNIT="$GRADE/unittest-junit.xml" '
@@ -1084,34 +773,17 @@ _V10_RUN_LINE = (
 )
 
 _V10_TEMPLATE_DIR = Path(__file__).resolve().parent / "data" / "separate_verifier_v10"
-#: @10 grader entry point fragments (loaded from static shell templates).
 _V10_WRAPPER_A = (_V10_TEMPLATE_DIR / "part_a.sh").read_text(encoding="utf-8")
 _V10_WRAPPER_B = (_V10_TEMPLATE_DIR / "part_b.sh").read_text(encoding="utf-8")
 _V10_WRAPPER_C = (_V10_TEMPLATE_DIR / "part_c.sh").read_text(encoding="utf-8")
 
 
-#: Supplementary behavioral/mutant-killing phases a repaired package appends after its base run:
-#:
-#:     timeout 1800 sh -c "$(cat /tests/test_command.sh)" > "$V/test_output.log" 2>&1
-#:     RC=$?
-#:     if [ "$RC" -eq 0 ]; then
-#:       ( cd "$CWD" && cd /testbed && PYTHONPATH=/testbed python3 /tests/test_outputs.py ) >> "$V/test_output.log" 2>&1
-#:       RC=$?
-#:     fi
-#:
-#: The separate verifier rebuilds the grading command from ``mimo_build_env``, so without this extraction those extra
-#: phases are silently dropped and a mutant survives the behavioral repair.
 _SUPPLEMENTARY_BLOCK = re.compile(
     r'if \[ "\$RC" -eq 0 \]; then\n\s*(?P<cmd>[^\n]+?)\s*>>\s*"\$V/test_output\.log"\s*2>&1\n\s*RC=\$\?\nfi'
 )
 
 
 def supplementary_test_blocks(parent_dir: Path | str, *, workdir: str | None = None) -> list[str]:
-    """Commands from the parent ``tests/test.sh`` that run after the base test command.
-
-    ``/testbed`` and ``$CWD`` are rewritten to the verifier's own workdir so the block runs against the pristine
-    checkout instead of a path that does not exist in the verifier container.
-    """
     parent = Path(parent_dir)
     try:
         text = (parent / "tests" / "test.sh").read_text(encoding="utf-8")
@@ -1139,12 +811,6 @@ def _workdir_from_toml(parent: Path) -> str | None:
 def render_wrapper_test_sh_v10(
     workdir: str, *, python_setup: bool = False, extra_blocks: tuple[str, ...] = ()
 ) -> str:
-    """Verifier entry point: @10 binary strip, integrity gate, junit unittest.
-
-    Only a bundled Python purge setup needs system-Python helper lookup.
-    Keep that PATH local to the setup subprocess: project tests may need the
-    image's configured Python 3.6 interpreter.
-    """
     if not workdir.startswith("/"):
         raise VariantInvalid("workdir must be an absolute path")
     universal = "[" + ", ".join(repr(s) for s in V3_TAMPER_SIGNATURES) + "]"
@@ -1166,8 +832,6 @@ def render_wrapper_test_sh_v10(
         )
     text = (wrapper_a + _V10_WRAPPER_B + _V10_WRAPPER_C)
     if extra_blocks:
-        # @10 composition: the repaired package's own behavioral/mutant-killing phases run in the verifier too, and
-        # any failure there zeroes the reward exactly like a base-phase failure.
         appended = "\n".join(
             f'if [ "$RC" -eq 0 ]; then\n'
             f'  {block} >> "$V/test_output.log" 2>&1\n'
@@ -1178,7 +842,6 @@ def render_wrapper_test_sh_v10(
         anchor = _V10_RUN_LINE + "\nRC=$?\n"
         if anchor not in text:
             raise VariantInvalid("@10 wrapper does not carry the expected run line and RC assignment")
-        # splice after RC=$? so the appended phases read the base phase's status
         text = text.replace(anchor, anchor + appended + "\n", 1)
     return (
         text
@@ -1195,7 +858,6 @@ def render_wrapper_test_sh_v10(
 
 
 def render_tests_dockerfile_v10(docker_image: str) -> str:
-    """Verifier image: pristine repo plus bundled hidden tests and setup (@10)."""
     return (
         "# Separate-verifier image (separate-verifier@10): pristine repo checkout\n"
         "# plus the hidden tests and the clean setup bundle. The agent image\n"
@@ -1212,13 +874,6 @@ def build_changes_v10(
     marker: str,
     solution_sh: bytes | None = None,
 ) -> tuple[dict[str, bytes | None], dict[str, Any]]:
-    """Build the ``derive_task`` changes mapping plus lineage inputs for @10.
-
-    Same bundle shape as @9; the grader is the @10 entry point with the
-    binary-artifact strip, runtime integrity gate, and junit-only
-    unittest grading. ``solution_sh`` adds an oracle-control reference
-    solution when the parent has none. Refuses to overwrite a solution.
-    """
     if not marker or not marker.strip():
         raise VariantInvalid("marker must be a nonempty hidden-test identifier")
     parent = Path(parent_dir)
@@ -1289,7 +944,6 @@ def derive_separate_verifier_v10(
     parent_source: dict[str, Any] | None = None,
     variants_root: Path | str | None = None,
 ) -> VariantRecord:
-    """Derive the ``separate-verifier@10`` variant of a MiMo task package."""
     changes, inputs = build_changes_v10(parent_dir, marker=marker, solution_sh=solution_sh)
     return derive_task(
         parent_dir,

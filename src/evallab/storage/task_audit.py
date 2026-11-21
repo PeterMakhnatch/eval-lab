@@ -1,5 +1,3 @@
-"""Version-preserving dataset audits in the existing derived Parquet lake."""
-
 from __future__ import annotations
 
 import json
@@ -67,7 +65,6 @@ def _record_columns(record: AuditRecord) -> dict[str, Any]:
 
 
 def read_audit_table(path: Path) -> pa.Table:
-    """Read validated records; absence is typed empty, corruption is an error."""
     path = Path(path)
     if not path.exists():
         return pa.Table.from_pylist([], schema=AUDIT_SCHEMA)

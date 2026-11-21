@@ -1,5 +1,3 @@
-"""Harbor task package loading and source identity."""
-
 from __future__ import annotations
 
 import hashlib

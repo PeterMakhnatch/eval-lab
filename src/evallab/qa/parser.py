@@ -1,4 +1,3 @@
-"""QA argument declarations; scoring and execution load only on dispatch."""
 from __future__ import annotations
 
 import argparse
@@ -54,7 +53,6 @@ def _cmd(args: argparse.Namespace, root: Path, **kwargs: Any) -> int:
 
 
 def build_qa_parser(commands: argparse._SubParsersAction) -> None:
-    """Register the ``evallab qa`` subcommand."""
     qa = commands.add_parser(
         "qa",
         help="Shared QA contract: score findings against answer keys ($0)",
@@ -107,7 +105,6 @@ def add_suite_command(commands: argparse._SubParsersAction) -> None:
 
 
 def add_task_commands(sub: Any) -> None:
-    """Register task QA, regression replay, and task scoring commands."""
     task = sub.add_parser(
         "task",
         help="Executed task QA: S0 controls, advisory S1 rubric, S2 shortcut+ref-subset, S3 fresh replay",
@@ -203,7 +200,6 @@ def add_task_commands(sub: Any) -> None:
 
 
 def add_corpus_command(sub: Any) -> None:
-    """Register the model-free oracle-and-nop corpus audit."""
     corpus = sub.add_parser(
         "corpus",
         help="Model-free corpus audit: run each task's reference and a do-nothing control on Modal",
@@ -238,7 +234,6 @@ def add_corpus_command(sub: Any) -> None:
 
 
 def add_trace_cheap_commands(sub: Any) -> None:
-    """Register ``trace-cheap`` under ``evallab qa``."""
     p = sub.add_parser(
         "trace-cheap",
         help="Cheap-model trace QA: tripwires -> hackbook candidate -> cheap judge (qa.finding/v1)",

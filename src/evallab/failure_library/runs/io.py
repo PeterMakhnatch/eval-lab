@@ -1,5 +1,3 @@
-"""Immutable raw custody, digest verification, and source health."""
-
 from __future__ import annotations
 
 import hashlib
@@ -24,9 +22,6 @@ REPOSITORIES = {
     "metr-malt": ("metr-evals/malt-public", MALT_REVISION),
 }
 
-# Retained custody pins, captured November 11, 2026. The digest binds every
-# relative filename and file SHA-256, including source metadata and labels.
-# Per-file receipts live outside Git; this is not a claim of label correctness.
 RETAINED_BUNDLE_SHA256 = {
     "cheatbench": "5aa5bc755b0904ee731d61533feb062f67196cfede444fde91ad94c7f3437d3f",
     "goodfire-reward-hack-data": "b45d88b40c5a30787b98823147e094b6335ac67803ed4c31884aad4840cda539",
@@ -39,15 +34,12 @@ RETAINED_BUNDLE_SHA256 = {
 }
 
 
-
-
 def digest(path: Path) -> str:
     with path.open("rb") as handle:
         return hashlib.file_digest(handle, "sha256").hexdigest()
 
 
 def retained_bundle_digest(directory: Path) -> tuple[str, int]:
-    """Hash file identities and bytes, never parse or expose retained row bodies."""
     if not directory.is_dir():
         raise FileNotFoundError(directory)
     tree = hashlib.sha256()
@@ -75,7 +67,6 @@ def verify_retained_bundle(directory: Path, expected: str) -> int:
 def retained_source_health(
     repo_root: Path, *, home: Path, collections: tuple[str, ...] = tuple(REPOSITORIES),
 ) -> tuple[bool, str]:
-    """Verify pinned native bundles and normalized bundle hashes without downloads."""
     state = Path(os.environ.get(
         "EVALLAB_FAILURE_LIBRARY_STATE", home / ".local/state/evallab-failure-library"
     ))
@@ -113,10 +104,6 @@ def retained_source_health(
         f"pins={','.join(pins)}; SHA256=RETAINED_BUNDLE_SHA256,committed-run-manifests "
         f"problems={','.join(problems) or 'none'}"
     )
-
-
-
-
 
 
 def _source_files(collection: str, filename: str) -> bool:

@@ -1,23 +1,3 @@
-"""Canonical @10 clean-chain builder and historical MiMo manifest readers.
-
-The builder accepts only ``mimo-clean-v6``. Historical chain metadata and
-manifest paths remain available for receipt readers, not package production.
-
-Deterministic and idempotent: reuse is bound to the parent digest and transform
-inputs. Missing records are rederived in isolated scratch storage; matching
-shared packages are adopted without moving or rewriting their bytes. Records
-use the existing ``library/task-variants/`` schema and materialization APIs.
-The v6 builder requires all six Python (five non-Python) canonical edges,
-preserves the ledger root's real ancestry, and writes a ``.lineage.json``
-sidecar beside the manifest with ordered record references and digest bindings.
-New records remain candidates; only identical existing records retain evidence.
-
-Reference fixes prefer ``research/experiments/mimo-reference-fixes/index.csv``
-when it exists, else the HAR-191 ``oracle_sweep.csv``. The manifest's
-``verify`` column is ``unverified`` for every row until the fleet census
-grades the packages.
-"""
-
 from __future__ import annotations
 
 import base64
@@ -73,15 +53,10 @@ from evallab.task_variants import (
     task_directory_digest,
 )
 
-#: Clean-set version id (manifest + job-name namespace).
 CLEAN_SET_VERSION = "mimo-clean-v4"
 
-#: Who the builder blames in lineage records.
 CREATED_BY = "mimo-clean-v4"
 
-#: Manifest columns (contract: at least task_id, domain, language, chain,
-#: final_digest, package_path, reference_fix, status, reason; ``verify`` is
-#: the fleet-census grade, ``unverified`` until the census runs).
 MANIFEST_COLUMNS = (
     "task_id",
     "domain",
@@ -97,17 +72,12 @@ MANIFEST_COLUMNS = (
     "verify",
 )
 
-#: ``verify`` value for every row until the fleet census grades the packages.
 VERIFY_UNVERIFIED = "unverified"
 
-#: Statuses a manifest row can carry.
 STATUS_BUILT = "built"
 STATUS_SKIPPED = "skipped"
 
 
-#: Active mtime-normalize generation. ``@2`` (Modal lazy-layer
-#: materialization fix; Docker-neutral) is preferred once shipped;
-#: unlike the pinned cache generation, this remains import-time resolution.
 MTIME_ACTIVE_ID: str = getattr(_mtime_normalize_mod, "TRANSFORM_ID_V2", MTIME_ID)
 MTIME_ACTIVE_MARKER: str = getattr(_mtime_normalize_mod, "MARKER_V2", MTIME_MARKER)
 
@@ -121,7 +91,6 @@ def _derive_mtime_active(
     parent_source: dict[str, Any] | None = None,
     variants_root: Path | str | None = None,
 ) -> VariantRecord:
-    """Derive the active mtime-normalize generation for a parent package."""
     derive_v2 = getattr(_mtime_normalize_mod, "derive_mtime_normalize_v2", None)
     derive = derive_v2 if derive_v2 is not None else derive_mtime_normalize
     kwargs: dict[str, Any] = {"created_by": created_by}
@@ -136,8 +105,6 @@ def _derive_mtime_active(
     return derive(parent_dir, **kwargs)
 
 
-#: Canonical Python chain. The verifier bundles all clean setup steps;
-#: the final network declaration locks only the agent phase.
 PYTHON_CHAIN = (
     STRIP_ID,
     PURGE_ID,
@@ -147,8 +114,6 @@ PYTHON_CHAIN = (
     AGENT_NETWORK_NONE_ID,
 )
 
-#: Canonical non-Python chain: snapshot instead of a repairs run package, and
-#: no ``purge-installed-copies`` (a Python pip mechanism, noted not derived).
 NONPYTHON_CHAIN = (
     STRIP_ID,
     CACHE_ACTIVE_ID,
@@ -156,13 +121,6 @@ NONPYTHON_CHAIN = (
     SEPARATE_V6_ID,
     AGENT_NETWORK_NONE_ID,
 )
-#: Canonical Python chain for ``mimo-clean-v5``: identical to v4 with
-#: ``purge-installed-copies@2`` (all Python tasks; no-ops safely) and
-#: ``separate-verifier@8`` in their slots. The cache slot stays
-#: ``purge-build-caches@4`` fleet-wide (digest-stability: a uniform @5
-#: rebuild churns every setup.sh text and invalidates all banked cells);
-#: named node-build tasks fold onto @5 per row (see ``NODE_FOLD_TASKS``).
-#: A future rebuild with budget for full re-verification can go uniform @5.
 PYTHON_CHAIN_V5 = (
     STRIP_ID,
     PURGE_V2_ID,
@@ -172,7 +130,6 @@ PYTHON_CHAIN_V5 = (
     AGENT_NETWORK_NONE_ID,
 )
 
-#: Canonical non-Python chain for ``mimo-clean-v5`` (same @4 slot note).
 NONPYTHON_CHAIN_V5 = (
     STRIP_ID,
     CACHE_ACTIVE_ID,
@@ -181,10 +138,6 @@ NONPYTHON_CHAIN_V5 = (
     AGENT_NETWORK_NONE_ID,
 )
 
-#: Canonical chains for ``mimo-clean-v6``: v5 with ``separate-verifier@10``
-#: (binary-artifact strip, runtime integrity gate, junit-only unittest
-#: grading). Not the default: adopting it fleet-wide is a full rebuild +
-#: re-verification decision for the MiMo lane, with its own budget.
 PYTHON_CHAIN_V6 = (
     STRIP_ID,
     PURGE_V2_ID,
@@ -194,7 +147,6 @@ PYTHON_CHAIN_V6 = (
     AGENT_NETWORK_NONE_ID,
 )
 
-#: Canonical non-Python chain for ``mimo-clean-v6``.
 NONPYTHON_CHAIN_V6 = (
     STRIP_ID,
     CACHE_ACTIVE_ID,
@@ -203,14 +155,6 @@ NONPYTHON_CHAIN_V6 = (
     AGENT_NETWORK_NONE_ID,
 )
 
-#: Node-build tasks folded onto ``purge-build-caches@5`` inside mimo-clean-v5
-#: (per-row chain records @5 honestly; everything else stays @4).
-#: REAL: probe-v2-confirmed nested-output leaks (000919 node lib/,
-#: 000435/000170 turbo/lerna dist/). AT_RISK: NodeLeak's fix-path-shape
-#: class, never image-checked (17 enumerated built tasks; his "21" counts
-#: the same lists). 000632/001763 stay on @4: their @5 setups fail closed
-#: (coverage-report lib/; rebuild failure — guard evidence, routed to
-#: NodeLeak's lane). Receipt: research/experiments/mimo-clean-v5-census/.
 NODE_FOLD_REAL = frozenset(
     {
         "format-code-task-000919",
@@ -241,8 +185,6 @@ NODE_FOLD_AT_RISK = frozenset(
 )
 NODE_FOLD_TASKS = NODE_FOLD_REAL | NODE_FOLD_AT_RISK
 
-#: Chain generations by clean-set version id (v4 stays the default until
-#: the v5 census completes; NB: never mix generations in one manifest).
 CLEAN_SET_VERSION_V5 = "mimo-clean-v5"
 CLEAN_SET_VERSION_V6 = "mimo-clean-v6"
 MANIFEST_V6_REL = Path("research/experiments/mimo-clean-v6/manifest.csv")
@@ -254,20 +196,12 @@ CHAIN_VERSIONS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
 
 
 def chains_for_version(version: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    """(python chain, non-python chain) for a clean-set version id."""
     try:
         return CHAIN_VERSIONS[version]
     except KeyError:
         raise VariantInvalid(f"unknown clean-set version: {version!r}") from None
 
 
-#: Tasks answer-visible through legitimate environment dependencies
-#: (installed copies of the fixed project importable at grade time;
-#: fix-probe-v2 real-leaks.md) plus the pnpm-blocked node-build task whose
-#: fix-path shape cannot be cleared (node-build-leak.md). They stay built
-#: (gradable) but are excluded from training; the v5 census marks the env
-#: five ``fail:open-leak:env-dependency`` and 000928
-#: ``fail:open-leak:node-build-pnpm``.
 EXCLUDED_FROM_TRAINING: dict[str, str] = {
     "format-code-task-001478": "answer-visible via installed env dependency",
     "format-code-task-001671": "answer-visible via installed env dependency",
@@ -277,15 +211,8 @@ EXCLUDED_FROM_TRAINING: dict[str, str] = {
     "format-code-task-000928": "node-build outputs unfixable: pnpm-store leg fails setup before node handling",
 }
 
-#: Language plugs for the builder. ``python`` is the ledger pool;
-#: every other resolved language takes the non-Python chain (including
-#: ``unknown`` snapshot categories: @6 grades those with the exit-code
-#: fallback under patch isolation). ``None`` (unresolvable task) has no chain.
 
-#: Ledger layout constants (mirrors :mod:`evallab.exploit_probe`, kept local
-#: so this module stays importable without the probe's heavy deps).
 LEDGER_REL = Path("research/experiments/python-task-ledger/ledger.csv")
-#: Reference-fix index (preferred when present; falls back to the sweep).
 REFERENCE_INDEX_REL = Path("research/experiments/mimo-reference-fixes/index.csv")
 SNAPSHOT_REL = Path("derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6")
 VARIANTS_REL = Path("derived/task-store/variants")
@@ -297,7 +224,6 @@ HF_SOURCE = {
 
 
 def snapshot_category(task_dir: Path) -> str | None:
-    """Lower-cased snapshot ``task.toml`` category, or None when unreadable."""
     toml_path = task_dir / "task.toml"
     try:
         metadata = tomllib.loads(toml_path.read_text(encoding="utf-8")).get("metadata", {})
@@ -312,42 +238,24 @@ def snapshot_category(task_dir: Path) -> str | None:
 
 
 def resolve_language(*, ledger_row: bool, category: str | None) -> str | None:
-    """Manifest language for a task.
-
-    Ledger rows are ``python`` by definition (the ledger *is* the Python
-    pool, e.g. 002361 whose snapshot category is Go but whose graded run
-    package is Python). Snapshot tasks pass their category through;
-    unresolvable snapshot tasks yield None (no chain).
-    """
     if ledger_row:
         return "python"
     return category
 
 
-#: One-line reasons the purge step is known fail-closed, per
-#: ``exploit_probe.PURGE_INAPPLICABLE`` (HAR-194; reproduced in local Docker,
-#: setup rc=1). The builder lazy-imports that tuple and only documents it
-#: here so unit tests stay free of the probe's dependency tree.
-
-#: ``+def test_*`` lines of a hidden test patch (same shape as the probe's
-#: ``new_test_names``; the marker is the first new test name).
 _NEW_TEST_RE = re.compile(r"^\+\s*(?:async\s+)?def\s+(test_\w+)", re.MULTILINE)
-#: Fallback: first file the hidden test patch touches.
 _PATCH_FILE_RE = re.compile(r"^\+\+\+ b/(\S+)", re.MULTILINE)
-#: Characters safe inside the probe hook's double-quoted grep pattern.
 _MARKER_KEEP_RE = re.compile(r"[^A-Za-z0-9_:./-]+")
 
 ORACLE_PASS_PREFIX = "oracle:pass"
 
 
 def read_csv_rows(path: Path) -> list[dict[str, str]]:
-    """Read a CSV ledger into row dicts (empty strings, never None)."""
     with path.open(newline="", encoding="utf-8") as handle:
         return [dict(row) for row in csv.DictReader(handle)]
 
 
 def run_package_rel(row: Mapping[str, str]) -> Path:
-    """Repo-relative path of the package the ledger runs for one row."""
     if row["run"] == "original":
         return SNAPSHOT_REL / "tasks" / row["task_id"]
     slug = f"mimo-v2.6-rl__{row['task_id']}"
@@ -355,7 +263,6 @@ def run_package_rel(row: Mapping[str, str]) -> Path:
 
 
 def variant_source(task_id: str, digest: str, row: Mapping[str, str]) -> dict[str, Any]:
-    """Lineage ``parent_source`` for one chain derivation step."""
     if digest == row["run_digest"] and row["run"] == "original":
         return {**HF_SOURCE, "path": f"tasks/{task_id}"}
     slug = f"mimo-v2.6-rl__{task_id}"
@@ -368,18 +275,11 @@ def variant_source(task_id: str, digest: str, row: Mapping[str, str]) -> dict[st
 
 
 def setup_carries(package: Path, marker: str) -> bool:
-    """Whether the package setup already applies the marked transform."""
     setup = package / "environment" / "setup" / "setup.sh"
     return marker in setup.read_text(errors="replace") if setup.is_file() else False
 
 
 def derive_marker(patch_text: str, task_id: str) -> str:
-    """Hidden-test probe marker derived from the hidden test patch.
-
-    First added ``test_*`` function name; else the first touched file's
-    basename; else the task id. Sanitized for the probe hook's
-    double-quoted grep pattern.
-    """
     candidate: str | None = None
     match = _NEW_TEST_RE.search(patch_text)
     if match is not None:
@@ -401,12 +301,6 @@ def build_solution_sh(
     fix_commit: str,
     patch_bytes: bytes,
 ) -> bytes:
-    """Reference ``solution/solve.sh`` applying an oracle-pass patch.
-
-    The patch embeds base64 (shell-safe for any diff content); the script
-    resolves the agent worktree repo root itself and applies with
-    ``git apply``. Deterministic in the patch bytes.
-    """
     encoded = base64.b64encode(patch_bytes).decode("ascii")
     script = (
         "#!/bin/bash\n"
@@ -427,7 +321,6 @@ def build_solution_sh(
 
 @dataclass
 class OracleInfo:
-    """An oracle-pass reference fix resolved to patch bytes."""
 
     label: str
     fix_commit: str
@@ -436,12 +329,6 @@ class OracleInfo:
 
 
 def load_reference_index(index_path: Path) -> dict[str, dict[str, str]]:
-    """Index a mimo-reference-fixes ``index.csv`` by task id.
-
-    Columns: ``task_id,label,fix_commit,patch_path,patch_sha256,source``;
-    ``patch_path`` is absolute (patch bytes live outside the repo) and only
-    oracle-pass rows carry one.
-    """
     out: dict[str, dict[str, str]] = {}
     for row in read_csv_rows(index_path):
         out[row["task_id"]] = {
@@ -460,12 +347,6 @@ def oracle_info_from_index(
     *,
     repo_root: Path,
 ) -> OracleInfo | None:
-    """The oracle-pass reference fix from a reference index, or None.
-
-    Returns None unless the row's label is an oracle pass, ``patch_path``
-    names an existing file (absolute, else repo-relative), and the bytes
-    match ``patch_sha256`` when one is recorded.
-    """
     entry = index.get(task_id)
     if entry is None:
         return None
@@ -494,7 +375,6 @@ def oracle_info_from_index(
 
 @dataclass
 class ChainResult:
-    """One manifest row's build outcome."""
 
     task_id: str
     status: str
@@ -528,7 +408,6 @@ class ChainResult:
 
 
 class ChainBuilder:
-    """Derives the clean chain per task with per-task record reuse."""
 
     def __init__(
         self,
@@ -552,7 +431,6 @@ class ChainBuilder:
         self.clean_version = clean_version
         self._chains = chains_for_version(clean_version)
 
-    # -- record reuse -------------------------------------------------- #
 
     def _slug_records(self, task_id: str) -> None:
         self._records[task_id] = {}
@@ -601,8 +479,6 @@ class ChainBuilder:
             if self._matches(record, expected_inputs, parent_source)
             and not self._is_stale_snapshot(task_id, record)
         ]
-        # Multiple matching records are not ordered by digest filename.
-        # Re-run the actual transform to select its exact output instead.
         return matching[0] if len(matching) == 1 else None
 
     def _remember(self, task_id: str, record: VariantRecord) -> None:
@@ -627,21 +503,10 @@ class ChainBuilder:
 
         return default_variants_root(self.repo_root)
 
-    #: ``task.toml`` substring proving a package carries the post-#848
-    #: snapshot collect hook (``git -C "$CWD" ls-files -c -o
-    #: --exclude-standard`` instead of a full worktree tar). Pre-#848
-    #: packages snapshot ``__pycache__`` bytes the current grader never
-    #: sees (``pyc_shadow``); they are stale.
     _SNAPSHOT_HOOK_MARKER = "ls-files -c -o --exclude-standard"
 
     @staticmethod
     def _needs_snapshot_hook(transform: str) -> bool:
-        """Whether ``transform`` packages must carry the #848 hook.
-
-        ``separate-verifier@2``+ writes the hook into ``task.toml`` and
-        ``agent-network-none@1`` only rewrites that file, so both must
-        show it; ``separate-verifier@1`` keeps its full-worktree tar.
-        """
         if transform == AGENT_NETWORK_NONE_ID:
             return True
         if not transform.startswith("separate-verifier@"):
@@ -652,7 +517,6 @@ class ChainBuilder:
             return False
 
     def _is_stale_snapshot(self, task_id: str, record: VariantRecord) -> bool:
-        """Whether the record's on-disk package predates #848."""
         if not self._needs_snapshot_hook(record.transform):
             return False
         package = (
@@ -670,17 +534,12 @@ class ChainBuilder:
         return self._SNAPSHOT_HOOK_MARKER not in text
 
     def _materialized(self, task_id: str, record: VariantRecord) -> Path | None:
-        """The record's package dir when present with a matching digest."""
         package = (
             self._variants_dir()
             / f"mimo-v2.6-rl__{task_id}"
             / record.variant_digest.removeprefix("sha256:")[:12]
         )
         if package.is_dir() and task_directory_digest(package) == record.variant_digest:
-            # Pre-#848 cached packages are stale even though their digest
-            # still matches their (old) lineage record: force re-derivation
-            # with current code. The stale <digest12> dir stays on disk so
-            # historical receipts remain valid.
             if self._is_stale_snapshot(task_id, record):
                 return None
             return package
@@ -698,7 +557,6 @@ class ChainBuilder:
         return identity
 
     def _rederived_equivalent(self, existing: VariantRecord, derived: VariantRecord) -> bool:
-        """Allow absent v10 diagnostics only after real, byte-identical rederivation."""
         if (
             derived.transform != SEPARATE_V10_ID
             or derived.inputs.get("setup_python_path") != ""
@@ -717,7 +575,6 @@ class ChainBuilder:
         return old_identity == new_identity
 
     def _validate_edge(self, record: VariantRecord, parent: Path) -> None:
-        """Prove replay and both digest namespaces without touching shared bytes."""
         if task_directory_digest(parent) != record.parent.digest:
             raise VariantInvalid(f"{record.transform}: parent package digest mismatch")
         if harbor_task_digest(parent) != record.parent.harbor_digest:
@@ -746,7 +603,6 @@ class ChainBuilder:
             return derive(parent, parent_source=dict(parent_source), **kwargs)
 
     def _adopt_record(self, task_id: str, record: VariantRecord, parent: Path) -> VariantRecord:
-        """Publish a real derivation, never replace an existing record or package."""
         path = self.repo_root / record.record_relpath()
 
         def existing() -> VariantRecord:
@@ -813,12 +669,6 @@ class ChainBuilder:
         expected_inputs: Mapping[str, Any] | None = None,
         **derive_kwargs: Any,
     ) -> tuple[VariantRecord, bool]:
-        """Select matching inputs before reuse; derive missing edges in isolation.
-
-        In particular, a shared orphan package cannot force a wrong-input
-        record through a ``VariantExistsError`` fallback. ``materialize``
-        adopts digest-identical cached bytes without moving or rewriting them.
-        """
         if task_directory_digest(parent) != parent_digest:
             raise VariantInvalid(f"{transform}: requested parent digest does not match package")
         record = self._lookup(
@@ -840,7 +690,6 @@ class ChainBuilder:
             raise VariantInvalid(f"{transform}: derivation did not bind requested task, parent and inputs")
         return self._adopt_record(task_id, record, parent), False
 
-    # -- chain ---------------------------------------------------------- #
 
     def _source(
         self,
@@ -849,7 +698,6 @@ class ChainBuilder:
         start_digest: str,
         row: Mapping[str, str] | None,
     ) -> dict[str, Any]:
-        """Lineage ``parent_source`` for one chain derivation step."""
         if row is not None:
             return variant_source(task_id, digest, row)
         if digest == start_digest:
@@ -915,8 +763,6 @@ class ChainBuilder:
                 if oracle is not None and not (parent / "solution" / "solve.sh").is_file()
                 else None
             )
-            # The transform itself detects the bundled setup and renders the
-            # actual wrapper, including the Python pin only for purge@2.
             _changes, inputs = build_changes_v10(parent, marker=marker, solution_sh=solution)
             return derive_separate_verifier_v10, inputs, {"marker": marker, "solution_sh": solution}
         return (
@@ -947,7 +793,6 @@ class ChainBuilder:
         row: Mapping[str, str] | None,
         oracle: OracleInfo | None,
     ) -> None:
-        """Recover only an exact actual transform, never infer an edge from a marker."""
         expected_path = RECORDS_DIRNAME / f"mimo-v2.6-rl__{task_id}" / f"{digest.removeprefix('sha256:')[:12]}.json"
         if Path(record_path) != expected_path:
             raise VariantInvalid(f"noncanonical missing ancestor record path: {record_path}")
@@ -1126,8 +971,6 @@ class ChainBuilder:
                             continue
                         parameter_row = row
                         if transform == PURGE_V2_ID and row is not None:
-                            # A carried edge retains its actual original
-                            # repairs input, not a newly invented provenance.
                             parameter_row = {
                                 **row, "run_digest": candidate.inputs.get("repairs_digest", ""),
                             }
@@ -1219,13 +1062,6 @@ class ChainBuilder:
         *,
         oracle: OracleInfo | None = None,
     ) -> ChainResult:
-        """Derive the clean chain for one task.
-
-        ``row`` is a python-task-ledger row (Python chain from the repairs
-        run package); None starts from the snapshot task dir (non-Python
-        chain). Ledger membership always means the Python pool, whatever
-        the snapshot category says.
-        """
         if row is not None:
             language: str | None = "python"
         else:
@@ -1287,7 +1123,6 @@ class ChainBuilder:
 
 
 def write_manifest(rows: Collection[Mapping[str, str]], path: Path) -> Path:
-    """Write the tracked manifest (sorted by task id, deterministic)."""
     ordered = sorted(rows, key=lambda row: row["task_id"])
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as handle:
@@ -1299,7 +1134,6 @@ def write_manifest(rows: Collection[Mapping[str, str]], path: Path) -> Path:
 
 
 def write_lineage_index(results: Collection[ChainResult], manifest_path: Path) -> Path:
-    """Emit v6 record references, not another copy of the variant ledger."""
     built = sorted(
         (result for result in results if result.status == STATUS_BUILT),
         key=lambda result: result.task_id,
@@ -1319,7 +1153,6 @@ def write_lineage_index(results: Collection[ChainResult], manifest_path: Path) -
 
 
 def load_manifest(path: Path) -> list[dict[str, str]]:
-    """Read a manifest back (row dicts keyed by MANIFEST_COLUMNS)."""
     return read_csv_rows(path)
 
 

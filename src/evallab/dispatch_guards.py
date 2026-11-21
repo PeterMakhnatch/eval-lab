@@ -1,39 +1,3 @@
-"""Dispatch-side guards from the Baseline v1 post-mortem (HAR-163).
-
-Four small guards, one per failure mode, all enforced on the real tick path:
-
-1. Self-hosted readiness probe (cold Modal endpoint): a minimal
-   ``POST /v1/chat/completions`` (``max_tokens=1``) against the resolved
-   upstream before every self-hosted-model dispatch. A 503 or
-   connection error waits with backoff inside a bounded warm-up window and
-   launches on the first 200; an endpoint still cold at the bound defers
-   the spec with ``selfhosted_endpoint_not_ready``. Never launches into
-   a 503. Every launch re-probes: no cached-ready reuse.
-2. Infra-spike stop: a ``proxy_error_spike``/``infra_spike`` alert in a
-   current-batch job ``watch/alerts.jsonl`` sets the existing queue
-   ``STOP`` fence, so no further specs dispatch. Only alerts from running
-   jobs or jobs launched since the last ``evallab resume`` fence;
-   acknowledged alerts (``watch/acks.jsonl``) never fence again.
-   Running trials are untouched (``stop()`` only fences future dispatch).
-   Clear with ``evallab resume``; ack a stale spike with ``evallab watch ack``.
-3. Daytona memory clamp: the tick plan is clamped up front to
-   ``floor((limit * safety - used - pending - reserve) / per_sandbox)``
-   from ``DaytonaGuard.observe()``, so admission never refuses an
-   over-planned tick. Guard unavailable falls back to one launch.
-4. Smoke gate: a batch with more than one model-backed spec dispatches
-   one first. Fail-closed: the rest stay approved with
-   ``smoke_gate_blocked`` (plus the durable queue ``STOP`` fence) unless
-   every smoke trial carries a finite verifier reward with no unexpected
-   exception. A canonical ``AGENT_STOP_EXCEPTIONS`` stop still needs its
-   finite grade to release; the stop name alone never releases. Missing,
-   unreadable, empty, non-finite, or ungraded smoke evidence blocks.
-   Gradable smoke lets the rest launch.
-   Default-on; ``--no-smoke-gate`` opts out and is recorded.
-
-These guards do not deploy resources. Readiness performs a real, authenticated
-minimal chat-completions request against the configured model upstream.
-"""
-
 from __future__ import annotations
 
 import json
@@ -65,21 +29,15 @@ from evallab.execution_contracts import (
 
 SELFHOSTED_KEY_ENV = "MIMO_SELFHOSTED_API_KEY"
 
-#: Backoff between probe attempts while the endpoint reports cold.
 PROBE_BACKOFF_BASE_SECONDS = 2.0
 PROBE_BACKOFF_CAP_SECONDS = 10.0
 
-#: Auto-watch rules that fence the queue (fleet or per-job alerts.jsonl).
 SPIKE_RULES = frozenset({"proxy_error_spike", "infra_spike"})
 
-#: Agents without model behavior; never part of a smoke batch.
 MODEL_FREE_AGENTS = frozenset({"nop", "oracle"})
 
-#: Conservative fallback when the Daytona guard cannot be read.
 DAYTONA_FALLBACK_ALLOWANCE = 1
-#: Headroom held back as one whole sandbox.
 DAYTONA_RESERVE_SANDBOXES = 1
-#: Last-resort per-sandbox memory when the snapshot carries none.
 DAYTONA_FALLBACK_PER_SANDBOX_GIB = 8.0
 
 SELFHOSTED_REASON_NOT_READY = "selfhosted_endpoint_not_ready"
@@ -96,7 +54,6 @@ INFRA_STOP_EVENT = "dispatch_stopped"
 
 @dataclass(frozen=True)
 class SelfhostedProbeOutcome:
-    """One upstream attempt. Never carries key material or bodies."""
 
     ok: bool
     status: int | None
@@ -108,25 +65,21 @@ ProbeFn = Callable[[str, str, str, float], SelfhostedProbeOutcome]
 
 
 def is_selfhosted_spec(spec: Any) -> bool:
-    """Whether this spec needs the self-hosted upstream probe."""
     model = getattr(spec, "model", None)
     return is_mimo_selfhosted_model(model) or is_breaker_selfhosted_model(model)
 
 
 def is_model_backed(spec: Any) -> bool:
-    """Whether this spec invokes a model (i.e. not a free control)."""
     return str(getattr(spec, "agent", "")) not in MODEL_FREE_AGENTS
 
 
 def is_daytona_spec(spec: Any) -> bool:
-    """Whether this spec plans a Daytona sandbox launch."""
     return getattr(spec, "environment", None) == "daytona"
 
 
 def resolve_selfhosted_endpoint(
     environment: Mapping[str, str] | None = None, *, model: str | None = None
 ) -> str | None:
-    """The configured self-hosted upstream base URL, or ``None``."""
     source = os.environ if environment is None else environment
     breaker = is_breaker_selfhosted_model(model)
     raw = source.get(BREAKER_SELFHOSTED_UPSTREAM_ENV if breaker else MIMO_SELFHOSTED_UPSTREAM_ENV)
@@ -149,11 +102,6 @@ def resolve_selfhosted_endpoint(
 def resolve_selfhosted_key(
     environment: Mapping[str, str] | None = None, *, model: str | None = None
 ) -> str | None:
-    """The upstream API key value, or ``None`` when unavailable.
-
-    Reads the selected route's API-key variable first, falling back to its
-    owner-only secret file. Never logs or returns placeholders.
-    """
     source = os.environ if environment is None else environment
     breaker = is_breaker_selfhosted_model(model)
     value = source.get(BREAKER_SELFHOSTED_KEY_ENV if breaker else SELFHOSTED_KEY_ENV)
@@ -173,7 +121,6 @@ def resolve_selfhosted_key(
 
 
 def selfhosted_probe_model(spec_model: str | None) -> str:
-    """The model name to send upstream: the served (native) id."""
     if not isinstance(spec_model, str) or not spec_model:
         return ""
     try:
@@ -187,7 +134,6 @@ def selfhosted_probe_model(spec_model: str | None) -> str:
 def probe_once(
     endpoint: str, model: str, key: str, timeout_seconds: float
 ) -> SelfhostedProbeOutcome:
-    """One minimal chat-completions probe; the only network call here."""
     url = endpoint.rstrip("/") + "/v1/chat/completions"
     body = json.dumps(
         {
@@ -244,12 +190,6 @@ def wait_for_selfhosted_ready(
     sleeper: Callable[[float], None] = time.sleep,
     clock: Callable[[], float] = time.time,
 ) -> tuple[bool, int, bool]:
-    """Poll a cold endpoint until 200 or the warm-up bound.
-
-    Returns ``(ready, attempts, rejected)``. Only cold signals
-    (503/connection error) wait; any other non-200 refuses immediately
-    (``rejected=True``) so a 401 never burns the warm-up window.
-    """
     probe = probe_fn or probe_once
     deadline = clock() + max(float(warmup_seconds), 0.0)
     backoff = PROBE_BACKOFF_BASE_SECONDS
@@ -275,18 +215,6 @@ def _finite_reward(value: Any) -> bool:
 
 
 def smoke_trial_blocks(job: Any) -> tuple[bool, str]:
-    """Whether a finished smoke job blocks the rest of its batch.
-
-    Fail-closed: returns ``False`` only on nonempty observed gradable
-    evidence — every trial carries a finite verifier reward
-    (``results.TrialRecord.primary_reward`` semantics) and no trial
-    carries an unexpected exception. Missing, unreadable, empty,
-    non-finite, or ungraded evidence blocks, as does any infrastructure
-    or wiring exception, even when a reward is present. A canonical
-    ``database.AGENT_STOP_EXCEPTIONS`` stop still needs its finite grade
-    to release: the stop name alone, without grading, is absence of
-    evidence, not evidence of health.
-    """
     if job is None:
         return True, "smoke job evidence unavailable"
     try:
@@ -331,11 +259,6 @@ def _number_or(value: Any, fallback: float) -> float:
 
 
 def daytona_tick_allowance(snapshot: Mapping[str, Any]) -> tuple[int, str]:
-    """Max Daytona launches this tick under the memory cap.
-
-    ``floor((limit * safety - used - pending - reserve) / per_sandbox)``
-    on the ``memory_gib`` dimension, holding one sandbox in reserve.
-    """
     limits = snapshot.get("limits") if isinstance(snapshot, Mapping) else {}
     used = snapshot.get("used") if isinstance(snapshot, Mapping) else {}
     pending = snapshot.get("pending") if isinstance(snapshot, Mapping) else {}
@@ -366,7 +289,6 @@ def daytona_tick_allowance(snapshot: Mapping[str, Any]) -> tuple[int, str]:
 
 
 def read_spike_alerts(job_dir: Path) -> list[dict[str, Any]]:
-    """Best-effort ``watch/alerts.jsonl`` rows matching the spike rules."""
     path = Path(job_dir) / "watch" / "alerts.jsonl"
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
@@ -405,7 +327,6 @@ def read_spike_alerts(job_dir: Path) -> list[dict[str, Any]]:
 
 
 def parse_alert_time(row: Mapping[str, Any]) -> datetime | None:
-    """Best-effort ``first_seen`` timestamp of a watch alert row."""
     raw = row.get("first_seen")
     if not isinstance(raw, str) or not raw.strip():
         return None
@@ -419,7 +340,6 @@ def parse_alert_time(row: Mapping[str, Any]) -> datetime | None:
 
 
 def alert_predates_resume(row: Mapping[str, Any], resume_time: datetime | None) -> bool:
-    """Whether an alert row is provably older than the last queue resume."""
     if resume_time is None:
         return False
     seen = parse_alert_time(row)
@@ -429,7 +349,6 @@ def alert_predates_resume(row: Mapping[str, Any], resume_time: datetime | None) 
 def read_unacked_spike_alerts(
     job_dir: Path, *, resume_time: datetime | None = None
 ) -> list[dict[str, Any]]:
-    """Spike rows that still fence: neither acknowledged nor pre-resume."""
     from evallab import auto_watch as _auto_watch
 
     alerts = read_spike_alerts(job_dir)
@@ -447,7 +366,6 @@ def read_unacked_spike_alerts(
 
 
 def job_launched_since(job_dir: Path, resume_time: datetime) -> bool:
-    """Whether a job dir was launched at/after the resume (mtime probe)."""
     alerts_path = Path(job_dir) / "watch" / "alerts.jsonl"
     if alerts_path.is_file():
         try:
@@ -466,13 +384,6 @@ def scan_spike_alerts(
     resume_time: datetime | None = None,
     running_dirs: Iterable[Path | str] = (),
 ) -> list[dict[str, Any]]:
-    """Fence-live spike alerts under ``<runs>/<job>/watch/alerts.jsonl``.
-
-    Scoped to the current batch (HAR-174): with no recorded resume every
-    alert fences as before; after a resume only alerts from running jobs
-    or jobs launched since that resume are read, and acknowledged or
-    provably pre-resume rows never fence.
-    """
     running = {str(Path(item)) for item in running_dirs}
     running_names = {Path(item).name for item in running_dirs}
     found: list[dict[str, Any]] = []

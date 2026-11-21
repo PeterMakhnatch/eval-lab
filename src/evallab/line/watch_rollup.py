@@ -1,19 +1,3 @@
-"""The cumulative view of a live line, and the live checks.
-
-Nothing here is stored. The cumulative view is a batch-shaped scratch folder built on demand
-from the committed child batches alone, so the line's own ``build_scoreboard`` produces the
-cumulative scoreboard: counts and label joins are summed over runs, and every Wilson interval
-is computed on the totals, never averaged across increments.
-
-``line check STATE_DIR`` is read-only for every committed child. It runs the line's own
-``check_batch`` on each child and three global checks on top:
-
-* ``conservation``: commit records are 1..N, each one's decisions, child folder and spec hashes
-  still match, the increment names its own batch, and no run id appears in two children;
-* ``cumulative``: the view builds from the children and its totals are the children's totals;
-* ``spend``: the children's total spend is within the cap.
-"""
-
 from __future__ import annotations
 
 import json
@@ -62,7 +46,6 @@ def child_path(config: dict[str, Any], n: int) -> str:
 
 
 def union_files(state: State, records: list[dict[str, Any]], dest: Path) -> dict[str, str]:
-    """The files of a batch-shaped folder at ``dest`` that are derived from the child batches."""
     config = state.config()
     runs: list[dict[str, Any]] = []
     decisions: list[dict[str, Any]] = []
@@ -149,11 +132,6 @@ def union_files(state: State, records: list[dict[str, Any]], dest: Path) -> dict
 def cumulative_scoreboard(
     state: State, records: list[dict[str, Any]], repo_root: Path
 ) -> dict[str, Any]:
-    """The cumulative scoreboard, built on demand from the committed children in a scratch folder.
-
-    Nothing derived is kept on disk. Counts and label joins are summed over runs and every
-    Wilson interval is computed on the totals by the line's own ``build_scoreboard``.
-    """
     with tempfile.TemporaryDirectory(prefix="line-cumulative-") as scratch:
         dest = Path(scratch)
         for name, text in union_files(state, records, dest).items():
@@ -190,7 +168,6 @@ def _gate(checks: list[dict[str, str]], name: str, function: Callable[[], None])
 def _check_children(
     state: State, repo_root: Path, records: list[dict[str, Any]], *, deep: bool
 ) -> None:
-    """The line's own check on each child (the newest only unless ``deep``). Reads, never writes."""
     for record in records if deep else records[-1:]:
         result = core.check_batch(child_dir(state, record), repo_root)
         failed = [c["name"] for c in result["checks"] if c["status"] != "PASS"]
@@ -202,7 +179,7 @@ def _check_conservation(
 ) -> None:
     names = [p.name for p in state.folders()]
     wanted = [f"{n:06d}" for n in range(1, len(records) + 1)]
-    running = [f"{len(records) + 1:06d}"] if owner_alive(state) else []  # one open, while it runs
+    running = [f"{len(records) + 1:06d}"] if owner_alive(state) else []
     _require(
         names[: len(wanted)] == wanted and names[len(wanted) :] in ([], running),
         f"increments/ is not exactly the commits 1..N: {names[:5]}",
@@ -263,7 +240,6 @@ def _check_conservation(
 
 
 def _check_watch_json(state: State) -> dict[str, Any]:
-    """``watch.json`` is what the state was created with and still names the frozen task status."""
     stored = read_json(state.watch_json)
     _require(stored.get("schema") == STATE_SCHEMA, "watch.json has an unknown schema")
     _require(
@@ -279,12 +255,6 @@ def _check_watch_json(state: State) -> dict[str, Any]:
 
 
 def _check_queue(state: State, config: dict[str, Any], records: list[dict[str, Any]]) -> None:
-    """The Judge queue this watcher owns holds every committed child's queue rows once, no others.
-
-    The watcher queues an increment's rows just before it commits, so a crash (or a running
-    watcher) can leave rows of an increment that is open or was moved to ``abandoned/``; exactly
-    those are tolerated, and they are queued once whichever increment finally commits them.
-    """
     if not config["judge"]["write"]:
         return
     queued = read_queue_rows(Path(config["judge"]["queue"]))
@@ -316,7 +286,6 @@ def _check_queue(state: State, config: dict[str, Any], records: list[dict[str, A
 
 
 def _check_cumulative(state: State, records: list[dict[str, Any]], repo_root: Path) -> None:
-    """The on-demand cumulative view builds, and its totals are the children's totals."""
     overall = cumulative_scoreboard(state, records, repo_root)["overall"]
     children = [read_json(child_dir(state, r) / "scoreboard.json")["overall"] for r in records]
     counts: Counter[str] = Counter()
@@ -348,17 +317,11 @@ def _check_spend(state: State, config: dict[str, Any], records: list[dict[str, A
 
 
 def verify(state: State, repo_root: Path, *, deep: bool) -> dict[str, Any]:
-    """The live checks, reading every declared file the way the line reads it."""
     with core.declared_scope(repo_root):
         return _verify(state, repo_root, deep=deep)
 
 
 def _verify(state: State, repo_root: Path, *, deep: bool) -> dict[str, Any]:
-    """Run the live checks. Anything unreadable fails its check with the reason; nothing raises.
-
-    Committed children and the state are only read. ``deep`` runs ``check_batch`` on every
-    child, otherwise only on the newest one; the other checks always cover every child.
-    """
     checks: list[dict[str, str]] = []
     records: list[dict[str, Any]] = []
     config: dict[str, Any] = {}

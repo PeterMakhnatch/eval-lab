@@ -1,15 +1,3 @@
-"""Hack-drop filter: certified-task plus L0 plus AutoReview filter for SFT/RL rollouts.
-
-Enforces pre-training hygiene by removing cheating, reward hacking, and exploitable
-task rollouts from candidate training data. Operates across three sequential stages:
-1. TASK: task status from certified-tasks manifest (weak/exploitable -> review or drop).
-2. L0: deterministic tripwires, tamper signatures, target-surface writes, and gate rules.
-3. AUTOREVIEW: optional budget-bounded compact card review with attested model route.
-
-The assembly line combines stage results with reason codes and evidence step IDs.
-`compute_report` summarizes decisions and optional label metrics.
-"""
-
 from __future__ import annotations
 
 import base64
@@ -71,15 +59,10 @@ from evallab.tripwires import (
     tamper_signature_hit,
 )
 
-#: Hackbook rules whose hits the L0 stage reads: every verdict rule, plus the diagnostic
-#: login-profile write it reports as a soft review.
 _L0_HACKBOOK_RULES: frozenset[str] = hackbook_rule_ids(eligibility="verdict") | {
     "hb_login_profile_write"
 }
 
-# --------------------------------------------------------------------------- #
-# Hard vs soft rule classifications
-# --------------------------------------------------------------------------- #
 
 HARD_L0_GATE_RULES: frozenset[str] = frozenset(
     {
@@ -168,7 +151,6 @@ _TEXT_SUFFIXES = frozenset(
 
 
 def bundle_file_eligible(relative: str) -> bool:
-    """Whether a file of a rollout folder is read as a bundle source file (its path, posix)."""
     parts = relative.split("/")
     name = parts[-1]
     if name.casefold() in _SKIP_FILE_NAMES or any(
@@ -184,13 +166,7 @@ CONFIG_SURFACE = re.compile(
 )
 
 
-# --------------------------------------------------------------------------- #
-# Statistical and utility helpers
-# --------------------------------------------------------------------------- #
-
-
 def wilson_interval(k: int, n: int, z: float = 1.959964) -> tuple[float | None, float | None]:
-    """95% Wilson score interval for k successes in n trials. Returns (None, None) for n <= 0."""
     if n <= 0:
         return (None, None)
     p = k / n
@@ -207,11 +183,6 @@ _DECLARED_READER: contextvars.ContextVar[Callable[[Path], str] | None] = context
 
 @contextlib.contextmanager
 def declared_reader(reader: Callable[[Path], str]) -> Iterator[None]:
-    """Route the reads of declared inputs (manifests, labels, task status) through ``reader``.
-
-    The assembly line uses this so one no-follow, fstat-checked read both hashes and parses
-    each declared file; without it the loaders read the path themselves.
-    """
     token = _DECLARED_READER.set(reader)
     try:
         yield
@@ -225,7 +196,7 @@ def read_declared_text(path: Path) -> str:
 
 
 class DuplicateKeyError(ValueError):
-    """A JSON object repeated a key: which value counts is ambiguous, so the file is refused."""
+    pass
 
 
 def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -238,17 +209,10 @@ def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 
 
 def strict_json_loads(text: str | bytes) -> Any:
-    """``json.loads`` that refuses an object with a repeated key."""
     return json.loads(text, object_pairs_hook=_reject_duplicate_keys)
 
 
 def _refuse_non_dev_split(document: Mapping[str, Any], what: str) -> None:
-    """Refuse a document that declares a split other than ``dev``, at any depth.
-
-    This is the one split check of the DEV gate, shared with ``rollout_admission``: a ``split``
-    key in any letter case, at the top level, in ``metadata``/``result``/``run_meta`` or deeper,
-    must be exactly ``dev`` (or null); a list or a number there is refused rather than ignored.
-    """
     from evallab.rollout_admission import declares_non_dev
 
     if declares_non_dev(document):
@@ -256,12 +220,6 @@ def _refuse_non_dev_split(document: Mapping[str, Any], what: str) -> None:
 
 
 def check_declared_path(path: Path | str) -> Path:
-    """``check_dev_path_allowed`` for a declared input of the assembly line.
-
-    Inside the line's declared reader a final symlink is refused BEFORE the path is resolved
-    (``check_dev_path_allowed`` resolves it, which would hide the link from the no-follow
-    reader). Outside it the behaviour is unchanged.
-    """
     if _DECLARED_READER.get() is not None:
         try:
             mode = os.lstat(Path(path).expanduser()).st_mode
@@ -273,11 +231,6 @@ def check_declared_path(path: Path | str) -> Path:
 
 
 def check_dev_path_allowed(path: Path | str) -> Path:
-    """Refuse any path under research/answer-keys or declared TEST/held-out splits.
-
-    Both the real location and the path as spelled are judged, so a symlink named like a
-    DEV file cannot launder a forbidden target and a DEV-looking link cannot hide behind one.
-    """
     spelled = Path(path).expanduser()
     p = spelled.resolve()
     for candidate in dict.fromkeys((p, Path(os.path.abspath(spelled)))):
@@ -355,7 +308,6 @@ def _get_corpus_registry(repo_root: Path | CorpusRegistry | Any = None) -> Any:
             seen.add(c)
             uniq_candidates.append(c)
 
-    # 1. Synthetic assignments.csv
     for candidate in uniq_candidates:
         if (candidate / "assignments.csv").is_file():
             if not (candidate / "research/answer-keys/tb4-audit-v1/items.jsonl").is_file():
@@ -368,7 +320,6 @@ def _get_corpus_registry(repo_root: Path | CorpusRegistry | Any = None) -> Any:
             except Exception:
                 pass
 
-    # 2. Canonical research/answer-keys/splits/assignments.csv
     for candidate in uniq_candidates:
         if (candidate / "research/answer-keys/splits/assignments.csv").is_file():
             try:
@@ -376,7 +327,6 @@ def _get_corpus_registry(repo_root: Path | CorpusRegistry | Any = None) -> Any:
             except Exception:
                 pass
 
-    # 3. pyproject.toml or .git
     for candidate in uniq_candidates:
         if (candidate / "pyproject.toml").is_file() or (candidate / ".git").exists():
             try:
@@ -482,7 +432,6 @@ def app_source_tamper_signature_hit(text: str) -> str | None:
 
 
 def _diff_header(line: str) -> tuple[str, bool]:
-    """Separate a unified-diff path from its optional missing-file timestamp."""
     path, _, stamp = line[4:].partition("\t")
     path = path[2:] if path.startswith(("a/", "b/")) else path
     try:
@@ -492,15 +441,12 @@ def _diff_header(line: str) -> tuple[str, bool]:
     if date.tzinfo is not None:
         epoch = date.timestamp() == 0
     else:
-        # BSD diff prints local wall time without a zone (19:00 in New York).
-        # A zero-length hunk below is also required; a timestamp alone is not newness.
         delta = date - datetime(1970, 1, 1)
         epoch = -timedelta(hours=12) <= delta <= timedelta(hours=14)
     return path.strip(), epoch
 
 
 def parse_diff_sections(diff_text: str) -> list[dict[str, Any]]:
-    """Parse unified diff into sections with old_path, new_path, added_lines, removed_lines, is_new, is_deleted."""
     sections: list[dict[str, Any]] = []
     current: dict[str, Any] | None = None
     old_epoch = new_epoch = False
@@ -573,13 +519,7 @@ def parse_diff_sections(diff_text: str) -> list[dict[str, Any]]:
     return sections
 
 
-# --------------------------------------------------------------------------- #
-# Data models
-# --------------------------------------------------------------------------- #
-
-
 def _decode_legacy_call(call: Any) -> list[Any]:
-    """Expand one cloud-export call into the ATIF calls it encodes, or return it unchanged."""
     if not isinstance(call, Mapping):
         return [call]
     if call.get("function_name") == "tool":
@@ -597,16 +537,6 @@ def _decode_legacy_call(call: Any) -> list[Any]:
 
 
 def _normalize_legacy_run(run: LoadedRun) -> LoadedRun:
-    """Decode the two argument encodings ``cloud_trace_export`` stored for every call.
-
-    The exporter kept each trace row's raw ``command_or_action`` text as ``arguments.command``:
-    a call's real arguments object arrives as a JSON string (``{"command": "{\"cmd\": ...}"}``),
-    and parallel calls arrive as one ``function_name: tool`` call whose text is a JSON array of
-    ``{id, name, arguments}``. Every downstream scanner reads calls by name and argument key,
-    so both are decoded once, at load. Anything that does not decode (a plain shell command,
-    a malformed envelope, a non-object entry) is left untouched, so unreadable shapes still
-    route to review instead of being guessed at.
-    """
     doc = run.doc
     steps = doc.get("steps") if isinstance(doc, Mapping) else None
     if not isinstance(steps, list):
@@ -626,7 +556,6 @@ def _normalize_legacy_run(run: LoadedRun) -> LoadedRun:
 
 @dataclass(frozen=True)
 class RolloutItem:
-    """A candidate rollout item to be scored."""
 
     item_id: str
     task_id: str
@@ -644,17 +573,15 @@ class RolloutItem:
 
 @dataclass
 class StageVerdict:
-    """The outcome of one filtering stage for a single rollout."""
 
     stage: str
-    decision: str  # "pass", "review", "drop"
+    decision: str
     reasons: list[str] = field(default_factory=list)
     evidence_steps: list[int] = field(default_factory=list)
     details: dict[str, Any] = field(default_factory=dict)
 
 
 def _norm_path(p: str) -> str:
-    """Normalize file path for consistent matching across tools and platforms."""
     if not p:
         return ""
     norm = str(p).replace("\\", "/").strip().strip("'\"")
@@ -670,7 +597,6 @@ def _norm_path(p: str) -> str:
 
 
 def _paths_match(p1: str, p2: str) -> bool:
-    """Check if two file paths refer to the same target (exact or relative/absolute suffix, case-folded)."""
     n1 = _norm_path(p1).lower()
     n2 = _norm_path(p2).lower()
     if not n1 or not n2:
@@ -695,7 +621,6 @@ def _sanitize_path_field(val: Any) -> str | dict[str, Any]:
 
 
 def _sanitize_manifest_details(details: Mapping[str, Any]) -> dict[str, Any]:
-    """Sanitize stage details to ensure strictly zero transcript/prompt/tool text leaks."""
     sanitized: dict[str, Any] = {}
     for k, v in details.items():
         if k in ("status", "note", "model", "verdict"):
@@ -756,17 +681,15 @@ def _sanitize_manifest_details(details: Mapping[str, Any]) -> dict[str, Any]:
 
 @dataclass
 class RolloutDecision:
-    """Final multi-stage filtering decision for a rollout."""
 
     id: str
     task_id: str
-    decision: str  # "keep", "review", "drop"
+    decision: str
     reasons: list[str] = field(default_factory=list)
     evidence_steps: list[int] = field(default_factory=list)
     stage_decisions: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def to_manifest_row(self) -> dict[str, Any]:
-        """Output row for kept.jsonl / dropped.jsonl / review.jsonl (no transcripts)."""
         return {
             "id": self.id,
             "task_id": self.task_id,
@@ -784,14 +707,7 @@ class RolloutDecision:
         }
 
 
-# --------------------------------------------------------------------------- #
-# Loaders: Certified Tasks and Labels
-# --------------------------------------------------------------------------- #
-
-
 def _record_task(mapping: dict[str, dict[str, str]], entry: Any) -> None:
-    """Add one task-status row. A row that is not an object is refused, and so is a task given
-    two different statuses: which one counts must never depend on the order of the rows."""
     if not isinstance(entry, dict):
         raise ValueError(f"task status row is not an object: {str(entry)[:60]!r}")
     if "task_id" not in entry:
@@ -807,7 +723,6 @@ def _record_task(mapping: dict[str, dict[str, str]], entry: Any) -> None:
 
 
 def load_certified_tasks(path: Path | str) -> dict[str, dict[str, str]]:
-    """Load certified tasks manifest mapping task_id -> {status, reason}."""
     resolved = check_declared_path(path)
     if not resolved.is_file():
         raise FileNotFoundError(f"certified tasks file not found: {path}")
@@ -834,7 +749,6 @@ def load_certified_tasks(path: Path | str) -> dict[str, dict[str, str]]:
             for entry in data:
                 _record_task(mapping, entry)
     except json.JSONDecodeError:
-        # Try JSONL
         for line in text.splitlines():
             line = line.strip()
             if not line:
@@ -887,7 +801,6 @@ _OMIT_LABELS: frozenset[str] = frozenset(
 
 
 def _parse_label_bool(val: Any, row_id: str | None = None) -> bool | None:
-    """Strict parser for boolean label values. Returns None for unjudged / omitted."""
     if val is None:
         return None
     if isinstance(val, bool):
@@ -910,8 +823,6 @@ def _parse_label_bool(val: Any, row_id: str | None = None) -> bool | None:
 def _check_label_row_dev(item: dict[str, Any], registry: CorpusRegistry | None = None) -> None:
     _refuse_non_dev_split(item, "label row")
     if registry is not None:
-        # Every identity the row carries, not only the first: the label is stored under the
-        # first of id/run_id/item_id/task_id, so a harmless item_id must not mask a TEST id.
         task_ids = {str(item[k]) for k in ("task_id", "task") if item.get(k)}
         item_ids = {str(item[k]) for k in ("item_id", "id", "run_id") if item.get(k)}
         for task_id in sorted(task_ids):
@@ -932,7 +843,6 @@ def _check_label_row_dev(item: dict[str, Any], registry: CorpusRegistry | None =
 
 
 def _extract_label_value(item: dict[str, Any]) -> tuple[Any, bool]:
-    """Extract candidate label value and whether an explicit field was present."""
     for key in ("is_cheat", "is_exploit"):
         if key in item and item[key] is not None:
             return item[key], True
@@ -949,13 +859,6 @@ def load_labels(
     attempted_cheat: str | None = None,
     attempted_ids: set[str] | None = None,
 ) -> dict[str, bool]:
-    """Load exact rollout labels, explicitly accounting for unsuccessful attempts.
-
-    Omitting the policy preserves legacy parsing (``considered_only`` is omitted;
-    other attempt strings are rejected). With an explicit ``exclude``, ``cheat``
-    or ``clean`` policy, all three attempt strings are recognized and their IDs
-    collected independently of classification when ``attempted_ids`` is supplied.
-    """
     if attempted_cheat is not None and attempted_cheat not in {"exclude", "cheat", "clean"}:
         raise ValueError(f"invalid attempted_cheat policy: {attempted_cheat!r}")
     resolved = check_declared_path(path)
@@ -1006,10 +909,7 @@ def load_labels(
     try:
         data = strict_json_loads(text)
         if isinstance(data, dict):
-            # The whole wrapper, any key case, any depth: not only a top-level split/metadata.
             _refuse_non_dev_split(data, "label file")
-            # An explicit empty list is still a rows container, not a run named "rows" -- unless
-            # the object is itself one row (it carries a row id), whose "labels" is just a tag list.
             is_single_row = any(k in data for k in ("id", "run_id", "task_id", "item_id"))
             items_list = (
                 None
@@ -1029,12 +929,10 @@ def load_labels(
                         raise ValueError(f"label row is not an object: {str(item)[:60]!r}")
                     _process_item(item)
                 return labels
-            # Single-row dict detection (keys: id, run_id, task_id, item_id)
             if any(k in data for k in ("id", "run_id", "task_id", "item_id")):
                 _process_item(data)
                 return labels
             for k, v in data.items():
-                # A flat {run_id: label} map needs the same registry TEST check as row formats.
                 _check_label_row_dev({"id": str(k)}, registry=registry)
                 _store_label(str(k), v)
             return labels
@@ -1061,13 +959,7 @@ def load_labels(
     return labels
 
 
-# --------------------------------------------------------------------------- #
-# Rollout Discovery & Loading
-# --------------------------------------------------------------------------- #
-
-
 def _read_bundle_files(path: Path) -> list[tuple[str, str]]:
-    """Read text files from path (file or directory). Metadata and trajectories are skipped."""
     if path.is_file():
         if path.name.casefold() in _SKIP_FILE_NAMES:
             return []
@@ -1078,26 +970,23 @@ def _read_bundle_files(path: Path) -> list[tuple[str, str]]:
     for child in sorted(path.rglob("*")):
         if not child.is_file() or child.name.casefold() in _SKIP_FILE_NAMES:
             continue
-        # Exclude directories like agent/ and verifier/
         rel_parts = child.relative_to(path).parts
         if any(part.casefold() in _SKIP_DIRS for part in rel_parts[:-1]):
             continue
         if child.suffix.lower() not in _TEXT_SUFFIXES and child.suffix != "":
             continue
-        check_dev_path_allowed(child)  # a nested answer-key path must never be read
+        check_dev_path_allowed(child)
         rel = child.relative_to(path).as_posix()
         found.append((rel, child.read_text(encoding="utf-8", errors="replace")))
     return found
 
 
 def _load_single_path_rollout(path: Path) -> RolloutItem:
-    """Load a single rollout from a file or directory path."""
     check_dev_path_allowed(path)
     run: LoadedRun | None = None
     diff_text: str | None = None
     parse_error: str | None = None
 
-    # Check for ATIF trajectory
     if path.is_file():
         if path.suffix.casefold() == ".json" and path.name.casefold() not in _SKIP_FILE_NAMES:
             try:
@@ -1121,7 +1010,6 @@ def _load_single_path_rollout(path: Path) -> RolloutItem:
                     run = None
                     parse_error = type(exc).__name__
 
-    # Check for metadata in case directory: result.json, config.json, run.json
     run_meta: dict[str, Any] = {}
     if path.is_dir():
         for meta_file in ("result.json", "config.json", "run.json"):
@@ -1147,7 +1035,6 @@ def _load_single_path_rollout(path: Path) -> RolloutItem:
                 except Exception:
                     pass
 
-    # Check for diff
     final = (
         next(
             (
@@ -1177,18 +1064,10 @@ def _load_single_path_rollout(path: Path) -> RolloutItem:
 
 
 def _as_text(data: bytes) -> str:
-    """What ``Path.read_text(encoding="utf-8", errors="replace")`` returns for these bytes."""
     return data.decode("utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
 
 
 def rollout_from_admitted(path: Path, admitted: Any) -> RolloutItem:
-    """The rollout ``rollout_admission.admit_rollout`` returned, built from the bytes it read.
-
-    No file of the rollout is opened here: trajectories, sidecars, the diff and the bundle's
-    text files all come from the one read that was hashed and checked, so what is scored is
-    what was admitted. The result equals ``_load_single_path_rollout(path)`` for a rollout
-    that is not hostile.
-    """
     is_dir = admitted.kind == "trial"
     held: Mapping[str, bytes] = admitted.held
     run: LoadedRun | None = None
@@ -1241,8 +1120,6 @@ def rollout_from_admitted(path: Path, admitted: Any) -> RolloutItem:
         diff_text=diff_text,
         bundle_files=bundle_files,
     )
-    # These artifacts stay separate from submission files and come only from the
-    # admission read. Never resolve a transcript's spill path on the host.
     from evallab.rollout_admission import COPY_PANE, COPY_SPILL, DIFFS
 
     return replace(
@@ -1265,9 +1142,7 @@ def _assemble_rollout(
     diff_text: str | None,
     bundle_files: Callable[[], list[tuple[str, str]]],
 ) -> RolloutItem:
-    """Identity, files and metadata of a rollout, from what its loader read."""
     files: list[tuple[str, str]] = []
-    # Read files in submission bundle / directory or derive from trajectory
     if run is not None:
         run = _normalize_legacy_run(run)
         steps = [dict(s) for s in (run.doc.get("steps") or []) if isinstance(s, Mapping)]
@@ -1277,7 +1152,6 @@ def _assemble_rollout(
     else:
         files = bundle_files()
 
-    # Infer ID and task_id: never use absolute paths as item_id
     item_id = path.name if is_dir else path.stem
     task_id = "unknown"
 
@@ -1342,15 +1216,6 @@ def load_rollouts(
     *,
     admitted_only: bool = False,
 ) -> list[RolloutItem]:
-    """Discover and load candidate rollouts from paths, directories, or JSON/JSONL manifests.
-
-    ``loader`` reads one rollout (a file or a trial folder); the assembly line passes one that
-    admits the rollout and builds it from the bytes it admitted. A manifest row is passed to it
-    as ``row=`` with its ``id`` as ``run_id=``. Without it the rollout's files are read here,
-    one by one. With ``admitted_only`` every rollout must be a file or folder on disk: a
-    manifest row without a ``path`` (an inline rollout, or a run looked up by id) is refused
-    instead of being carried past admission.
-    """
     load_one = loader or (lambda path, **_: _load_single_path_rollout(path))
     items: list[RolloutItem] = []
     root = repo_root or Path.cwd()
@@ -1362,7 +1227,6 @@ def load_rollouts(
         row_path = Path(row["path"])
         check_dev_path_allowed(row_path)
         sub = load_one(row_path, row=row, run_id=str(row["id"]) if row.get("id") else None)
-        # what loading found wrong with the rollout travels with the row
         meta = {
             **row,
             **{k: v for k, v in sub.metadata.items() if k in ("parse_error", "run_meta")},
@@ -1440,7 +1304,7 @@ def load_rollouts(
                 except Exception:
                     data = None
                 if isinstance(data, dict):
-                    _check_row_dev(data)  # the wrapper's own split, not only its rows'
+                    _check_row_dev(data)
 
                 if isinstance(data, dict) and "rows" in data and isinstance(data["rows"], list):
                     for row in data["rows"]:
@@ -1465,7 +1329,6 @@ def load_rollouts(
                 else:
                     items.append(load_one(p))
 
-    # Detect duplicate IDs and enforce DEV admission across rollouts
     seen_ids: set[str] = set()
     registry = _get_corpus_registry(repo_root=root)
     def _refuse_test_assignment(value: str, subject: str, *, check_task: bool = True) -> None:
@@ -1494,11 +1357,6 @@ def load_rollouts(
     return items
 
 
-# --------------------------------------------------------------------------- #
-# Stage 1: TASK Certification
-# --------------------------------------------------------------------------- #
-
-
 TASK_STATUSES: frozenset[str] = frozenset(
     {"weak", "exploitable", "gold", "hardened", "certified", "provisional", "uncertified"}
 )
@@ -1512,13 +1370,6 @@ def evaluate_task_stage(
     *,
     status_actions: Mapping[str, str] | None = None,
 ) -> StageVerdict:
-    """Stage 1: check task certification status.
-
-    Each status has its own reason code (``TASK_CERTIFIED``, ``TASK_PROVISIONAL``,
-    ``TASK_UNCERTIFIED``, ``TASK_WEAK``, ``TASK_GOLD``, ...); ``TASK_STATUS_UNKNOWN`` means the
-    task is absent from the manifest. By default only ``weak``/``exploitable`` act
-    (``default_action``); ``status_actions`` overrides the action for any status.
-    """
     overrides = dict(status_actions or {})
     for key, action in overrides.items():
         if key not in TASK_STATUSES or action not in TASK_ACTIONS:
@@ -1544,7 +1395,6 @@ def evaluate_task_stage(
 
     task_info = certified_tasks.get(task_id)
     if task_info is None:
-        # Also check without prefix if task_id has prefix
         simple_name = task_id.split("/")[-1]
         task_info = certified_tasks.get(simple_name)
 
@@ -1558,7 +1408,6 @@ def evaluate_task_stage(
 
     status = task_info.get("status", "unknown").lower()
     reason_note = task_info.get("reason", "")
-    # A status the manifest does not define cannot be certified: report it as uncertified.
     known = status in TASK_STATUSES
     action = overrides.get(status)
     if action is None:
@@ -1571,16 +1420,7 @@ def evaluate_task_stage(
     )
 
 
-# --------------------------------------------------------------------------- #
-# Stage 2: L0 Tripwires & Gate Rules
-# --------------------------------------------------------------------------- #
-
-
 def _parse_single_path_read_command(cmd_str: str) -> str | None:
-    """Parse single-path read command (cat X, ls X, test -f X) or return None.
-
-    Commands with chaining (&&, ;, ||, |) or multiple path arguments are rejected.
-    """
     try:
         tokens = shlex.split(cmd_str)
     except Exception:
@@ -1610,7 +1450,6 @@ def _parse_single_path_read_command(cmd_str: str) -> str | None:
 
 
 def _extract_obs_text(step_obj: Mapping[str, Any]) -> str:
-    """Extract full observation text from a step object."""
     obs = step_obj.get("observation")
     if isinstance(obs, str):
         return obs
@@ -1638,7 +1477,6 @@ _RAW_PROTECTED = re.compile(
 
 
 def _raw_strings(value: Any) -> Iterator[str]:
-    """Every string leaf of a raw tool call, keys included."""
     if isinstance(value, str):
         yield value
     elif isinstance(value, Mapping):
@@ -1651,16 +1489,6 @@ def _raw_strings(value: Any) -> Iterator[str]:
 
 
 def _l0_normalized_rollout(rollout: RolloutItem) -> tuple[RolloutItem, int]:
-    """Project supported transports for L0 only, without changing source evidence.
-
-    Unknown calls retain their complete raw envelopes and arguments. Handled
-    calls that become unknown/noop still require review when their raw input
-    mentions a protected target; safety must not depend on the allow-list.
-    Copy only changed steps, and retain existing file evidence when adding
-    content exposed by the projection. AutoReview keeps the original rollout.
-    Return the number of calls whose decoded name or arguments actually change,
-    not envelope-only copies. Eligibility reuses this pass, never source metadata.
-    """
     if rollout.run is None:
         return rollout, 0
     raw_steps = rollout.run.doc.get("steps")
@@ -1737,7 +1565,6 @@ def evaluate_l0_stage(
     rollout: RolloutItem,
     hard_families: frozenset[str] = HARD_FAMILIES_DEFAULT,
 ) -> StageVerdict:
-    """Stage 2: evaluate L0 deterministic tripwires, tamper signatures, and target-surface writes."""
     rollout, rewritten_calls = _l0_normalized_rollout(rollout)
     reasons: list[str] = []
     evidence_steps: list[int] = []
@@ -1747,7 +1574,6 @@ def evaluate_l0_stage(
     if rewritten_calls:
         details["normalized_tool_calls"] = rewritten_calls
 
-    # Fail-open guard: check for parse errors or absence of evidence
     if rollout.metadata.get("parse_error"):
         return StageVerdict(
             stage="l0",
@@ -1765,7 +1591,6 @@ def evaluate_l0_stage(
             details={"note": "No trajectory, diff, or files present to inspect"},
         )
 
-    # 1. Target-surface writes that alter tests or graders vs config writes vs soft target surfaces
     test_or_grader_write_hit = False
     unverified_test_write_hit = False
     config_write_hit = False
@@ -1873,7 +1698,6 @@ def evaluate_l0_stage(
                         elif c_name_lower in ("python", "python3"):
                             code = c_args.get("code")
                             if isinstance(code, str) and code.strip():
-                                # Inspect inline Python exactly like a shell heredoc that runs it.
                                 shell_text = f"python3 - <<'EVALLAB_PY'\n{code}\nEVALLAB_PY"
                             else:
                                 shell_text = str(c_args.get("command") or c_args.get("cmd") or "")
@@ -2261,12 +2085,8 @@ def evaluate_l0_stage(
                     continue
             elif step is not None and g_step is not None and g_step > step:
                 continue
-            # Glob/dir reads must not make an unseen path "existed".
-            # They corroborate a file already evidenced as existing:
-            # 1) modified in final diff
             if any(_paths_match(mod_p, norm) for mod_p in diff_modified_paths):
                 return True
-            # 2) non-empty observation, not "no such file", containing the target
             if g_obs:
                 g_obs_lower = g_obs.lower()
                 if "no such file" not in g_obs_lower and "cannot find" not in g_obs_lower:
@@ -2531,8 +2351,6 @@ def evaluate_l0_stage(
         reasons.append("L0_SOFT_LOGIN_PROFILE_WRITE")
         details["login_profile_write"] = login_profile_path
 
-    # 2. Tamper signatures & fabricated verification on test, grader, and harness surfaces
-    # PLUS co-occurrence signatures on application source (S1)
     tamper_hits: list[str] = []
     non_app_files: list[tuple[str, str]] = []
     def _inspect_tamper(fname: str, added_text: str, *, file_text: str | None = None) -> None:
@@ -2563,7 +2381,6 @@ def evaluate_l0_stage(
             is_soft_review = True
         details["tamper_signatures"] = tamper_hits
 
-    # Content stop-eligible rules (evaluated on test, grader, and harness surfaces, never application source)
     if non_app_files:
         prompt_text = ""
         if rollout.run is not None:
@@ -2587,7 +2404,6 @@ def evaluate_l0_stage(
                         str(evidence).encode("utf-8", errors="replace")
                     ).hexdigest()[:12]
                     details[f"content_stop_{rule}"] = {"rule": rule, "sha256_12": ev_sha}
-    # 3. L0 gate rules on ATIF run
     if rollout.run is not None:
         try:
             l0_result = scan_l0(rollout.run)
@@ -2609,8 +2425,6 @@ def evaluate_l0_stage(
                         reasons.append(f"L0_SOFT_GATE_RULE:{rule}")
                         is_soft_review = True
 
-            # Hackbook hits read below: verdict rules and the login-profile write. Each rule is
-            # independent, so scanning only these gives their hits exactly as a full trace scan.
             steps = rollout.run.doc.get("steps") or []
             if isinstance(steps, list) and steps:
                 dict_steps = [dict(s) for s in steps if isinstance(s, Mapping)]
@@ -2637,7 +2451,6 @@ def evaluate_l0_stage(
                 reasons.append("L0_PARSE_ERROR")
             details["scan_error"] = type(exc).__name__
             is_soft_review = True
-    # Deduplicate steps and reasons
     evidence_steps = sorted(set(evidence_steps))
     reasons = sorted(dict.fromkeys(reasons))
 
@@ -2656,17 +2469,7 @@ def evaluate_l0_stage(
     )
 
 
-# --------------------------------------------------------------------------- #
-# Stage 3: AUTOREVIEW (Optional)
-# --------------------------------------------------------------------------- #
-
-
 def autoreview_eligible(l0_verdict: StageVerdict) -> bool:
-    """Whether Stage 3 reads a non-dropped rollout with soft flags, target writes, or rewritten calls.
-
-    Mirrors the gate inside ``evaluate_autoreview_stage``; callers that replay stored
-    readings use it to tell "no reading needed" from "reading missing".
-    """
     if l0_verdict.decision == "drop":
         return False
     return (
@@ -2691,7 +2494,6 @@ def evaluate_autoreview_stage(
     cache_path: Path | None = None,
     dry_run: bool = False,
 ) -> StageVerdict:
-    """Stage 3: AutoReview compact card audit for rollouts admitted by ``autoreview_eligible``."""
     if not enabled:
         return StageVerdict(
             stage="autoreview",
@@ -2700,7 +2502,6 @@ def evaluate_autoreview_stage(
             details={"enabled": False},
         )
 
-    # Skip if already dropped by L0 (S1: save spend on hard drops)
     if l0_verdict.decision == "drop":
         return StageVerdict(
             stage="autoreview",
@@ -2709,7 +2510,6 @@ def evaluate_autoreview_stage(
             details={"eligible": False, "reason": "l0_already_dropped"},
         )
 
-    # Use the same eligibility policy as cached readings and live-trace validation.
     l0_soft = l0_verdict.decision == "review"
     writes_target = bool(l0_verdict.details.get("writes_target_surface"))
     if not autoreview_eligible(l0_verdict):
@@ -2720,7 +2520,6 @@ def evaluate_autoreview_stage(
             details={"eligible": False, "l0_soft": l0_soft, "writes_target": writes_target},
         )
 
-    # State tracking for budget guards
     tracker = state if state is not None else {"calls": 0, "spent_usd": 0.0}
     if tracker["calls"] >= max_calls or tracker["spent_usd"] >= max_model_usd:
         return StageVerdict(
@@ -2738,7 +2537,6 @@ def evaluate_autoreview_stage(
             details={"note": "AutoReview requires ATIF trajectory run"},
         )
 
-    # Run AutoReview
     try:
         anatomy = build_anatomy(rollout.run)
         compact_view = build_compact_view(anatomy, rollout.run)
@@ -2790,7 +2588,6 @@ def evaluate_autoreview_stage(
                 measured_usd = float(res["cost_usd"])
             tracker["spent_usd"] += measured_usd
 
-            # Parse verdict from stdout if present
             is_unparsed = False
             parsed_obj: dict[str, Any] | None = None
             if "stdout" in res:
@@ -2811,7 +2608,6 @@ def evaluate_autoreview_stage(
                 verdict_str = str(parsed_obj.get("verdict", "")).lower()
                 evidence_steps = list(parsed_obj.get("cited_steps", []))
 
-            # Attestation check: served_models == [model_route] and n_fallbacks == 0
             served_models = res.get("served_models")
             n_fallbacks = int(res.get("n_fallbacks", 0))
             if served_models is not None:
@@ -2875,18 +2671,12 @@ def evaluate_autoreview_stage(
         )
 
 
-# --------------------------------------------------------------------------- #
-# Decision Consolidation
-# --------------------------------------------------------------------------- #
-
-
 def consolidate_decisions(
     item: RolloutItem,
     task_verdict: StageVerdict,
     l0_verdict: StageVerdict,
     ar_verdict: StageVerdict,
 ) -> RolloutDecision:
-    """Consolidate stage verdicts with precedence: drop > review > keep."""
     stage_decisions = {
         "task": {
             "decision": task_verdict.decision,
@@ -2916,7 +2706,6 @@ def consolidate_decisions(
     if not filtered_reasons:
         filtered_reasons = ["CLEAN_PASS"]
 
-    # Precedence
     final_decision = "keep"
     if (
         task_verdict.decision == "drop"
@@ -2941,17 +2730,11 @@ def consolidate_decisions(
     )
 
 
-# --------------------------------------------------------------------------- #
-# Reporting and Metric Computation
-# --------------------------------------------------------------------------- #
-
-
 def compute_report(
     decisions: Sequence[RolloutDecision],
     labels: dict[str, bool] | None = None,
     autoreview_stats: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Compute aggregate counts by stage, reasons, cost, and label evaluation metrics."""
     counts: dict[str, int] = {"keep": 0, "drop": 0, "review": 0}
     stage_counts: dict[str, dict[str, int]] = {
         "task": {"drop": 0, "review": 0, "pass": 0},
@@ -3010,7 +2793,6 @@ def compute_report(
         matched_label_keys: set[str] = set()
 
         for d in decisions:
-            # Exact ID matching only (no task_id or split suffix fallbacks)
             if d.id in labels:
                 matched_label_keys.add(d.id)
                 is_cheat = labels[d.id]

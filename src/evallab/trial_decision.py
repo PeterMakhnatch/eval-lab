@@ -1,19 +1,3 @@
-"""One-page trial decision, composed from records already on disk.
-
-No new detector. The page reads the probe-03 outcome, the existing grader
-checks (literal source assertion, deliverable named by the verifier but
-absent from the instruction, setup/import crash), the process-job taint
-flags, the reward-report record, and token-flow's last useful edit. ``rule_id`` and ``attribution``
-are the probe-03 fields the frozen hand keys use. ``whose`` is a reading
-of that rule for the page: ``R-ENV-02`` is the task, even though probe-03
-attributes that rule to the harness.
-
-Facts are observed signals copied from the records. Every judgment,
-including grader alignment and loop kind, is an opinion; only loop kind
-carries a measured error rate (PAGE_CALIBRATION, HAR-119 frozen cohort).
-``counts`` is rendered from the HAR-78 field and never computed here.
-"""
-
 from __future__ import annotations
 
 import json
@@ -22,22 +6,11 @@ from typing import Any
 
 from evallab.upstream_fetch import confirmed_fetch
 
-# HAR-447: reward_report is additive in facts, like HAR-156 stop_category; no schema bump.
 DECISION_SCHEMA = "trial_decision/v3"
 _EXCERPT_CHARS = 400
-#: HAR-119 published rule: 10 turns after the first confirm prompt, and at
-#: least half of those turns claim completion. Not a new detector.
 CLAIM_LOOP_MIN_TURNS = 10
 CLAIM_LOOP_MIN_FRACTION = 0.5
 COUNTED_VERDICTS = frozenset({"counted_pass", "counted_fail", "excluded"})
-#: Page-predictor calibration against the frozen HAR-119 part-2 labels.
-#: Loop kind, first failure and blame are measured with the frozen scorer
-#: semantics (kind/presence exact; first failure within +/-2 steps; blame
-#: exact under the frozen literal map). A null page field is an abstention
-#: with explicit coverage, not a silent drop. Reproduce with
-#: research/explorations/trace-lab/har119/score_page.py, which refuses to
-#: run when the frozen labels change and reports unavailable when the
-#: trial directories are missing.
 PAGE_CALIBRATION = {
     "predictor": "trial_decision.classify_loop_kind (HAR-119 claim-vs-repetition rule)",
     "predictor_functions": {
@@ -66,16 +39,6 @@ PAGE_CALIBRATION = {
     "first_failure_coverage": {"expressed": 1, "of": 12, "abstentions": 11},
     "page_vs_agreed_blame": {"agree": 11, "n": 11},
     "blame_abstentions": 0,
-    #: Separately scoped loop-kind-only calibrations of the same page
-    #: predictor on later frozen cohorts. Each entry stands alone with its
-    #: own denominator: never pooled with the HAR-119 cohort above, and no
-    #: entry borrows first-failure/blame numbers it did not measure.
-    #: Reproduce a named entry with
-    #: research/explorations/trace-lab/har119/score_page.py --published-cohort
-    #: --cohort <har128-har116|har128-g2-a1> --results-home
-    #: <eval-lab-results> (each entry records its own labels/output), which
-    #: refuses to run when the frozen labels change and records a
-    #: missing/unknown page prediction as an explicit abstention.
     "additional_loop_calibrations": [
         {
             "cohort": "HAR-128 part 2: 40 HAR-116 trials",
@@ -248,7 +211,6 @@ def build_decision(
     counts: dict[str, Any] | None = None,
     reward_report: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Build the ``trial_decision/v3`` page for one trial directory."""
     from evallab import probe03
 
     trial = Path(trial_dir)
@@ -370,7 +332,6 @@ def build_decision(
 
 
 def render_counts(counts: dict[str, Any] | None) -> dict[str, Any]:
-    """Render HAR-78's field. Never compute a verdict."""
     if not isinstance(counts, dict) or counts.get("verdict") not in COUNTED_VERDICTS:
         return {
             "status": "pending",
@@ -397,12 +358,6 @@ def render_counts(counts: dict[str, Any] | None) -> dict[str, Any]:
 
 
 def render_task_ledger(counts: dict[str, Any]) -> dict[str, Any]:
-    """Display-only read of the counts ``task_status`` block.
-
-    Never infers usable: a missing block, or a block with no matched
-    status, renders as unknown, and a digest mismatch says the ledger
-    was not matched while the legacy verdict stands.
-    """
     status = counts.get("task_status")
     if isinstance(status, dict):
         rendered: dict[str, Any] = {
@@ -454,7 +409,6 @@ def classify_loop_kind(
     stop_reason: str | None,
     token_flow: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    """HAR-119's published split: completion-claim loop vs repetition."""
     from evallab import probe03
 
     onset = (token_flow or {}).get("loop_onset") if isinstance(token_flow, dict) else None
@@ -511,7 +465,6 @@ def _claim_bearing(step: dict) -> bool:
 
 
 def render_decision_markdown(decision: dict[str, Any] | None) -> list[str]:
-    """Facts (observed signals), then the counts verdict, then opinions."""
     if not decision:
         return ["## Decision", "", "Unavailable. The composer did not run.", ""]
     facts = decision.get("facts") or {}
@@ -624,7 +577,6 @@ def render_decision_markdown(decision: dict[str, Any] | None) -> list[str]:
 
 
 def _reward_report_line(record: dict[str, Any] | None) -> str:
-    """Display reward-report signals, including orphan files, without deriving a verdict."""
     if not isinstance(record, dict) or not record:
         return "- Reward report: none observed."
 
@@ -722,7 +674,6 @@ def _calibration_line(agreement: dict[str, Any]) -> str:
 def _field_calibration(
     agreement: dict[str, Any], score_key: str, coverage_key: str | None
 ) -> str:
-    """One judgment's measured error rate plus its coverage, from PAGE_CALIBRATION."""
     if not isinstance(agreement, dict):
         return "Opinion; calibration unavailable."
     score = agreement.get(score_key) or {}

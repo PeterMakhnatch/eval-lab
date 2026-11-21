@@ -1,10 +1,3 @@
-"""Source-bound collection repairs for the frozen MiMo 001246 and 002486 tasks.
-
-No application implementation is supplied. The missing helper belongs to the
-requested reference change; application imports and model construction therefore
-belong inside the existing tests, where their failures are real test failures.
-"""
-
 from __future__ import annotations
 
 import ast
@@ -40,7 +33,6 @@ RATIONALE = (
 
 
 def test_module(patch: bytes) -> tuple[str, bytes]:
-    """Read the one fixed added test file, retaining the command diff verbatim."""
     marker = b"diff --git a/mimo_test_command.sh b/mimo_test_command.sh\n"
     first, command = patch.split(marker, 1)
     lines = first.decode("utf-8").splitlines(keepends=True)
@@ -52,7 +44,6 @@ def test_module(patch: bytes) -> tuple[str, bytes]:
 
 
 def collection_patch(original: bytes) -> bytes:
-    """Move imports/constructors, retaining the complete original test semantics."""
     from evallab.verifier_repair import RepairTest, build_patch_appendix
 
     if hashlib.sha256(original).hexdigest() != PARENT_PATCH_SHA256:
@@ -108,8 +99,6 @@ def collection_patch(original: bytes) -> bytes:
     for begin, finish, replacement in sorted(edits, reverse=True):
         changed = changed[:begin] + replacement + changed[finish:]
 
-    # Independently undo only the permitted AST moves. Every original statement,
-    # assertion, value, factory order and parametrized case must remain identical.
     restored = ast.parse(changed)
     loader_node = next(node for node in restored.body if isinstance(node, ast.FunctionDef) and node.name == "_load_burnman")
     position = restored.body.index(loader_node)
@@ -139,8 +128,6 @@ TEST_PATHS_002486 = {
     "usercase-test-coderl/test_build_install_plan.py": 9,
     "tests/test_repair_browser_opt_in.py": 1,
 }
-
-
 
 
 def file_binding(path: Path) -> dict[str, Any]:
@@ -190,7 +177,6 @@ def control_script(row: dict[str, Any], patch: bytes) -> bytes:
 def derive_runtime_repair(*, parent: Path, inventory: Path, evidence: dict[str, Any],
                           repo_root: Path, output_dir: Path, variants_root: Path,
                           handoff_path: Path, created_by: str) -> dict[str, Any]:
-    """Derive and publish a nonqualifying plan. This API never launches controls."""
     from evallab.schemas import ExperimentMatrix
     from evallab.task_variants import (
         VariantExistsError,
@@ -216,7 +202,6 @@ def derive_runtime_repair(*, parent: Path, inventory: Path, evidence: dict[str, 
         raise ValueError("runtime repair requires the complete frozen parent lineage")
     admitted = json.loads(inventory.read_bytes())
     rows = inventory_rows(admitted)
-    # Validate all submitted bytes before deriving an immutable record.
     for _, row in rows:
         if (row["v6_package_digest"] != PARENT_PACKAGE
                 or ("v6_package" in row and Path(row["v6_package"]).resolve() != parent.resolve())

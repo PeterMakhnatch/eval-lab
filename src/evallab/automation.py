@@ -44,11 +44,6 @@ _PROCESS_POLL_SECONDS = 0.05
 
 
 class StepTimeout(BaseException):
-    """A step outlived its declared timeout; its new child processes are already gone.
-
-    A ``BaseException`` (like ``KeyboardInterrupt``) so the ``except Exception``
-    bookkeeping inside step bodies cannot swallow or reclassify the expiry.
-    """
 
     def __init__(self, seconds: float, terminated: tuple[int, ...]) -> None:
         super().__init__(
@@ -60,7 +55,6 @@ class StepTimeout(BaseException):
 
 
 def _process_table() -> dict[int, tuple[int, str]]:
-    """Map live pid -> (ppid, state) with one ``ps`` call; zombies count as gone."""
     process = subprocess.Popen(
         ["ps", "-A", "-o", "pid=,ppid=,stat="],
         stdin=subprocess.DEVNULL,
@@ -97,8 +91,6 @@ def _descendants(table: dict[int, tuple[int, str]], root: int) -> set[int]:
 def _signal_processes(pids: set[int], signum: signal.Signals) -> None:
     for pid in pids:
         try:
-            # Harbor-style children lead their own session; signal the whole
-            # group so grandchildren that were already reparented die too.
             if os.getpgid(pid) == pid:
                 os.killpg(pid, signum)
             else:
@@ -108,7 +100,6 @@ def _signal_processes(pids: set[int], signum: signal.Signals) -> None:
 
 
 def _terminate_new_descendants(baseline: set[int], grace_seconds: float) -> tuple[int, ...]:
-    """SIGTERM every descendant started since ``baseline``; SIGKILL survivors."""
     targets = child_processes() - baseline
     if not targets:
         return ()
@@ -124,7 +115,6 @@ def _terminate_new_descendants(baseline: set[int], grace_seconds: float) -> tupl
 
 
 def child_processes() -> set[int]:
-    """Current descendants of this process (one ``ps`` call)."""
     return _descendants(_process_table(), os.getpid())
 
 
@@ -135,13 +125,6 @@ def run_with_timeout(
     baseline: set[int] | None = None,
     grace_seconds: float = STEP_KILL_GRACE_SECONDS,
 ) -> Any:
-    """Run ``fn`` under a SIGALRM wall-clock bound, or unbounded when ``None``.
-
-    On expiry, descendants not in ``baseline`` (default: those alive when this
-    call starts) are terminated before ``StepTimeout`` unwinds ``fn``, so cleanup
-    that waits on a child cannot hang and nothing is orphaned. Never retries:
-    callers decide what expiry means.
-    """
     if seconds is None:
         return fn()
     if seconds <= 0:
@@ -170,7 +153,6 @@ _SHELL_COMMAND_FLAGS = frozenset({"-lc", "-cl", "-c"})
 
 
 def _shell_command_string(argv: Sequence[str]) -> str | None:
-    """The command string a ``<shell> -lc '<command>'`` plist passes to the shell."""
     for index, token in enumerate(argv):
         if index == 0 or token not in _SHELL_COMMAND_FLAGS:
             continue
@@ -179,13 +161,6 @@ def _shell_command_string(argv: Sequence[str]) -> str | None:
 
 
 def _shell_command_references(command: str) -> list[tuple[LaunchAgentPathKind, str]]:
-    """Working directory and runtime a shell command string names.
-
-    Only the installer's shape is read — an optional leading
-    ``cd <dir> &&`` followed by the command word — because any other absolute
-    argument is data the agent may create on first run, not a path it needs to
-    start.
-    """
     try:
         tokens = shlex.split(command)
     except ValueError:
@@ -203,7 +178,6 @@ def _shell_command_references(command: str) -> list[tuple[LaunchAgentPathKind, s
 def _launch_agent_references(
     definition: Mapping[str, Any],
 ) -> list[tuple[LaunchAgentPathKind, str]]:
-    """Every absolute path an installed plist must resolve to start."""
     references: list[tuple[LaunchAgentPathKind, str]] = []
 
     def add(kind: LaunchAgentPathKind, value: object) -> None:
@@ -228,9 +202,6 @@ def _launch_agent_references(
         else:
             references.extend(_shell_command_references(command))
     else:
-        # An exec wrapper (`keys run -- <interpreter> ...`) starts the runtime
-        # it names; a direct interpreter is already covered as argv[0], and its
-        # own script/value arguments may legitimately be created on first run.
         rest = argv[1:]
         if rest[:2] == ["run", "--"] and len(rest) > 2:
             add("interpreter", rest[2])
@@ -250,12 +221,6 @@ def _launch_agent_missing_references(
 def audit_launch_agents(
     home: Path, *, label_prefix: str = LAUNCH_AGENT_LABEL_PREFIX
 ) -> LaunchAgentAudit:
-    """List installed evallab LaunchAgents whose program or runtime path is gone.
-
-    Read-only: it parses ``<home>/Library/LaunchAgents/*.plist`` and checks the
-    paths they name. It never calls launchctl, so a run cannot install, load,
-    unload or rewrite a single agent.
-    """
     directory = home / "Library/LaunchAgents"
     try:
         candidates = sorted(directory.glob("*.plist"))
@@ -285,7 +250,6 @@ def audit_launch_agents(
             )
             continue
         if not label.startswith(label_prefix):
-            # The filename claims our prefix; the plist belongs to someone else.
             continue
         checked += 1
         broken.extend(
@@ -305,7 +269,6 @@ SYNC_STALE_INTERVALS = 3
 
 @dataclass(frozen=True)
 class SyncPrimaryStatus:
-    """The primary checkout's last sync-timer run, as doctor reports it."""
 
     ok: bool
     outcome: str
@@ -316,7 +279,6 @@ class SyncPrimaryStatus:
 
 
 def default_sync_status_path(home: Path) -> Path:
-    """The status file the sync timer writes under the installer's default state dir."""
     return home / "Library/Application Support/evallab/sync-status.json"
 
 
@@ -356,24 +318,6 @@ def sync_primary_status(
     status_path: Path | None = None,
     interval_seconds: int | None = None,
 ) -> SyncPrimaryStatus:
-    """Read the primary-checkout sync timer's status file; never write it.
-
-    ``scripts/sync-primary-checkout.sh`` records why each run synced or skipped
-    (dirty tree, off-branch, diverged, fetch failure) plus the ahead/behind
-    counts. Nothing else surfaces that file, so a timer that stopped running
-    or kept skipping a dirty checkout let the primary drift 848 commits behind
-    with only a rate-limited notification to say so.
-
-    The row is advisory: it reports ``ok`` when the timer ran within
-    ``SYNC_STALE_INTERVALS`` intervals and had nothing to do, and FAIL when the
-    file is missing or unreadable, the last run is older than that, the run
-    skipped while HEAD is still behind, or its fetch failed. Doctor's exit
-    code does not depend on it.
-
-    ``status_path`` or ``EVALLAB_SYNC_STATUS`` overrides the default location;
-    ``interval_seconds`` or ``EVALLAB_SYNC_INTERVAL_SECONDS`` overrides the
-    timer interval. Both exist so tests never read the real home or environment.
-    """
     path = status_path or (
         Path(os.environ[SYNC_STATUS_ENV]).expanduser()
         if os.environ.get(SYNC_STATUS_ENV)
@@ -447,7 +391,6 @@ def sync_primary_status(
     )
 
 
-# Supported host CLI contracts. Python distributions remain hash-pinned in uv.lock.
 CORE_TOOL_PINS = {
     "docker-engine": "29.8.0",
     "docker-compose": "5.5.1",
@@ -464,11 +407,6 @@ def installed_job_health(
     now: datetime | None = None,
     run: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
 ) -> list[tuple[str, bool, str]]:
-    """Observe installed jobs, not repository templates; never change launchd.
-
-    Only useful domain receipts qualify. A recent stdout log is not evidence
-    of useful work. An unknown receipt is a failed check, not a fresh service.
-    """
     state = home / ".local/state"
     prod = state / "evallab-prod-live"
     outputs = {
@@ -528,7 +466,6 @@ def installed_job_health(
             running = bool(re.search(r"^\s*state = running\s*$", result.stdout, re.MULTILINE))
             exit_ok = exit_code == 0 or (exit_code is None and running)
             ok = loaded and exit_ok and age is not None and 0 <= age <= limit_h and not missing
-            # Missing pin or useful-output mapping is deliberately visible and fails.
             ok = ok and pin != "MISSING"
             detail = (
                 f"pin={pin} loaded={loaded} running={running} last_exit={exit_code} "
@@ -559,11 +496,6 @@ def core_runtime_checks(
     now: datetime | None = None,
     run: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
 ) -> list[tuple[str, bool, str]]:
-    """Read-only CORE checks for the existing doctor; no inference or downloads.
-
-    subprocess output is never copied into an error. Credential probes discard
-    both streams. Only version/config fields and public GitHub rules are used.
-    """
     from evallab.backups import backup_freshness, sqlite_store_paths
     from evallab.failure_library.runs.io import retained_source_health
     from evallab.storage.paths import derived_root_from_environment, shared_checkout_root
@@ -642,7 +574,6 @@ def core_runtime_checks(
             ).fetchall()
         fingerprint = hashlib.sha256(json.dumps(columns).encode()).hexdigest()
         schema = hashlib.sha256((root / "sql/schema.sql").read_bytes()).hexdigest()
-        # The catalog has no migration ledger. Never invent an applied revision.
         return False, (
             f"reachable=True installed={version} pin=18.4 db={database.identity(url)} "
             f"schema_revision=MISSING schema_sha256={schema} columns_sha256={fingerprint}"
@@ -775,12 +706,6 @@ def core_runtime_checks(
 
 
 class HeadlessDoctor:
-    """Return readiness without reading credential values into Python.
-
-    The audit of installed evallab LaunchAgents is read-only: it parses plists
-    and checks the paths they name. It never calls launchctl, so it cannot load,
-    unload, install or rewrite an agent.
-    """
 
     def __init__(
         self,
@@ -816,11 +741,6 @@ class HeadlessDoctor:
         )
         return HeadlessDoctorReport(
             checked_at=datetime.now(UTC),
-            # Credential availability is informational and enforced per spec
-            # by Executor.tick(). Controls need no credential, so a machine
-            # with healthy infrastructure and zero model credentials remains
-            # capable of useful, free work. A broken schedule is reported
-            # alongside it; `ready` is the operator gate (see the schema).
             healthy=infrastructure_ok,
             checks=checks,
             launch_agents=launch_agents,

@@ -1,25 +1,3 @@
-"""Causal trace monitoring and executor-acknowledged run control.
-
-``emit=queue.append_event`` connects the worker to the production journal. Both
-public rollout replay and sandbox adapters publish ATIF ``payload.step`` events
-(or cumulative ``payload.steps`` snapshots). Deterministic scoring and the
-pre-action gate never wait for a model: an explicitly supplied trace-cheap judge
-runs on a separate thread, only after a new tripwire lead. No judge is configured
-implicitly, and a semantic confirmation concerns observed behavior, not reward
-causality or a verified exploit.
-
-Executor adapters must call the gate *before* executing an action and report
-control acknowledgement and application separately. This module does not kill a
-process, authenticate an executor, or equate a stop request with a stopped run.
-
-The gate is model-free: it denies a proposed action when the pure ``GatePolicy``
-(protected reads/writes, history peeks, timing bypasses), a legacy gate rule, or a
-gate-marked causal Hackbook/structural action hit cites that action. Diagnostic
-Hackbook cues and ``task_structure`` checks become suspicion cards with explicit
-``kind``/``eligibility``, never a misconduct assessment or a gate denial. A structural
-check that is ``unavailable`` stays unknown in ``coverage.structural``, never clear.
-"""
-
 from __future__ import annotations
 
 import copy
@@ -66,7 +44,6 @@ _GATE_RULES = frozenset(
         "task_protected_read",
     }
 )
-#: Fields of a proposed (unexecuted) step the gate may inspect; all execution output is dropped.
 _PROPOSAL_FIELDS = frozenset(
     {
         "step_id",
@@ -79,8 +56,6 @@ _PROPOSAL_FIELDS = frozenset(
         "tool_calls",
     }
 )
-#: Per-run stream metadata; ``structural_context`` is the core structural-check
-#: context (instruction/grader/test texts) and never contains future steps.
 _RUN_METADATA_KEYS = (
     "task_id",
     "source_kind",
@@ -89,8 +64,6 @@ _RUN_METADATA_KEYS = (
     "baselines",
     "structural_context",
 )
-#: Journal events after which a run receives no further steps. The worker then
-#: judges its deferred cards and retires its per-step state to a bounded LRU.
 _FINISHED_EVENT_TYPES = frozenset(
     {
         "misalignment.replay_completed",
@@ -100,8 +73,6 @@ _FINISHED_EVENT_TYPES = frozenset(
         "executor.failed",
     }
 )
-#: Finished runs kept whole (steps, cards, controls) for late control/status queries.
-#: Beyond this the oldest finished run is dropped; a later event for it starts fresh.
 DEFAULT_FINISHED_RUN_CAPACITY = 64
 
 
@@ -140,7 +111,6 @@ def _canon(value: Any) -> str:
 
 
 def _step_text(value: Any) -> str:
-    """Every string leaf of a step, so verbatim quotes match across JSON escaping."""
     if isinstance(value, str):
         return value
     if isinstance(value, Mapping):
@@ -151,8 +121,6 @@ def _step_text(value: Any) -> str:
 
 
 def _cited_quote(step: dict[str, Any], quote: str) -> str:
-    """A quote present in ``step``; some detectors report a path/pattern, so fall
-    back to the actual action text (or message) when it is not verbatim."""
     text = json.dumps(step, ensure_ascii=False, default=str)
     if quote and _normalized(quote) in _normalized(text):
         return quote
@@ -163,10 +131,6 @@ def _cited_quote(step: dict[str, Any], quote: str) -> str:
 def _verified_evidence(
     steps: Mapping[int, Mapping[str, Any]], item: Mapping[str, Any]
 ) -> dict[str, Any] | None:
-    """A citable evidence item: verbatim text of an observed step, or a typed
-    package/task-quality artifact that was available no later than the *last
-    observed step id* (sparse ids included; shape-checked already, never an actor
-    step)."""
     if "artifact_ref" in item:
         if item["available_before_step"] > max(steps, default=-1):
             return None
@@ -187,16 +151,6 @@ def _is_int(value: Any, *, minimum: int) -> bool:
 
 
 def _evidence_items(raw: Any, *, artifacts: bool, basis: str | None = None) -> list[dict[str, Any]]:
-    """Shape-checked structural evidence.
-
-    Trace evidence is ``{step, quote}`` (optionally ``source`` path and ``line``). An
-    artifact has no actor step and is typed by shape *and* by the record's declared
-    ``basis`` (``+``-joined): a package file needs ``line`` + ``sha256`` under
-    ``artifact``; a linked differential replay needs ``input_digest`` + ``repaired_ref``
-    under ``differential_replay``; a measured control or review has a ``sha256`` and no
-    file line, under ``repair_control`` / ``review``. A shape the basis does not declare
-    is dropped, so a line-less file fact can never pass as task-quality evidence.
-    """
     declared = set((basis or "").split("+"))
     items: list[dict[str, Any]] = []
     for e in raw or ():
@@ -287,9 +241,6 @@ class ControlRequest:
     expired_at: str | None = None
 
 
-#: Fields that only exist once a run's verifier has executed. Scoring an early
-#: prefix while these are present measures a retrospective diagnosis, not
-#: causal early warning: the verifier's verdict is future knowledge.
 POST_RUN_ARTIFACT_KEYS = frozenset(
     {
         "outcome",
@@ -310,12 +261,10 @@ POST_RUN_ARTIFACT_KEYS = frozenset(
     }
 )
 
-#: Deepest nesting :func:`_strip_post_run_artifacts` walks before failing closed.
 _ARTIFACT_DEPTH = 16
 
 
 def _strip_post_run_artifacts(value: Any, *, depth: int = 0) -> tuple[Any, list[str]]:
-    """Copy ``value`` without post-run verifier artifacts; return what was dropped."""
     if depth > _ARTIFACT_DEPTH:
         if isinstance(value, Mapping) and value:
             return {}, ["depth_exceeded"]
@@ -345,15 +294,6 @@ def _strip_post_run_artifacts(value: Any, *, depth: int = 0) -> tuple[Any, list[
 
 @dataclass(frozen=True)
 class CausalPrefixIsolation:
-    """Withhold post-run verifier artifacts while scoring an early prefix.
-
-    ``prefix_fraction`` is the share of the finished trajectory a caller is
-    scoring (0.25, 0.5, 0.75, 1.0). Below 1.0 every post-run artifact is
-    removed before the monitor sees it, and a verifier step is dropped whole:
-    an early-warning measurement that reads the verifier's stdout is scoring
-    the answer, not the behavior. At 1.0 the trace is complete, so nothing is
-    withheld.
-    """
 
     prefix_fraction: float = 1.0
 
@@ -363,11 +303,9 @@ class CausalPrefixIsolation:
 
     @property
     def active(self) -> bool:
-        """True when post-run artifacts must be withheld."""
         return self.prefix_fraction < 1.0
 
     def step(self, step: Mapping[str, Any]) -> tuple[dict[str, Any] | None, tuple[str, ...]]:
-        """``(kept_step, withheld_reasons)``; ``None`` keeps no step at all."""
         if not self.active:
             return dict(step), ()
         if str(step.get("source") or "") == "verifier":
@@ -378,7 +316,6 @@ class CausalPrefixIsolation:
     def steps(
         self, raw_steps: Sequence[Mapping[str, Any]]
     ) -> tuple[list[dict[str, Any]], tuple[str, ...]]:
-        """Isolate and truncate a batch ``payload.steps`` sequence to ``prefix_fraction``."""
         if not self.active:
             return [dict(s) for s in raw_steps], ()
         non_verifier: list[Mapping[str, Any]] = []
@@ -415,7 +352,6 @@ class CausalPrefixIsolation:
         return kept_steps, tuple(withheld)
 
     def payload(self, payload: Mapping[str, Any]) -> tuple[dict[str, Any], tuple[str, ...]]:
-        """``(kept_payload, withheld_reasons)`` for one trace event's payload."""
         if not self.active:
             return dict(payload), ()
         kept: dict[str, Any] = {}
@@ -425,8 +361,6 @@ class CausalPrefixIsolation:
                 dropped.append(f"payload_field:{key}")
                 continue
             if key in {"step", "steps"}:
-                # Steps are isolated one at a time, so a withheld step field is
-                # attributed to the step rather than to the envelope.
                 kept[key] = item
                 continue
             kept[key], nested = _strip_post_run_artifacts(item)
@@ -435,18 +369,6 @@ class CausalPrefixIsolation:
 
 
 class IncrementalPrefixState:
-    """Per-run prefix scoring that never rescans an already-scored step.
-
-    ``scan_prefix`` re-derives every rule over the whole observed prefix, so a
-    live k-step stream pays O(k^2) rule passes: the MD-P1 TB4 shards saw 31.8%
-    of prefixes over the 2.0s budget (max 31.2s) on 195-step trajectories. The
-    rules are forward folds, so this keeps the same findings by scoring each
-    new step once (:class:`~evallab.tripwires.PrefixScanner`) and maintaining
-    the loop/repetition counters the run alarm reads in O(1).
-
-    ``snapshot``/``restore`` let the pre-action gate score a *proposed* step
-    without observing it.
-    """
 
     def __init__(
         self,
@@ -470,8 +392,6 @@ class IncrementalPrefixState:
         self._max_run = 0
         self._completions = 0
         self._first_completion: int | None = None
-        # The prefix step where each run-level alarm first became true, so the
-        # alarm is raised once, at the step that caused it.
         self._repetition_step: int | None = None
         self._completion_step: int | None = None
 
@@ -482,7 +402,6 @@ class IncrementalPrefixState:
         baselines: Sequence[Any] | None = None,
         structural_context: Mapping[str, Any] | None = None,
     ) -> None:
-        """Adopt the run's declared task facts and structural-check context."""
         self.scanner.bind(
             task_manifest=task_manifest,
             baselines=baselines,
@@ -515,12 +434,10 @@ class IncrementalPrefixState:
         self.scanner.restore(scanner)
 
     def advance(self, step: Mapping[str, Any]) -> dict[str, Any]:
-        """Score one observed step; return the rule hits it adds."""
         self._advance_loops(step)
         return self.scanner.advance(step)
 
     def counters(self) -> dict[str, Any]:
-        """The run alarm's rolling loop/repetition fields for the observed prefix."""
         return {
             "identical_run": self._run,
             "max_identical_run": self._max_run,
@@ -532,13 +449,6 @@ class IncrementalPrefixState:
         }
 
     def _advance_loops(self, step: Mapping[str, Any]) -> None:
-        """Fold one step into the identical-command run and completion counters.
-
-        Mirrors :func:`evallab.live_watch._command_runs` and
-        :func:`~evallab.live_watch._completion_count` exactly (same extractor,
-        same short-command guard) so a streamed run reports the counters the
-        batch watcher would have computed over the same prefix.
-        """
         if step.get("source") != "agent":
             return
         from evallab.traj import extract_loop_step
@@ -578,7 +488,6 @@ class IncrementalPrefixState:
 
 @dataclass(frozen=True)
 class _FrozenPrefix:
-    """Immutable-by-ownership step spine; snapshotting a card is constant work."""
 
     step: dict[str, Any]
     previous: _FrozenPrefix | None
@@ -669,7 +578,6 @@ class _Run:
         self.max_step_id = max(self.steps, default=None)
 
     def put_step(self, number: int, merged: dict[str, Any]) -> tuple[Any, ...]:
-        """Insert or update ``number`` and advance rolling O(1) digest and coverage."""
         prev_step = self.steps.get(number)
         prev_canon = self.canon_bytes.get(number)
         prev_frozen = self.frozen_steps.get(number)
@@ -767,7 +675,6 @@ class _Run:
             self._missing_tools_ids.discard(number)
 
     def prefix_digest(self) -> str | None:
-        """O(1) SHA-256 of ``_canon([steps[n] for n in sorted(steps)])``."""
         if not self.steps or not self._prefix_hash_valid:
             return None
         end = self._prefix_hasher.copy()
@@ -775,11 +682,9 @@ class _Run:
         return end.hexdigest()
 
     def frozen_prefix(self) -> _FrozenPrefix | None:
-        """Return a constant-size snapshot; materialize only off the scoring path."""
         return self._frozen_prefix if self._prefix_hash_valid else None
 
     def rescan_rules(self) -> dict[str, Any]:
-        """Corrections/recovery replay the observed steps, never append them twice."""
         state = IncrementalPrefixState(
             task_manifest=self.task_manifest,
             baselines=self.baselines,
@@ -793,7 +698,6 @@ class _Run:
         return state.scanner.report
 
     def rebuild_prefix_state(self) -> None:
-        """Re-derive the incremental state and rolling digest from observed steps."""
         state = IncrementalPrefixState(
             task_manifest=self.task_manifest,
             baselines=self.baselines,
@@ -818,15 +722,6 @@ class _Run:
         self.detector_valid = True
 
 class MisalignmentLiveWorker:
-    """Thread-safe per-prefix monitor; callers own the durable input cursor.
-
-    ``judge`` follows :data:`trace_cheap.JudgeFn`. Supplying it explicitly is the
-    spend boundary; ``None`` records unavailable semantic coverage, never makes
-    an API call. An emit failure propagates rather than pretending persistence.
-
-    Alert cards carry the trace feature flags fired up to the flagged step and up to
-    ``alert_playbook_cards`` matched Trace-Watcher playbook cards (``0`` turns it off).
-    """
 
     def __init__(
         self,
@@ -855,11 +750,7 @@ class MisalignmentLiveWorker:
             raise ValueError("control_ttl_seconds must be finite and positive")
         if not math.isfinite(latency_target_seconds) or latency_target_seconds <= 0:
             raise ValueError("latency_target_seconds must be finite and positive")
-        #: Offline replays that read only verdict gate cards: scores without structural checks,
-        #: diagnostic cues, non-gate hackbook rules, prefilter cues or checkpoint events.
         self._gate_only = gate_only
-        #: Every deterministic-detector exception `_score` absorbed (it reports a coverage gap
-        #: and keeps going); an offline replay that must not fail open reads this.
         self._detector_faults: list[str] = []
         self._sink = emit
         self._registry = registry
@@ -897,10 +788,6 @@ class MisalignmentLiveWorker:
         self.close()
 
     def close(self) -> None:
-        """Judge deferred cards on the steps observed so far, then finish triage.
-
-        Never call while holding the worker lock.
-        """
         self.flush_triage()
         with self._lock:
             self._closed = True
@@ -909,7 +796,6 @@ class MisalignmentLiveWorker:
         self.drain_triage()
 
     def flush_triage(self, run_id: str | None = None) -> None:
-        """Judge cards still waiting for lookahead now (a run ended, or the worker closes)."""
         with self._lock:
             for key, run in self._runs.items():
                 if run_id is None or key == run_id:
@@ -926,7 +812,6 @@ class MisalignmentLiveWorker:
         *,
         force: bool = False,
     ) -> None:
-        """Submit deferred cards whose window now holds ``LOOKAHEAD`` later agent steps."""
         if self._pool is None or not run.deferred:
             return
         ready = [
@@ -939,14 +824,12 @@ class MisalignmentLiveWorker:
             return
         for card in ready:
             del run.deferred[card["card_id"]]
-        # Freeze the causal prefix before a later event can mutate a step.
         steps = frozen_steps if frozen_steps is not None else []
         self._futures.add(
             self._pool.submit(self._triage, run_id, prefix, steps, copy.deepcopy(ready))
         )
 
     def drain_triage(self, timeout: float | None = None) -> None:
-        """Barrier for graceful shutdown/tests, not part of ingestion or gating."""
         with self._lock:
             futures = tuple(self._futures)
         _, pending = wait(futures, timeout=timeout)
@@ -983,11 +866,6 @@ class MisalignmentLiveWorker:
         return run
 
     def _retire(self, run_id: str, run: _Run) -> None:
-        """Move a finished run out of the active set; drop the oldest beyond capacity.
-
-        Deferred cards are judged first on the frozen prefix (the judge future keeps
-        its own reference), so retiring the run never loses a pending judgment.
-        """
         run.finished = True
         self._release_deferred(run_id, run, run.max_step_id, run.frozen_prefix(), force=True)
         if self._runs.pop(run_id, None) is None:
@@ -999,12 +877,10 @@ class MisalignmentLiveWorker:
 
     @property
     def detector_faults(self) -> tuple[str, ...]:
-        """Deterministic-detector exceptions absorbed so far (``type: message``), in order."""
         return tuple(self._detector_faults)
 
     @property
     def resident_runs(self) -> dict[str, int]:
-        """``{"active": n, "finished": m}`` runs currently held in memory."""
         return {"active": len(self._runs), "finished": len(self._finished)}
 
     def _emit(
@@ -1036,7 +912,6 @@ class MisalignmentLiveWorker:
         return event
 
     def ingest_event(self, event: Mapping[str, Any]) -> list[dict[str, Any]]:
-        """Consume one journal event; cumulative snapshots are scored one step at a time."""
         with self._lock:
             if self._closed:
                 raise RuntimeError("monitor worker is closed")
@@ -1157,7 +1032,6 @@ class MisalignmentLiveWorker:
         delta: Mapping[str, Any],
         prefix_step: int | None = None,
     ) -> _Detection:
-        """Alerts from a new step, with current structural-check coverage."""
         if "structural_checks" not in delta:
             report = run.prefix_state.scanner.report
             if "structural_checks" in report:
@@ -1173,7 +1047,6 @@ class MisalignmentLiveWorker:
         task_manifest: dict[str, Any] | None = None,
         baselines: Sequence[Any] | None = None,
     ) -> list[dict[str, Any]]:
-        """Re-derive with the independent batch scanner, not the live implementation."""
         from evallab.tripwires import scan_prefix
 
         state = IncrementalPrefixState()
@@ -1199,14 +1072,6 @@ class MisalignmentLiveWorker:
         counters: Mapping[str, Any],
         prefix_step: int | None = None,
     ) -> _Detection:
-        """Render step-local hits and the current structural-check records.
-
-        Incremental hits have already entered the cumulative scanner report.
-        Structural records instead describe the current prefix, including clear
-        and unavailable states; they are not append-only rule hits.
-        """
-        # The filesystem watcher renders only the first hit per rule. Render
-        # each cited step separately so repeated actions remain independently citable.
         by_step: dict[int, dict[str, list[dict[str, Any]]]] = {}
         for rule, hits in delta.items():
             if not isinstance(hits, list) or rule in {"hackbook", "structural_checks"}:
@@ -1239,7 +1104,6 @@ class MisalignmentLiveWorker:
                 for alert in evaluate_alerts(status, thresholds=WatchThresholds())
             )
         for hit in delta.get("hackbook", []):
-            # Missing eligibility is diagnostic, never a misconduct verdict.
             verdict = hit.get("eligibility") == "verdict"
             alerts.append(
                 {
@@ -1282,7 +1146,6 @@ class MisalignmentLiveWorker:
                 if status != "hit":
                     continue
                 action = record.get("kind") == "agent_action"
-                # Initial artifacts can support task risks, never actor misconduct.
                 declared_basis = record.get("basis")
                 items = _evidence_items(
                     record.get("evidence"),
@@ -1310,7 +1173,6 @@ class MisalignmentLiveWorker:
                     }
                 )
         if prefix_step is not None:
-            # A run-level alarm cites the prefix step that first crossed its threshold.
             if prefix_step in (
                 counters.get("repetition_step"),
                 counters.get("completion_loop_step"),
@@ -1347,11 +1209,6 @@ class MisalignmentLiveWorker:
     def _prefilter_alerts(
         self, run: _Run, step: Mapping[str, Any] | None, *, replay: bool
     ) -> list[dict[str, Any]]:
-        """Command-state cues for the new step (every observed step when replaying).
-
-        Stateless per step, so replays are idempotent: a cue already carded keeps its
-        card id and is skipped downstream.
-        """
         if replay:
             observed: list[Mapping[str, Any]] = [run.steps[n] for n in sorted(run.steps)]
         elif step is not None and _step_id(step) in run.steps:
@@ -1409,8 +1266,6 @@ class MisalignmentLiveWorker:
             coverage["gaps"].append("deterministic_detector_unavailable")
             coverage["detector_error"] = f"{type(exc).__name__}: {exc}"[:300]
         if self._gate_only:
-            # Offline replays read only verdict-eligible cards: no diagnostic cues, structural
-            # records, score checkpoints or coverage events are produced for them.
             alerts = [alert for alert in alerts if alert["eligibility"] == "verdict"]
         else:
             alerts = [*alerts, *self._prefilter_alerts(run, step, replay=replay)]
@@ -1424,8 +1279,6 @@ class MisalignmentLiveWorker:
         for alert in alerts:
             ref = str(alert.get("step_ref") or "")
             if "evidence_items" in alert:
-                # Actor evidence must quote an observed step. Task risks may
-                # cite typed initial artifacts available by the observed head.
                 evidence = [
                     item
                     for e in alert["evidence_items"]
@@ -1454,8 +1307,6 @@ class MisalignmentLiveWorker:
             card_id = hashlib.sha256(f"{run_id}:{alert['rule']}:{basis}".encode()).hexdigest()
             if card_id in run.cards:
                 continue
-            # Semantic triage judges observed actions only; task-structure cues
-            # concern the task, not agent behavior, so they never reach the judge.
             triaged = alert["kind"] == "agent_action"
             if not triaged:
                 triage_state = "not_applicable"
@@ -1464,8 +1315,6 @@ class MisalignmentLiveWorker:
             elif self._judge is None:
                 triage_state = "unavailable"
             elif self._judge_pass_through and alert["rule"] in window_cascade.PASS_THROUGH_RULES:
-                # Extra gate-card judgments must not consume the existing family budget:
-                # otherwise they could displace a window that v8 already judged.
                 triage_state = "pending"
             elif window_cascade.escalates(alert) and run.escalation.admit(
                 alert["rule"], gating=window_cascade.has_priority(alert)
@@ -1529,7 +1378,6 @@ class MisalignmentLiveWorker:
             self._release_deferred(run_id, run, prefix, frozen_steps)
             return output
         elapsed = time.monotonic() - started
-        # Diagnostic and task-structure cues are reported, never a misconduct verdict.
         behavioral = [a for a in alerts if a["eligibility"] == "verdict"]
         output.append(
             self._emit(
@@ -1630,11 +1478,6 @@ class MisalignmentLiveWorker:
     def _load_proof(
         self, receipt: str | Path | Mapping[str, Any], root: Path
     ) -> tuple[dict[str, Any], str]:
-        """Read the independent verification receipt; return (proof, sha256).
-
-        The digest keys on canonical receipt content, so a path and the
-        equivalent mapping share one idempotent promotion key.
-        """
         proof: dict[str, Any]
         if isinstance(receipt, Mapping):
             try:
@@ -1660,14 +1503,6 @@ class MisalignmentLiveWorker:
         return proof, hashlib.sha256(_canon(proof).encode("utf-8")).hexdigest()
 
     def _promotion_registry(self, registry: CorpusRegistry | None) -> CorpusRegistry | None:
-        """The corpus registry promotion resolves identities through.
-
-        An explicit ``registry`` argument wins; otherwise the registry bound
-        to the journal this worker consumes (``consume``/``recover``) or to
-        the emit sink's owning queue supplies it. ``None`` means the caller
-        wired no corpus — TEST/heldout sealing then falls back to the emit
-        sink's own admission boundary.
-        """
         if registry is not None:
             return registry
         for source in (
@@ -1689,46 +1524,6 @@ class MisalignmentLiveWorker:
         repo_root: str | Path | None = None,
         registry: CorpusRegistry | None = None,
     ) -> dict[str, Any]:
-        """Promote one suspicion card to a verified ``labeled_trace`` asset.
-
-        The ``receipt`` is an *independent* verification proof — never the
-        semantic suspicion card itself. Two recognized producer forms (see
-        ``evallab.production.asset_exporter.verify_label_proof``): a
-        deterministic ``evallab.trace_label_verification/v1`` whose
-        ``verdict_rule`` equals the card's tripwire rule — re-derived by
-        running the independent batch ``scan_prefix`` over the card's frozen
-        prefix, so a fabricated rule string plus a reward cannot prove
-        anything — and
-        whose ``measurement.evidence_ref`` loads a measured execution
-        receipt that itself binds the run/task and records an execution
-        status, or an explicit ground-truth
-        ``evallab.trace_label_adjudication/v1`` naming a validated human
-        adjudicator whose ``record`` loads a standalone
-        ``evallab.trace_label_adjudication_record/v1`` source receipt (a
-        declared human judgment — the caller owns the record file's
-        custody/authenticity; this check binds structure, provenance shape,
-        identity, and the exact frozen prefix only). The proof must bind
-        ``run_id``, ``dataset_id``, ``item_id``, ``task_id``, the card's
-        ``prefix_step``, and the exact observed-prefix digest the card was
-        scored on; every citation in the card and the proof must resolve
-        verbatim against an observed executed action step in that frozen
-        prefix — proposed or future steps never qualify.
-
-        Before anything is emitted the declared ``dataset_id``/``item_id``
-        resolves through the corpus registry (explicit ``registry`` argument,
-        worker configuration, or the bound journal's): unregistered,
-        TEST/heldout-sealed, or run-conflicting identities refuse promotion —
-        a caller-supplied ``frozen_eval_token`` is never accepted here. Any
-        problem raises ``ValueError`` before a byte is emitted and leaves
-        worker state untouched.
-
-        On success emits ``trace.label_verified`` then ``asset.verified``
-        (kind ``labeled_trace``) with deterministic event ids keyed on the
-        source-evidence content digest, so replay after restart is idempotent;
-        re-promoting the same card with a *different* receipt is refused. The
-        original suspicion card's ``outcome_verified`` stays False — the
-        promotion events carry the verification.
-        """
         with self._lock:
             if self._closed:
                 raise RuntimeError("monitor worker is closed")
@@ -1768,11 +1563,6 @@ class MisalignmentLiveWorker:
                 return data if isinstance(data, dict) else None
 
             problems: list[str] = []
-            # Corpus resolution runs before any emit: TEST/heldout-sealed and
-            # unregistered identities refuse promotion here, never by relying
-            # on the emit sink's admission halfway through the writes. The
-            # resolved item's task must equal the run's committed task, so the
-            # corpus identity cannot float free of the observed run.
             bound_registry = self._promotion_registry(registry)
             item = None
             proof_dataset = _nonempty_str(proof.get("dataset_id"))
@@ -1844,17 +1634,13 @@ class MisalignmentLiveWorker:
                 and card_rule is not None
                 and proof.get("schema") == LABEL_VERIFICATION_SCHEMA
             ):
-                # The declared verdict rule must re-derive from the observed
-                # prefix at the card's own cited step — re-running the
-                # deterministic scan is the proof a rule string plus a reward
-                # cannot fake.
                 probe = replace(
                     run,
                     task_manifest=record.get("task_manifest", run.task_manifest),
                     baselines=record.get("baselines", run.baselines),
                     structural_context=record.get("structural_context", run.structural_context),
                 )
-                assert isinstance(steps, list)  # steps_digest implies it
+                assert isinstance(steps, list)
                 try:
                     observed = {
                         (alert.get("rule"), alert.get("step_ref"))
@@ -2055,12 +1841,6 @@ class MisalignmentLiveWorker:
             return {"label_event": label_event, "asset_event": asset_event}
 
     def _run_policy(self, run: _Run) -> GatePolicy:
-        """The constructor policy extended with this run's declared task facts.
-
-        A run's ``task_manifest`` adds its protected paths and honeypot basenames, and its
-        ``baselines`` the pre-agent git history, on top of every explicit constructor
-        option. The base policy is immutable and shared; nothing leaks across runs.
-        """
         base = self._gate_policy
         baselines = tuple(b for b in run.baselines or () if isinstance(b, Mapping))
         if not run.task_manifest and not baselines:
@@ -2070,7 +1850,6 @@ class MisalignmentLiveWorker:
         return GatePolicy.from_task_manifest(run.task_manifest or {}, **options)
 
     def pre_action_gate(self, run_id: str, step: Mapping[str, Any]) -> dict[str, Any]:
-        """Synchronous, model-free decision; a proposed step is never treated as executed."""
         with self._lock:
             run = self._run(run_id)
             self.expire_controls(run_id=run_id)
@@ -2078,7 +1857,6 @@ class MisalignmentLiveWorker:
             if kept is None:
                 raise ValueError("pre-action gate requires an agent tool-call step")
             run.withhold(withheld)
-            # Proposals have no execution output, even for complete-trace replay.
             proposed = {k: v for k, v in _normalize_step(kept).items() if k in _PROPOSAL_FIELDS}
             if proposed.get("source") != "agent" or not proposed.get("tool_calls"):
                 raise ValueError("pre-action gate requires an agent tool-call step")
@@ -2100,7 +1878,6 @@ class MisalignmentLiveWorker:
                 observed = [run.steps[n] for n in sorted(run.steps)]
                 step_ref = f"head#{proposed['step_id']}"
                 try:
-                    # The pure policy sees executed history, never the proposal as history.
                     policy = self._run_policy(run)
                     for hit in policy_hits(proposed, prefix=observed, policy=policy):
                         hits.append(
@@ -2120,12 +1897,9 @@ class MisalignmentLiveWorker:
                 try:
                     snapshot = run.prefix_state.snapshot()
                     try:
-                        # Speculation must restore acquisition episodes, counters,
-                        # structural records and every other incremental detector state.
                         delta = run.prefix_state.advance(proposed)
                         detection = self._detect(run_id, run, delta, proposed["step_id"])
                         for alert in detection.alerts:
-                            # Only a gate-marked hit citing this proposal can deny it.
                             if not alert["gate"] or alert.get("step_ref") != step_ref:
                                 continue
                             if "evidence_items" in alert:
@@ -2183,7 +1957,6 @@ class MisalignmentLiveWorker:
             return decision
 
     def dispatch_request(self, event: Mapping[str, Any]) -> dict[str, Any]:
-        """Consume the control UI's authenticated ``operator.control_requested`` envelope."""
         payload = event["payload"]
         return self.request_control(
             event["run_id"],
@@ -2265,7 +2038,6 @@ class MisalignmentLiveWorker:
         updated.executor_id = executor_id
         setattr(updated, f"{state}_at", _timestamp(self._clock()))
         next_run_state = _ACTION_STATES[control.action] if state == "applied" else run.run_state
-        # A later pause/quarantine cannot turn an already stopped run back on.
         if run.run_state == "stopped":
             next_run_state = "stopped"
         event = self._emit(
@@ -2318,7 +2090,6 @@ class MisalignmentLiveWorker:
             return output
 
     def expire_control(self, run_id: str, request_id: str, *, reason: str) -> dict[str, Any]:
-        """Expire one open control without applying it (for example, its run is no longer active)."""
         if not reason.strip():
             raise ValueError("an expiry reason is required")
         with self._lock:
@@ -2349,13 +2120,6 @@ class MisalignmentLiveWorker:
             }
 
     def recover(self, queue: JournalConsumer) -> None:
-        """Rehydrate committed prefixes, cards and controls without rerunning judges.
-
-        Checkpoints name their exact source event. Reading only those sources
-        avoids leaking unconsumed later steps from a journal backlog into an
-        earlier causal prefix. Pending semantic work is resumed on its original
-        frozen prefix; already completed judgments are never purchased twice.
-        """
         with self._lock:
             if self._recovered_queue is queue:
                 return
@@ -2423,9 +2187,6 @@ class MisalignmentLiveWorker:
                             kept, _ = self._isolation.step(raw["step"]) if "step" in raw else (None, ())
                             steps = [kept] if kept is not None else []
                         prefix = event.get("prefix_step")
-                        # A suspicion can commit before its score checkpoint.
-                        # Reconstruct its semantic input without marking that
-                        # not-yet-checkpointed input as consumed or observed.
                         observed = run.steps if kind == "monitor.prefix_scored" else dict(run.steps)
                         for item in steps:
                             step = _normalize_step(item)
@@ -2450,8 +2211,6 @@ class MisalignmentLiveWorker:
                                 prefix is not None and max(_step_id(s) for s in steps) <= prefix
                             ):
                                 run.seen_events.add(source_id)
-                                # Checkpoints carry the run's cumulative count through
-                                # this fully consumed event; later ones supersede it.
                                 committed = isolation.get("withheld")
                                 if isinstance(committed, Mapping):
                                     run.withheld = {str(k): int(v) for k, v in committed.items()}
@@ -2496,11 +2255,6 @@ class MisalignmentLiveWorker:
                         if control.executor_id:
                             run.executor_id = control.executor_id
             self._recovered_queue = queue
-            # Rebuild each suspicion's frozen prefix view from the committed
-            # steps at or below its checkpoint so promotion verification can
-            # re-run after restart.
-            # Finished runs beyond the retained capacity are dropped before the
-            # rebuild, so recovery memory is bounded by live runs plus the LRU.
             finished_ids = [run_id for run_id in finished if run_id in self._runs]
             dropped = finished_ids[: max(0, len(finished_ids) - self._finished_capacity)]
             finished_ids = finished_ids[len(dropped) :]
@@ -2521,7 +2275,6 @@ class MisalignmentLiveWorker:
             self.expire_controls()
             for run_id, prefix, _steps, card in pending.values():
                 if self._pool is not None:
-                    # Judging still waits for lookahead; a close or flush judges the rest.
                     self._runs[run_id].deferred[card["card_id"]] = card
                 else:
                     self._emit(
@@ -2541,7 +2294,6 @@ class MisalignmentLiveWorker:
     def consume(
         self, queue: JournalConsumer, *, consumer_id: str = "misalignment-live", limit: int = 100
     ) -> int:
-        """One durable journal batch; ack only after synchronous scoring/persistence."""
         self.recover(queue)
         events = queue.read_consumer(consumer_id, limit=limit)
         for event in events:
@@ -2558,7 +2310,6 @@ class MisalignmentLiveWorker:
         consumer_id: str = "misalignment-live",
         poll_interval: float = 0.1,
     ) -> None:
-        """Run continuously without busy-waiting; the caller owns shutdown and replay."""
         if not math.isfinite(poll_interval) or poll_interval <= 0:
             raise ValueError("poll_interval must be finite and positive")
         while not stop.is_set():

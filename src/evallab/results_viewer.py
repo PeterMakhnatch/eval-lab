@@ -1,30 +1,3 @@
-"""One always-on viewer for every published run (``evallab results-viewer``).
-
-``evallab view`` builds a one-off snapshot of the jobs you name. This command
-keeps a persistent viewer root in step with the results home instead, and
-serves it with Harbor 0.24's viewer app at one fixed URL:
-
-* each pass mirrors jobs published since the last pass, using the same
-  overlay as ``evallab view`` (``reward`` unchanged, plus ``integrity`` and
-  ``reward_gated``), so the viewer shows the same dims;
-* a republished job (its ``result.json`` changed) is rebuilt; a job whose
-  source is gone is dropped from the root;
-* a job is mirrored only after its tree has been quiet for ``settle``
-  seconds, because publishing copies files in place;
-* each viewer job is staged beside the root and renamed in, so the viewer
-  never lists a half-built job.
-
-Sources are only read. The root holds hard links (see ``harbor_view._link``)
-and small rewritten ``result.json`` / ``reward-details.json`` files; removing
-a viewer job only unlinks the root's names, never a source's.
-
-The served app is guarded: only GET/HEAD requests with a loopback ``Host``
-header reach Harbor. The 0.24 viewer also exposes POST endpoints that launch
-``harbor run``, run ``harbor analyze`` (model calls), upload to Harbor Hub and
-delete jobs; an always-on unauthenticated server must not offer those to any
-web page that can reach loopback.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -55,8 +28,6 @@ from evallab.task_pages import (
 )
 
 SOURCE_RECORD = ".evallab-results-viewer.json"
-#: Bumped whenever the mirror layout changes; an older viewer job is dropped
-#: and rebuilt. v2: hard links. v3: run report as the trial's ``analysis.md``.
 SOURCE_RECORD_SCHEMA = "results_viewer/source/v3"
 DEFAULT_ROOT = (
     Path.home() / "Library" / "Application Support" / "evallab" / "results-viewer" / "jobs"
@@ -64,19 +35,12 @@ DEFAULT_ROOT = (
 DEFAULT_PORT = 8100
 DEFAULT_INTERVAL_SECONDS = 60.0
 DEFAULT_SETTLE_SECONDS = 60.0
-#: Search depth below each source: the results home is ``<date>/<job>/``.
 DISCOVERY_DEPTH = 2
 
 Signature = tuple[int, int]
 
 
-# ---------------------------------------------------------------------------
-# Sync
-# ---------------------------------------------------------------------------
-
-
 def discover_sources(sources: list[Path], *, depth: int = DISCOVERY_DEPTH) -> list[Path]:
-    """Job dirs at or below each source, at most ``depth`` levels down."""
     found: dict[str, Path] = {}
 
     def walk(path: Path, remaining: int) -> None:
@@ -96,17 +60,11 @@ def discover_sources(sources: list[Path], *, depth: int = DISCOVERY_DEPTH) -> li
 
 
 def source_signature(job_dir: Path) -> Signature:
-    """Change marker for a published job: its ``result.json`` stat.
-
-    Publishing replaces the whole tree, so a republished job always gets a
-    fresh ``result.json``.
-    """
     stat = (job_dir / "result.json").stat()
     return (stat.st_mtime_ns, stat.st_size)
 
 
 def newest_mtime(job_dir: Path) -> float:
-    """Newest modification time anywhere in the job tree (links not followed)."""
     newest = job_dir.lstat().st_mtime
     for dirpath, dirnames, filenames in os.walk(job_dir, followlinks=False):
         for name in (*dirnames, *filenames):
@@ -170,12 +128,6 @@ def _unique_name(name: str, taken: set[str]) -> str:
 
 
 class ResultsViewerRoot:
-    """A persistent viewer root mirrored from one or more source trees.
-
-    Each viewer job carries ``SOURCE_RECORD`` naming its source job dir and
-    the source signature it was built from, so the root itself is the state:
-    a restart resumes without rebuilding.
-    """
 
     def __init__(
         self,
@@ -193,20 +145,16 @@ class ResultsViewerRoot:
         self.clock = clock
         self.log = log or (lambda _msg: None)
         self.staging = root.parent / f".{root.name}.staging"
-        #: Signatures that failed to mirror; retried only once they change.
         self._failed: dict[str, Signature] = {}
-        #: Per-task pages (``task-<id>``) built beside the mirrored jobs.
         self.task_pages = task_pages
 
     def _index(self) -> dict[str, tuple[str, Signature | None]]:
-        """``source -> (viewer job name, signature)`` read from the root."""
         index: dict[str, tuple[str, Signature | None]] = {}
         for job in self.root.iterdir():
             if not job.is_dir() or job.is_symlink() or (job / PAGE_RECORD).is_file():
-                continue  # task pages are kept by TaskPages
+                continue
             record = _read_record(job)
             if record is None or not isinstance(record.get("source"), str):
-                # Not ours (or a pre-record leftover): derived, drop and rebuild.
                 self._discard(job)
                 continue
             signature = record.get("signature")
@@ -225,7 +173,6 @@ class ResultsViewerRoot:
         trash = self.staging / f"trash-{uuid.uuid4().hex}"
         trash.parent.mkdir(parents=True, exist_ok=True)
         job.rename(trash)
-        # rmtree unlinks names (hard links, symlinks) without touching sources.
         shutil.rmtree(trash, ignore_errors=True)
 
     def _build(self, source: Path, name: str, signature: Signature) -> Path:
@@ -233,7 +180,7 @@ class ResultsViewerRoot:
         try:
             mirror_job(source, staged)
             record_path = staged / SOURCE_RECORD
-            record_path.unlink(missing_ok=True)  # never write through a hard link
+            record_path.unlink(missing_ok=True)
             record_path.write_text(
                 json.dumps(
                     {
@@ -253,7 +200,6 @@ class ResultsViewerRoot:
         return staged
 
     def sync(self) -> SyncReport:
-        """One pass: add new jobs, rebuild republished ones, drop vanished ones."""
         self.root.mkdir(parents=True, exist_ok=True)
         shutil.rmtree(self.staging, ignore_errors=True)
         report = SyncReport()
@@ -272,14 +218,13 @@ class ResultsViewerRoot:
             try:
                 signature = source_signature(job)
             except FileNotFoundError:
-                continue  # vanished mid-pass; next pass decides
+                continue
             current = index.get(str(job))
             if current is not None and current[1] == signature:
                 continue
             if self._failed.get(str(job)) == signature:
                 continue
             candidates.append((signature, job))
-        # Newest first, so a fresh root shows today's runs before old ones.
         candidates.sort(key=lambda item: item[0][0], reverse=True)
 
         taken = {name for name, _sig in index.values()}
@@ -298,7 +243,7 @@ class ResultsViewerRoot:
                     self._discard(target)
                 staged.rename(target)
                 shutil.rmtree(staged.parent, ignore_errors=True)
-            except Exception as exc:  # one bad job never stops the pass
+            except Exception as exc:
                 self._failed[key] = signature
                 report.failed[key] = f"{type(exc).__name__}: {exc}"
                 self.log(f"results-viewer: failed {key}: {type(exc).__name__}: {exc}")
@@ -314,10 +259,6 @@ class ResultsViewerRoot:
         return report
 
 
-# ---------------------------------------------------------------------------
-# Serving
-# ---------------------------------------------------------------------------
-
 Scope = MutableMapping[str, Any]
 Receive = Callable[[], Awaitable[MutableMapping[str, Any]]]
 Send = Callable[[MutableMapping[str, Any]], Awaitable[None]]
@@ -332,12 +273,6 @@ def allowed_hosts(host: str, port: int) -> frozenset[str]:
 
 
 def read_only(app: ASGIApp, hosts: frozenset[str]) -> ASGIApp:
-    """Pass only GET/HEAD requests whose ``Host`` is loopback.
-
-    The method check removes every state-changing viewer endpoint (run
-    launch, analyze, upload, delete). The ``Host`` check stops DNS rebinding,
-    where a foreign site resolves its own name to 127.0.0.1.
-    """
 
     async def guarded(scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] == "http":
@@ -417,11 +352,6 @@ def serve(viewer: ResultsViewerRoot, *, host: str, port: int, interval: float) -
     finally:
         stop.set()
     return 0 if server.started else 1
-
-
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
 
 
 def _command(args: argparse.Namespace, root: Path, **_: Any) -> int:

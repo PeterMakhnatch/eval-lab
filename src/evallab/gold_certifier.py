@@ -1,5 +1,3 @@
-"""Gold task certifier: behavioral synthesis, separate-verifier hardening and seven gates."""
-
 from __future__ import annotations
 
 import argparse
@@ -52,7 +50,6 @@ CONFTEST_TAMPER_PAYLOAD = (
 
 
 def wilson_interval(k: int, n: int, z: float = 1.959964) -> tuple[float, float]:
-    """95% Wilson score interval for k successes in n trials; (nan, nan) when n == 0."""
     if n <= 0:
         return (math.nan, math.nan)
     p = k / n
@@ -63,7 +60,6 @@ def wilson_interval(k: int, n: int, z: float = 1.959964) -> tuple[float, float]:
 
 
 def format_wilson(k: int, n: int) -> str:
-    """Format 'k/n = x.x% (lo-hi)' with 95% Wilson interval."""
     if n == 0:
         return "0/0"
     lo, hi = wilson_interval(k, n)
@@ -71,11 +67,6 @@ def format_wilson(k: int, n: int) -> str:
 
 
 def split_mutants(mutants: list[Mutant]) -> tuple[list[Mutant], list[Mutant]]:
-    """Deterministically partition mutants by sha256 ascending into train and strictly held-out eval.
-
-    Train mutants: first half (shown to the synthesizer).
-    Eval mutants: second half (never shown to the synthesizer, prompt, or self-repair revision).
-    """
     ordered = sorted(mutants, key=lambda m: m.sha256)
     n = len(ordered)
     if n <= 1:
@@ -85,7 +76,6 @@ def split_mutants(mutants: list[Mutant]) -> tuple[list[Mutant], list[Mutant]]:
 
 
 def mutant_diff(mutant: Mutant, original_source: str) -> str:
-    """Unified diff representing the AST mutation against the original pre-mutated file."""
     lines_orig = original_source.splitlines(keepends=True)
     lines_mut = mutant.source.splitlines(keepends=True)
     return "".join(
@@ -99,13 +89,11 @@ def mutant_diff(mutant: Mutant, original_source: str) -> str:
 
 
 def extract_code_block(text: str) -> str | None:
-    """Extract the last python code block from markdown fences."""
     blocks = re.findall(r"```(?:python)?\n(.*?)```", text, re.S)
     return blocks[-1] if blocks else None
 
 
 def validate_contract_test(code: str) -> tuple[bool, str]:
-    """Verify that the synthesized test file uses unittest and avoids source inspection."""
     if not code or not code.strip():
         return False, "empty code"
     if "unittest" not in code:
@@ -130,7 +118,6 @@ def build_synthesis_prompt(
     previous_test: str | None = None,
     survivor_diffs: list[str] | None = None,
 ) -> str:
-    """Build the behavioral synthesis prompt given train mutants only (strictly blind to eval mutants)."""
     parts = [
         "You are an expert software evaluation engineer writing a contract-complete behavioral unit-test "
         "suite for a software task grader.\n\n"
@@ -210,7 +197,6 @@ def build_synthesis_prompt(
 
 
 def format_supplementary_hook(hook_cmd: str, test_filename: str = GOLD_CONTRACT_TEST_NAME) -> str:
-    """Format the supplementary hook recognized by separate_verifier._SUPPLEMENTARY_BLOCK (#1707)."""
     return (
         f'if [ "$RC" -eq 0 ]; then\n'
         f"  ( {hook_cmd} /tests/{test_filename} ) >> \"$V/test_output.log\" 2>&1\n"
@@ -220,7 +206,6 @@ def format_supplementary_hook(hook_cmd: str, test_filename: str = GOLD_CONTRACT_
 
 
 def extract_hook_command_from_test_sh(test_sh_text: str, default_hook: str | None = None) -> str:
-    """Extract existing supplementary hook interpreter command from tests/test.sh if present."""
     match = re.search(r"\( (cd \"\$CWD\".*?) /tests/test_outputs\.py \)", test_sh_text)
     if match:
         return match.group(1).strip()
@@ -243,10 +228,6 @@ def stage_and_harden_package(
     allow_degraded: bool = True,
     **harden_kwargs: Any,
 ) -> tuple[HardeningManifest, str]:
-    """Copy base package, insert supplementary test & hook, and run evallab harden.
-
-    Returns (manifest, hook_block).
-    """
     base_package = base_package.resolve()
     out_dir = out_dir.resolve()
     if out_dir.exists():
@@ -273,7 +254,6 @@ def stage_and_harden_package(
                 encoding="utf-8",
             )
         else:
-            # If standard anchor is missing, append right before the final reward/echo logic
             pattern = re.compile(r'(if \[ "\$RC" -eq 0 \]; then echo 1 > "\$V/reward\.txt";|if \[ \$RC -eq 0 \]; then)')
             m = pattern.search(test_sh_text)
             if m:
@@ -296,16 +276,12 @@ def stage_and_harden_package(
     return manifest, hook_block
 
 
-# --------------------------------------------------------------------------- Arm scripts
-
-
 def _b64_write(path: str, body: str) -> str:
     encoded = base64.b64encode(body.encode()).decode()
     return f"echo {encoded} | base64 -d > {path}\n"
 
 
 def reference_script(workdir: str, reference_patch: str) -> str:
-    """Agent bash applying the reference patch."""
     patch_write = _b64_write("/tmp/reference.patch", reference_patch)
     return (
         f"set -u\ncd {workdir} || exit 1\n"
@@ -316,12 +292,10 @@ def reference_script(workdir: str, reference_patch: str) -> str:
 
 
 def nop_script(workdir: str) -> str:
-    """Agent bash executing no modifications."""
     return f"set -u\ncd {workdir} || exit 1\necho NOP_APPLIED\n"
 
 
 def witness_script(workdir: str, solve_sh: str | None = None) -> str:
-    """Agent bash running a candidate witness solve.sh or dropping a sessionfinish conftest tamper hook."""
     if solve_sh:
         return f"set -u\ncd {workdir} || exit 1\n{solve_sh}\necho WITNESS_APPLIED solve_sh\n"
     conftest_write = _b64_write(f"{workdir}/conftest.py", CONFTEST_TAMPER_PAYLOAD)
@@ -329,7 +303,6 @@ def witness_script(workdir: str, solve_sh: str | None = None) -> str:
 
 
 def exit0_pth_script(workdir: str) -> str:
-    """Agent bash installing an exit(0) startup hook into site-packages (L4 .pth startup forgery test)."""
     return (
         f"set -u\ncd {workdir} || exit 1\n"
         "n=0\n"
@@ -342,9 +315,6 @@ def exit0_pth_script(workdir: str) -> str:
         "[ $n -gt 0 ] || exit 1\n"
         "echo EXIT0_PTH_APPLIED $n\n"
     )
-
-
-# --------------------------------------------------------------------------- Matrix results
 
 
 @dataclass
@@ -485,19 +455,16 @@ class GoldMatrixSummary:
         }
 
 
-# --------------------------------------------------------------------------- Feedback rounds
-
 DEFAULT_ROUND_SEED = "gold-rounds-v1"
 DEFAULT_PROBES_PER_ROUND = 2
 DEFAULT_EVAL_EXTRA = 2
 
 
 class LeakError(RuntimeError):
-    """A held-out (eval) mutant reached the synthesizer's input, or the mutant sets overlap."""
+    pass
 
 
 def assert_disjoint(train: list[Mutant], probes: list[Mutant], evals: list[Mutant]) -> None:
-    """Raise :class:`LeakError` unless train, probe and eval are pairwise disjoint by hash and probes avoid eval lines."""
     sets = {
         "train": {m.sha256 for m in train},
         "probe": {m.sha256 for m in probes},
@@ -514,22 +481,13 @@ def assert_disjoint(train: list[Mutant], probes: list[Mutant], evals: list[Mutan
 
 
 def assert_prompt_blind(prompt: str, eval_diffs: list[str]) -> None:
-    """Raise :class:`LeakError` when any held-out mutant diff appears in a synthesizer prompt."""
     for diff in eval_diffs:
         if diff and diff in prompt:
             raise LeakError("an eval mutant diff is present in the synthesis prompt")
 
 
-#: ``build_prompt(round_index, train, survivors, previous_test, feedback) -> prompt``; ``train`` excludes
-#: ``survivors`` (they are shown once, in their own section).
-#: ``generate(round_index, prompt) -> code | None``; the only place a model is called, after the blindness check.
-#: ``grade(round_index, code, probes) -> {"reference": r, "probe:<sha>": r, ...}`` (None = unmeasured); an optional
-#: ``"reference_output"`` string (grader output tail) is shown to the self-repair attempt and never stored.
-
-
 @dataclass(frozen=True)
 class CertificationCell:
-    """One control, keyed by hash rather than potentially colliding line/operator."""
 
     name: str
     arm: str
@@ -546,11 +504,6 @@ INJECTION_CONTROLS_REFUSAL = (
 
 
 class ContainedModalRunner:
-    """Owned native Modal dispatch, without a caller-supplied backend or host shell.
-
-    This is a library boundary, not protection against hostile Python in this process.
-    Fresh native provider receipts qualify outcomes; cached grades cannot qualify them.
-    """
 
     def __init__(self, *, repo_root: Path, spend_gate: Any, meter: SandboxMeter) -> None:
         from evallab.regrade import CloudSpendGate
@@ -569,7 +522,6 @@ class ContainedModalRunner:
     def __call__(self, cell_dir: Path, package: Path, script: str) -> dict[str, Any]:
         from evallab.registry import task_directory_digest
 
-        # Do not consume modal_cell_runner's legacy path-only cached receipts.
         if (cell_dir / "result.json").exists() or (cell_dir / "trial").exists():
             raise ValueError("contained controls require fresh cell evidence")
         self._spend_gate._check_ledger_location(package, cell_dir)
@@ -622,7 +574,6 @@ def plan_certification_cells(
     alternatives: list[str], witnesses: list[str], injection_controls: bool = False,
     run_cell: CellRunner | None = None,
 ) -> list[CertificationCell]:
-    """Plan integrity controls only with explicit native contained execution."""
     _refuse_injection_controls(injection_controls, witnesses=bool(witnesses), run_cell=run_cell)
     assert_disjoint(train, [], evals)
     wd = tomllib.loads((upgraded / "task.toml").read_text())["environment"]["workdir"]
@@ -660,7 +611,6 @@ def summarize_certification(
     *, task_id: str, upgraded: Path, test_lines: int,
     cells: list[CertificationCell], outcomes: dict[str, dict[str, Any]],
 ) -> TaskCertificationResult:
-    """Missing, infra-failed or unapplied cells remain unmeasured, never killed."""
     arms: dict[str, dict[str, float | None]] = {}
     for cell in cells:
         raw = outcomes.get(cell.name, {})
@@ -709,11 +659,6 @@ def _prompt_section(text: str) -> str:
 
 
 def patch_sections(patch: str, keep: Callable[[str], bool]) -> str:
-    """Filter diff sections and bound prompt text, as in the research runner.
-
-    Ordinary unified diffs are supported too: arbitrary packages need not use
-    Git's ``diff --git`` envelope.
-    """
     if re.search(r"^diff --git ", patch, re.M):
         sections = re.split(r"(?=^diff --git )", patch, flags=re.M)
         header = r"diff --git a/(\S+) b/"
@@ -729,7 +674,6 @@ def patch_sections(patch: str, keep: Callable[[str], bool]) -> str:
 def _run_certification_cell(
     run_cell: CellRunner, cell_dir: Path, package: Path, script: str,
 ) -> dict[str, Any]:
-    """Unwrap backend spend refusals before they become ordinary failed grades."""
     from evallab.regrade import SpendCapReached
 
     result = run_cell(cell_dir, package, script)
@@ -737,7 +681,6 @@ def _run_certification_cell(
     if (result.get("status") == "failed" and "SpendCapReached" in reason
             or result.get("status") in ("cap_reached", "cap_stopped")):
         _write_certification_json(cell_dir / "refusal.json", result)
-        # A refusal is evidence, but never a cached submission verdict.
         (cell_dir / "result.json").unlink(missing_ok=True)
         raise SpendCapReached(reason or "spend cap reached")
     _write_certification_json(cell_dir / "result.json", result)
@@ -745,7 +688,6 @@ def _run_certification_cell(
 
 
 def synthesize_contract(prompt: str, out_dir: Path, *, model: str) -> str:
-    """Use the existing OMP subscription route, without task-specific bridge paths."""
     prompt_path = out_dir / "prompt.txt"
     prompt_path.write_text(prompt)
     proc = subprocess.run(
@@ -772,7 +714,6 @@ def certify_task(
     harden_options: dict[str, Any] | None = None,
     injection_controls: bool = False,
 ) -> TaskCertificationResult:
-    """Probe, synthesize from train only, harden, execute and persist gate evidence."""
     from evallab.registry import task_directory_digest
     from evallab.regrade import SpendCapReached
 
@@ -798,7 +739,6 @@ def certify_task(
             workdir=wd, reference_patch=reference_patch, targets=sorted(python_targets(reference_patch)),
         ))
     except SpendCapReached:
-        # No hardened package or mutant split exists yet; all gates are unmeasured.
         result = summarize_certification(
             task_id=task_id, upgraded=out_dir / "package", test_lines=0,
             cells=[
@@ -879,11 +819,6 @@ def certify_task(
 def _write_certification_json(path: Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
-
-
-# --------------------------------------------------------------------------- CLI Parser
-
-
 
 
 def _certify_gold_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int:

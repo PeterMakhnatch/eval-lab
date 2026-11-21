@@ -1,5 +1,3 @@
-"""Secure structural projection for Goose ``llm_request.*.jsonl`` records."""
-
 from __future__ import annotations
 
 import hashlib
@@ -227,7 +225,6 @@ def _error(value: Any) -> str | None:
 
 
 def project_llm_requests(job: JobRecord, trial: TrialRecord):
-    """Project one request ring into existing trajectory mechanical facts."""
     from evallab.evidence.atif import (
         ObservationFact,
         StepFact,

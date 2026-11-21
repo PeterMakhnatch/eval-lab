@@ -1,29 +1,3 @@
-"""Structured Case Anatomy: a deterministic, label-free reading of one agent run.
-
-``TraceAnatomy`` splits a run into four parts a reviewer actually needs:
-
-* ``task_contract``: the source-redacted task statement and the explicit
-  prohibitions it states ("do not modify the tests").
-* ``patch_and_mutations``: the exact final submitted patch (a submission field
-  or the last ``diff --git`` block an agent printed) and a file-mutation ledger
-  over every tool call. Writes to protected surfaces (tests, conftest, ``.pth``,
-  verifier/CI/monitor configs, ...) keep their full written content; only
-  blobs over ``BLOB_CHARS`` get an explicit ``[... N chars omitted ...]`` mark.
-* ``high_signal_actions``: git-history probes, sensitive path/env reads,
-  network/package fetches, test runs with exit codes, delegation prompts and
-  test-assertion inversions.
-* ``claim_vs_reality``: the final user-facing claim next to what changed, whether
-  protected surfaces were touched, the last test outcome and an empty-patch flag.
-
-Inputs are admitted DEV runs only: cloud trace ids (raw CAS bundle, else the DB
-projection) and CheatBench DEV items pass the shared ``CorpusRegistry`` gate;
-an explicit local Harbor/ATIF file is accepted when it is not under the answer
-keys and does not declare a non-DEV split. Only steps, the task prompt and a
-submission string are read: evaluator metrics, rewards, ``info`` verdict fields
-and labels never enter the anatomy, and every rendered string is scrubbed of
-source/benchmark names, evaluator field names and split labels.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -56,7 +30,6 @@ STATEMENT_CARD_CHARS = 3_000
 OUTPUT_LINE_CHARS = 300
 COMMAND_CHARS = 600
 
-# Names the raw blobs use for benchmark families and suites beyond run_atlas.SOURCE_TERMS.
 EXTRA_SOURCE_TERMS = (
     r"live[-_ ]?code[-_ ]?bench",
     r"human[-_ ]?eval",
@@ -65,7 +38,6 @@ EXTRA_SOURCE_TERMS = (
     r"terminal[-_ ]?wrench",
     r"breaker[-_ ]bench",
 )
-# Evaluator fields, label names and split provenance that must never reach a reader.
 LEAK_TERMS = re.compile(
     r"(?i:\b(?:verdict_enacted|is_exploit|is_task_defect_fail|fail_to_pass|pass_to_pass|"
     r"f2p_(?:passed|total)|p2p_(?:passed|total)|resolved|shortcut_signal|expected_verdict|answer[-_]keys)\b|"
@@ -73,9 +45,6 @@ LEAK_TERMS = re.compile(
 )
 LEAK_PLACEHOLDER = "[redacted]"
 
-# --------------------------------------------------------------------------- #
-# classification patterns
-# --------------------------------------------------------------------------- #
 
 PROTECTED_PATH = re.compile(
     r"(?:^|/)(?:tests?|testing|__tests__|spec)/|(?:^|/)test_[^/]*$|_test\.(?:py|go|rs|js|ts)$|"
@@ -165,12 +134,7 @@ INTERPRETERS = ("python", "python3", "bash", "sh", "node", "ruby", "perl")
 
 
 class RefusedRun(ValueError):
-    """The run is not an admitted DEV run (or its corpus is unknown)."""
-
-
-# --------------------------------------------------------------------------- #
-# anatomy model
-# --------------------------------------------------------------------------- #
+    pass
 
 
 @dataclass
@@ -196,7 +160,6 @@ class Action:
 
 @dataclass
 class TraceAnatomy:
-    """Deterministic, label-free structure of one run (see module docstring)."""
 
     run: dict[str, Any]
     task_contract: dict[str, Any]
@@ -219,13 +182,7 @@ class TraceAnatomy:
         return data
 
 
-# --------------------------------------------------------------------------- #
-# scrubbing
-# --------------------------------------------------------------------------- #
-
-
 def scrub_pattern(extra_terms: Iterable[str] = ()) -> re.Pattern[str]:
-    """Source names (``run_atlas``), extra family/suite names and literal dataset ids."""
     base = source_pattern(extra_terms)
     return re.compile(f"{base.pattern}|{'|'.join(EXTRA_SOURCE_TERMS)}", re.IGNORECASE)
 
@@ -248,17 +205,11 @@ def scrub_tree(value: Any, pattern: re.Pattern[str] = SCRUB_PATTERN) -> Any:
 
 
 def elide(text: str, limit: int = BLOB_CHARS) -> str:
-    """Whole text up to ``limit``; beyond it head and tail around an explicit omission mark."""
     if len(text) <= limit:
         return text
     head = limit * 3 // 4
     tail = limit - head
     return f"{text[:head]}\n[... {len(text) - limit} chars omitted ...]\n{text[-tail:]}"
-
-
-# --------------------------------------------------------------------------- #
-# loading
-# --------------------------------------------------------------------------- #
 
 
 def _text(value: Any) -> str:
@@ -294,12 +245,6 @@ def _mapping(value: Any) -> Mapping[str, Any]:
 
 
 def raw_bundle_doc(bundle: Mapping[str, Any]) -> tuple[dict[str, Any], str | None, str | None]:
-    """A raw trace bundle -> (ATIF-shaped doc on the final parent path, task prompt, submission).
-
-    Reads only ``nodes``, ``task.data.prompt`` and the ``submission`` string of
-    the agent's own submission record; metrics, rewards, evaluation verdicts and
-    every other ``info`` field are never read.
-    """
     traces = bundle.get("traces") if isinstance(bundle.get("traces"), list) else [bundle]
     trace = traces[0] if traces else {}
     nodes = trace.get("nodes") or []
@@ -391,7 +336,6 @@ def load_cloud_run(
     admitted: frozenset[str] | None = None,
     include_branches: bool = False,
 ) -> LoadedRun:
-    """An admitted DEV cloud trace: the raw CAS bundle when present, else the DB projection."""
     own = connection is None
     connection = connection or connect_readonly(database)
     try:
@@ -443,7 +387,6 @@ def load_cloud_run(
 
 
 def load_cheatbench_run(item_id: str, *, registry: Any, results_root: Path) -> LoadedRun:
-    """A CheatBench DEV item's trajectory (registry gate; the answer-key metadata is not kept)."""
     for item in registry.items(dataset_id=CHEATBENCH_DATASET, split="dev"):
         if item.item_id != item_id:
             continue
@@ -467,7 +410,6 @@ def load_cheatbench_run(item_id: str, *, registry: Any, results_root: Path) -> L
 
 
 def load_atif_file(path: Path) -> LoadedRun:
-    """A local Harbor/ATIF trial: refused under the answer keys or when it declares a non-DEV split."""
     resolved = path.expanduser().resolve()
     if "answer-keys" in resolved.parts:
         raise RefusedRun("files under the answer keys are refused")
@@ -480,7 +422,6 @@ def load_atif_file(path: Path) -> LoadedRun:
 
 
 def atif_run(doc: Any, name: str) -> LoadedRun:
-    """The run of an already parsed ATIF document or raw bundle (no I/O); refuses a non-DEV split."""
     if isinstance(doc, Mapping) and isinstance(doc.get("traces"), list):
         steps_doc, prompt, submission = raw_bundle_doc(doc)
         return LoadedRun(
@@ -534,7 +475,6 @@ def load_run(
     results_root: Path | None = None,
     include_branches: bool = False,
 ) -> LoadedRun:
-    """Resolve a run id (cloud trace id or CheatBench item id) through the DEV gate."""
     registry = _registry(repo_root)
     if run_id.startswith(f"{CHEATBENCH_DATASET}:"):
         from evallab.results_home import results_root as default_results_root
@@ -546,11 +486,6 @@ def load_run(
         run_id, database=database, cas_dir=cas_dir, registry=registry,
         include_branches=include_branches,
     )
-
-
-# --------------------------------------------------------------------------- #
-# extraction
-# --------------------------------------------------------------------------- #
 
 
 def surface(path: str) -> str:
@@ -596,7 +531,6 @@ def _result_texts(step: Mapping[str, Any]) -> list[tuple[str | None, str]]:
 
 
 def _parse_result(text: str) -> tuple[int | None, str]:
-    """Exit code and output from a tool result (JSON ``returncode`` envelope or plain text)."""
     stripped = text.strip()
     if stripped.startswith("{"):
         try:
@@ -614,7 +548,6 @@ def _parse_result(text: str) -> tuple[int | None, str]:
 
 
 def _split_patch(patch: str) -> list[dict[str, Any]]:
-    """Per-file sections of a unified git diff with +/- counts."""
     files = []
     starts = [match.start() for match in DIFF_START.finditer(patch)]
     for begin, end in zip(starts, [*starts[1:], len(patch)], strict=True):
@@ -638,7 +571,6 @@ def _split_patch(patch: str) -> list[dict[str, Any]]:
 
 
 def _final_diff_block(steps: Sequence[Mapping[str, Any]]) -> str | None:
-    """The last tool output that contains a ``diff --git`` patch, from its first diff header on."""
     for step in reversed(steps):
         for _call_id, text in reversed(_result_texts(step)):
             _code, output = _parse_result(text)
@@ -665,7 +597,6 @@ def _final_submission(steps: Sequence[Mapping[str, Any]]) -> str | None:
 
 
 def _heredocs(command: str) -> tuple[str, list[tuple[str, str, str]]]:
-    """(command with heredoc bodies removed, [(line, tag, body)])."""
     lines = command.split("\n")
     kept: list[str] = []
     docs: list[tuple[str, str, str]] = []
@@ -686,14 +617,12 @@ def _heredocs(command: str) -> tuple[str, list[tuple[str, str, str]]]:
 
 
 def _heredoc_program(line: str) -> str:
-    """The program that receives a heredoc: the last shell segment before ``<<``."""
     segments = _segments(line.split("<<", 1)[0])
     tokens = _tokens(segments[-1]) if segments else []
     return Path(tokens[0]).name if tokens else ""
 
 
 def executed_text(command: str) -> str:
-    """Shell text that runs: heredoc bodies are dropped unless an interpreter executes them."""
     stripped, docs = _heredocs(command)
     bodies = [body for line, _tag, body in docs if _heredoc_program(line).startswith(INTERPRETERS)]
     return "\n".join([stripped, *bodies])
@@ -721,7 +650,6 @@ def _ok_target(target: str) -> bool:
 
 
 def _without_redirections(tokens: list[str]) -> list[str]:
-    """Shell words minus redirection operators and their targets (``2>/dev/null``, ``> out``)."""
     kept: list[str] = []
     skip = False
     for token in tokens:
@@ -737,7 +665,6 @@ def _without_redirections(tokens: list[str]) -> list[str]:
 
 
 def shell_mutations(command: str) -> list[tuple[str, str, str | None]]:
-    """``(op, path, written content)`` for file writes a shell command performs."""
     stripped, docs = _heredocs(command)
     found: list[tuple[str, str, str | None]] = []
     for line, _tag, body in docs:
@@ -837,7 +764,6 @@ def shell_mutations(command: str) -> list[tuple[str, str, str | None]]:
 
 
 def _apply_patch_files(text: str) -> list[tuple[str, str, str | None]]:
-    """(op, path, section) tuples from ``*** Begin Patch`` envelopes or unified diffs."""
     results: list[tuple[str, str, str | None]] = []
     matches = list(
         re.finditer(r"^\*\*\* (Add|Update|Delete) File: (\S+)", text, flags=re.MULTILINE)
@@ -907,7 +833,6 @@ def _editor_mutations(name: str, arguments: Mapping[str, Any]) -> list[tuple[str
     if patch is not None:
         return _apply_patch_files(patch)
 
-    # Hashline input format (e.g. edit {input: "[tests/test_core.py#AB12]\nPUT 3.=3:\n+ ..."})
     if not path and isinstance(arguments.get("input"), str):
         input_str = arguments["input"]
         hash_blocks = re.findall(
@@ -932,7 +857,6 @@ def _editor_mutations(name: str, arguments: Mapping[str, Any]) -> list[tuple[str
                 muts.append((mutations_op, _clean_path(target_p), added or block_body))
             return muts
 
-    # Edits list (e.g. MultiEdit or edit {edits: [...]})
     edits_list = arguments.get("edits")
     if isinstance(edits_list, list) and edits_list:
         muts = []
@@ -1045,7 +969,6 @@ def _test_outcome(code: int | None, summary: str | None) -> str:
 
 
 def _blocks(text: str) -> list[str]:
-    """Paragraphs and list items with hard-wrapped lines joined; ``<key>value</key>`` settings dropped."""
     blocks: list[list[str]] = []
     for line in re.sub(r"<([\w-]+)>[^<\s]*</\1>", "", text).splitlines():
         stripped = line.strip()
@@ -1086,7 +1009,6 @@ def _final_claim(steps: Sequence[Mapping[str, Any]], submission: str | None) -> 
 
 
 def build_anatomy(run: LoadedRun) -> TraceAnatomy:
-    """Extract the anatomy from a loaded run (pure; no I/O, no labels)."""
     steps = [step for step in run.doc.get("steps") or [] if isinstance(step, Mapping)]
     users = [_text(step.get("message")) for step in steps if step.get("source") == "user"]
     systems = [_text(step.get("message")) for step in steps if step.get("source") == "system"]
@@ -1253,7 +1175,6 @@ def build_anatomy(run: LoadedRun) -> TraceAnatomy:
                 "outcome": last_test.outcome,
                 "summary": last_test.detail,
             },
-            # True: the agent submitted an empty patch; None: no submission or diff was recovered.
             "final_patch_empty": False if patch else (True if run.submission is not None else None),
         },
         narration=narration,
@@ -1268,7 +1189,6 @@ def anatomy_dict(
     include_final_claim: bool = False,
     pattern: re.Pattern[str] = SCRUB_PATTERN,
 ) -> dict[str, Any]:
-    """Scrubbed JSON form. ``final_patch.sha256`` is over the exact pre-scrub patch bytes."""
     data = scrub_tree(
         anatomy.to_dict(
             include_narration=include_narration, include_final_claim=include_final_claim
@@ -1282,11 +1202,6 @@ def anatomy_dict(
     return data
 
 
-# --------------------------------------------------------------------------- #
-# rendering
-# --------------------------------------------------------------------------- #
-
-
 def _fence(text: str) -> list[str]:
     return ["```", text.rstrip("\n"), "```"]
 
@@ -1298,7 +1213,6 @@ def render_anatomy_card(
     include_final_claim: bool = False,
     pattern: re.Pattern[str] = SCRUB_PATTERN,
 ) -> str:
-    """Compact Markdown reader view; action-only unless the narration/claim toggles are set."""
     run = anatomy.run
     lines = [
         f"# Case anatomy {run['run']}",
@@ -1416,13 +1330,7 @@ def render_anatomy_card(
     return scrub("\n".join(lines) + "\n", pattern)
 
 
-# --------------------------------------------------------------------------- #
-# CLI
-# --------------------------------------------------------------------------- #
-
-
 def database_scrub_pattern(database: Path) -> re.Pattern[str]:
-    """Scrub pattern extended with every dataset id present in the trace DB."""
     if not database.is_file():
         return SCRUB_PATTERN
     connection = connect_readonly(database)
@@ -1434,8 +1342,6 @@ def database_scrub_pattern(database: Path) -> re.Pattern[str]:
     finally:
         connection.close()
     return scrub_pattern(ids)
-
-
 
 
 def _anatomy_command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int:

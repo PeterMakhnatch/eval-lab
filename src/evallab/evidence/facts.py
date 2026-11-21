@@ -56,12 +56,6 @@ def digest_json(value: Any) -> str:
 
 
 def lock_harbor_version(lock: Any) -> str | None:
-    """Harbor version stamp from a job or trial lock mapping.
-
-    Job locks carry ``harbor.version`` (Harbor stamps it when the lock is
-    built); trial locks carry no version stamp. Missing or malformed stamps
-    read None so 0.21-era locks without the field still compare.
-    """
     if not isinstance(lock, dict):
         return None
     harbor = lock.get("harbor")
@@ -72,13 +66,6 @@ def lock_harbor_version(lock: Any) -> str | None:
 
 
 def lock_version_change_reason(recorded: str | None, current: str | None) -> str | None:
-    """Declared version-change reason when two lock digests differ.
-
-    A 0.21 lock vs a 0.24 lock reports
-    ``harbor_version_change:<old>-><new>`` instead of a digest mismatch;
-    identical stamps (including both unknown) report None, a genuine
-    content mismatch the caller still refuses.
-    """
     if recorded == current:
         return None
     return f"harbor_version_change:{recorded or 'unknown'}->{current or 'unknown'}"
@@ -118,10 +105,6 @@ def _exception_phase(exception_class: str | None) -> str | None:
     return "unknown"
 
 
-#: Harbor environment wrappers that run on Daytona even when the resolved
-#: ``environment.type`` names something else. A custom ``import_path`` is the
-#: only trace these wrappers leave in the trial config, so it wins over the
-#: type string within the same config dict.
 DAYTONA_ENVIRONMENT_IMPORTS = frozenset(
     {
         "evallab.harbor_daytona:BoundedDaytonaEnvironment",
@@ -132,14 +115,6 @@ _DAYTONA_IMPORT_PREFIX = "evallab.harbor_daytona:"
 
 
 def trial_environment_type(*sources: Mapping[str, Any] | None) -> str | None:
-    """Backend name from Harbor trial dicts holding ``$.environment``.
-
-    Tries each source in order (trial ``config.json``, the ``config``
-    embedded in ``result.json``, ``lock.json``). Returns values such as
-    ``"docker"`` or ``"daytona"`` verbatim, or ``None`` when no source
-    records an environment. Old trials predate this column and read back
-    as NULL through ``union_by_name``.
-    """
     for source in sources:
         if not isinstance(source, dict):
             continue
@@ -482,17 +457,6 @@ def _state_change_fact(
 def _terminal_root_trajectory(
     trajectories: Sequence[TrajectoryFact],
 ) -> tuple[TrajectoryFact | None, bool]:
-    """Select the usage-authoritative root document without filesystem access.
-
-    All projected documents already resolved inside the trial directory, so the
-    generic ATIF continuation chain is followed in projection space: start from
-    the canonical ``trajectory.json`` root document (or the first root document),
-    follow ``continued_trajectory_ref`` links between sibling source paths, and
-    stop at the terminal document whose ``final_metrics`` carry the cumulative
-    native totals. Cycles, dangling, and escaping references end the walk with
-    ``complete=False``; the caller must then not use the partial head as the
-    terminal authority. Every document stays projected and addressable either way.
-    """
     roots = [item for item in trajectories if item.embedded_path is None]
     if not roots:
         return None, True
@@ -534,12 +498,6 @@ def _terminal_root_trajectory(
 
 
 def _live_step_keys(projection: TrialTrajectoryProjection) -> set[tuple[str, int]]:
-    """Steps that represent new actions, excluding copied-context duplicates.
-
-    Copied context repeats history already present in an earlier document, so it
-    must not inflate action counts. Every document (root, continuation, child)
-    stays projected and addressable in the step/tool/observation tables.
-    """
     return {
         (step.document_id, step.step_id)
         for step in projection.steps
@@ -564,9 +522,6 @@ def extract_trial_fact(
     raw_agent_result = _agent_result(result)
     root_metrics, _chain_complete = _terminal_root_trajectory(projection.trajectories)
     if not _chain_complete:
-        # An unfollowed continuation reference means no projected document holds
-        # the cumulative native totals: fall back to result-native usage only and
-        # never present the stale partial head as the terminal authority.
         root_metrics = None
     input_tokens = _integer(raw_agent_result.get("n_input_tokens"))
     cache_tokens = _integer(raw_agent_result.get("n_cache_tokens"))
@@ -1059,7 +1014,6 @@ def rebuild_from_raw(
     fact_tables: list[ExportedTable] = []
     event_tables: list[ExportedTable] = []
     for job in sorted(jobs, key=lambda item: item.id):
-        # Release normalized source data after each job, not after the whole corpus.
         job_projections = (
             projections_by_job.setdefault(job.id, {}) if projections_by_job is not None else None
         )
@@ -1090,15 +1044,6 @@ def ingest_catalog(
     derived_root: Path | None = None,
     projections_by_job: dict[str, dict[str, TrialTrajectoryProjection]] | None = None,
 ) -> None:
-    """Upsert deterministic document/fact records after the base job ingest.
-
-    The whole document/fact phase runs in one transaction retried only on
-    PostgreSQL ``DeadlockDetected`` via the shared catalog helper: a failed
-    attempt rolls back, and the retry replays the same job list. Cached
-    ``projections_by_job`` entries are deterministic projections of immutable
-    job data keyed by trial id, so reusing them across attempts neither
-    re-parses source data nor duplicates committed rows.
-    """
     from evallab.database import _run_catalog_transaction
 
     def _write(connection: psycopg.Connection[Any]) -> None:

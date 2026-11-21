@@ -1,28 +1,3 @@
-"""Laminar traces that Eval Lab must never upload to, read from, or score again.
-
-These 108 Laminar trace ids are our own control-journal copies, uploaded by mistake
-(journal records projected as actor history). Laminar cannot delete them: the owner's
-normal-session DELETE (UI/API, project ``a5586b6d``) answers HTTP 500 ``DELETE query is
-not allowed for table default.spans because it has projections and setting
-lightweight_mutation_projection_mode is not set`` (2026-10-28; nothing was deleted). The
-trace ids are deterministic, so a later upload of the corrected actor history would land
-on the same id and merge with the wrong spans. They are therefore quarantined here instead.
-
-The list holds ids only (``uuid5`` of the cloud-DB trace id; no content, no labels). It
-is the ``trace_ids`` of the owner-action packet ``laminar-p1-owner-action-20261028.json``
-and equals the 108 ``present`` ids of the live read-only inventory taken 2026-10-28.
-
-Every Laminar path goes through :func:`is_quarantined`: uploads refuse
-(:func:`reject_quarantined`); fetches, queries, imports, exports and readers skip and count
-(:func:`skip_quarantined`). Laminar Signal filters have no trace-id predicate (columns:
-span names, status, tags, token count), and these copies carry no opt-in tag, so Signals
-exclude them only through the required opt-in tag filter;
-:func:`assert_not_signal_selectable` verifies that no copy carries that tag.
-
-This module is intentionally independent of the Laminar client: the single exception is a
-lazy import of the two id derivations, so ``evallab.laminar`` may import it.
-"""
-
 from __future__ import annotations
 
 import contextlib
@@ -144,7 +119,6 @@ QUARANTINED_REMOTE_IDS: frozenset[str] = frozenset({
 
 
 class QuarantinedTrace(ValueError):
-    """The trace is a quarantined Laminar copy; nothing about it may reach Laminar."""
 
     def __init__(self, identifier: str) -> None:
         self.identifier = identifier
@@ -153,12 +127,6 @@ class QuarantinedTrace(ValueError):
 
 @lru_cache(maxsize=65536)
 def is_quarantined(identifier: str) -> bool:
-    """Whether ``identifier`` names a quarantined Laminar trace.
-
-    ``identifier`` may be the Laminar trace id (dashed UUID or 32-hex OTLP form), the cloud-DB
-    trace id the trace store derives it from (``trace_store.core.trace_uuid``), or a Harbor
-    trial name the watch exporter derives it from (``evallab.laminar.laminar_trace_uuid``).
-    """
     from evallab.laminar import laminar_trace_uuid
     from evallab.trace_store.core import trace_uuid
 
@@ -172,10 +140,6 @@ def is_quarantined(identifier: str) -> bool:
 def skip_quarantined[T](
     items: Iterable[T], key: Callable[[T], str | None],
 ) -> tuple[list[T], list[T]]:
-    """``(kept, skipped)``: split off items whose ``key`` is quarantined; ``None`` keys stay.
-
-    Callers count the skips with ``len(skipped)``.
-    """
     kept: list[T] = []
     skipped: list[T] = []
     for item in items:
@@ -190,11 +154,6 @@ def skip_quarantined[T](
 def assert_not_signal_selectable(
     run_sql: Callable[[str, dict[str, Any]], list[dict[str, Any]]], *, opt_in_tag: str,
 ) -> None:
-    """Refuse when a quarantined copy carries the tag a Signal filter requires.
-
-    A Laminar Signal filter cannot name a trace id, so the opt-in tag is the only thing keeping
-    these copies out of a Signal. ``run_sql(query, parameters)`` is a read-only project SQL call.
-    """
     rows = run_sql(
         "SELECT DISTINCT trace_id FROM spans"
         " WHERE trace_id IN {ids:Array(UUID)} AND has(tags, {tag:String})",

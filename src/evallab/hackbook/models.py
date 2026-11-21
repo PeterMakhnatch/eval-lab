@@ -1,10 +1,3 @@
-"""Hackbook catalog models and queries (``evallab.hackbook.entry/v0``).
-
-The Hackbook is a versioned catalog of known ways agents cheat and tasks
-break. Entries live in ``research/hackbook/entries.jsonl``; this module
-validates them and answers list/show/search queries over them.
-"""
-
 from __future__ import annotations
 
 import json
@@ -25,9 +18,6 @@ TB4_AUDIT_DIR = Path("research/answer-keys/tb4-audit-v1")
 
 Side = Literal["task", "run"]
 Direction = Literal["false_pass", "false_fail", "either"]
-# executed: a witness or differential replay was run against the grader; observed: seen in an
-# archived real agent run by a deterministic check of the submission, actions or verifier output,
-# not replayed; claimed: the source says so.
 EvidenceStatus = Literal["executed", "observed", "claimed"]
 Source = Literal[
     "preference_model_tb4",
@@ -65,7 +55,6 @@ MethodId = Literal[
     "grader_fuzz",
 ]
 
-#: The 25 canonical structural signals shared with ``entries.jsonl``.
 STRUCTURAL_SIGNALS: tuple[str, ...] = (
     "unread_output_mentions",
     "single_seed_or_no_repeat",
@@ -186,7 +175,6 @@ def hackbook_dir(root: Path | None = None) -> Path:
 
 
 def load_hackbook(root: Path | None = None) -> list[HackbookEntry]:
-    """Load and validate every entry in ``research/hackbook/entries.jsonl``."""
     path = hackbook_dir(root) / "entries.jsonl"
     entries: list[HackbookEntry] = []
     for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
@@ -218,7 +206,6 @@ def get_entry(
     *,
     root: Path | None = None,
 ) -> HackbookEntry:
-    """Resolve an id or slug (case-insensitive), else a unique prefix/substring."""
     pool = _entries(entries, root)
     needle = entry_id_or_slug.strip().lower()
     for entry in pool:
@@ -244,9 +231,6 @@ _STOPWORD_TEXT = (
     "via per"
 )
 _STOPWORDS = frozenset(_STOPWORD_TEXT.split())
-# BM25F field weights: plain defaults, not fitted. A 648-point grid (k1, b, field weights) tuned on
-# the preference_model_tb4 examples moved the other sources by +1 top-1 hit, and tuned on the other
-# sources moved preference_model_tb4 by -1 top-1 and -3 top-5, so tuning was not worth keeping.
 
 
 @lru_cache(maxsize=4)
@@ -270,12 +254,10 @@ def _tb4_test_terms(root: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
 
 
 def tb4_test_split_terms(root: Path | None = None) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    """(test-split task names, test-split item ids) of ``tb4-audit-v1``."""
     return _tb4_test_terms(str(_root(root).resolve()))
 
 
 def find_tb4_test_leaks(text: str, *, root: Path | None = None) -> list[str]:
-    """Forbidden test-split task names / item ids appearing in ``text``."""
     tasks, items = tb4_test_split_terms(root)
     hits = [item for item in items if item in text]
     for task in tasks:
@@ -287,7 +269,6 @@ def find_tb4_test_leaks(text: str, *, root: Path | None = None) -> list[str]:
 def validate_no_tb4_test_leak(
     entries: Sequence[HackbookEntry], *, root: Path | None = None
 ) -> list[str]:
-    """Return ``"<entry id>: <term>"`` for every test-split leak; empty means clean."""
     problems: list[str] = []
     for entry in entries:
         text = json.dumps(entry.dump(), sort_keys=True)

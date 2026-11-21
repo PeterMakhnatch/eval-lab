@@ -1,28 +1,3 @@
-"""Remove future git history from MiMo Code setups (``strip-future-history@1``).
-
-The parent hides an untruncated ``.git`` in ``/var/lib/mimo/git-hidden``.
-A root agent can still read it; when no ref points past the base, dangling
-objects can expose the fix even without that move (HAR-161).
-
-After setup records its base SHA, rebuild ``.git`` from a self-contained pack
-containing BASE and every ancestor object present in the image. No refs,
-reflogs, pseudo-ref files, kept/cruft packs or future objects are copied. Remove
-the original object store, not merely its references. Any failed operation
-stops setup before the ready sentinel; there is no hide-only fallback.
-Images built with history truncated at the base may already lack some of
-BASE's ancestors (``git fsck`` reports them as broken links / missing
-commits); that is pre-existing past history, not a strip failure, so the
-post-rebuild verification only counts surviving future objects, never the
-fsck exit code.
-
-The base SHA and worktree bytes survive unchanged. The grader still diffs
-against that SHA, resets test files from it and applies the same hidden patch;
-``tests/``, instruction and image are not modified. The setup is also re-embedded
-in the existing task.toml healthcheck payload, which is what actually executes.
-Linked worktrees and alternate object stores are refused rather than leaving
-an unchecked copy of future history elsewhere in the environment.
-"""
-
 from __future__ import annotations
 
 import base64
@@ -39,19 +14,14 @@ from typing import Any
 
 from evallab.task_variants import VariantInvalid, VariantRecord, derive_task
 
-#: Transform id recorded in lineage.
 TRANSFORM_ID = "strip-future-history@1"
 
-#: Marker comment identifying the inserted block (also the idempotence guard).
 STRIP_MARKER = "strip-future-history@1"
 
-#: Package-relative path of the setup script this transform rewrites.
 SETUP_REL = "environment/setup/setup.sh"
 
-#: Line after which the strip block is inserted (the recorded-base anchor).
 BASE_ANCHOR = 'echo "$BASE" > "$M/base"'
 
-#: The generated history-count and hide blocks are replaced, not retained.
 _LATER_OLD = (
     "# Images are built with history truncated at the base. If one is not, the fix could be read out of git log,\n"
     "# so .git is hidden while the agent works and put back for grading.\n"
@@ -64,9 +34,6 @@ _HIDE_OLD = (
     "fi\n"
 )
 
-#: Only raw objects reachable from BASE are exported; no original git metadata
-#: or pack storage survives. No delta/object reuse can pull a future delta base
-#: into the exported pack. Fail before setup marks the environment ready.
 STRIP_BLOCK = """\
 # strip-future-history@1: keep BASE and its ancestors, destroy all other history.
 [ -d "$CWD/.git" ] && [ ! -L "$CWD/.git" ] || fail "unsupported git directory"
@@ -90,13 +57,6 @@ mv "$_strip_dir" "$CWD/.git" || fail "cannot install clean git directory"
 rm -f "$M/strip-history.pack" "$M/strip-worktrees" || fail "cannot remove strip temporaries"
 """
 
-#: Post-rebuild acceptance on the clean git directory. Counts only future
-#: objects: unreachable/dangling commits (the HAR-161 leak shape) and refs
-#: reaching beyond BASE. Deliberately ignores the fsck exit code and its
-#: broken-link/missing-object lines: truncated-at-base images already lack
-#: some of BASE's ancestors (e.g. 000076: BASE 90915883 names two absent
-#: parents), and that pre-existing past-history gap must not fail setup.
-#: Import integrity is already guarded by the index-pack exit code above.
 STRIP_VERIFY = """\
 # strip-future-history@1: accept the rebuilt history only with no future objects.
 _strip_unreach=$(git --git-dir="$CWD/.git" fsck --unreachable --no-reflogs 2>/dev/null | grep -c -E '^(unreachable|dangling) commit ' || true)
@@ -105,18 +65,10 @@ _strip_later=$(git --git-dir="$CWD/.git" rev-list --all --not "$BASE" 2>/dev/nul
 [ "$_strip_later" -eq 0 ] || fail "unexpected refs beyond base in clean git directory"
 """
 
-#: ``echo <blob> | base64 -d`` inside the healthcheck command.
 _BLOB_PATTERN = re.compile(r"echo ([A-Za-z0-9+/=]+) \| base64 -d")
 
 
 def _gzip_bytes(data: bytes) -> bytes:
-    """gzip a payload exactly like the mimo_harbor setup packer.
-
-    ``gzip.compress(..., mtime=0)`` emits a host-dependent OS byte on some
-    interpreters, so the 10-byte header is fixed explicitly (deflate level 9,
-    XFL 2, OS 255) around a raw level-9 deflate body. Re-packing an unchanged
-    setup dir is byte-identical to the parent healthcheck payload.
-    """
     compressor = zlib.compressobj(9, zlib.DEFLATED, -zlib.MAX_WBITS, 8, 0)
     body = compressor.compress(data) + compressor.flush()
     return (
@@ -131,7 +83,6 @@ def _gzip_bytes(data: bytes) -> bytes:
 
 @dataclass(frozen=True)
 class ParentInfo:
-    """Validated facts about the parent package."""
 
     task_name: str
     workdir: str
@@ -142,7 +93,6 @@ class ParentInfo:
 
 
 def read_parent_info(parent_dir: Path | str) -> ParentInfo:
-    """Read and validate the parent package; raise :class:`VariantInvalid`."""
     parent = Path(parent_dir)
     try:
         config = tomllib.loads((parent / "task.toml").read_text(encoding="utf-8"))
@@ -190,12 +140,6 @@ def read_parent_info(parent_dir: Path | str) -> ParentInfo:
 
 
 def build_setup_sh(parent_setup_sh: str) -> str:
-    """Parent ``setup.sh`` plus the strip block (idempotent).
-
-    The recorded-base lines are preserved byte-identical; only the
-    history-accounting region changes. Returns the input unchanged when the
-    block is already present.
-    """
     if STRIP_MARKER in parent_setup_sh:
         return parent_setup_sh
     if BASE_ANCHOR not in parent_setup_sh:
@@ -209,13 +153,6 @@ def build_setup_sh(parent_setup_sh: str) -> str:
 
 
 def pack_setup(setup_dir: Path | str, *, setup_sh: bytes | None = None) -> str:
-    """Pack ``environment/setup/`` into the base64 tarball for task.toml.
-
-    Reproduces the mimo_harbor convention exactly: ``ustar`` members sorted by
-    name, no directory entries, mode ``0o700``, ``mtime`` 0, uid/gid 0, gzip
-    ``mtime`` 0. ``setup_sh`` overrides the on-disk ``setup.sh`` bytes (the
-    repair path); every other file is read from ``setup_dir``.
-    """
     root = Path(setup_dir)
     members: list[tuple[str, bytes]] = []
     for path in sorted(root.rglob("*")):
@@ -244,23 +181,15 @@ def pack_setup(setup_dir: Path | str, *, setup_sh: bytes | None = None) -> str:
 
 
 def render_task_toml(parent_text: str, *, new_blob: str) -> str:
-    """Swap the embedded setup payload; everything else stays byte-identical."""
     match = _BLOB_PATTERN.search(parent_text)
     if match is None:
         raise VariantInvalid("task.toml healthcheck command has no embedded payload")
     return parent_text[: match.start(1)] + new_blob + parent_text[match.end(1) :]
 
 
-
-
 def build_changes(
     parent_dir: Path | str,
 ) -> tuple[dict[str, bytes | None], dict[str, Any]]:
-    """Build the ``derive_task`` changes mapping plus lineage inputs.
-
-    Only ``environment/setup/setup.sh`` and the ``task.toml`` healthcheck
-    payload change; grading (``tests/``) is byte-identical by construction.
-    """
     parent = Path(parent_dir)
     info = read_parent_info(parent)
     new_setup = build_setup_sh(info.setup_sh)
@@ -297,7 +226,6 @@ def derive_strip_future_history(
     parent_source: dict[str, Any] | None = None,
     variants_root: Path | str | None = None,
 ) -> VariantRecord:
-    """Derive the ``strip-future-history@1`` variant of a MiMo task package."""
     changes, inputs = build_changes(parent_dir)
     kwargs: dict[str, Any] = {}
     if repo_root is not None:

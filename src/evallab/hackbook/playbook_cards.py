@@ -1,9 +1,3 @@
-"""On-demand defensive playbooks distilled from confirmed DEV evidence.
-
-Cards are diagnostic leads, not cheating verdicts. The packaged catalog contains
-only the twelve compact cards, never source traces, private paths or audit data.
-"""
-
 from __future__ import annotations
 
 import json
@@ -41,14 +35,6 @@ def match_playbook_cards(
     kind: PlaybookKind | None = None,
     max_cards: int = 2,
 ) -> list[PlaybookCard]:
-    """Return at most ``max_cards`` cards matching the supplied fired flag names.
-
-    ``task`` selects QA/Reward-Seeker cards; ``trace`` selects Trace-Watcher cards.
-    Rank by distinct matched flags, then card ID. Unknown flags have no fallback.
-    Pass names of fired flags, not a boolean/state mapping (whose false keys must
-    not become hits). ``issue:`` and ``label:`` names are offline evidence tags,
-    not outputs of the live trace-feature detector.
-    """
     if kind not in (None, "task", "trace"):
         raise ValueError("kind must be 'task', 'trace', or None")
     if max_cards < 0:

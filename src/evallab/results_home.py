@@ -1,28 +1,3 @@
-"""One results home for finished Harbor jobs (HAR-117).
-
-``process-job`` publishes each finished job to ``<root>/<date>/<card>-<job>/``
-as a byte copy, with the provenance that lets a later reader tell which
-code produced it. Sources are only read. The root is
-``~/Developer/eval-lab-results`` unless ``EVALLAB_RESULTS_HOME`` overrides it
-(tests set that).
-
-Provenance is captured when the job runs, not when it is published: the
-runner writes ``repository`` and ``repository-provenance/`` into the job
-directory, and publish copies them. A backfilled job that predates that
-snapshot says so, with the reason, instead of guessing.
-
-Publication stages and verifies every copied file before replacing a prior
-snapshot. A failed promotion restores the prior directory. A failed rollback
-retains the staged prior copy for explicit repair. Publication never queries
-GitHub; callers can supply recorded PR evidence through ``pr_lookup``.
-
-``INDEX.md`` and ``INDEX-all.md`` are derived views of the home.
-``write_index`` renders both from every published job (the repair path);
-``update_index``, which publishing uses, splices one job's rows into the
-published files, so publish time does not grow with the number of published
-jobs (HAR-237).
-"""
-
 from __future__ import annotations
 
 import datetime as _datetime
@@ -45,31 +20,20 @@ PRIMARY_CHECKOUT = Path.home() / "Developer" / "eval-lab"
 CARD_RE = re.compile(r"har-?(\d+)", re.IGNORECASE)
 SECRET_RE = re.compile(r"(?i)(key|token|secret|password|authorization)")
 
-#: Agents that run controls, not model capability: their jobs collapse to one
-#: INDEX line per card. Anything else with a recorded agent is an agent run.
-#: Compared against the agent's short name (after the last ``:``), so both
-#: ``nop`` and ``evallab.module:Nop``-style paths classify the same way.
 CONTROL_AGENTS = frozenset({"nop", "oracle", "probe"})
 
-#: The only research docs the INDEX links, in preference order. The lookup
-#: never descends anywhere else, so deep ``evidence/`` and vendored trees
-#: are never touched during publish (HAR-117 publish-slowness fix).
 _RESEARCH_DOC_NAMES = ("RESULTS.md", "SUMMARY.md", "README.md")
 
-# Publish refuses to follow links out of the job directory, and never publishes
-# the executor's staging area.
 _SKIP_DIR_NAMES = frozenset({".executor", ".exec-stage", ".harness-staging"})
 _GIT_TIMEOUT_SECONDS = 15
 
 
 def results_root() -> Path:
-    """The results home, overridable so tests never write to the real one."""
     override = os.environ.get(ENV_VAR)
     return Path(override).expanduser() if override else DEFAULT_ROOT
 
 
 def card_from(*texts: str | None) -> str | None:
-    """``HAR-110`` from a job name or spec question_ref, else None."""
     for text in texts:
         if not text:
             continue
@@ -80,12 +44,6 @@ def card_from(*texts: str | None) -> str | None:
 
 
 def _explicit_linear_card(metadata: dict[str, Any], spec: dict[str, Any]) -> str | None:
-    """Explicit ``linear_card`` from run metadata or the frozen spec, if any.
-
-    Both bindings must agree; disagreement or a malformed value raises
-    ``ValueError`` fail-closed. Blank/missing stays ``None``. Task, model,
-    and harness names are never consulted.
-    """
     from evallab.schemas import normalize_linear_card
 
     found: dict[str, str] = {}
@@ -125,12 +83,6 @@ def _git_text(root: Path, *args: str) -> str | None:
 
 
 def capture_repository(root: Path) -> dict[str, Any]:
-    """Git state of the checkout a job is about to run from.
-
-    Called by the runner at run time. The diff and untracked-file list are
-    the part publish cannot reconstruct later, so they are saved into the job
-    directory alongside this record.
-    """
     import hashlib
 
     record: dict[str, Any] = {
@@ -174,7 +126,6 @@ def capture_repository(root: Path) -> dict[str, Any]:
 
 
 def write_run_provenance(job_dir: Path, repository: dict[str, Any]) -> None:
-    """Persist the run-time snapshot inside the job directory."""
     record = {key: value for key, value in repository.items() if not key.startswith("_")}
     target = job_dir / "repository-provenance"
     target.mkdir(parents=True, exist_ok=True)
@@ -201,12 +152,6 @@ def _sha256_text(text: str) -> str:
 
 
 def _endpoint(command: list[Any] | None, metadata: dict[str, Any]) -> str | None:
-    """The model endpoint, never a secret.
-
-    The self-hosted route is selected by the model id; its URL carries a
-    bearer token, so the endpoint recorded here is the route name. ``--env``
-    is the sandbox, not the model endpoint.
-    """
     for key in ("endpoint", "api_base", "base_url"):
         value = metadata.get(key)
         if isinstance(value, str) and not SECRET_RE.search(value):
@@ -290,7 +235,6 @@ def build_provenance(
     pr_lookup: Callable[[str], str | None] | None = None,
     capture: str = "run-time",
 ) -> dict[str, Any]:
-    """Provenance for one job, preferring the snapshot taken at run time."""
     metadata = _read_json(job_dir / "lab-metadata.json") or {}
     spec = _read_json(job_dir / "experiment-spec.json") or {}
     saved = _read_json(job_dir / "repository-provenance" / "repository.json")
@@ -381,7 +325,6 @@ def build_provenance(
 
 
 def _copy_file(source: Path, dest: Path) -> None:
-    """Copy and verify bytes without sharing the source inode."""
     import hashlib
     import shutil
 
@@ -395,11 +338,6 @@ def _copy_file(source: Path, dest: Path) -> None:
 
 
 def _copy_tree(source: Path, dest: Path, *, skip_processed: bool = False) -> int:
-    """Byte-copy a job tree, empty directories included. Returns the number of files copied.
-
-    Harbor records an empty collected directory (``/logs/artifacts``) as present;
-    ``harbor trial regrade`` refuses a copy that lost it as incomplete.
-    """
     copied = 0
     for dirpath, dirnames, filenames in os.walk(source, followlinks=False):
         current = Path(dirpath)
@@ -427,7 +365,6 @@ def _job_date(job_dir: Path, provenance: dict[str, Any]) -> str:
 
 
 def _origin_key(source: Path) -> str:
-    """A short, stable label for where a job was found, so two copies coexist."""
     parts = source.resolve().parts
     if ".worktrees" in parts:
         return parts[parts.index(".worktrees") + 1]
@@ -439,12 +376,6 @@ def _origin_key(source: Path) -> str:
 def _destination(
     home: Path, day: str, card: str, source: Path
 ) -> tuple[Path, str | None, tuple[Path, Path] | None]:
-    """``<day>/<card>-<job>/``, plus the other source when the name collides.
-
-    The same source republished replaces its own copy. A different source
-    with the same job name is kept alongside it, with ``~<origin>`` appended
-    to both, and the collision is named so provenance can record it.
-    """
     base = home / day / f"{card}-{source.name}"
     existing = _read_json(base / "provenance.json") or {}
     other = existing.get("source_path")
@@ -456,7 +387,6 @@ def _destination(
 
 
 def _is_processed_report_file(name: str) -> bool:
-    """Report pages process-job writes, never unrelated out-dir contents."""
     if name in ("job.json", "job.md"):
         return True
     return name.startswith("trial-") and (name.endswith(".json") or name.endswith(".md"))
@@ -474,28 +404,6 @@ def publish_job(
     processed_report_root: str | Path | None = None,
     publication_card: str | None = None,
 ) -> dict[str, Any]:
-    """Publish one job into the results home. Idempotent.
-
-    A second call with the same provenance replaces the published tree with
-    an identical one and rewrites the index, so a retried process-job does
-    not duplicate or drift.
-
-    ``processed_report_root`` points at the freshly written report directory
-    when process-job used a custom ``output_dir``: those report pages
-    replace the snapshotted ``processed/`` copy, so the published tree shows
-    the new outcome instead of the stale source ``processed/``. Only
-    ``job.json``/``job.md`` and ``trial-*.json``/``trial-*.md`` pages are
-    overlaid; nothing else is taken from that directory. Raw job inputs and
-    provenance still come from ``job_dir``.
-
-    ``publication_card`` explicitly annotates an otherwise unattributed job;
-    it never rewrites the frozen spec or overrides a recorded card. The
-    source-bound annotation survives republication without the argument.
-
-    The published INDEX is updated in place for this one job (``update_index``):
-    a publish costs the same whether the home holds ten jobs or ten thousand,
-    and the files it writes are byte-identical to a full ``write_index``.
-    """
     import shutil
     import tempfile
     from glob import escape as glob_escape
@@ -601,11 +509,8 @@ def publish_job(
             raise
         installed = True
     finally:
-        # A failed rollback retains both copies for explicit custody repair.
         if installed or not previous_copy.exists():
             shutil.rmtree(staging)
-    # Rehome only this exact source after its replacement is complete. An
-    # unrelated same-name job or failed replacement must keep its snapshot.
     for previous_path, _ in previous:
         if previous_path != dest and previous_path.exists():
             shutil.rmtree(previous_path)
@@ -648,13 +553,6 @@ def _reward_summary(published: Path) -> str:
 
 
 def _counts_summary(published: Path) -> str:
-    """Counted verdicts from ``evallab.counts`` stored in the job report.
-
-    Reads only the stored ``summary`` (``n_counted_pass``/``n_counted_fail``/
-    ``n_excluded``/``excluded_reasons``), so the INDEX matches the canonical
-    report even for multi-trial jobs. Reports that predate counts have none
-    of these fields and render ``counts unknown``, never ``0``.
-    """
     report = _read_json(published / "processed" / "job.json")
     if report is None:
         return "counts unknown"
@@ -702,12 +600,6 @@ def _spend(published: Path) -> str:
 
 
 def _session_spend_cell(allocation: Any) -> str | None:
-    """Allocated billed-GPU + Daytona estimate INDEX cell, or None.
-
-    Prefers the billed-session allocation when present. An unknown Daytona
-    estimate renders the GPU share plus unknown sandbox: never a false full
-    total and never a fallback to the legacy wall-time estimate.
-    """
     if not isinstance(allocation, dict):
         return None
     modal = allocation.get("modal_allocated_usd")
@@ -734,7 +626,6 @@ def _tasks_cell(provenance: dict[str, Any]) -> str:
 
 
 def _doc_for_dir(directory: Path) -> Path | None:
-    """The preferred research doc directly inside one experiment/exploration dir."""
     for name in _RESEARCH_DOC_NAMES:
         candidate = directory / name
         if candidate.is_file():
@@ -743,16 +634,6 @@ def _doc_for_dir(directory: Path) -> Path | None:
 
 
 def _research_docs(checkout: Path) -> dict[str, str]:
-    """Card (``HAR-117``) to research doc, from one bounded scan per regeneration.
-
-    Only ``research/experiments/*/`` and ``research/explorations/*/``
-    top-level docs are considered, plus one bounded level for nested
-    explorations such as ``trace-lab/har109``. The previous implementation
-    ran ``research.rglob("*.md")`` once per INDEX row, descending into
-    ``research/evidence/runs`` and vendored trees on every publish; this
-    never leaves the two buckets above, so its cost does not depend on deep
-    trees. Only directories whose own name carries the card match.
-    """
     docs: dict[str, str] = {}
     research = checkout / "research"
     for bucket in ("experiments", "explorations"):
@@ -781,13 +662,11 @@ def _research_docs(checkout: Path) -> dict[str, str]:
 
 
 def _doc_cell(docs: dict[str, str], card: str) -> str:
-    """The INDEX Research cell for a card: one link, or ``no research doc``."""
     doc = docs.get(card)
     return f"[research]({doc})" if doc else "no research doc"
 
 
 def _command_agent(command: Any) -> str | None:
-    """The ``--agent`` value of a recorded harbor command, else None."""
     if not isinstance(command, list):
         return None
     for index, token in enumerate(command):
@@ -798,13 +677,6 @@ def _command_agent(command: Any) -> str | None:
 
 
 def _agent_model(published: Path, provenance: dict[str, Any]) -> tuple[str | None, str | None]:
-    """``(agent, model)`` for one published job, from records, not name heuristics.
-
-    Prefers the provenance command, then the published ``config.json``
-    agent entry (old backfilled jobs have no recorded command but keep
-    their config), then the ``lab-metadata.json`` command. Either side may
-    stay None when nothing recorded it.
-    """
     agent = _command_agent(provenance.get("command"))
     model = provenance.get("model")
     if not isinstance(model, str):
@@ -830,26 +702,17 @@ def _agent_model(published: Path, provenance: dict[str, Any]) -> tuple[str | Non
 
 
 def _agent_short(agent: str | None) -> str | None:
-    """``SecretSafeTerminus2`` from ``evallab.harbor_terminus:SecretSafeTerminus2``."""
     if not agent:
         return None
     return agent.split(":")[-1].strip() or None
 
 
 def is_agent_run(agent: str | None) -> bool:
-    """A recorded agent counts as an agent run unless it is a control agent."""
     short = _agent_short(agent)
     return short is not None and short.lower() not in CONTROL_AGENTS
 
 
 def _published_jobs(home: Path) -> Iterator[tuple[Path, dict[str, Any]]]:
-    """``(published dir, provenance)`` for every job, without descending into jobs.
-
-    Published jobs always live at ``<home>/<day>/<card>-<job>/``. The
-    previous ``home.rglob("provenance.json")`` walked every copied run tree
-    (gigabytes of trial files) on each regeneration; two ``iterdir`` levels
-    find the same entries in time proportional to the job count.
-    """
     if not home.is_dir():
         return
     try:
@@ -869,7 +732,6 @@ def _published_jobs(home: Path) -> Iterator[tuple[Path, dict[str, Any]]]:
 
 
 def _entry(published: Path, provenance: dict[str, Any], docs: dict[str, str]) -> dict[str, Any]:
-    """All INDEX cells for one published job, computed once per regeneration."""
     repository = _as_dict(provenance.get("repository"))
     day = published.parent.name
     card = provenance.get("card")
@@ -915,21 +777,6 @@ def _routine_row(entry: dict[str, Any]) -> str:
     )
 
 
-# --- INDEX model -----------------------------------------------------------
-#
-# Both files are rendered from one model: a ``_Group`` per card holding
-# already-rendered row lines, newest row first. ``write_index`` builds that
-# model from every published job; ``update_index`` parses it back out of the
-# published files, splices one job's rows in, and re-renders. Publishing a job
-# therefore reads that job's records and writes two files, instead of
-# re-reading the provenance and report of every published job (HAR-237).
-#
-# The parser accepts only what these renderers emit and checks every count in
-# the files against the rows it counts. Anything else -- a hand-edited file, a
-# format change, a research doc that appeared since the last publish -- makes
-# ``update_index`` fall back to the full rebuild, so a splice never publishes a
-# file a rebuild would not have written.
-
 _AGENT_PREAMBLE = (
     "# Eval Lab results",
     "",
@@ -969,18 +816,16 @@ _INDEX_THREAD_LOCK = threading.Lock()
 
 @dataclass
 class _Group:
-    """One card's rows in one INDEX file, already rendered, newest first."""
 
     card: str
     rows: list[str]
 
 
 class _IndexFormatError(ValueError):
-    """A published INDEX file is not what ``write_index`` renders."""
+    pass
 
 
 def _path_sort(path: Path | str) -> str:
-    """``<day>-<job>`` for a published directory: the row's ``sort`` key."""
     parts = str(path).rsplit("/", 2)
     if len(parts) < 3:
         raise _IndexFormatError(f"INDEX run link is not a published job path: {path}")
@@ -988,11 +833,6 @@ def _path_sort(path: Path | str) -> str:
 
 
 def _row_sort(row: str) -> str:
-    """``<day>-<job>`` from a rendered row's run link: its ``sort`` key.
-
-    String slicing, not a regex and not ``pathlib``: one publish keys every
-    published row, so this is the hot loop of the splice (HAR-237).
-    """
     start = row.find(_RUN_LINK)
     if start < 0:
         raise _IndexFormatError(f"INDEX row without a run link: {row[:80]}")
@@ -1006,7 +846,6 @@ def _row_sort(row: str) -> str:
 def _models_from_entries(
     entries: list[dict[str, Any]],
 ) -> tuple[list[_Group], list[_Group], dict[str, int]]:
-    """The INDEX model for every entry: agent groups, all groups, routine counts."""
     agent_rows: dict[str, list[str]] = {}
     every_rows: dict[str, list[str]] = {}
     routine: dict[str, int] = {}
@@ -1024,13 +863,6 @@ def _models_from_entries(
 
 
 def _agent_index(agent: list[_Group], every: list[_Group], routine: dict[str, int]) -> str:
-    """Render ``INDEX.md``: agent runs by card, then the routine control table.
-
-    The routine table lists cards in ``INDEX-all.md`` order (each card's newest
-    entry) rather than by its newest control job: that order is then readable
-    back out of the published files, which is what lets one publish update one
-    card without re-reading every published job (HAR-237).
-    """
     lines = [
         *_AGENT_PREAMBLE,
         f"## Agent runs ({sum(len(group.rows) for group in agent)})",
@@ -1056,7 +888,6 @@ def _agent_index(agent: list[_Group], every: list[_Group], routine: dict[str, in
 
 
 def _all_index(every: list[_Group]) -> str:
-    """Render ``INDEX-all.md``: every job, grouped by card, newest first."""
     lines = [
         _ALL_TITLE,
         "",
@@ -1071,21 +902,6 @@ def _all_index(every: list[_Group]) -> str:
 
 
 def write_index(home: Path, *, primary_checkout: Path | None = None) -> Path:
-    """Regenerate ``INDEX.md`` (agent runs first) and ``INDEX-all.md`` (every job).
-
-    Agent runs are grouped by card, newest group first, newest job first
-    inside each group. Control jobs (``nop``/``oracle``/``probe`` agents,
-    plus jobs with no recorded agent) collapse to one line per card with a
-    count and a link to the full per-card list. Provenance columns are
-    unchanged. The research-doc lookup is built once per call and never
-    descends outside ``research/experiments`` and ``research/explorations``.
-
-    This is the repair path: publishing one job goes through ``update_index``,
-    which splices the same model into the published files, and ``backfill``
-    rebuilds once after publishing many. A rebuild is the authority those two
-    are measured against, so its scan and its write run under the results-home
-    lock: a publish that lands between them would otherwise be erased.
-    """
     home = Path(home).resolve()
     checkout = primary_checkout if primary_checkout is not None else PRIMARY_CHECKOUT
     with _index_lock(home):
@@ -1099,7 +915,6 @@ def write_index(home: Path, *, primary_checkout: Path | None = None) -> Path:
 
 
 def _split_index(text: str) -> list[str]:
-    """Lines of an INDEX file, including the empty string after its final newline."""
     lines = text.split("\n")
     if lines[-1] != "":
         raise _IndexFormatError("INDEX file does not end with a newline")
@@ -1107,7 +922,6 @@ def _split_index(text: str) -> list[str]:
 
 
 def _counted(line: str, prefix: str, suffix: str) -> int:
-    """The decimal count between ``prefix`` and ``suffix``."""
     if not line.startswith(prefix) or not line.endswith(suffix):
         raise _IndexFormatError(f"unexpected INDEX line: {line[:80]}")
     digits = line[len(prefix) : len(line) - len(suffix)]
@@ -1119,7 +933,6 @@ def _counted(line: str, prefix: str, suffix: str) -> int:
 def _sections(
     lines: list[str], start: int, *, level: int, header: str, separator: str
 ) -> tuple[list[_Group], int]:
-    """Parse ``level``-headed card sections starting at ``lines[start]``."""
     mark = "#" * level + " "
     groups: list[_Group] = []
     index = start
@@ -1148,12 +961,10 @@ def _sections(
 
 
 def _trailing_ok(lines: list[str], index: int) -> bool:
-    """A document may end after its last section, with at most that blank line left."""
     return lines[index:] in ([], [""])
 
 
 def _check_order(groups: list[_Group]) -> None:
-    """Cards are newest-first and never repeated, with at least one row each."""
     if len({group.card for group in groups}) != len(groups):
         raise _IndexFormatError("INDEX repeats a card")
     keys = [_row_sort(group.rows[0]) for group in groups]
@@ -1162,7 +973,6 @@ def _check_order(groups: list[_Group]) -> None:
 
 
 def _parse_agent_index(text: str) -> tuple[list[_Group], list[tuple[str, int]]]:
-    """Parse ``INDEX.md`` into agent groups and its routine ``(card, count)`` table."""
     lines = _split_index(text)
     head = len(_AGENT_PREAMBLE)
     if lines[:head] != list(_AGENT_PREAMBLE):
@@ -1210,7 +1020,6 @@ def _parse_agent_index(text: str) -> tuple[list[_Group], list[tuple[str, int]]]:
 
 
 def _parse_all_index(text: str) -> list[_Group]:
-    """Parse ``INDEX-all.md`` into card groups, newest card first."""
     lines = _split_index(text)
     if lines[:2] != [_ALL_TITLE, ""]:
         raise _IndexFormatError("unexpected INDEX-all.md preamble")
@@ -1226,7 +1035,6 @@ def _parse_all_index(text: str) -> list[_Group]:
 
 
 def _read_index_model(home: Path) -> tuple[list[_Group], list[_Group], dict[str, int]]:
-    """Parse the published pair back into the model ``write_index`` renders from."""
     agent, table = _parse_agent_index((home / "INDEX.md").read_text(encoding="utf-8"))
     every = _parse_all_index((home / "INDEX-all.md").read_text(encoding="utf-8"))
     routine = dict(table)
@@ -1242,11 +1050,6 @@ def _read_index_model(home: Path) -> tuple[list[_Group], list[_Group], dict[str,
 
 
 def _doc_cells_current(groups: list[_Group], docs: dict[str, str]) -> bool:
-    """Every existing row still shows the research doc its card resolves to today.
-
-    Counted, not inspected row by row: the cell is the column before the commit
-    cell, so it has to appear exactly once per row in the card's joined text.
-    """
     for group in groups:
         cell = f"{_doc_cell(docs, group.card)} | `"
         if "\n".join(group.rows).count(cell) != len(group.rows):
@@ -1255,7 +1058,6 @@ def _doc_cells_current(groups: list[_Group], docs: dict[str, str]) -> bool:
 
 
 def _locate(rows: list[str], key: str) -> int:
-    """Index of the first row whose key is ``key`` or older: rows are newest-first."""
     low, high = 0, len(rows)
     while low < high:
         middle = (low + high) // 2
@@ -1267,7 +1069,6 @@ def _locate(rows: list[str], key: str) -> int:
 
 
 def _insert_row(groups: list[_Group], card: str, row: str) -> None:
-    """Insert one rendered row, keeping cards and rows newest-first."""
     key = _row_sort(row)
     group = next((existing for existing in groups if existing.card == card), None)
     if group is None:
@@ -1275,7 +1076,7 @@ def _insert_row(groups: list[_Group], card: str, row: str) -> None:
         groups.append(group)
     position = _locate(group.rows, key)
     if position < len(group.rows) and _row_sort(group.rows[position]) == key:
-        del group.rows[position]  # this job's previous row, replaced in place
+        del group.rows[position]
     group.rows.insert(position, row)
     groups.remove(group)
     newest = _row_sort(group.rows[0])
@@ -1283,12 +1084,6 @@ def _insert_row(groups: list[_Group], card: str, row: str) -> None:
 
 
 def _remove_row(groups: list[_Group], key: str) -> tuple[bool, str | None]:
-    """Drop the row with ``key``: ``(removed, the card it was filed under)``.
-
-    Rows are matched by sort key, not by the run link's absolute path, so a
-    home reached through a symlink (``/tmp`` and ``/private/tmp``) is the same
-    home on both sides of a splice.
-    """
     for group in list(groups):
         if _row_sort(group.rows[0]) < key or _row_sort(group.rows[-1]) > key:
             continue
@@ -1309,12 +1104,6 @@ def _update_models(
     entry: dict[str, Any],
     previous: Sequence[Path] = (),
 ) -> None:
-    """Splice one entry into the model, replacing its previous rows in place.
-
-    ``previous`` names the directories a rehome moved the job out of: their
-    rows still link the old path and must be dropped, not left beside the new
-    one.
-    """
     for key in (entry["sort"], *(_path_sort(path) for path in previous)):
         was_agent, _ = _remove_row(agent, key)
         was_routine, routine_card = _remove_row(every, key)
@@ -1333,7 +1122,6 @@ def _update_models(
 
 @contextmanager
 def _index_lock(home: Path) -> Iterator[None]:
-    """Serialize the INDEX read-modify-write across threads and processes."""
     home.mkdir(parents=True, exist_ok=True)
     descriptor = os.open(home / _INDEX_LOCK_NAME, os.O_RDWR | os.O_CREAT, 0o600)
     with _INDEX_THREAD_LOCK, os.fdopen(descriptor, "a+b") as lock:
@@ -1345,7 +1133,6 @@ def _index_lock(home: Path) -> Iterator[None]:
 
 
 def _write_index_files(home: Path, agent: str, every: str) -> None:
-    """Replace both files; a reader never sees a half-written INDEX."""
     home.mkdir(parents=True, exist_ok=True)
     for name, text in (("INDEX.md", agent), ("INDEX-all.md", every)):
         staging = home / f".{name}.tmp"
@@ -1361,20 +1148,6 @@ def update_index(
     previous: Sequence[Path] = (),
     primary_checkout: Path | None = None,
 ) -> Path:
-    """Splice one published job's rows into ``INDEX.md`` and ``INDEX-all.md``.
-
-    Publish time stops growing with the number of published jobs (HAR-237): the
-    files already hold every rendered row, so one publish reads that job's
-    records and writes the two files it must write anyway. The result is
-    byte-identical to ``write_index`` on the same home. Anything the splice
-    cannot prove equivalent -- a missing or foreign INDEX file, a count that
-    disagrees with its rows, a research doc that appeared since the last
-    publish -- falls back to a full rebuild, which is also how a hand-edited
-    INDEX is repaired.
-
-    ``previous`` names publications of the same job that this publish replaced
-    or moved (a card rehome); their rows are retired with it.
-    """
     home = Path(home).resolve()
     published = Path(published).resolve()
     checkout = primary_checkout if primary_checkout is not None else PRIMARY_CHECKOUT

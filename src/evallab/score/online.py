@@ -1,13 +1,3 @@
-"""Gold online DEV replay through the native watcher and causal monitor.
-
-The freeze's ``online.monitors`` names each model and hash-bound verdict caches.
-No inference callable is supplied. Each source event advances the visible prefix;
-folded tool observations arrive only at their source result event. Labels, root
-metadata, final artifacts, file snapshots, and future events never enter a
-monitor. Synchronous cache barriers measure algorithmic delay, not model latency.
-EOF emissions occupy an extra ordinal after the last actor step. Alert counts
-retain distinct native cards (live-watch uses its native one-per-rule policy).
-"""
 from __future__ import annotations
 
 import time
@@ -28,12 +18,11 @@ from .metrics import rate
 
 
 def timeline(ir: Any) -> tuple[list[dict], dict[int, int], set[int]]:
-    """Expand Gold's crosswalk in source order, not folded-step order."""
     steps = {s.step_id: s for s in ir.steps}
     observations: dict[int, list] = {key: [] for key in steps}
     result_index: Counter = Counter()
     visible, ordinals, gold, events = {}, {}, set(), []
-    isolation = CausalPrefixIsolation(0.5)  # Active even at the final actor prefix.
+    isolation = CausalPrefixIsolation(0.5)
     refs = [ref for ref in ir.source_event_map if ref.event_kind != "artifact"]
     result_counts = Counter(ref.normalized_step_id for ref in refs if ref.event_kind == "result")
     if not refs:
@@ -51,8 +40,6 @@ def timeline(ir: Any) -> tuple[list[dict], dict[int, int], set[int]]:
                 raise ValueError("Gold result precedes its call")
             result_index[sid] += 1
             if result_counts[sid] != len(step.observation_results):
-                # The native OMP loader coalesces sibling results. Never expose
-                # that combined text until every contributing result arrives.
                 if len(step.observation_results) != 1:
                     raise ValueError("Gold result crosswalk differs from observations")
                 if result_index[sid] < result_counts[sid]:
@@ -92,7 +79,6 @@ def timeline(ir: Any) -> tuple[list[dict], dict[int, int], set[int]]:
 
 def replay(events: list[dict], *, run_id: str, judge: Any = None,
            judge_only: bool = False, live: bool = False) -> dict:
-    """Continue after all alerts; retain frozen evidence and actual emission clocks."""
     started = time.process_time()
     alarms, seen, visible, unavailable = [], set(), {}, []
     context = {"actor_ordinal": 0, "source_event_ordinal": 0, "at_eof": False}
@@ -163,7 +149,7 @@ def timing(alarms: list[dict], onset: int | None, gold: set[int], ordinals: dict
         return {**alarm, "flagged_ordinal": ordinals.get(alarm["flagged_step"]),
                 "signed_delay": emitted - onset if onset is not None else None}
 
-    ordered = [clock(a) for a in alarms]  # Emission order, never frozen-prefix order.
+    ordered = [clock(a) for a in alarms]
     first = ordered[0] if ordered else None
     linked = next((a for a in ordered if a["flagged_ordinal"] in gold), None)
     bucket = "never" if first is None or onset is None else "before" if first["signed_delay"] < 0 else "at" if first["signed_delay"] == 0 else "after"

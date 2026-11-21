@@ -1,12 +1,3 @@
-"""Local-only incremental refresh behind ``evallab nightly --refresh`` (HAR-199).
-
-Raw queues/runs are read-only. Reports, projections, replay and task pages live
-under this service's state directory. No executor, model, cloud reader or network
-publisher is constructed here. The database receives a read-only dump when the
-verified backup is missing or stale, or when ``--backup`` requests a dated dump.
-Backup age is always reported.
-"""
-
 from __future__ import annotations
 
 import csv
@@ -94,7 +85,6 @@ def queue_roots(config: RefreshConfig) -> tuple[Path, ...]:
 
 
 def _stamp_tree(root: Path, *, raw_job: bool = False) -> list[tuple[str, int, int]]:
-    """Stat metadata only; never read logs/trajectories on an unchanged night."""
     stamps = []
     if not root.exists():
         return stamps
@@ -114,7 +104,7 @@ def _stamp_tree(root: Path, *, raw_job: bool = False) -> list[tuple[str, int, in
             if name.startswith("."):
                 continue
             path = Path(base) / name
-            stat = path.lstat()  # Artifact symlinks belong to the sandbox, not this host.
+            stat = path.lstat()
             stamps.append((str(path), stat.st_mtime_ns, stat.st_size))
     if raw_job:
         journal = root / HOOK_JOURNAL
@@ -128,7 +118,6 @@ def _stamp_tree(root: Path, *, raw_job: bool = False) -> list[tuple[str, int, in
 
 
 def _accepted_roots(roots: list[Path], refused: set[Path]) -> list[Path]:
-    """Prune refused jobs before census discovery or transient projection reads."""
     selected = []
     for root in roots:
         if root in refused:
@@ -185,7 +174,7 @@ def refresh_trials(config: RefreshConfig, roots: list[Path]) -> dict[str, Any]:
         counts = con.execute(
             "SELECT count(*), count(*) FILTER (WHERE legit) FROM trials"
         ).fetchone()
-        assert counts is not None  # COUNT always returns one row, even for an empty view.
+        assert counts is not None
         total, legit = counts
         return {"total": total, "legit": legit, "projection_errors": len(info["projection_errors"])}
     finally:
@@ -193,7 +182,6 @@ def refresh_trials(config: RefreshConfig, roots: list[Path]) -> dict[str, Any]:
 
 
 def snapshot_verdict_inputs(config: RefreshConfig) -> Path:
-    """Persist the real reviewed inputs so retiring their worktree loses no evidence."""
     source = (
         config.verdict_root or config.data_root or shared_checkout_root(config.repo_root)
     ).resolve()
@@ -244,7 +232,6 @@ def snapshot_verdict_inputs(config: RefreshConfig) -> Path:
 
 
 def refresh_verdicts(config: RefreshConfig) -> dict[str, Any]:
-    """Re-run HAR-177's deterministic builder, never modify its source ledger."""
     repo = snapshot_verdict_inputs(config)
     builder = config.repo_root / "research/experiments/python-task-ledger/build.py"
     output = config.state_dir / "ledger.csv"
@@ -264,8 +251,6 @@ def refresh_verdicts(config: RefreshConfig) -> dict[str, Any]:
         row["task_id"]: {"verdict": row["verdict"], "evidence": row["verdict_evidence"]}
         for row in rows
     }
-    # HAR-176's page consumer needs assessment records, not copied task packages.
-    # Reuse the exact HAR-177/HAR-172 tag and solve producers with recorded evidence.
     from evallab.task_health_tags import HISTORY, LOCKED_NOP, health_tag, solve_summary, verdict_tag
 
     def read_csv(path: Path) -> dict[str, dict[str, str]]:
@@ -362,8 +347,6 @@ def campaign_spend(config: RefreshConfig, roots: tuple[Path, ...]) -> dict[str, 
             if not (campaign / "campaign.json").is_file():
                 continue
             reserved, settled, total = campaign_spend_usd(root, campaign.name)
-            # Scope each meter to its queue; cloned roots cannot be added as if
-            # they were independent bills. The source path remains explicit.
             campaigns[f"{campaign.name}@{root.name}"] = {
                 "queue_root": str(root),
                 "reserved": reserved,
@@ -378,9 +361,6 @@ def write_facts(config: RefreshConfig, digest: dict[str, Any], now: datetime) ->
     facts_root = config.facts_root or Path.home() / ".local/state/daily-report"
     path = facts_root / "inputs/evallab-nightly.json"
     _atomic(path, digest)
-    # The collector reads the durable input afresh before the reporter. Also
-    # expose it in the next report's existing facts format now, without running
-    # collection or the paid generation path. Share the report's actual lock.
     with (facts_root / "run.lock").open("a+") as lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -407,17 +387,14 @@ def write_facts(config: RefreshConfig, digest: dict[str, Any], now: datetime) ->
 
 
 def _vanished_source(error: FileNotFoundError, checkouts: tuple[Path, ...]) -> Path | None:
-    """The queue root whose evidence disappeared mid-refresh, if any."""
     if error.filename is None:
         return None
     missing = Path(os.fsdecode(error.filename))
     owners = [root for root in checkouts if missing.is_relative_to(root)]
-    # Worktrees live inside the primary checkout; the deepest root owns the path.
     return max(owners, key=lambda root: len(root.parts)) if owners else None
 
 
 def backup_fact(config: RefreshConfig, moment: datetime) -> dict[str, Any]:
-    """Refresh a missing/stale backup through the existing bounded dump step."""
     from evallab.automation import StepTimeout, run_with_timeout
 
     primary = config.data_root or shared_checkout_root(config.repo_root)
@@ -478,7 +455,6 @@ def _health_lines(
 
 
 def refresh_exit_code(result: dict[str, Any]) -> int:
-    """Fail if a source, backup attempt, or verified-backup freshness fails."""
     backup = result.get("backup") or {}
     attempt = backup.get("attempt") or {}
     return int(
@@ -516,8 +492,6 @@ def run_refresh(config: RefreshConfig, *, now: datetime | None = None) -> dict[s
                     config, previous, remaining, source_failures, backup, moment
                 )
             except FileNotFoundError as exc:
-                # A worktree retired mid-run (observed 2026-10-26/27): drop only
-                # that source and refresh the rest from scratch.
                 vanished = _vanished_source(exc, remaining)
                 if vanished is None:
                     raise
@@ -566,8 +540,6 @@ def _refresh_sources(
         if digest and (
             digest.get("backup") != backup or digest.get("source_failures") != source_failures
         ):
-            # Health can change without new evidence. Publish it without
-            # replaying projections or advancing their high-water state.
             digest.update(
                 generated_at=moment.isoformat(), backup=backup, source_failures=source_failures
             )
@@ -593,10 +565,7 @@ def _refresh_sources(
         }
     old_jobs = (previous.get("selection") or {}).get("jobs", {})
     changed = [job for job in observed if fingerprints[str(job)] != old_jobs.get(str(job))]
-    # Fail on missing or mismatched reviewed inputs before walking every run.
     verdicts = refresh_verdicts(config)
-    # Completed jobs can be projected; ongoing trials are still replayed and
-    # included in the HAR-178 census and HAR-176 pages as evidence arrives.
     failed_jobs = {
         job: failure
         for job, failure in previous.get("failed_jobs", {}).items()
@@ -626,7 +595,7 @@ def _refresh_sources(
             }
             processed_jobs.pop(str(job), None)
             if output.exists():
-                shutil.rmtree(output)  # Only this service's partial job reports.
+                shutil.rmtree(output)
         else:
             failed_jobs.pop(str(job), None)
             processed_jobs[str(job)] = fingerprints[str(job)]

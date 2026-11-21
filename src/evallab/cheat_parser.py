@@ -1,4 +1,3 @@
-"""Deterministic cheat-audit command registration."""
 from __future__ import annotations
 
 import argparse
@@ -17,7 +16,6 @@ def _cheat_run_command(args: argparse.Namespace, root: Path, **kwargs: Any) -> i
 
 
 def register_parser(commands: argparse._SubParsersAction) -> None:
-    """Register the ``evallab cheat`` subcommand (one self-contained block)."""
     cheat = commands.add_parser(
         "cheat",
         help="Deterministic cheat audit on local Docker ($0, model-free)",

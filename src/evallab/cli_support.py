@@ -1,4 +1,3 @@
-"""Shared path resolution and result rendering for command callbacks."""
 from __future__ import annotations
 
 from collections.abc import Sequence

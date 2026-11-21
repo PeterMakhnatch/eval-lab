@@ -1,10 +1,3 @@
-"""Read-only, admitted trace payloads for the private trace stores.
-
-Selection shares the blind reader's exact DEV/cross-key gate and native actor
-provenance boundary. Verified CAS observations preserve exact actor bytes;
-control/event journals are not reconstructed as conversations.
-"""
-
 from __future__ import annotations
 
 import re
@@ -26,7 +19,6 @@ _CAS_URI = re.compile(r"cas://sha256/([0-9a-f]{64})\Z")
 
 
 def trace_uuid(trace_id: str) -> str:
-    """The same deterministic remote run identity for every target."""
     return str(uuid5(NAMESPACE_URL, "evallab-trace-store/v1:" + trace_id))
 
 

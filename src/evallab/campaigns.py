@@ -1,13 +1,3 @@
-"""Immutable, policy-gated orchestration for bounded billable campaigns.
-
-Campaigns materialize one queue ``ExperimentSpec`` per declared attempt. They do
-not call Harbor directly: submission, human approval, credential preflight,
-leases, dispatch, ingestion, and retry refusal remain owned by ``PolicyGate`` and
-``Executor``. Program family/cell/opportunity/campaign identities are owned by
-``evallab.benchmark_program_contracts``; the private execution binding below is
-the isolated import-adapter seam for that shared foundation.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -58,18 +48,13 @@ def _digest(value: Any) -> str:
     return "sha256:" + hashlib.sha256(_canonical_json(value).encode()).hexdigest()
 
 
-
-
 def _repo_relative(value: str) -> str:
     if value.startswith("/") or ".." in value.split("/"):
         raise ValueError("campaign paths must stay relative to the repository")
     return value
 
 
-
-
 def experiment_spec_digest(spec: ExperimentSpec) -> str:
-    """Digest immutable execution inputs while excluding queue-owned fields."""
     payload = spec.model_dump(mode="json", exclude_none=True)
     for field in _SPEC_DIGEST_EXCLUDES:
         payload.pop(field, None)

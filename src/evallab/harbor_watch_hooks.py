@@ -1,33 +1,3 @@
-"""Harbor job plugin that journals trial lifecycle hooks for ``evallab watch``.
-
-Harbor fires ``TrialEvent`` hooks inside the ``harbor run`` process; the watch
-runs in the dispatcher. This plugin bridges the two with an append-only journal,
-``<job_dir>/watch/hooks.jsonl``, so the watch learns a trial's phase the moment
-Harbor enters it instead of inferring it from files a minute later.
-
-Observation only. Every callback:
-
-- returns ``None`` and swallows its own errors (Harbor awaits hooks inline, so a
-  raising hook would fail the trial);
-- never mutates the hook event, its config, or its result;
-- does no awaited I/O, so it cannot delay the trial.
-
-``LogEntry`` chunks (exec stdout per phase) are opt-in (``EVALLAB_WATCH_LOG_HOOKS=1``
-in the Harbor process; the runner never sets it) and only on Harbor 0.24+, because
-subscribing is not invisible on Docker. Any subscriber switches Docker exec from
-``communicate()`` to Harbor's line reader:
-
-- On 0.21 that reader raises on lines over 64 KiB, failing the agent's command.
-- On 0.24 the bytes match. But the stdout/stderr interleaving of a command that
-  writes both, which is already a ``docker exec`` race, shifts. Measured 2026-10-06
-  over 200 execs per mode: the stderr line came first in 31% buffered vs 50% streamed.
-
-Daytona does not stream exec output, so it emits no ``LogEntry`` either way. Harbor
-exposes ``Trial.add_log_callback`` but no job-level equivalent, so the subscription
-wraps the job queue's per-trial hook setup.
-
-"""
-
 from __future__ import annotations
 
 import contextlib
@@ -66,7 +36,6 @@ def _harbor_version() -> tuple[int, ...]:
 
 
 def log_streaming_supported(version: tuple[int, ...] | None = None) -> bool:
-    """Whether this Harbor can stream ``LogEntry`` without raising on long lines."""
     return (version if version is not None else _harbor_version()) >= LOG_STREAMING_MIN_VERSION
 
 
@@ -93,7 +62,6 @@ def _event_record(event: Any) -> dict[str, Any]:
 
 
 class _LogBuffer:
-    """Per-trial, per-phase counters and tails; written by a flush thread."""
 
     def __init__(self) -> None:
         self.lock = threading.Lock()
@@ -128,7 +96,6 @@ class _LogBuffer:
 
 
 class WatchHookPlugin:
-    """Harbor ``JobPlugin``: journal trial hooks for the watch (``--plugin``)."""
 
     def __init__(self, *, flush_seconds: float = LOG_FLUSH_SECONDS) -> None:
         self._journal: Path | None = None
@@ -221,12 +188,6 @@ class WatchHookPlugin:
 
 
 def read_hook_journal(job_dir: Path) -> dict[str, dict[str, Any]]:
-    """Fold ``watch/hooks.jsonl`` into per-trial hook state (empty when absent).
-
-    Each value has ``events`` (``[[event, at], ...]``), ``phase`` (the latest event),
-    ``terminal`` (``end``/``cancel`` seen), ``exception_type``, ``rewards``,
-    ``logs`` (``{phase: {chunks, chars, tail, at}}``) and ``last_at`` (epoch seconds).
-    """
     try:
         lines = (Path(job_dir) / HOOK_JOURNAL).read_text(encoding="utf-8").splitlines()
     except OSError:

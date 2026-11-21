@@ -1,5 +1,3 @@
-"""Normalize recorded provider billing rows and read stored usage reports."""
-
 from __future__ import annotations
 
 import json
@@ -27,11 +25,6 @@ class BillingRow:
 
 
 def normalize_report_rows(payload: Any, *, resolution: str) -> list[BillingRow]:
-    """Validate provider rows, including SDK 1.6.1's JSON-encoded tag objects.
-
-    Reports without ``tags`` remain valid and normalize to an empty mapping.
-    No tag keys or values are coerced, including in decoded CLI tag strings.
-    """
     if not isinstance(payload, list):
         raise ValueError("billing report payload must be a JSON array")
     rows: list[BillingRow] = []
@@ -67,8 +60,6 @@ def normalize_report_rows(payload: Any, *, resolution: str) -> list[BillingRow]:
     return rows
 
 
-
-
 def fetch_modal_billing_report(
     *,
     start: date,
@@ -77,11 +68,6 @@ def fetch_modal_billing_report(
     runner: Any | None = None,
     resolution: str = "h",
 ) -> list[BillingRow]:
-    """Fetch Modal billing rows (read-only) via Modal CLI report.
-
-    Returns the normalized list of :class:`BillingRow` objects in memory.
-    Raises ``RuntimeError`` if the runner fails or returns unreadable output.
-    """
     from pathlib import Path
 
     from evallab.modal_ops import default_runner

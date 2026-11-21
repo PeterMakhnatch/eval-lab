@@ -1,45 +1,3 @@
-"""Harbor's own viewer as the results surface (HAR-170, Traces lane).
-
-``evallab view`` builds a viewer jobs root (a flat directory of jobs, as
-``harbor view`` expects) from one or more job directories or results roots,
-backfilling the HAR-024 reward dims (``reward`` / ``integrity`` /
-``reward_gated``) for trials that predate native RewardKit dims, then serves
-that root with the Harbor 0.24 viewer.
-
-Overlay design (sources are never mutated). Sources are mirrored without
-copying bytes: directories are recreated and files hard-linked (see
-:func:`_link`), so every path resolves inside the viewer root, which Harbor's
-viewer requires before it serves a trial or file.
-
-* native RewardKit dimensions are mirrored as-is unless current integrity
-  evidence requires an exclusion overlay;
-* unscored trials (no numeric ``reward``) are mirrored with no dims invented;
-* every other scored trial gets an overlay trial directory: every original
-  child mirrored, except a rewritten ``result.json`` whose
-  ``verifier_result.rewards`` adds ``integrity`` (0/1) and
-  ``reward_gated`` (``reward * integrity``) while keeping ``reward``
-  unchanged, plus a new ``reward-details.json`` with the fired rule ids and
-  evidence.
-
-Integrity rules are deterministic only (HAR-024 contract):
-
-* ``evallab.copy_check`` (``copy_check.RULE``) -- this detector
-  already subsumes the "build/lib / site-packages / out-of-base git read
-  followed by matching lines" source rule via its outside-source matcher;
-* ``evallab.upstream_fetch`` (confirmed acquisitions only, via
-  ``assess_upstream_fetch`` + ``confirmed_fetch``);
-* ``evallab.grader_tamper`` (v1, new as a reward rule here; the detector is
-  ``evallab.tripwires.grader_tamper_hits``, imported not copied).
-
-No LLM judge. A ``guard_reject`` taint never fires integrity on its own: the
-guard held, so no contamination happened.
-
-Trustworthy stored copy and upstream findings are reused; absent stored copy
-findings are recomputed because older empty records cannot attest to the current
-detector. Grader tamper is always computed. Everything is best-effort: a detector error fails
-open (integrity 1) and is recorded in ``reward-details.json``.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -63,19 +21,16 @@ from evallab.harbor_telemetry import harbor_child_environment
 SCHEMA = "harbor_view/v1"
 REWARD_DETAILS_SCHEMA = "harbor_view/reward_details/v1"
 
-#: Deterministic integrity rule ids (HAR-024 contract).
 RULE_COPY_CHECK = "evallab.copy_check"
 RULE_UPSTREAM_FETCH = "evallab.upstream_fetch"
 RULE_GRADER_TAMPER = "evallab.grader_tamper"
 RULE_RED_TEAM = "evallab.declared_red_team"
 
-#: Minimum harbor version whose viewer knows chart-trials (Outcomes/Pareto).
 VIEWER_MIN_VERSION = (0, 24)
 VIEWER_PIN = "harbor==0.24.0"
 
 
 def rule_versions() -> dict[str, str]:
-    """Rule id -> version string, grounded in each detector's own constant."""
     from evallab.copy_check import RULE as copy_rule
 
     return {
@@ -86,13 +41,7 @@ def rule_versions() -> dict[str, str]:
     }
 
 
-# ---------------------------------------------------------------------------
-# Job / trial discovery
-# ---------------------------------------------------------------------------
-
-
 def is_job_dir(path: Path) -> bool:
-    """A Harbor job directory: top-level ``config.json`` + ``result.json``."""
     return (
         path.is_dir()
         and (path / "config.json").is_file()
@@ -101,11 +50,6 @@ def is_job_dir(path: Path) -> bool:
 
 
 def discover_jobs(sources: list[Path]) -> tuple[list[Path], list[str]]:
-    """Expand job dirs and results roots into a sorted, de-duplicated job list.
-
-    Returns ``(jobs, skipped)`` where ``skipped`` holds human-readable notes
-    for sources (or children) that are neither.
-    """
     jobs: list[Path] = []
     skipped: list[str] = []
     seen: set[str] = set()
@@ -138,7 +82,6 @@ def discover_jobs(sources: list[Path]) -> tuple[list[Path], list[str]]:
 
 
 def _iter_trial_dirs(job_dir: Path) -> list[Path]:
-    """Trial directories directly under a Harbor job directory, by name."""
     try:
         children = sorted(job_dir.iterdir(), key=lambda p: p.name)
     except OSError:
@@ -152,11 +95,6 @@ def _read_json(path: Path) -> dict[str, Any] | None:
     except (OSError, ValueError):
         return None
     return payload if isinstance(payload, dict) else None
-
-
-# ---------------------------------------------------------------------------
-# Integrity
-# ---------------------------------------------------------------------------
 
 
 def _copy_hit_from_flag(flag: dict[str, Any]) -> dict[str, Any] | None:
@@ -190,12 +128,6 @@ def _upstream_hit_from_flag(flag: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def stored_hits(job_dir: Path, trial_name: str) -> tuple[list[dict] | None, str]:
-    """Map the stored processed taint verdict to rule hits.
-
-    Returns ``(hits, note)``; ``hits`` is None when no usable stored verdict
-    exists (missing file, unparseable, or the process-time analysis failed,
-    in which case the stored taint may be an incomplete ``[]``).
-    """
     record = _read_json(job_dir / "processed" / f"trial-{trial_name}.json")
     if record is None:
         return None, "no stored processed record"
@@ -209,7 +141,6 @@ def stored_hits(job_dir: Path, trial_name: str) -> tuple[list[dict] | None, str]
     for flag in taint:
         if not isinstance(flag, dict):
             continue
-        # guard_reject is not a contract rule: the guard held.
         hit = _copy_hit_from_flag(flag) or _upstream_hit_from_flag(flag)
         if hit is not None:
             hits.append(hit)
@@ -217,7 +148,6 @@ def stored_hits(job_dir: Path, trial_name: str) -> tuple[list[dict] | None, str]
 
 
 def _raw_agent_steps(trial_dir: Path) -> list[dict[str, Any]]:
-    """Agent step dicts from ATIF trajectory docs (no stitching needed)."""
     agent_dir = trial_dir / "agent"
     if not agent_dir.is_dir():
         return []
@@ -260,7 +190,6 @@ def _raw_agent_steps(trial_dir: Path) -> list[dict[str, Any]]:
 def compute_hits(
     trial_dir: Path, job_dir: Path
 ) -> tuple[list[dict[str, Any]], list[str]]:
-    """Run the deterministic detectors directly; never raises on detection."""
     from evallab.copy_check import copy_check
 
     hits: list[dict[str, Any]] = []
@@ -301,7 +230,6 @@ def compute_hits(
 def trial_integrity(
     trial_dir: Path, job_dir: Path
 ) -> dict[str, Any]:
-    """``(integrity, fired rules, provenance)`` for one trial directory."""
     stored, note = stored_hits(job_dir, trial_dir.name)
     problems: list[str] = []
     if stored is not None:
@@ -309,8 +237,6 @@ def trial_integrity(
         tamper_hits, tamper_problems = compute_hits_grader_only(trial_dir)
         problems.extend(tamper_problems)
         seen = {hit["id"] for hit in hits}
-        # Older stored empty taint lists do not attest which copy detector ran.
-        # Recheck them so a detector improvement is not hidden by a stale record.
         if RULE_COPY_CHECK not in seen:
             from evallab.copy_check import copy_check
 
@@ -352,7 +278,6 @@ def trial_integrity(
 
 
 def compute_hits_grader_only(trial_dir: Path) -> tuple[list[dict], list[str]]:
-    """Grader-tamper hits, which have no stored verdict anywhere."""
     try:
         from evallab.tripwires import grader_tamper_hits
 
@@ -375,18 +300,12 @@ def compute_hits_grader_only(trial_dir: Path) -> tuple[list[dict], list[str]]:
     ], []
 
 
-# ---------------------------------------------------------------------------
-# Viewer root build
-# ---------------------------------------------------------------------------
-
-
 def _is_native(rewards: dict[str, Any]) -> bool:
     return isinstance(rewards.get("integrity"), (int, float)) and not isinstance(
         rewards.get("integrity"), bool
     )
 
 def _native_needs_overlay(trial_dir: Path, job_dir: Path) -> bool:
-    """Re-evaluate native successes against current deterministic evidence."""
     return bool(trial_integrity(trial_dir, job_dir)["fired"])
 
 
@@ -399,23 +318,10 @@ def _scored_reward(rewards: Any) -> float | int | None:
     return reward
 
 
-#: ``os.link`` failures that mean "no hard links here", not a broken source.
 _NO_HARD_LINK = frozenset({errno.EXDEV, errno.EPERM, errno.ENOTSUP, errno.EMLINK})
 
 
 def _link(source: Path, dest: Path) -> None:
-    """Mirror ``source`` at ``dest`` without copying bytes.
-
-    Directories are recreated and files hard-linked, so every mirrored path
-    resolves inside the viewer root. Harbor's viewer refuses a trial or file
-    whose resolved path leaves its jobs root ("Invalid trial name", "Access
-    denied"), which any symlink back to the source does. Symlinks inside the
-    source stay symlinks (to the same absolute target). Where hard links are
-    impossible (another filesystem), a file falls back to a symlink.
-
-    A hard link shares the source inode: never write through a mirrored
-    name. Callers skip every name they rewrite and write a new file instead.
-    """
     if source.is_symlink():
         dest.symlink_to(source.parent / os.readlink(source))
         return
@@ -432,14 +338,10 @@ def _link(source: Path, dest: Path) -> None:
         dest.symlink_to(source)
 
 
-#: Harbor's viewer renders a trial's ``analysis.md`` as Markdown in its
-#: Analysis tab (``/agent-logs`` ``summary``).
 VIEWER_ANALYSIS_MD = "analysis.md"
 
 
 def _link_run_report(job_dir: Path, trial_dir: Path, dest: Path) -> None:
-    """Show the processed run report (counts verdict, taint, loop, token flow)
-    in the viewer's Analysis tab, unless the trial already has its own."""
     report = job_dir / "processed" / f"trial-{trial_dir.name}.md"
     target = dest / VIEWER_ANALYSIS_MD
     if report.is_file() and not target.exists() and not target.is_symlink():
@@ -456,13 +358,6 @@ def _unique_job_name(name: str, taken: set[str]) -> str:
 
 
 def _apply_arm(doc: dict[str, Any], arm: str) -> str:
-    """Set the overlay-only ``source`` dataset label to the arm.
-
-    ``source`` feeds the viewer grouping keys (Outcomes dataset rows/cols,
-    Pareto ``agent__model__source`` groups). It never touches ``reward`` or
-    the model identity. A pre-existing non-null source is preserved as
-    ``<source>+<arm>`` rather than overwritten.
-    """
     current = doc.get("source")
     label = arm if current in (None, arm) else f"{current}+{arm}"
     doc["source"] = label
@@ -498,7 +393,6 @@ def overlay_trial(
     source_job: str | None = None,
     trial_name: str | None = None,
 ) -> dict[str, Any]:
-    """Build one overlay trial dir; returns the integrity record."""
     verdict = trial_integrity(trial_dir, job_dir)
     integrity = verdict["integrity"]
     dest.mkdir(parents=True, exist_ok=False)
@@ -552,7 +446,6 @@ def overlay_trial(
 def mirror_job(
     job_dir: Path, dest: Path, *, trial_dirs: list[Path] | None = None
 ) -> dict[str, Any]:
-    """Mirror a job, optionally projecting only the selected real trials."""
     dest.mkdir(parents=True, exist_ok=False)
     counts: dict[str, Any] = {
         "source": str(job_dir),
@@ -571,9 +464,9 @@ def mirror_job(
     overlay_names = _plan_overlays(trial_dirs)
     for child in sorted(job_dir.iterdir(), key=lambda p: p.name):
         if child.is_dir() and (child / "result.json").is_file():
-            continue  # trial dir; handled below
+            continue
         if filtered and child.name in ("config.json", "result.json", "analysis.json"):
-            continue  # source aggregates describe the full cohort, not this selection
+            continue
         _link(child, dest / child.name)
     for trial_dir in trial_dirs:
         counts["trials"] += 1
@@ -625,7 +518,6 @@ def mirror_job(
 def _plan_overlays(
     trial_dirs: list[Path],
 ) -> dict[str, tuple[float | int, dict[str, Any]]]:
-    """Trials needing an overlay: scored, non-native, readable rewards."""
     plan: dict[str, tuple[float | int, dict[str, Any]]] = {}
     for trial_dir in trial_dirs:
         result = _read_json(trial_dir / "result.json")
@@ -642,18 +534,10 @@ def _plan_overlays(
     return plan
 
 
-# ---------------------------------------------------------------------------
-# Merged viewer jobs (--merge NAME=GLOB)
-# ---------------------------------------------------------------------------
-
-#: Default arm pattern: G5-style ``-stock`` / ``-tuned`` / ``-gepa`` suffixes
-#: in the source job name. Anything without a hit keeps its full job name as
-#: the arm, so trials stay distinguishable but each forms its own group.
 DEFAULT_ARM_REGEX = r"(?P<arm>stock|tuned|gepa)"
 
 
 def parse_merge_spec(spec: str) -> tuple[str, str]:
-    """Split one ``--merge NAME=GLOB`` spec (the glob matches job dir names)."""
     name, sep, glob = spec.partition("=")
     if not sep or not name.strip() or not glob.strip():
         raise ValueError(f"--merge needs NAME=GLOB, got {spec!r}")
@@ -661,7 +545,6 @@ def parse_merge_spec(spec: str) -> tuple[str, str]:
 
 
 def compile_arm_pattern(source: str | None) -> re.Pattern[str]:
-    """Compile the arm regex, which must define a named ``arm`` group."""
     try:
         pattern = re.compile(source or DEFAULT_ARM_REGEX)
     except re.error as exc:
@@ -672,7 +555,6 @@ def compile_arm_pattern(source: str | None) -> re.Pattern[str]:
 
 
 def derive_arm(job_name: str, pattern: re.Pattern[str]) -> str:
-    """Arm label for a job: the regex hit, else the full job name."""
     match = pattern.search(job_name)
     if match is not None:
         return match.group("arm")
@@ -680,7 +562,6 @@ def derive_arm(job_name: str, pattern: re.Pattern[str]) -> str:
 
 
 def _union_by_dump(items: list[Any]) -> list[Any]:
-    """De-duplicated union of config blocks, first occurrence wins."""
     seen: set[str] = set()
     merged: list[Any] = []
     for item in items:
@@ -692,13 +573,6 @@ def _union_by_dump(items: list[Any]) -> list[Any]:
 
 
 def build_merged_config(jobs: list[Path], name: str) -> dict[str, Any]:
-    """Merged job config: first source job's config, renamed, unions merged.
-
-    ``agents`` / ``datasets`` / ``tasks`` are unioned across the source jobs
-    so the jobs list shows every model; everything else (timeouts, env,
-    verifier) comes from the first source job. Unparseable sources fall back
-    to a minimal config (``JobConfig`` is all-defaults, so it still parses).
-    """
     configs = [_read_json(job / "config.json") for job in jobs]
     configs = [cfg for cfg in configs if cfg is not None]
     if not configs:
@@ -717,7 +591,6 @@ def build_merged_config(jobs: list[Path], name: str) -> dict[str, Any]:
 
 
 def _restrict_config(config: dict[str, Any], trials: list[Path]) -> None:
-    """Keep job-list task/model facets on the same selected population."""
     configs = []
     for trial in trials:
         trial_config = _read_json(trial / "config.json") or {}
@@ -733,7 +606,6 @@ def _restrict_config(config: dict[str, Any], trials: list[Path]) -> None:
 
 
 def _trial_stat_parts(doc: dict[str, Any]) -> tuple[str, str | None, str]:
-    """``(agent, model, dataset)`` grouping parts for one overlay result doc."""
     info = doc.get("agent_info") if isinstance(doc.get("agent_info"), dict) else {}
     model_info = info.get("model_info") if isinstance(info, dict) else {}
     agent = info.get("name") if isinstance(info, dict) else None
@@ -743,7 +615,6 @@ def _trial_stat_parts(doc: dict[str, Any]) -> tuple[str, str | None, str]:
 
 
 def _trial_tokens(doc: dict[str, Any]) -> tuple[int | None, int | None, int | None, float | None]:
-    """Token/cost sums from a result doc's ``agent_result`` (or steps)."""
     contexts: list[dict[str, Any]] = []
     agent_result = doc.get("agent_result")
     if isinstance(agent_result, dict):
@@ -769,14 +640,6 @@ def _trial_tokens(doc: dict[str, Any]) -> tuple[int | None, int | None, int | No
 def build_merged_result(
     name: str, trials: list[tuple[str, dict[str, Any]]]
 ) -> dict[str, Any]:
-    """Merged job ``result.json`` aggregated from the real overlay trial docs.
-
-    Mirrors ``JobStats.increment`` per trial (completed/error counts, per
-    ``agent__model__dataset`` reward and exception tallies, token sums) so
-    ``n_total_trials`` and the stats are observed, never invented. Job-level
-    metric means are left empty: the runner's ``metrics`` means are not
-    recomputed here, and the trial-level evals the charts read are complete.
-    """
     evals: dict[str, dict[str, Any]] = {}
     n_errors = n_cancelled = n_stopped_by_watch = 0
     tokens: list[float] = [0.0, 0.0, 0.0, 0.0]
@@ -853,13 +716,6 @@ def write_merged_trial(
     source_job: str,
     trial_name: str,
 ) -> dict[str, Any]:
-    """One merged-job trial: always an overlay recording job + arm.
-
-    Scored non-native trials additionally gain the integrity dims via
-    :func:`overlay_trial`; every other readable trial gets a source-only
-    overlay (arm label, no dims invented); unreadable trials are linked
-    as-is. Every merged trial records ``.evallab-source.json``.
-    """
     original = _read_json(trial_dir / "result.json")
     if original is None:
         dest.mkdir(parents=True, exist_ok=False)
@@ -919,7 +775,6 @@ def build_merged_job(
     arm_pattern: re.Pattern[str],
     selected_trials: dict[Path, list[Path]] | None = None,
 ) -> dict[str, Any]:
-    """Fold many source jobs into one viewer job; returns per-job counts."""
     dest.mkdir(parents=True, exist_ok=False)
     counts: dict[str, Any] = {
         "merged_from": [str(job) for job in jobs],
@@ -1000,11 +855,6 @@ def build_viewer_root(
     tags: list[str] | None = None,
     variant_records_dirs: list[Path] | None = None,
 ) -> dict[str, Any]:
-    """Build the viewer jobs root at ``out`` (created empty).
-
-    ``merges`` holds ``(NAME, glob)`` pairs: matching jobs (by dir name) are
-    consumed into one merged viewer job instead of being served individually.
-    """
     selected_trials = None
     selection_report = None
     if health_manifest is not None or tags or variant_records_dirs:
@@ -1096,12 +946,6 @@ def build_viewer_root(
     return report
 
 
-# ---------------------------------------------------------------------------
-# Launch
-# ---------------------------------------------------------------------------
-
-
-#: Actionable remedy shared by every native-execution guard.
 HARBOR_RUNTIME_REMEDY = (
     "install the locked laminar extra in the interpreter that runs evallab: "
     "`uv sync --locked --extra laminar` (or `uv run --extra laminar evallab ...`); "
@@ -1110,12 +954,6 @@ HARBOR_RUNTIME_REMEDY = (
 
 
 def pinned_harbor_bin_dir() -> Path | None:
-    """Directory of this interpreter's own ``harbor`` executable, if installed.
-
-    A ``harbor`` on PATH can be a different release (a standalone ``uv tool``
-    install is common); the launcher must prefer the one shipped with the
-    interpreter that also holds the ``evallab`` adapters it will import.
-    """
     try:
         importlib.metadata.version("harbor")
     except (importlib.metadata.PackageNotFoundError, ValueError):
@@ -1125,14 +963,6 @@ def pinned_harbor_bin_dir() -> Path | None:
 
 
 def prepend_pinned_harbor_path(environment: dict[str, str], *, fallback: str | None = None) -> bool:
-    """Put this interpreter's ``harbor`` directory first on ``environment``'s PATH.
-
-    Child processes resolve a bare ``harbor`` through PATH; pinning the
-    interpreter's own directory prevents a standalone install of another
-    release from being picked up. Returns whether a pinned directory was
-    prepended. ``fallback`` supplies the PATH to extend when the mapping has
-    none (usually ``os.environ["PATH"]``).
-    """
     pinned = pinned_harbor_bin_dir()
     if pinned is None:
         return False
@@ -1142,18 +972,11 @@ def prepend_pinned_harbor_path(environment: dict[str, str], *, fallback: str | N
 
 
 def harbor_runtime_problem() -> str | None:
-    """Why the in-process Harbor runtime is unusable, or None when it works.
-
-    Checks the exact modules the native execution paths import, so an absent
-    distribution and a leftover namespace directory that has no
-    ``harbor.trial`` both refuse instead of failing later as a missing
-    reward file. Never imports Harbor itself (no side effects at plan time).
-    """
     import importlib.util
     import sys
 
     for module in ("harbor.trial.trial", "harbor.models.trial.config"):
-        if module in sys.modules:  # already imported here: usable in this process
+        if module in sys.modules:
             continue
         try:
             if importlib.util.find_spec(module) is None:
@@ -1164,7 +987,6 @@ def harbor_runtime_problem() -> str | None:
 
 
 def require_harbor_runtime(backend: str) -> None:
-    """Raise ``RuntimeError`` naming the remedy when native execution cannot run."""
     problem = harbor_runtime_problem()
     if problem is None:
         return
@@ -1175,7 +997,6 @@ def require_harbor_runtime(backend: str) -> None:
 
 
 def installed_harbor_version() -> tuple[int, ...] | None:
-    """Installed ``harbor`` version tuple, or None when not determinable."""
     try:
         version = importlib.metadata.version("harbor")
     except importlib.metadata.PackageNotFoundError:
@@ -1205,7 +1026,6 @@ def installed_harbor_version() -> tuple[int, ...] | None:
 
 
 def viewer_command(root: Path, *, port: int, host: str = "127.0.0.1") -> list[str]:
-    """`harbor view` argv: installed binary when new enough, else pinned uv run."""
     version = installed_harbor_version()
     base = ["harbor", "view", str(root), "--jobs", "--port", str(port), "--host", host]
     if version is not None and version >= VIEWER_MIN_VERSION:
@@ -1301,7 +1121,5 @@ def _view_command(
     except KeyboardInterrupt:
         return 0
     return completed.returncode
-
-
 
 

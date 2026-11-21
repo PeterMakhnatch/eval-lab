@@ -18,14 +18,8 @@ from evallab.quota import (
 )
 from evallab.schemas import ExperimentPurpose, ExperimentSpec, QueueState
 
-#: A sentence explaining why dispatch would refuse, or ``None`` for "nothing in
-#: this reading refuses". `queue.provider_reported_exhaustion` has exactly this
-#: shape and is the default; injecting it keeps admission logic in `queue.py`
-#: instead of being restated — and drifting — here.
 RefusalReader = Callable[[Headroom], str | None]
 
-#: Queue states holding work that has not finished. `done`, `failed`, and
-#: `rejected` are history: they cannot consume quota and cannot be under-powered.
 ACTIVE_QUEUE_STATES: tuple[QueueState, ...] = (
     "proposed",
     "pending",
@@ -37,17 +31,12 @@ ACTIVE_QUEUE_STATES: tuple[QueueState, ...] = (
 COMPARISON_PURPOSE: ExperimentPurpose = "comparison"
 
 
-#: The trap that produced the original defect, restated where an operator reads
-#: a number. Kept in step with `queue.QUOTA_UNKNOWN_WARNING`, which says the same
-#: thing at the moment of authorisation.
 UNKNOWN_IS_NOT_PLENTY = (
     "UNKNOWN is not 'plenty left'. This says the allowance could not be "
     "measured, not that a run fits inside it. Check the provider yourself "
     "before authorising anything billable."
 )
 
-#: Why pooling every queued comparison spec into one cohort is safe in the
-#: warning direction, and only in that direction.
 POOLING_NOTE = (
     "The queue carries no field linking two specs into one comparison, so every "
     "queued comparison spec is pooled into a single cohort here. Pooling can "
@@ -58,7 +47,6 @@ POOLING_NOTE = (
 
 
 def _age(seconds: float | None) -> str:
-    """Duration as the operator surfaces print it (`queue._age`, `quota._duration`)."""
     if seconds is None:
         return label("unavailable")
     total = int(max(0.0, seconds))
@@ -75,7 +63,6 @@ def _instant(moment: datetime | None) -> str:
 
 @dataclass(frozen=True)
 class ProviderQuota:
-    """One paid provider's remaining allowance, with its own provenance."""
 
     agent: str
     headroom: Headroom
@@ -85,14 +72,11 @@ class ProviderQuota:
 
     @property
     def observed(self) -> bool:
-        # Trap one, in the one place every renderer goes through: no caller may
-        # reach `remaining_percent` without passing this first.
         return self.headroom.availability == "observed"
 
 
 @dataclass(frozen=True)
 class QueuedSpecView:
-    """A parsed queued spec; required fields remain required after parsing."""
 
     state: QueueState
     path: Path
@@ -108,7 +92,6 @@ class QueuedSpecView:
 
 @dataclass(frozen=True)
 class UnreadableQueuedSpec:
-    """A queue entry that could not be parsed as an `ExperimentSpec`."""
 
     state: QueueState
     path: Path
@@ -117,7 +100,6 @@ class UnreadableQueuedSpec:
 
 @dataclass(frozen=True)
 class QueueSurvey:
-    """Active queue contents grouped by their required research purpose."""
 
     queue_root: Path
     present: bool
@@ -134,7 +116,6 @@ class QueueSurvey:
 
 @dataclass(frozen=True)
 class PowerNotEvaluated:
-    """A power assessment that has no comparison cohort to evaluate."""
 
     reason: str
     evaluated: bool = field(default=False, init=False)
@@ -143,7 +124,6 @@ class PowerNotEvaluated:
 
 @dataclass(frozen=True)
 class PowerEvaluation:
-    """A power assessment for a parsed comparison cohort."""
 
     reason: str
     n_tasks: int
@@ -171,7 +151,6 @@ class PreflightReport:
     diff_errors: tuple[str, ...] = ()
 
     def refusals(self) -> tuple[str, ...]:
-        """Every provider-stated reason a billable dispatch would refuse."""
         return tuple(
             f"{provider.agent}: {provider.refusal}"
             for provider in self.providers
@@ -179,7 +158,6 @@ class PreflightReport:
         )
 
     def hard_stopped(self) -> tuple[str, ...]:
-        """Providers whose exhaustion is a lockout rather than an overage charge."""
         return tuple(
             provider.agent
             for provider in self.providers
@@ -194,18 +172,9 @@ def _provider_quota(
     now: datetime,
     refusal: RefusalReader | None,
 ) -> ProviderQuota:
-    """One provider's reading, scanning only that provider's paid trials.
-
-    `load_quota_report`'s `paid_agents` filter is what makes this per-provider:
-    a report built for `{codex}` sees no `claude-code` snapshot, so neither
-    account's headroom can be attributed to the other.
-    """
     try:
         report = load_quota_report(roots, now=now, paid_agents=frozenset({agent}))
     except (OSError, ValueError) as exc:
-        # A failed scan is an unavailable reading with its reason, never a
-        # blank and never an exception: preflight must still print the other
-        # providers and the queue.
         return ProviderQuota(
             agent=agent,
             headroom=Headroom(
@@ -256,12 +225,6 @@ def survey_queue(
     *,
     states: Iterable[QueueState] = ACTIVE_QUEUE_STATES,
 ) -> QueueSurvey:
-    """Group the unfinished queue by declared purpose, degrading honestly.
-
-    Reads the state directories directly rather than through `DirectoryQueue`,
-    which creates them on construction. A read-only surface must not bring a
-    queue into existence as a side effect of reporting that there isn't one.
-    """
     if not queue_root.is_dir():
         return QueueSurvey(queue_root=queue_root, present=False)
 
@@ -286,14 +249,6 @@ def survey_queue(
 
 
 def assess_power(survey: QueueSurvey, *, useful_effect: float | None = None) -> PowerAssessment:
-    """Can the queued comparison reach a useful interval at its declared attempts?
-
-    Uses `cohort.minimum_detectable_effect`, the estimator the `evallab power`
-    command and every comparison report already use. Nothing new is invented,
-    including the threshold: "useful" is a spend judgement, so `useful_effect`
-    stays unset unless an operator supplies one, exactly as
-    `REFUSE_BILLABLE_AT_USED_PERCENT` stays unset in `queue.py`.
-    """
     comparisons = survey.comparisons()
     if not comparisons:
         return PowerNotEvaluated(
@@ -303,8 +258,6 @@ def assess_power(survey: QueueSurvey, *, useful_effect: float | None = None) -> 
     warnings: list[str] = []
     tasks = {view.task for view in comparisons}
     n_tasks = len(tasks)
-    # The weakest arm binds: a comparison cannot be paired at more attempts than
-    # its least-attempted spec declares.
     k = min(view.attempts for view in comparisons)
 
     if n_tasks < 2:
@@ -359,21 +312,12 @@ def assess_power(survey: QueueSurvey, *, useful_effect: float | None = None) -> 
 
 
 def _default_refusal() -> RefusalReader:
-    """`queue.provider_reported_exhaustion`, imported at call time.
-
-    Deferred on purpose. `queue.py` is the core and this module is a surface, so
-    a module-level import here would make the one-line tick wiring in
-    `Executor._tick_locked` a circular import. Resolving the name when the
-    report is built works in either import order, because this module's body
-    never touches `queue.py`.
-    """
     from evallab.queue import provider_reported_exhaustion
 
     return provider_reported_exhaustion
 
 
 def preview_spec_diff(spec: ExperimentSpec, repo_root: Path) -> DiffPreview:
-    """Resolve the exact dispatcher request without creating a queue or a job."""
     from evallab.queue import Executor
 
     request = Executor.prepare_request(spec, repo_root=repo_root)
@@ -428,8 +372,6 @@ def _provider_lines(provider: ProviderQuota) -> list[str]:
     headroom = provider.headroom
     lines = [f"{provider.agent}"]
     if not provider.observed:
-        # Trap one. Nothing numeric is printed, and the blank is filled with the
-        # warning rather than left for the reader to fill with optimism.
         lines += [
             f"  remaining allowance      UNKNOWN {label('unavailable')}",
             f"    reason: {headroom.reason or 'not reported'}",
@@ -514,7 +456,6 @@ def _power_lines(power: PowerAssessment) -> list[str]:
 
 
 def render_preflight(report: PreflightReport) -> str:
-    """The whole surface as text. Identical bytes go to the CLI and the digest."""
     lines = [
         "evallab preflight — is it safe and sensible to run right now",
         f"generated_at: {report.generated_at.isoformat()}",
@@ -568,13 +509,6 @@ def render_preflight(report: PreflightReport) -> str:
 
 
 def digest_section(report: PreflightReport) -> list[str]:
-    """The preflight as Markdown for the nightly digest.
-
-    The body is the byte-identical `render_preflight` text inside a fence, so
-    the digest and `evallab preflight` can never disagree about what was read.
-    The bullets above it exist so a scanner sees the verdict without reading
-    the block.
-    """
     refusals = report.refusals()
     hard_stops = report.hard_stopped()
     unavailable = [provider.agent for provider in report.providers if not provider.observed]

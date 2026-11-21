@@ -1,38 +1,3 @@
-"""``full-hardening@1`` (``evallab harden``): one transform for MiMo ``test.sh`` packages and general Harbor packages.
-
-It unifies ``grader-hardening@1`` (L1 auto-load reset, L3 report gate), ``separate-verifier@10`` (grading in a fresh
-verifier container) and the pristine test reset of the MiMo parent shape, and closes the gaps the C6 seal validation
-measured (research/experiments/fx-c6-seal-validation-20261030): the shipped transform refused general packages,
-left graded test files and grader helpers in the agent workspace trusted, and could not see test files copied into
-the agent image.
-
-Layers, recorded per package in a :class:`HardeningManifest`:
-
-* **L1** auto-load purge: agent-created ``conftest.py``, ``sitecustomize.py``, ``usercustomize.py``, ``pytest.ini``,
-  ``tox.ini``, ``*.pth`` and JavaScript runner configs are deleted before grading; files with those names present in
-  the original package are restored to their recorded sha256 instead of deleted.
-* **L2** pristine restoration: graded test files and grader helpers that live in the agent workspace (a test
-  directory the grader runs, a code file a test executes by path, or ``--helper`` paths) are bundled under
-  ``tests/_evallab/pristine/`` and written back over the workspace before grading. ``tests/`` itself is verifier-owned.
-* **L3** structured report gate: the runner is asked for a report at a grade-time path directly on its command line
-  (pytest ``--junitxml``, unittest through a counting runner, vitest/jest JSON, mocha JSON), so a wrapper that clears
-  ``PYTEST_ADDOPTS`` no longer disables the gate. Reward 1 needs the original grader's 1 *and* a report holding at least
-  the reference test count with no failure, error or extra skip.
-* **L4** separation and leak scrub: grading moves to a separate verifier container (``separate-verifier@10`` for MiMo,
-  ``environment_mode = "separate"`` with the workdir as the only artifact for general packages), so a ``.pth`` planted
-  in the agent's site directory never runs in the grading interpreter; ``COPY``/``ADD`` of test, oracle or harness
-  files into the agent image is stripped from ``environment/Dockerfile``.
-
-A separate verifier only grades if its image can run the gate. ``--verifier-dockerfile`` carries a verifier image
-into the candidate as ``tests/Dockerfile`` (byte-identical, sha256 recorded), and every manifest records
-``verifier.gate_runtime``: ``native`` (the gate runs in the task image), ``declared`` (the candidate ships or was given
-a verifier image), or ``unverified`` — a separate verifier with no ``tests/Dockerfile`` copies the environment image,
-which need not provide ``python3``; that candidate is written with a stderr warning.
-
-Not closed, by design: a semantic verifier requirement (C4 fabricated verification, C5 environment acquisition) is a
-task-design property, and instruction text that funnels the agent to tests is flagged for the author, never rewritten.
-"""
-
 from __future__ import annotations
 
 import fnmatch
@@ -57,7 +22,6 @@ from evallab.task_variants import VariantInvalid
 TRANSFORM_ID = "full-hardening@1"
 BUNDLE_REL = "tests/_evallab"
 MANIFEST_NAME = "hardening-manifest.json"
-#: Harbor builds the separate verifier from ``tests/Dockerfile`` when the package has one.
 VERIFIER_DOCKERFILE = "tests/Dockerfile"
 
 UNVERIFIED_GATE_WARNING = (
@@ -67,12 +31,10 @@ UNVERIFIED_GATE_WARNING = (
     "Pass --verifier-dockerfile with a verifier image that provides python3."
 )
 
-#: ``case`` pattern of the MiMo L1 block: the grader-hardening@1 set plus JavaScript runner configs.
 MIMO_L1_PATTERN = (
     AUTOLOAD_PATTERN + "|vitest.config.*|*/vitest.config.*|vite.config.*|*/vite.config.*"
     "|jest.config.*|*/jest.config.*|.mocharc.*|*/.mocharc.*"
 )
-#: Upstream MiMo ``tests/test.sh`` lines the L3 blocks are anchored on.
 MIMO_RUN_LINE = 'timeout 1800 sh -c "$(cat /tests/test_command.sh)" > "$V/test_output.log" 2>&1\n'
 MIMO_REWARD_LINE = (
     'if [ $RC -eq 0 ]; then echo 1 > "$V/reward.txt"; else echo 0 > "$V/reward.txt"; fi\n'
@@ -93,7 +55,6 @@ REPORT_SUFFIX = {
     "jest": "json",
     "mocha": "json",
 }
-#: A grader line that executes something (a path named on it is run, not merely checked for existence).
 EXEC_LINE = re.compile(
     r"subprocess|sys\.executable|Popen|check_call|check_output|os\.system|\bexec\b|"
     r"\b(python[\d.]*|bash|sh|node|npx|pytest|ruby|perl)\b"
@@ -102,13 +63,13 @@ SHELL_TEST = re.compile(r"\[\[?\s+!?\s*-[a-zA-Z]\s|^\s*#")
 
 
 class HardeningRefused(ValueError):
-    """The package cannot be hardened as asked (shape unknown, report count missing, ...)."""
+    pass
 
 
 @dataclass
 class Layer:
     layer: str
-    status: str  # applied | native | not-applicable | open
+    status: str
     mechanism: str
     details: dict[str, Any] = field(default_factory=dict)
 
@@ -123,12 +84,11 @@ class Finding:
 
 @dataclass
 class VerifierGate:
-    """Where the L3 gate runs: ``native`` (task image), ``declared`` (a verifier image), ``unverified``."""
 
     gate_runtime: str
     dockerfile: str | None = None
     dockerfile_sha256: str | None = None
-    origin: str | None = None  # flag | transform | package
+    origin: str | None = None
 
 
 @dataclass
@@ -158,7 +118,7 @@ class CopyEntry:
     line: str
     sources: tuple[str, ...]
     destination: str
-    files: tuple[tuple[str, Path], ...]  # (container path, local file)
+    files: tuple[tuple[str, Path], ...]
 
 
 def _sha(data: bytes) -> str:
@@ -201,7 +161,6 @@ def _logical_lines(text: str) -> list[tuple[int, str]]:
 
 
 def dockerfile_copies(package: Path) -> tuple[list[CopyEntry], str | None]:
-    """``COPY``/``ADD`` entries of ``environment/Dockerfile`` with the files each brings in, plus the last WORKDIR."""
     dockerfile = package / "environment" / "Dockerfile"
     if not dockerfile.is_file():
         return [], None
@@ -263,7 +222,6 @@ def _workdir(package: Path, docker_workdir: str | None) -> str:
 
 
 def _test_file_digests(package: Path) -> dict[str, str]:
-    """sha256 of every hidden test *code* file (data fixtures shared with the agent are legitimate inputs)."""
     tests = package / "tests"
     return {
         _sha(path.read_bytes()): path.relative_to(package).as_posix()
@@ -276,7 +234,6 @@ def _test_file_digests(package: Path) -> dict[str, str]:
 
 
 def scan_leaks(package: Path, entries: list[CopyEntry]) -> list[tuple[CopyEntry, list[str], str]]:
-    """``(entry, leaked container paths, reason)`` for every COPY/ADD that brings grader material into the image."""
     hidden = _test_file_digests(package)
     leaks = []
     for entry in entries:
@@ -305,7 +262,6 @@ def scan_leaks(package: Path, entries: list[CopyEntry]) -> list[tuple[CopyEntry,
 
 
 def scrub_dockerfile(text: str, leaks: list[tuple[CopyEntry, list[str], str]]) -> str:
-    """Remove a fully leaked COPY/ADD; follow a partly leaked one with ``RUN rm -f`` of the leaked paths."""
     lines = text.splitlines(keepends=True)
     by_line = {entry.lineno: (entry, leaked) for entry, leaked, _ in leaks}
     out: list[str] = []
@@ -360,13 +316,6 @@ def _grader_lines(package: Path) -> list[str]:
 def grader_paths(
     package: Path, workdir: str, files: dict[str, Path], declared: tuple[str, ...] = ()
 ) -> dict[str, str]:
-    """Workspace paths the grader trusts: ``{container path: why}`` (L2).
-
-    Only paths named on a line of ``tests/`` that executes something count (an existence check such as
-    ``[ -f /app/pkg/decode.py ]`` names the submission, not a helper): a code file there is a grader helper, and a
-    test-named directory there is a graded test tree. ``declared`` paths are added as given. ``/tests`` is
-    verifier-owned and the workdir itself is never a candidate.
-    """
     found: dict[str, str] = {}
     candidates = set()
     for line in _grader_lines(package):
@@ -406,7 +355,6 @@ def detect_runner(text: str) -> str | None:
 
 
 def _mimo_command_text(package: Path) -> tuple[str, str | None]:
-    """Hidden test command text (the ``mimo_test_command.sh`` the patch adds, else ``test_command.sh``) and its path."""
     command = (package / "tests/test_command.sh").read_text(encoding="utf-8", errors="replace")
     match = re.search(r"(/\S*mimo_test_command\.sh)", command)
     if not match:
@@ -470,7 +418,6 @@ _GRADE = '"$EVALLAB_PY" -I -S /tests/_evallab/grade.py'
 
 
 def harbor_wrapper(runner: str | None, l3: bool) -> str:
-    """The general-package ``tests/test.sh``: L1+L2 prepare, the original grader (report-injected), the L3 gate."""
     report = _report_line(runner) if l3 else "export EVALLAB_REPORT=/dev/null\n"
     return (
         "#!/bin/bash\n"
@@ -522,7 +469,6 @@ def mimo_single_container_test_sh(
 
 
 def _toml_separate(text: str, workdir: str) -> str:
-    """Set ``[verifier] environment_mode = "separate"`` and carry the workdir as the only artifact."""
     if re.search(r"^artifacts\s*=", text, re.M):
         text = re.sub(
             r"^artifacts\s*=\s*\[", f'artifacts = ["{workdir}", ', text, count=1, flags=re.M
@@ -559,7 +505,6 @@ def plan_hardening(
     helpers: tuple[str, ...] = (),
     verifier_dockerfile: Path | str | None = None,
 ) -> tuple[HardeningManifest, dict[str, bytes | None]]:
-    """The manifest and the ``{relative path: bytes or None (delete)}`` changes; reads the package, writes nothing."""
     package = Path(package)
     shape = detect_shape(package)
     supplied_dockerfile = Path(verifier_dockerfile) if verifier_dockerfile is not None else None
@@ -633,7 +578,7 @@ def plan_hardening(
                 runner, expected_tests, expected_skipped, calibrate, allow_degraded
             )
             parent_text = (package / "tests/test.sh").read_text(encoding="utf-8")
-            if runner is not None and script is None:  # command given inline: inject at harden time
+            if runner is not None and script is None:
                 injected, count = grade.inject_report(command_text, runner)
                 changes["tests/test_command.sh"] = injected.encode()
             changes["tests/test.sh"] = mimo_single_container_test_sh(
@@ -803,7 +748,6 @@ def harden(
     audit_only: bool = False,
     **options: Any,
 ) -> HardeningManifest:
-    """Plan the hardening of ``package`` and, unless ``audit_only``, write the hardened copy to ``out``."""
     package = Path(package).resolve()
     manifest, changes = plan_hardening(package, **options)
     if audit_only:

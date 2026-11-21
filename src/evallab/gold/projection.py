@@ -1,4 +1,3 @@
-"""Source coordinates for the existing public loader; no labels or membership."""
 from __future__ import annotations
 
 import hashlib
@@ -11,7 +10,6 @@ from evallab.trajectory_ir import SourceEventRef
 
 
 def project_events(events: list[dict[str, Any]]) -> dict[str, Any]:
-    """Retain branches in source order; fold results only into an ancestor call."""
     by_id = {str(event["id"]): event for event in events}
     if len(by_id) != len(events):
         raise ValueError("Duplicate source event identity")
@@ -78,7 +76,6 @@ def project_events(events: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def cloud_events(connection: Any, trace_id: str) -> dict[str, Any]:
-    """Translate only actor and structural DB columns; never copy judge flags."""
     from evallab.production.run_atlas import _tool_calls
 
     events = []

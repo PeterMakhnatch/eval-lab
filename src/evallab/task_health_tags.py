@@ -1,9 +1,3 @@
-"""Harbor metadata projections of the Python task ledger (HAR-172).
-
-These pure helpers read historical evidence labels, not new task grades.
-Copied and infrastructure outcomes remain unknown, not solve failures.
-"""
-
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -45,7 +39,6 @@ _VERDICTS = ("keep", "fix", "discard")
 
 
 def verdict_tag(ledger: Mapping[str, str]) -> str:
-    """HAR-177 keep/fix/discard projection of the ledger verdict column."""
     verdict = ledger.get("verdict")
     if verdict not in _VERDICTS:
         raise ValueError(f"ledger: unsupported verdict {verdict!r}")
@@ -53,11 +46,6 @@ def verdict_tag(ledger: Mapping[str, str]) -> str:
 
 
 def solve_summary(history: Mapping[str, str] | None) -> dict[str, Any]:
-    """Classify the #703 history's clean-pass/fail denominator, not raw passes.
-
-    History is task-level, across its recorded packages/models/harnesses. It is
-    not a claim of a current-package pass rate or a new counts adjudication.
-    """
     if history is None:
         return {"tag": "solve:unknown", "reason": "no history row"}
     counts = {}
@@ -94,11 +82,6 @@ def health_tag(
     *,
     exploit_verdict: str | None = None,
 ) -> str:
-    """Adverse bound evidence wins; a validated repair supersedes an old nop.
-
-    ``sound`` means ledger-usable with a sound locked nop, not proof against
-    every exploit. Absence of a probe is never translated into a clean verdict.
-    """
     status = ledger["status"]
     if status not in {"usable", "review", "discarded", "unchecked"}:
         raise ValueError(f"ledger: unsupported status {status!r}")
@@ -106,8 +89,6 @@ def health_tag(
         raise ValueError(f"exploit: unsupported verdict {exploit_verdict!r}")
     if exploit_verdict == "cracked":
         return "health:cracked"
-    # RUN_DEFECTS emits this diagnosis for an image-bound leak. Do not confuse
-    # a closed PyPI channel or a merely available package with an observed leak.
     image_leak = ledger.get("reason", "").casefold().startswith("image leaks the fix:")
     open_leak = status == "review" and "with no leak-closed variant" in ledger.get("reason", "")
     if exploit_verdict == "leak-found-not-cracked" or image_leak or open_leak:
@@ -115,8 +96,6 @@ def health_tag(
     if status != "usable":
         return f"health:{status}"
     if ledger.get("run") == "repair" and ledger.get("run_variant_status") == "validated":
-        # A HAR-146 row explicitly naming this repair is current adverse
-        # evidence; it must not be hidden by the earlier validation status.
         if locked_nop and locked_nop.get("note") == f"repaired:{ledger['run_digest'][7:19]}":
             label = locked_nop.get("locked_nop", "")
             if label in {"broken_environment", "grader_suspect"}:

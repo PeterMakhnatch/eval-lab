@@ -1,14 +1,3 @@
-"""Text-only turns through an authenticated Codex subscription.
-
-User config, project instructions and tool features are disabled; the CLI runs
-in an empty read-only workspace. This is not host file-read isolation.
-``CodexTransport.request`` is one ephemeral, complete, single-turn text response.
-``CodexSession`` advances one persisted native thread with ``codex exec resume``
-under the same pins, one completed text-only turn per invocation.
-Quota and billing remain unknown; request limits count CLI invocations, not
-physical upstream requests.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -24,36 +13,19 @@ from typing import Any
 
 from evallab.execution_contracts import persist_private_bytes
 
-#: Installed subscription CLI under test. Pinned to the Homebrew path so a
-#: shadowed ``codex`` earlier on PATH cannot change the route.
 CODEX_EXECUTABLE = Path("/opt/homebrew/bin/codex")
 CODEX_VERSION = "codex-cli 0.162.1"
 
-#: ChatGPT-subscription provider id (``OPENAI_PROVIDER_ID`` in
-#: ``codex-rs/model-provider-info``). Pinned so a configured default can
-#: never route the turn to an API-key or local provider.
 MODEL_PROVIDER = "openai"
 
-#: ``codex exec`` JSONL is small; bound it like the OpenCode transcript.
 MAX_TRANSCRIPT_BYTES = 4 * 1024 * 1024
 
-#: A GEPA reflection answer is short instructions text; anything larger is
-#: not a usable single-turn proposal.
 MAX_RESPONSE_BYTES = 1024 * 1024
 
-# Only runtime/auth-location settings reach the child, never API credentials,
-# provider overrides, proxy settings, inherited tool config or telemetry secrets.
 _CHILD_ENV_VARS = frozenset(
     {"PATH", "HOME", "CODEX_HOME", "TMPDIR", "LANG", "LC_ALL", "SSL_CERT_FILE", "SSL_CERT_DIR"}
 )
 
-#: Stable ``--disable`` set. Every key below was observed in
-#: ``codex features list`` as ``stable`` + default-on, and each maps to
-#: ``-c features.<key>=false``. Shell/collab removals are additionally
-#: confirmed by tool-registration gates in
-#: ``codex-rs/core/src/tools/spec_plan.rs`` (``Feature::ShellTool``,
-#: ``Feature::UnifiedExec``, ``Feature::Collab``) and the hook runtime gate
-#: on ``Feature::CodexHooks`` (``codex-rs/core/src/session/mod.rs``).
 DISABLED_FEATURES = (
     "shell_tool",
     "unified_exec",
@@ -76,10 +48,6 @@ DISABLED_FEATURES = (
     "skill_mcp_dependency_install",
 )
 
-#: ``ThreadItem`` detail types that are never part of a usable text-only
-#: turn. ``agent_message`` is the response; ``reasoning`` summaries are
-#: ignored. Everything else (including ``todo_list`` plan tracking and any
-#: unknown future item) fails the turn closed.
 _TOOL_ITEM_TYPES = frozenset(
     {
         "command_execution",
@@ -92,9 +60,6 @@ _TOOL_ITEM_TYPES = frozenset(
     }
 )
 
-#: ``codex exec --json`` envelope types (``codex-rs/exec/src/exec_events.rs``).
-#: Anything outside this set fails closed so a future event kind can never
-#: smuggle tool activity past the parser.
 _KNOWN_EVENT_TYPES = frozenset(
     {
         "thread.started",
@@ -108,7 +73,6 @@ _KNOWN_EVENT_TYPES = frozenset(
     }
 )
 
-#: Token fields Codex reports on ``turn.completed``.
 USAGE_FIELDS = (
     "input_tokens",
     "cached_input_tokens",
@@ -117,18 +81,15 @@ USAGE_FIELDS = (
     "reasoning_output_tokens",
 )
 
-# Probe points so deterministic tests can stub the CLI/Keychain boundary
-# without touching stdlib subprocess globally.
 _RUN = subprocess.run
 _POPEN = subprocess.Popen
 
 
 class CodexTransportError(RuntimeError):
-    """Retained transport failure; callers must not automatically retry."""
+    pass
 
 
 def _scrub_env(source: dict[str, str]) -> dict[str, str]:
-    """Drop auth/provider overrides; never add key material."""
     return {key: value for key, value in source.items() if key in _CHILD_ENV_VARS}
 
 
@@ -165,9 +126,6 @@ def _run_probe(argv: list[str], *, timeout: float) -> subprocess.CompletedProces
 
 
 def _startup_warning(item: Any, kind: str, started: bool) -> bool:
-    # Codex serializes nonterminal config/warning notifications as ErrorItem.
-    # Preserve warnings in events.jsonl, but never accept a model reroute.
-    # In-turn errors are fatal except the CLI's bounded reconnect notification.
     return (
         not started
         and kind == "item.completed"
@@ -179,7 +137,6 @@ def _startup_warning(item: Any, kind: str, started: bool) -> bool:
 
 
 def _reconnect_notification(event: dict[str, Any], *, started: bool) -> bool:
-    """A CLI reconnect notice is not a terminal outcome or permission to reroute."""
     message = event.get("message")
     return (
         started
@@ -191,16 +148,6 @@ def _reconnect_notification(event: dict[str, Any], *, started: bool) -> bool:
 
 
 def parse_transcript(path: Path, *, allow_preamble: bool = False) -> tuple[str, dict[str, Any]]:
-    """Accept exactly one completed text-only turn; reject everything else.
-
-    Returns ``(response, usage)`` where ``usage`` is the honest token report
-    from the single ``turn.completed`` event. CLI reconnect notifications are
-    retained, but only a later completed turn can yield text. Fatal error
-    events, failed/missing/repeated completions, empty output, tool attempts,
-    unknown shapes, and oversized transcripts still fail closed.
-    Proposal callers may select the final message after a text preamble;
-    that opt-in never relaxes lifecycle, error, usage or tool-call checks.
-    """
     if path.stat().st_size > MAX_TRANSCRIPT_BYTES:
         raise CodexTransportError("Codex transcript exceeded its bound")
     completions = 0
@@ -285,12 +232,6 @@ def parse_transcript(path: Path, *, allow_preamble: bool = False) -> tuple[str, 
 def _poll_events(
     path: Path, offset: int, pending: bytes, started: bool = False
 ) -> tuple[int, bytes, bool]:
-    """Fail fast on tool/error output while the child is still writing.
-
-    Consumes only complete JSONL records; a trailing partial line (possibly
-    split mid-UTF-8-sequence) stays buffered. Reasoning and agent-message
-    traffic passes; anything else raises.
-    """
     if path.stat().st_size > MAX_TRANSCRIPT_BYTES:
         raise CodexTransportError("Codex output limit reached")
     with path.open("rb") as stream:
@@ -351,7 +292,6 @@ def _execute(
     log_path: Path,
     timeout_seconds: float,
 ) -> None:
-    """Run one CLI invocation, failing fast on tool/error output or timeout."""
     env = _scrub_env(dict(os.environ))
     with (
         events_path.open("ab") as stdout,
@@ -389,7 +329,6 @@ def _execute(
 
 
 class CodexTransport:
-    """One text-only GEPA reflection turn via the Codex subscription CLI."""
 
     def __init__(self, *, repo_root: Path, model: str, timeout_seconds: int = 900):
         self.repo_root = repo_root.resolve()
@@ -410,7 +349,6 @@ class CodexTransport:
         return version, "sha256:" + digest
 
     def preflight(self, *, deadline: float | None = None) -> dict[str, Any]:
-        """Verify the ChatGPT-subscription route; return stable JSON-safe facts."""
         executable = _executable()
         version, digest = self._version_digest(executable, deadline=deadline)
         completed = _run_probe(
@@ -453,13 +391,6 @@ class CodexTransport:
         persist: bool = False,
         resume_thread_id: str | None = None,
     ) -> list[str]:
-        """Pinned argv; the default is the ephemeral single-turn invocation.
-
-        ``persist`` keeps the native rollout so ``resume_thread_id`` can continue
-        it. ``exec resume`` has no ``--sandbox``/``-C`` flags: the read-only
-        policy is the equivalent ``sandbox_mode`` config key and the workspace is
-        the child's process cwd (``config.cwd``), which callers keep identical.
-        """
         if resume_thread_id is not None and not persist:
             raise ValueError("a resumed Codex thread must stay persisted")
         executable = _executable()
@@ -505,7 +436,6 @@ class CodexTransport:
         return argv
 
     def request(self, prompt: str | list[dict[str, Any]], *, directory: Path) -> dict[str, Any]:
-        """Run exactly one completed text-only turn; never retry or fall back."""
         facts = self.preflight()
         if any(part.is_symlink() for part in (directory, *directory.parents)):
             raise ValueError("Proposer directories must not follow symlinks")

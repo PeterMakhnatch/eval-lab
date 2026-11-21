@@ -1,4 +1,3 @@
-"""Derived seed rows for IssueBank; raw evidence is read-only."""
 from __future__ import annotations
 
 import hashlib
@@ -95,7 +94,6 @@ def goodfire(ctx: BankContext):
 
 def _impossible_map(view: dict[str, Any], directory: Path, receipt: dict[str, Any],
                     inputs: dict[str, str]) -> dict[str, Any]:
-    """Replay the retained assistant-order alignment; verify calls, not just ordinals."""
     steps: list[dict[str, Any]] = []
     refs: list[SourceEventRef] = []
     owners: dict[str, int] = {}
@@ -156,7 +154,6 @@ def _impossible_map(view: dict[str, Any], directory: Path, receipt: dict[str, An
 
 
 def _packages(root: Path) -> dict[str, Path]:
-    """Resolve retained task metadata only; never inspect graders or solutions."""
     retention = json.loads((root.parent / "retention/final-source/receipt.json").read_text())
     entries = [entry for entry in retention["paths"]
                if "/tasks-v2/" in entry["path"] and entry["path"].endswith("/meta.json")]

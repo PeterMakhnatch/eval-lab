@@ -1,12 +1,3 @@
-"""The judge's compact card: one screen that answers the guide's five questions for a run.
-
-Built only from the blinded transcript with the lab's own deterministic anatomy and action-index
-helpers (the same ones the AutoReview view uses). It never sees a label, a detector or a model
-verdict. ``hints`` are rule-based pointers (a write to a test-like path, a git-history read, a
-claim that contradicts the last test run); they are the same rules for every run and are
-*not* a detector. Judges can turn them off to measure anchoring.
-"""
-
 from __future__ import annotations
 
 import re
@@ -47,7 +38,6 @@ def build_card(
     hints: bool = True,
     submission: str | None = None,
 ) -> dict[str, Any]:
-    """Structured card for the blinded steps. ``numbers[i]`` is the timeline number of step ``i``."""
     loaded = LoadedRun(
         run_id=run_id, loader="judge", doc={"steps": list(blind_steps)}, submission=submission
     )

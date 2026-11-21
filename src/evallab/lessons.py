@@ -1,14 +1,3 @@
-"""Statistical lesson aggregation views and findings engine (WS-D).
-
-Executes DuckDB aggregation views joining craft facets, trial facts,
-analysis sidecars, and observation records. Applies statistical gating with
-Wilson 95% confidence intervals (via `evallab.cohort.wilson_interval`). Rows
-below the power threshold are labeled 'insufficient n' and never reported
-as generalized findings. Refuse-to-rank propagates from `evallab.cohort`.
-
-Generates `research/lessons.md` with header `generated-by: lessons v1`.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -81,7 +70,6 @@ TRIAL_FACTS_LEDGER_SCHEMA = pa.schema(
 
 @dataclass(frozen=True)
 class LessonRow:
-    """One statistically-gated lesson row derived from an aggregation view."""
 
     lesson_id: str
     view_name: str
@@ -99,7 +87,6 @@ class LessonRow:
 
 @dataclass(frozen=True)
 class LessonRanking:
-    """Pairwise comparative ranking with refuse-to-rank propagated from cohort."""
 
     view_name: str
     dimension_a: str
@@ -112,7 +99,6 @@ class LessonRanking:
 
 @dataclass(frozen=True)
 class LessonsResult:
-    """Aggregate result from executing all lesson views."""
 
     generated_at: datetime
     power_threshold: int
@@ -138,11 +124,9 @@ def collect_lessons_inputs(
     quality_ledger: QualityLedgerRead | None = None,
     trial_parquet_partition_limit: int = 100,
 ) -> list[dict[str, str]]:
-    """Collect all upstream input files aggregated by the lessons generator."""
     resolved_sql = sql_path if sql_path is not None else root / SQL_LESSONS_PATH
     inputs: list[dict[str, str]] = []
 
-    # 1. SQL view file
     if resolved_sql.is_file():
         inputs.append(
             {
@@ -151,7 +135,6 @@ def collect_lessons_inputs(
             }
         )
 
-    # 2. Craft sources
     craft_parquet = root / "derived/parquet/craft/craft.parquet"
     if craft_parquet.is_file():
         inputs.append(
@@ -180,7 +163,6 @@ def collect_lessons_inputs(
                 }
             )
 
-    # 3. Observation records
     obs_dir = root / "research/observations"
     if obs_dir.is_dir():
         for md_path in sorted(obs_dir.rglob("*.md")):
@@ -210,7 +192,6 @@ def collect_lessons_inputs(
                         "digest": compute_file_digest(path),
                     }
                 )
-    # 5. Trial facts parquet partitions (if present)
     trial_parquet_files = sorted(root.glob("derived/parquet/**/trial_facts.parquet"))
     if trial_parquet_files:
         if len(trial_parquet_files) <= trial_parquet_partition_limit:
@@ -223,7 +204,6 @@ def collect_lessons_inputs(
                         }
                     )
         else:
-            # Composite digest over sorted member digests for large collections
             h = hashlib.sha256()
             for pf in trial_parquet_files:
                 h.update(compute_file_digest(pf).encode("utf-8"))
@@ -234,9 +214,6 @@ def collect_lessons_inputs(
                 }
             )
 
-    # 6. Evidence Quality Ledger (shared derived store). When a bound read is
-    # supplied, its digest — taken from the same bytes the rows were parsed
-    # from — is recorded verbatim, closing the read/digest TOCTOU window.
     bound = quality_ledger if quality_ledger is not None else load_quality_ledger_bound(root)
     if bound.path is not None and bound.digest is not None:
         inputs.append(
@@ -250,13 +227,7 @@ def collect_lessons_inputs(
     return inputs
 
 
-# --------------------------------------------------------------------------- #
-# Data Loaders
-# --------------------------------------------------------------------------- #
-
-
 def parse_observation_markdown(path: Path) -> dict[str, Any] | None:
-    """Parse one observatory-1 markdown observation record."""
     try:
         content = path.read_text(encoding="utf-8")
     except OSError:
@@ -337,7 +308,6 @@ def parse_observation_markdown(path: Path) -> dict[str, Any] | None:
 
 
 def load_observation_records(root: Path) -> list[dict[str, Any]]:
-    """Discover and parse all observation records under research/observations."""
     obs_dir = root / "research/observations"
     if not obs_dir.is_dir():
         return []
@@ -353,7 +323,6 @@ def load_observation_records(root: Path) -> list[dict[str, Any]]:
 
 
 def load_craft_records(root: Path) -> list[dict[str, Any]]:
-    """Load craft records from parquet or scan repository task corpora."""
     parquet_path = root / "derived/parquet/craft/craft.parquet"
     if parquet_path.is_file():
         try:
@@ -364,7 +333,6 @@ def load_craft_records(root: Path) -> list[dict[str, Any]]:
         except Exception:
             pass
 
-    # Fallback to deterministic scan
     sources: list[TaskSource] = []
     if (root / "library/tasks").is_dir():
         sources.append(
@@ -416,7 +384,6 @@ def _craft_record_to_dict(r: CraftRecord) -> dict[str, Any]:
 
 
 def load_analysis_sidecars(root: Path) -> list[dict[str, Any]]:
-    """Discover validated production analysis sidecars with file provenance."""
     sidecars: list[dict[str, Any]] = []
     candidate_dirs = [
         root / "derived/analysis",
@@ -456,16 +423,6 @@ def load_analysis_sidecars(root: Path) -> list[dict[str, Any]]:
 
 
 def load_trial_facts(root: Path) -> list[dict[str, Any]]:
-    """Load deterministic trial facts from committed compact-day snapshots.
-
-    Only ``derived/parquet/compact/dt=*/trial_facts.parquet`` is read. The
-    compactor deduplicates these snapshots by primary key, and they are the
-    tracked subset of the derived store, so a fresh checkout reproduces the
-    exact same rows as a workstation with the full live store. Hot
-    ``job_id=`` partitions are intentionally not read here: they duplicate
-    compact rows during the retention window, which would make counts depend
-    on local retention state.
-    """
     trial_parquet_files = list(root.glob("derived/parquet/compact/dt=*/trial_facts.parquet"))
     if trial_parquet_files:
         try:
@@ -484,12 +441,6 @@ def load_trial_facts(root: Path) -> list[dict[str, Any]]:
 
 @dataclass(frozen=True)
 class QualityLedgerRead:
-    """Ledger rows bound to the exact bytes they were parsed from.
-
-    ``digest`` is computed from the same single ``read_bytes()`` payload the
-    rows were deserialized from, so a bytes swap between read and digest
-    recording cannot make the recorded identity describe different content.
-    """
 
     rows: tuple[dict[str, Any], ...]
     digest: str | None
@@ -501,15 +452,6 @@ def load_quality_ledger_bound(
     *,
     derived_root: Path | None = None,
 ) -> QualityLedgerRead:
-    """Read the Evidence Quality Ledger once, binding digest to parsed bytes.
-
-    The ledger is read from the tracked repository snapshot
-    (``derived/parquet/trajectory_quality_reports.parquet``), not the live
-    derived store: the snapshot is what the committed lessons.md was rendered
-    from, so every checkout — clean or not — reproduces the artifact
-    byte-for-byte. Updating the projection means refreshing the snapshot and
-    regenerating in the same change.
-    """
     resolved = derived_root if derived_root is not None else root / "derived/parquet"
     reports_path = resolved / f"{QUALITY_REPORT_TABLE}.parquet"
     if not reports_path.is_file():
@@ -536,14 +478,6 @@ TRAJECTORY_QUALITY_REPORTS_SCHEMA = pa.schema(
 def _canonical_quality_rows(
     quality_reports: Sequence[dict[str, Any]],
 ) -> list[dict[str, str]]:
-    """Canonicalize raw ledger rows into a conflict-free quality join table.
-
-    One status per ``(job_id, trial_id)`` identity. Ledger rows that carry no
-    job identity (empty ``job_id``) are kept only while they are the trial's
-    sole identity in the ledger — the SQL-side join may then bind them to the
-    trial under any job. Conflicting statuses for one identity are dropped,
-    never guessed, and the output is deterministic regardless of row order.
-    """
     pair_statuses: dict[tuple[str, str], set[str]] = {}
     trial_job_ids: dict[str, set[str]] = {}
     for report in quality_reports:
@@ -558,9 +492,9 @@ def _canonical_quality_rows(
     rows: list[dict[str, str]] = []
     for (job_id, trial_id), statuses in sorted(pair_statuses.items()):
         if len(statuses) != 1:
-            continue  # conflicting authority: unbound, never guessed
+            continue
         if job_id == "" and trial_job_ids[trial_id] != {""}:
-            continue  # a real job identity exists: the empty shadow is redundant
+            continue
         rows.append({"job_id": job_id, "trial_id": trial_id, "status": next(iter(statuses))})
     return rows
 
@@ -575,14 +509,6 @@ def populate_duckdb(
     quality_reports: Sequence[dict[str, Any]] = (),
     sql_path: Path | None = None,
 ) -> None:
-    """Populate DuckDB with in-memory tables and execute view definitions.
-
-    ``quality_reports`` are the raw Evidence Quality Ledger rows. They are
-    canonicalized into a conflict-free ``trajectory_quality_reports`` table
-    (one status per ``(job_id, trial_id)`` identity; ambiguous or conflicting
-    ledger rows are dropped, never guessed) so ``sql/lessons.sql`` can join
-    quality authority directly inside the frozen views.
-    """
     t_craft = pa.Table.from_pylist(list(craft_records), schema=CRAFT_SCHEMA)
     t_trials = pa.Table.from_pylist(list(trial_facts), schema=TRIAL_FACTS_LEDGER_SCHEMA)
     t_quality = pa.Table.from_pylist(
@@ -592,8 +518,6 @@ def populate_duckdb(
     t_analysis = pa.Table.from_pylist(list(analysis_sidecars), schema=ANALYSIS_SIDECAR_SCHEMA)
     t_obs = pa.Table.from_pylist(list(observation_records), schema=OBSERVATION_RECORD_SCHEMA)
 
-    # Fail loudly on any schema-driven row loss: a silent mismatch between
-    # loaded rows and registered tables once rendered a vacuous artifact.
     for name, table, source in (
         ("craft", t_craft, craft_records),
         ("trial_facts", t_trials, trial_facts),
@@ -617,9 +541,6 @@ def populate_duckdb(
         con.execute(resolved_sql.read_text(encoding="utf-8"))
 
 
-# The views end in their own ORDER BY, but restating each frozen ordering and
-# extending it with the remaining group keys keeps row order — and therefore
-# lesson ids — total and deterministic.
 _VIEW_ORDER_BY: dict[str, str] = {
     "v_outcome_by_verifier_type": "v.source_repo, v.n DESC, v.verifier_type",
     "v_loop_rate_by_env": (
@@ -637,13 +558,6 @@ _VIEW_ORDER_BY: dict[str, str] = {
 def execute_lessons_views(
     con: duckdb.DuckDBPyConnection,
 ) -> dict[str, list[dict[str, Any]]]:
-    """Query each lesson view and return dictionary of row dictionaries.
-
-    The views live in ``sql/lessons.sql`` and expose their ledger quality
-    decomposition natively (``quality_pass_n``/``quality_warn_n``/
-    ``quality_fail_n``/``quality_quarantine_n``). The explicit ordering keeps
-    row order — and therefore lesson ids — total and deterministic.
-    """
     views = ["v_failure_by_facet", "v_loop_rate_by_env", "v_outcome_by_verifier_type"]
     results: dict[str, list[dict[str, Any]]] = {}
 
@@ -663,14 +577,12 @@ def apply_statistical_gating(
     *,
     power_threshold: int = DEFAULT_POWER_THRESHOLD,
 ) -> dict[str, list[LessonRow]]:
-    """Transform raw view rows into statistically-gated LessonRow entries."""
     lessons: dict[str, list[LessonRow]] = {
         "v_failure_by_facet": [],
         "v_loop_rate_by_env": [],
         "v_outcome_by_verifier_type": [],
     }
 
-    # 1. v_failure_by_facet
     for idx, row in enumerate(view_rows.get("v_failure_by_facet", []), start=1):
         n = int(row.get("n", 0))
         failures = int(row.get("failures_n", 0))
@@ -729,7 +641,6 @@ def apply_statistical_gating(
             )
         )
 
-    # 2. v_loop_rate_by_env
     for idx, row in enumerate(view_rows.get("v_loop_rate_by_env", []), start=1):
         n = int(row.get("n", 0))
         loops = int(row.get("loops_n", 0))
@@ -784,7 +695,6 @@ def apply_statistical_gating(
             )
         )
 
-    # 3. v_outcome_by_verifier_type
     for idx, row in enumerate(view_rows.get("v_outcome_by_verifier_type", []), start=1):
         n = int(row.get("n", 0))
         passed = int(row.get("passed_n", 0))
@@ -850,7 +760,6 @@ def compare_lesson_rows(
     row_a: LessonRow,
     row_b: LessonRow,
 ) -> LessonRanking:
-    """Compare two lesson rows with refusal-to-rank propagated from cohort."""
     reasons: list[str] = []
 
     if not row_a.powered or not row_b.powered:
@@ -909,7 +818,6 @@ def compare_lesson_rows(
 def rank_lesson_rows(
     rows: Sequence[LessonRow],
 ) -> list[LessonRanking]:
-    """Pairwise rank a collection of lesson rows within a view."""
     rankings: list[LessonRanking] = []
     for i in range(len(rows)):
         for j in range(i + 1, len(rows)):
@@ -924,7 +832,6 @@ def build_lessons(
     sql_path: Path | None = None,
     generated_at: datetime | None = None,
 ) -> LessonsResult:
-    """Build and evaluate statistical lesson aggregation views across repo data."""
     craft_records = load_craft_records(root)
     observations = load_observation_records(root)
     sidecars = load_analysis_sidecars(root)
@@ -980,11 +887,6 @@ def build_lessons(
     )
 
 
-# --------------------------------------------------------------------------- #
-# Markdown Report Generation
-# --------------------------------------------------------------------------- #
-
-
 def _format_ci(interval: tuple[float, float] | None) -> str:
     if interval is None:
         return "n/a"
@@ -993,7 +895,6 @@ def _format_ci(interval: tuple[float, float] | None) -> str:
 
 
 def _quality_counts(details: dict[str, Any]) -> tuple[int, int, int, int]:
-    """Ledger pass/warn/fail/quarantine counts recorded on a view row."""
     return (
         int(details.get("quality_pass_n", 0) or 0),
         int(details.get("quality_warn_n", 0) or 0),
@@ -1003,12 +904,10 @@ def _quality_counts(details: dict[str, Any]) -> tuple[int, int, int, int]:
 
 
 def _quality_cells(counts: tuple[int, int, int, int]) -> str:
-    """Render the four ledger count cells of a lesson table row."""
     return f"{counts[0]} | {counts[1]} | {counts[2]} | {counts[3]}"
 
 
 def render_lessons_markdown(result: LessonsResult) -> str:
-    """Render structured markdown report matching research/lessons.md specification."""
     rec_sum = result.records_summary
     lines: list[str] = [
         "---",
@@ -1255,7 +1154,6 @@ def render_lessons_markdown(result: LessonsResult) -> str:
 
 
 def check_lessons_freshness(root: Path, target: Path | None = None) -> bool:
-    """Return whether committed lessons exactly match current source inputs."""
     lessons_path = target if target is not None else root / "research/lessons.md"
     if not lessons_path.is_file():
         return False
@@ -1276,7 +1174,6 @@ def check_lessons_freshness(root: Path, target: Path | None = None) -> bool:
 
 
 def main() -> int:
-    """Check the committed lessons projection from a clean checkout."""
     root = Path.cwd()
     if not check_lessons_freshness(root):
         print("research/lessons.md is stale; regenerate with evallab.lessons")

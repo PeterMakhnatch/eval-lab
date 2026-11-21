@@ -1,42 +1,3 @@
-"""Reference-subset probe: does part of the reference fix already pass the hidden tests?
-
-QA Agent - Task, S2 executed probe (a sibling of ``evallab hack mutate``). For a
-task with a known reference fix (the MiMo ``mimo-reference-fixes/index.csv``),
-the reference diff is split into *change blocks*: contiguous runs of edited
-lines per file, computed on the base and fixed file contents. Each grade puts a
-subset of the blocks on the task's base checkout and runs the task's own hidden
-tests (``tests/test.sh``). A greedy minimisation drops what the tests do not
-need:
-
-1. baselines: the full reference must earn reward 1 and the base (no block) 0;
-2. drop every documentation- or comment-only block at once;
-3. drop each file's code blocks, largest file first;
-4. drop each remaining code block, largest first;
-5. grade the final subset again (a flake guard).
-
-A dropped code block is reference behaviour no hidden test needs. When the kept
-subset is a small part of the reference, a partial fix earns full reward: the
-task is weakly tested. Every finding carries the kept subset as a
-``git apply``-able reproducer with expected reward 1. A dropped block is a
-hypothesis, not a proven defect: it can be a refactor, a log line or a
-defensive branch the instruction never asks for, so read ``dropped.patch``.
-Blocks are the smallest unit: a single block that the tests only half need is
-``hack mutate``'s job.
-
-Grading defaults to local Docker; Modal is explicit and spend-gated. Raw MiMo
-and separate-verifier grades start from prepared snapshots. Ordinary shared
-Harbor tasks instead use native, host-isolated one-worker matrices with their
-unchanged manifest and explicit ``--target`` files (or declared artifacts).
-Every candidate applies only the complete selected-file mapping to fresh base,
-without replaying the reference. An independently passing full-target
-reconstruction is required. The QA task route owns plan-only reporting.
-
-QA Agent - Trace, T0: ``trace`` compares a passing trial's
-``verifier/agent.diff`` with the task report. A pass whose diff leaves every
-untested reference block alone, while touching the tested ones, is a suspected
-partial fix (``false_positive``, unverified until someone runs stronger tests).
-"""
-
 from __future__ import annotations
 
 import ast
@@ -74,11 +35,8 @@ STAGE_TASK = "S2.ref_subset"
 STAGE_MUTANTS = "S2.ref_mutants"
 REVIEWER = {"agent": "evallab hack ref-subset", "model": None, "tokens": 0, "cost_usd": 0.0}
 
-#: Kept share of the reference's code lines at or below which a passing subset is
-#: "trivial" (high severity) or "half" (medium); anything dropped above is low.
 HIGH_KEEP = 0.25
 MEDIUM_KEEP = 0.5
-#: Grades per task including both baselines and the confirmation.
 DEFAULT_MAX_GRADES = 24
 
 BlockKind = Literal["code", "comment", "noncode", "test"]
@@ -88,15 +46,11 @@ Status = Literal[
 
 _DOC_SUFFIXES = frozenset({".md", ".rst", ".txt", ".adoc", ".rdoc"})
 _DOC_NAMES = ("changelog", "changes", "history", "news", "authors", "contributors")
-#: Directories whose files are documentation, examples or CI plumbing, not graded code.
 _NONCODE_DIRS = frozenset(
     {"doc", "docs", "example", "examples", "sample", "samples", "benchmark", "benchmarks",
      ".github", ".circleci"}
 )  # fmt: skip
-#: Top-level release-note fragment directories (towncrier and friends); only at the root,
-#: because a package may well be called ``news`` or ``changes``.
 _RELEASE_NOTE_DIRS = frozenset({"news", "changes", "changelog.d", "newsfragments"})
-#: Packaging manifests, lock files and repository dotfiles: never what a hidden test exercises.
 _NONCODE_NAMES = frozenset(
     {"manifest.in", "go.sum", "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "cargo.lock",
      "poetry.lock", "pipfile.lock", "uv.lock", "composer.lock", "gemfile.lock", ".gitignore",
@@ -113,16 +67,12 @@ _SLASH_COMMENT = frozenset(
 _RESET_LIST = re.compile(r"<<'EOF_RESET_TEST_FILES'\n(.*?)\nEOF_RESET_TEST_FILES", re.S)
 
 
-# ---------------------------------------------------------------------------
-# Change blocks
-
-
 @dataclass(frozen=True)
 class Block:
     id: str
     path: str
     kind: BlockKind
-    base_start: int  # 0-based, half-open line range in the base file
+    base_start: int
     base_end: int
     removed: int
     added: int
@@ -138,12 +88,10 @@ class FileChange:
     base: bytes | None
     fixed: bytes | None
     blocks: list[Block] = field(default_factory=list)
-    # (tag, i1, i2, j1, j2, block_id|None) over base/fixed lines; None for opaque files
     ops: list[tuple[str, int, int, int, int, str | None]] | None = None
 
 
 def _noncode_path(path: str) -> bool:
-    """Docs, release notes, packaging and repo plumbing, and interpreter byte-code caches."""
     pure = PurePosixPath(path)
     name = pure.name.lower()
     suffix = pure.suffix.lower()
@@ -189,7 +137,6 @@ def file_change(path: str, base: bytes | None, fixed: bytes | None, tests: set[s
     base_lines = _lines(base) if base is not None else []
     fixed_lines = _lines(fixed) if fixed is not None else []
     if (base is None) != (fixed is None) and base_lines == [] and fixed_lines == []:
-        # Creating/deleting an empty file is still a real filesystem change.
         kind = "test" if path in tests else "noncode" if _noncode_path(path) else "code"
         change.blocks.append(Block(f"{path}#0", path, kind, 0, 0, 1, 1))
         return change
@@ -216,7 +163,6 @@ def file_change(path: str, base: bytes | None, fixed: bytes | None, tests: set[s
 
 
 def _python_shape(source: bytes | None) -> str | None:
-    """The module's AST without docstrings (``None``: absent or unparsable)."""
     if source is None:
         return None
     try:
@@ -237,7 +183,6 @@ def _python_shape(source: bytes | None) -> str | None:
 
 
 def _mark_python_neutral(change: FileChange) -> None:
-    """Reclassify code blocks whose removal leaves the AST unchanged (docstrings, formatting)."""
     everything = {block.id for block in change.blocks}
     reference = _python_shape(compose(change, everything))
     if reference is None:
@@ -251,7 +196,6 @@ def _mark_python_neutral(change: FileChange) -> None:
 
 
 def compose(change: FileChange, keep: set[str]) -> bytes | None:
-    """The file with only the kept blocks applied (``None``: the file is absent)."""
     if change.ops is None:
         return change.fixed if change.blocks[0].id in keep else change.base
     applied = [block.id for block in change.blocks if block.id in keep]
@@ -284,7 +228,6 @@ def patch_paths(patch: str) -> list[str]:
 
 
 def apply_reference(patch: str, base: dict[str, bytes | None]) -> dict[str, bytes | None]:
-    """Apply the reference patch to the base files on the host (``git apply``)."""
     with tempfile.TemporaryDirectory(prefix="ref-subset-") as tmp:
         root = Path(tmp)
         for path, data in base.items():
@@ -314,7 +257,6 @@ def unified_patch(
     before_modes: dict[str, int | None] | None = None,
     after_modes: dict[str, int | None] | None = None,
 ) -> str:
-    """A base-applicable Git patch; optional modes preserve Git's executable bit."""
     with tempfile.TemporaryDirectory(prefix="ref-subset-diff-") as tmp:
         root = Path(tmp)
         git = ["git", "-c", "user.name=ref-subset", "-c", "user.email=ref-subset@localhost"]
@@ -344,21 +286,12 @@ def unified_patch(
         ).stdout
 
 
-# ---------------------------------------------------------------------------
-# Task packages and Docker grading
-
-
 class UnsupportedTask(ValueError):
-    """A well-formed task this probe cannot reproduce (sidecar or remapped artifacts)."""
+    pass
 
 
 @dataclass(frozen=True)
 class Package:
-    """A raw MiMo code package, or a Harbor task whose verifier runs separately on artifacts.
-
-    MiMo packages come with a reference patch; separate-verifier packages derive the reference
-    from their own oracle (``solution/solve.sh``) and are graded on ``artifacts`` alone.
-    """
 
     path: Path
     task_id: str
@@ -443,7 +376,6 @@ class Package:
             float(timeout) if timeout else None, oracle_network,
             bool(verifier_environment.get("allow_internet", oracle_network)),
             None if user is None else str(user),
-            # Host-templated values (``${VAR}``) are secrets Harbor resolves on the host: skipped.
             tuple((str(k), str(v)) for k, v in sorted(env.items()) if "${" not in str(v)),
         )  # fmt: skip
 
@@ -451,14 +383,6 @@ class Package:
 def modal_execution_bound(
     *, max_grades: int = DEFAULT_MAX_GRADES, mutants: int = 0, separate: bool = True
 ) -> int:
-    """Conservative reservation count, including image preparation and reads.
-
-    Native creation retains its two-attempt retry: both attempts reserve before
-    entering the provider boundary, even when the second attempt is unused.
-    Raw MiMo uses one preparation sandbox; separate tasks use an oracle and a
-    pristine verifier template. Each preparation also reserves image work.
-    Reads share those sandboxes, and each grade clones the native snapshot.
-    """
     return (6 if separate else 3) + 2 * (max(4, max_grades) + max(0, mutants))
 
 
@@ -500,13 +424,6 @@ def _docker(
     return subprocess.run(["docker", *args], input=input, capture_output=True, timeout=timeout)
 
 
-#: ``docker exec`` in the bare MiMo images resolves ``python3`` to the
-#: image's 3.6 interpreter, whose syntax cannot run the setup heredocs;
-#: pin PATH the way Modal execs already do (see
-#: execution_contracts.MODAL_PATH_PIN; 001948, measured 2026-10-16).
-#: The pinned /usr/bin interpreter has no pip in these images, so the
-#: setup exec also sets PIP_NO_CACHE_DIR=1: setup's own cache-disabled
-#: branch then purges the on-disk pip cache directories directly.
 _PATH_PIN: tuple[str, ...] = ("-e", f"PATH={MODAL_PATH_PIN}", "-e", "PIP_NO_CACHE_DIR=1")
 
 
@@ -529,7 +446,6 @@ def _tar(files: dict[str, tuple[bytes, int]]) -> bytes:
 
 
 class Sandbox:
-    """One snapshot per task (image + setup); one throwaway container per grade."""
 
     def __init__(self, package: Package, *, memory: str = "4g", cpus: str = "2") -> None:
         self.package = package
@@ -660,9 +576,7 @@ def _verify(
     *,
     tail_chars: int = 2_000,
 ) -> Grade:
-    """Run ``/tests/test.sh`` in container ``name`` and score ``/logs/verifier/reward.txt``."""
     try:
-        # HAR-449: match ref_subset_modal.ModalSandbox._grade's reward reset.
         _check(
             _docker(
                 "exec",
@@ -693,7 +607,6 @@ def _verify(
 
 
 def _dockerfile_bases(dockerfile: Path) -> list[str]:
-    """Registry images a Dockerfile builds ``FROM`` (stage aliases, ``scratch`` and ARGs skipped)."""
     stages: set[str] = set()
     bases: list[str] = []
     for line in dockerfile.read_text().splitlines():
@@ -709,11 +622,6 @@ def _dockerfile_bases(dockerfile: Path) -> list[str]:
 
 
 class SeparateSandbox:
-    """A Harbor separate-verifier task: the oracle runs once in the task environment, and every
-    grade is a fresh verifier container that receives only the artifacts, the way Harbor uploads
-    them (absent artifacts skipped, directory artifacts emptied first). Unlike the MiMo sandbox,
-    containers keep Docker's default network: the oracle and the verifier may install packages.
-    """
 
     def __init__(
         self,
@@ -735,7 +643,6 @@ class SeparateSandbox:
         self.modes: dict[str, int] = {}
         self.dirs: set[str] = set()
         self.pulled: list[str] = []
-        # Artifact files the oracle left as they were: Harbor uploads them with every submission.
         self.unchanged: dict[str, bytes] = {}
 
     def _run(self, image: str, name: str, *, network: bool) -> None:
@@ -771,7 +678,6 @@ class SeparateSandbox:
             _check(result, f"build the {what} image")
 
     def _read(self, name: str) -> dict[str, bytes]:
-        """Every regular file under the artifact paths, keyed relative to ``/``."""
         script = 'for p in "$@"; do if [ -d "/$p" ]; then echo "D $p"; elif [ -e "/$p" ]; then echo "F $p"; fi; done'
         relative = [artifact.lstrip("/") for artifact in self.package.artifacts]
         listing = _check(
@@ -798,7 +704,6 @@ class SeparateSandbox:
         return out
 
     def reference(self) -> tuple[dict[str, bytes | None], dict[str, bytes | None]]:
-        """The artifacts before and after the task's own oracle (``solution/solve.sh``)."""
         name = f"{self.name}-oracle"
         self._run(self.image, name, network=self.package.oracle_network)
         try:
@@ -862,10 +767,6 @@ class SeparateSandbox:
             _docker("rmi", base)
 
 
-# ---------------------------------------------------------------------------
-# Minimisation
-
-
 @dataclass
 class Probe:
     changes: list[FileChange]
@@ -885,7 +786,7 @@ class Probe:
     def _budget(self) -> bool:
         return (
             len(self.grades) < self.max_grades - 1
-        )  # one grade stays reserved for the confirmation
+        )
 
     def run(self) -> tuple[Status, set[str], str]:
         blocks = self.blocks
@@ -973,15 +874,6 @@ def mutation_pass(
     seed: str,
     tests: frozenset[str] = frozenset(),
 ) -> tuple[dict[str, Any], dict[str, bytes | None]]:
-    """Line-level pass inside the reference, with ``hack mutate``'s one-edit operators.
-
-    Every mutant is the full reference with one edit on a line the reference wrote (comparison
-    boundaries, ``and``/``or``, dropped operands and statements, negated conditions, ...), graded
-    like any subset. A survivor (reward 1) is behaviour inside a block the tests need that no test
-    pins down: the gap a partial fix slips through and block drops cannot see. Reverting a whole
-    hunk is the block probe's job and is left out. The baselines are graded here when the block
-    probe never ran them. Returns the summary and each survivor's file bytes by mutant id.
-    """
     full = {c.path: c.fixed for c in changes if c.path not in tests}
     base = {c.path: c.base for c in changes if c.path not in tests}
     by_label = {grade.label: grade for grade in grades}
@@ -1049,7 +941,6 @@ def _record(grades: list[Grade], grade: Grade) -> Grade:
 
 
 def mutants_finding(report: dict[str, Any], out_dir: Path) -> dict[str, Any]:
-    """The ``qa.finding/v1`` for the line-level pass of one task."""
     summary = report["mutants"]
     survivors = summary.get("survivors") or []
     if summary["verdict"] == "fail":
@@ -1196,12 +1087,7 @@ def finding(report: dict[str, Any], out_dir: Path) -> dict[str, Any]:
     }
 
 
-# ---------------------------------------------------------------------------
-# One task
-
-
 def _shared_config(path: Path) -> dict[str, Any] | None:
-    """Select native shared tasks without widening the two legacy Package variants."""
     from evallab.verifier_mutation import _task_config
 
     config = _task_config(path)
@@ -1233,7 +1119,7 @@ def _shared_targets(path: Path, config: dict[str, Any], targets: Sequence[str]) 
         raise UnsupportedTask("native ref-subset supports one sandbox, not task Compose services")
     if (config.get("environment") or {}).get("gpus"):
         raise UnsupportedTask("native ref-subset cannot admit a local GPU task")
-    docker_task_resources(path)  # Local manifest validation only; never lower its limits.
+    docker_task_resources(path)
     timeout = (config.get("agent") or {}).get("timeout_sec")
     if (
         isinstance(timeout, bool)
@@ -1262,7 +1148,6 @@ def _shared_targets(path: Path, config: dict[str, Any], targets: Sequence[str]) 
 
 
 def _native_path_checks(target: str) -> str:
-    """Refuse symlinks (including ancestors), directories and special files."""
     pure = PurePosixPath(target)
     lines = []
     for parent in [*reversed(pure.parents), pure]:
@@ -1333,7 +1218,6 @@ def _native_captured_files(
 def _native_overlay_script(
     files: dict[str, bytes | None], modes: dict[str, int | None]
 ) -> str:
-    """Only selected files on fresh base; exact bytes with no interpreter/decoder dependency."""
     lines = ["#!/usr/bin/env bash\n# ref-subset: selected files on fresh base; no reference replay\nset -e\n"]
     for path, data in sorted(files.items()):
         lines.append(_native_path_checks(path))
@@ -1401,7 +1285,7 @@ def _probe_shared_task(
     digests = compute_task_digests(package_dir)
     solve_bytes = (package_dir / "solution/solve.sh").read_bytes()
     try:
-        solve = solve_bytes.decode("utf-8")  # Preserve CRLF and the intact reference/helper body.
+        solve = solve_bytes.decode("utf-8")
     except UnicodeDecodeError as exc:
         return _write_skipped(
             task_id, package_dir, out_dir, "not_applicable",
@@ -1458,7 +1342,6 @@ def _probe_shared_task(
         common = {"matrix_id": matrix.matrix_id, "matrix": str(matrix_path.relative_to(repo))}
         for entry in matrix.runs:
             bindings[entry.name] = dict(common)
-        # One shared FIFO owner per sequential matrix; Executor does not acquire a nested slot.
         with docker_slot(label=matrix.name, slots=2, timeout=timeout):
             required_cpu, required_mb = docker_task_resources(package_dir)
             try:
@@ -1467,11 +1350,6 @@ def _probe_shared_task(
             except ValueError as exc:
                 if "unbounded CPU or memory" not in str(exc):
                     raise
-                # Pre-existing host services (e.g. local Postgres) are unbounded
-                # but are not competing benchmark sandboxes; fail-closed
-                # subtraction would make every native run impossible on this
-                # host. Fall back to daemon capacity minus the same 2 CPU /
-                # 2 GiB controller reserve, and disclose the mode in evidence.
                 info = json.loads(subprocess.run(
                     ["docker", "info", "--format", "{{json .}}"],
                     capture_output=True, text=True, check=True, timeout=10,
@@ -1735,17 +1613,6 @@ def probe_task(
     mutation_seed: str | None = None,
     log: Callable[[str], None] = print,
 ) -> dict[str, Any]:
-    """Probe one task and write report.json, finding.json and the patches to ``out_dir``.
-
-    A MiMo package needs ``patch_path``; a separate-verifier package takes its reference from
-    its own oracle and records it as ``reference.patch`` (over the artifacts, relative to ``/``).
-    ``mutants`` > 0 adds the line-level pass (:func:`mutation_pass`): ``report["mutants"]``,
-    ``finding-mutants.json`` and one reproducer per survivor in ``mutants/``.
-    Shared-verifier tasks use unchanged native matrices and selected ``targets`` (absolute files).
-    Native output must be inside ``repo_root`` (defaults to this checkout); the legacy memory
-    and timeout arguments do not override native manifest limits. ``mutation_seed`` overrides
-    the default task-id seed for deterministic line-mutant selection.
-    """
     _check_environment(environment, spend_gate)
     if environment == "modal" and mutants < 0:
         raise ValueError("Modal mutant count must be nonnegative")
@@ -1983,10 +1850,6 @@ def _package_digest(path: Path) -> str | None:
         return task_directory_digest(path)
     except (ImportError, ValueError, OSError):
         return None
-
-
-# ---------------------------------------------------------------------------
-# Sweep over a reference-fix index
 
 
 def _write_skipped(

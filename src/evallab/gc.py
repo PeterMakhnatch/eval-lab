@@ -1,10 +1,3 @@
-"""Disk discipline for unpromoted Harbor job directories.
-
-Completed, ingested, projected, unpromoted jobs under ``runs/`` are compressed
-after 14 days and pruned after 60. Each action leaves a tombstone. Default
-mode is a dry-run plan; ``--apply`` mutates. Time and catalog I/O are injected.
-"""
-
 from __future__ import annotations
 
 import json
@@ -236,11 +229,6 @@ INGEST_LEDGER_RELATIVE = Path("derived") / "ingest-ledger.jsonl"
 
 
 class FilesystemCatalog:
-    """Durable catalog: parquet + ingest ledger + derived/gc-catalog.json.
-
-    ``set_path`` rewrites ``derived/gc-catalog.json`` so a new process load
-    sees the tombstone. Optional SQL retarget updates Postgres when available.
-    """
 
     def __init__(
         self,
@@ -478,7 +466,6 @@ def plan_gc(
         archive = archive_path(runs, job_id)
         target = archive if archive.is_file() else stone
         if not archive.is_file() and not (runs / job_name).exists():
-            # Already pruned except tombstone — do not treat the tombstone as reclaim.
             continue
         plan.actions.append(
             GcAction(

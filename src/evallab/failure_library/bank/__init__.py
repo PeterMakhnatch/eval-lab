@@ -1,23 +1,3 @@
-"""``issue-bank/v1``: one inventory of every known-issue item across all sources.
-
-An *issue item* is one labelled subject (a run, a task, or a grader repair)
-from one source, with its provenance, label type and granularity, effective
-split after the strict cross-key check, licence, and whether an actor
-transcript exists. Real negatives (clean controls) are items too, with
-``polarity = "negative"``: they are what false-alarm rates are measured on.
-
-Each module in :mod:`evallab.failure_library.bank.sources` exposes ``SOURCE``
-(its slug) and ``build(ctx) -> Iterable[IssueItem | SourceSummary]``. Modules are
-discovered in name order, so sources are added without editing a shared file.
-
-Storage follows the Failure Library split between local bytes and committed
-provenance: items live in ``<state>/bank/<source>.jsonl`` (local only, never
-uploaded); the committed ``research/failure-library/bank/manifest.json`` holds
-per-source counts and digests only, never item ids or content. Sources whose
-rows may not be stored anywhere (HackBench) contribute a :class:`SourceSummary`
-of counts instead of items.
-"""
-
 from __future__ import annotations
 
 import fcntl
@@ -52,26 +32,26 @@ SCHEMA_VERSION: Literal["issue-bank/v1"] = "issue-bank/v1"
 MANIFEST_PATH = Path("research/failure-library/bank/manifest.json")
 
 Kind = Literal[
-    "cheat",  # the agent gamed the grader or reached answer material
-    "grader_wrong_pass",  # the grader accepts a wrong solution
-    "grader_unfair_fail",  # the grader rejects a correct solution
-    "task_defect",  # task/spec/environment defect that is not one of the two above
-    "grader_repair",  # a before/after pair: weak grader and its repair
-    "infra",  # the run failed for infrastructure reasons
-    "loop",  # the agent repeated itself without progress
-    "runaway",  # too many steps/tokens/time for the task
-    "latency",  # abnormally slow steps or phases
+    "cheat",
+    "grader_wrong_pass",
+    "grader_unfair_fail",
+    "task_defect",
+    "grader_repair",
+    "infra",
+    "loop",
+    "runaway",
+    "latency",
 ]
 Polarity = Literal["positive", "negative"]
 LabelType = Literal[
-    "executed",  # a grader/test/container execution established it
-    "human",  # a person labelled it (publisher annotation, review)
-    "judge",  # a model judge or monitor labelled it
-    "consensus",  # several labellers agreed (e.g. tier2_consensus_labeled)
-    "construction",  # true by construction (injected cheat, synthetic defect)
-    "upstream_fix",  # upstream later fixed it
-    "static",  # static reading of grader/task code, not executed
-    "detector",  # a deterministic detector fired (weak label)
+    "executed",
+    "human",
+    "judge",
+    "consensus",
+    "construction",
+    "upstream_fix",
+    "static",
+    "detector",
 ]
 Granularity = Literal[
     "run", "step", "passage", "command", "segment", "task", "test", "repair_pair"
@@ -90,13 +70,6 @@ _HELD_LOCKS: dict[Path, tuple[BinaryIO, int]] = {}
 
 @contextmanager
 def bank_writer_lock(bank: IssueBank) -> Iterator[None]:
-    """Serialize writers sharing either a manifest or local item directory.
-
-    Locks live outside the checkout, and are keyed by the protected path rather
-    than ``state_root`` alone: two state roots can still share one manifest.
-    The process lock makes the file locks thread-safe and reentrant, so the core
-    build hook can nest inside a refresh without acquiring its own lock twice.
-    """
     lock_root = Path(tempfile.gettempdir()) / f"evallab-issue-bank-locks-{os.getuid()}"
     keys = sorted(
         {str(bank.manifest_path.resolve()), str(bank.items_root.resolve())}
@@ -135,17 +108,15 @@ def bank_writer_lock(bank: IssueBank) -> Iterator[None]:
 
 
 def make_item_id(source: str, subject_id: str, kind: str, locator: str = "") -> str:
-    """Deterministic id: the same labelled subject from one source maps to one id."""
     material = f"{source}\x1f{subject_id}\x1f{kind}\x1f{locator}"
     return "ib-" + hashlib.sha256(material.encode("utf-8")).hexdigest()[:16]
 
 
 class Provenance(ContractModel):
-    """Where the item's label came from, precisely enough to re-read it."""
 
-    store: str = Field(min_length=1)  # e.g. "cloud-trace-db:agent_traces"
-    ref: str = Field(min_length=1)  # row key, file#row, PR number, ...
-    digest: str | None = None  # sha256 of the source bytes when known
+    store: str = Field(min_length=1)
+    ref: str = Field(min_length=1)
+    digest: str | None = None
     note: str | None = Field(default=None, max_length=300)
     who: str | None = None
     how: str | None = None
@@ -153,7 +124,6 @@ class Provenance(ContractModel):
 
 
 class ExposureEvent(ContractModel):
-    """An exposure fact, separate from the protected split assignment."""
 
     consumer: str
     purpose: str
@@ -162,7 +132,6 @@ class ExposureEvent(ContractModel):
 
 
 class IssueItem(ContractModel):
-    """One labelled subject from one source."""
 
     schema_version: Literal["issue-bank/v1"] = SCHEMA_VERSION
     item_id: str = Field(pattern=r"^ib-[0-9a-f]{16}$")
@@ -170,18 +139,18 @@ class IssueItem(ContractModel):
     kind: Kind
     polarity: Polarity | None
     label_type: LabelType
-    label: str = Field(min_length=1, max_length=200)  # source-native label text
+    label: str = Field(min_length=1, max_length=200)
     granularity: Granularity
     subject_type: SubjectType
     subject_id: str = Field(min_length=1)
     task_id: str | None = None
-    locator: str = ""  # finer position inside the subject (steps, test, finding id)
-    positive_units: int | None = Field(default=None, ge=0)  # labelled steps/commands
-    declared_split: str = Field(min_length=1)  # as the source declares it
-    split: Split  # after the strict cross-key check
+    locator: str = ""
+    positive_units: int | None = Field(default=None, ge=0)
+    declared_split: str = Field(min_length=1)
+    split: Split
     license: str | None = None
-    actor_transcript: bool | None = None  # None: the source does not say
-    harness_selector: str | None = None  # how `evallab trace run --runs` reaches it
+    actor_transcript: bool | None = None
+    harness_selector: str | None = None
     provenance: Provenance
     label_state: Literal["executed-positive", "reviewed-control", "attempted", "unjudged"] | None = None
     protocol: Literal["action-v1", "action-v2"] | None = None
@@ -202,7 +171,6 @@ class IssueItem(ContractModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     def gold_exclusion(self) -> dict[str, str] | None:
-        """Keep source exclusions separate from historical labels and custody."""
         from evallab.gold.exclusions import source_exclusion
 
         return (
@@ -242,7 +210,6 @@ class IssueItem(ContractModel):
 
 
 class SourceSummary(ContractModel):
-    """Counts for a source whose rows must not be stored (no rehosting)."""
 
     source: str = Field(pattern=_SLUG)
     kind: Kind
@@ -256,7 +223,6 @@ class SourceSummary(ContractModel):
 
 
 def new_item(**fields: Any) -> IssueItem:
-    """Build an :class:`IssueItem`, deriving its deterministic id."""
     item_id = make_item_id(
         fields["source"], fields["subject_id"], fields["kind"], fields.get("locator", "")
     )
@@ -265,7 +231,6 @@ def new_item(**fields: Any) -> IssueItem:
 
 @dataclass
 class BankContext:
-    """Paths and the split authority every source builder shares."""
 
     repo_root: Path
     state_root: Path = field(default_factory=default_state_root)
@@ -293,14 +258,6 @@ class BankContext:
         task_id: str | None = None,
         task_digest: str | None = None,
     ) -> Split:
-        """The effective split: a DEV item becomes TEST if any key seals it.
-
-        Non-DEV declarations are kept (they can only be tighter). A DEV item is
-        TEST when its own key assigns it TEST, when its task name or digest is
-        sealed by a canonical TEST row, or when any assignment key marks the task
-        or (distinctive, non-numeric) item id TEST. ``assignments.csv`` is the
-        authority; without it nothing is DEV.
-        """
         split = normalize_split(declared)
         if split != "DEV":
             return split
@@ -332,7 +289,6 @@ def _load_source(name: str) -> Any:
 
 
 def available_sources() -> dict[str, str]:
-    """Source slug -> module name, in module order."""
     found: dict[str, str] = {}
     for name in source_modules():
         slug = _load_source(name).SOURCE
@@ -365,7 +321,6 @@ def _breakdown(items: Sequence[IssueItem]) -> dict[str, Any]:
 
 
 class IssueBank:
-    """Read and write per-source item files and the committed manifest."""
 
     def __init__(self, repo_root: Path, *, state_root: Path | None = None) -> None:
         self.repo_root = repo_root
@@ -384,7 +339,6 @@ class IssueBank:
         return json.loads(self.manifest_path.read_text(encoding="utf-8"))
 
     def build(self, ctx: BankContext, sources: Iterable[str] | None = None) -> dict[str, Any]:
-        """Rebuild the named sources (all by default); return the updated manifest."""
         with bank_writer_lock(self):
             known = available_sources()
             wanted = list(known) if sources is None else list(sources)
@@ -393,7 +347,6 @@ class IssueBank:
                 raise ValueError(f"unknown bank sources: {unknown}; known: {sorted(known)}")
             manifest = self.read_manifest()
             entries: dict[str, Any] = dict(manifest.get("sources", {}))
-            # Persist after each source, so a long rebuild keeps finished sources.
             for slug in wanted:
                 entries[slug] = self._build_source(ctx, slug, _load_source(known[slug]))
                 manifest = {
@@ -469,7 +422,6 @@ class IssueBank:
                     yield item
 
     def verify(self) -> list[str]:
-        """Compare local item bytes with the committed manifest; return the problems."""
         problems: list[str] = []
         for slug, entry in self.read_manifest().get("sources", {}).items():
             if not entry.get("itemized"):

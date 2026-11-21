@@ -1,10 +1,3 @@
-"""Explicit task registry and admission trust boundary for eval-lab.
-
-Task registration is an explicit, inspectable, human-owned fact.
-Filesystem location, existence of task.toml, a curated card, or canary
-membership never implies registration.
-"""
-
 from __future__ import annotations
 
 import contextlib
@@ -43,7 +36,6 @@ SUPPORTED_TASK_WORKBENCH_VERSIONS = frozenset({"m049-v1"})
 
 
 def task_directory_digest(path: Path) -> str:
-    """Digest sorted relative paths and file digests, independent of checkout location."""
     if not path.is_dir():
         raise ValueError(f"task directory is missing: {path}")
     aggregate = hashlib.sha256()
@@ -62,47 +54,47 @@ def task_directory_digest(path: Path) -> str:
 
 
 class RegistryError(Exception):
-    """Base exception for task registry errors."""
+    pass
 
 
 class TaskNotRegisteredError(RegistryError):
-    """Raised when a task id is not present in the explicit task registry."""
+    pass
 
 
 class TaskStateInvalidError(RegistryError):
-    """Raised when a task is in candidate or retired state rather than registered."""
+    pass
 
 
 class TaskDigestMismatchError(RegistryError):
-    """Raised when on-disk task package bytes do not match the registered digests."""
+    pass
 
 
 class TaskPathRedirectionError(RegistryError):
-    """Raised when a spec attempts to redirect task_path away from the registered path."""
+    pass
 
 
 class TaskVersionMismatchError(RegistryError):
-    """Raised when a spec task_version does not match the registered record version."""
+    pass
 
 
 class TaskControlEvidenceError(RegistryError):
-    """Raised when control evidence files are missing, unparseable, tampered, or invalid."""
+    pass
 
 
 class TaskCertificationError(RegistryError):
-    """Raised when a bound package-check packet is missing, replayed, or tampered."""
+    pass
 
 
 class TaskUsageNotAllowedError(RegistryError):
-    """Raised when a task is used for a purpose not permitted in allowed_uses."""
+    pass
 
 
 class TaskComponentMissingError(RegistryError):
-    """Raised when a registered task package is missing a required component."""
+    pass
 
 
 class TaskInventoryPolicyError(RegistryError):
-    """Raised when the canary policy cannot support deterministic inventory."""
+    pass
 
 
 def _should_ignore_file(path: Path) -> bool:
@@ -112,7 +104,6 @@ def _should_ignore_file(path: Path) -> bool:
 
 
 def _job_lock_harbor_version(job_lock_path: Path) -> str | None:
-    """Harbor version stamp from a job lock file (trial locks carry none)."""
     from evallab.evidence.facts import lock_harbor_version
 
     try:
@@ -126,7 +117,6 @@ def compute_subpath_digest(
     path: Path,
     should_ignore: Callable[[Path], bool] | None = None,
 ) -> str:
-    """Compute deterministic SHA-256 digest of a file or directory tree."""
     if not path.exists():
         return "sha256:" + hashlib.sha256(b"").hexdigest()
     if path.is_file():
@@ -148,7 +138,6 @@ def compute_subpath_digest(
 
 
 def compute_task_digests(task_dir: Path) -> TaskDigests:
-    """Compute cryptographic digests for a task package and its sub-components."""
     task_dir = task_dir.resolve()
     if not task_dir.is_dir():
         raise ValueError(f"task directory not found: {task_dir}")
@@ -186,7 +175,6 @@ def compute_task_digests(task_dir: Path) -> TaskDigests:
 
 
 def harbor_task_digest(task_dir: Path) -> str:
-    """Reproduce Harbor's default local-task package digest."""
     files: list[Path] = []
     for relative in ("task.toml", "instruction.md", "README.md"):
         path = task_dir / relative
@@ -262,7 +250,6 @@ def certification_envelope_from_packet(
     task_path: str,
     package_digest: str,
 ) -> TaskCertificationEnvelope:
-    """Bind a retained package-check packet to one exact task identity, not Gold status."""
     repo_root = repo_root.resolve()
     packet = (
         (repo_root / packet_path).resolve()
@@ -539,7 +526,6 @@ def certification_envelope_from_packet(
 
 
 def verify_certification_packet(repo_root: Path, record: TaskRegistryRecord) -> None:
-    """Re-read a bound packet and require its strict envelope to match the registry."""
     if record.certification.state == "legacy_missing":
         return
     rebuilt = certification_envelope_from_packet(
@@ -555,7 +541,6 @@ def verify_certification_packet(repo_root: Path, record: TaskRegistryRecord) -> 
 
 
 def _evidence_lock_version_ok(task_lock: dict[str, Any], version: str, digest: str) -> bool:
-    """Lock version match, with a digest-bound fallback for version-less locks."""
     locked_version = task_lock.get("version")
     if locked_version is None:
         return task_lock.get("digest") == digest
@@ -572,7 +557,6 @@ def _verify_control_result(
     evidence_ref: ControlEvidenceRef,
     declared_task_name: str | None,
 ) -> None:
-    """Validate one Harbor trial and its lock against the registered package."""
     if "stats" in data or not isinstance(data.get("trial_name"), str):
         raise TaskControlEvidenceError(
             "control evidence must cite a trial result, not a job-level result"
@@ -653,8 +637,6 @@ def _verify_control_result(
             f"control evidence result identity mismatch for {record.task_id!r}"
         )
 
-#: Schema of the ``task_staging`` provenance block ``evallab run`` persists in
-#: each job's ``lab-metadata.json``. Discovery refuses any other value.
 TASK_STAGING_SCHEMA_VERSION = 1
 
 
@@ -665,7 +647,6 @@ def discover_control_evidence(
     *,
     task_version: str | None = None,
 ) -> TaskControlEvidence:
-    """Discover committed trial-level oracle and nop evidence for a task package."""
     repo_root = repo_root.resolve()
     task_dir = task_dir.resolve()
     if not task_dir.is_dir():
@@ -727,11 +708,6 @@ def discover_control_evidence(
             agent_lock = lock_data.get("agent")
             if not isinstance(task_lock, dict) or not isinstance(agent_lock, dict):
                 continue
-            # Two legitimate identities exist. Source-path runs lock the path
-            # basename with the source Harbor digest; host-staged runs
-            # (``evallab run``) lock the staging directory name with the
-            # adapted digest, and only sibling lab-metadata provenance can
-            # bind them back to this exact source package.
             metadata_path = result_path.parent.parent / "lab-metadata.json"
             metadata: dict[str, Any] | None = None
             if metadata_path.is_file():
@@ -792,9 +768,6 @@ def discover_control_evidence(
             )
             if not isinstance(data.get("task_name"), str):
                 continue
-            # Harbor uses the declared [task] name when present; otherwise
-            # Task.name is the executed directory basename. Match exactly,
-            # never by suffix, including for host-staged source packages.
             if data["task_name"] != (declared_task_name or staged_task_name or task_id):
                 continue
             expected_path_name = staged_task_name or task_id
@@ -881,7 +854,6 @@ def promote_task(
     jobs_roots: Sequence[Path] | None = None,
     certification_path: Path | str | None = None,
 ) -> TaskRegistryRecord:
-    """Promote a task package on disk into the explicit task registry."""
     repo_root = repo_root.resolve()
     target_path = (
         (repo_root / task_path).resolve()
@@ -891,7 +863,6 @@ def promote_task(
     if not target_path.is_dir():
         raise TaskComponentMissingError(f"task directory not found on disk: {target_path}")
 
-    # Verify completeness
     if not (target_path / "task.toml").is_file():
         raise TaskComponentMissingError(f"task.toml missing in {target_path}")
     if not (
@@ -903,7 +874,6 @@ def promote_task(
     if not ((target_path / "tests").exists() or (target_path / "verifier").exists()):
         raise TaskComponentMissingError(f"verifier (tests/ or verifier/) missing in {target_path}")
 
-    # Parse task.toml
     try:
         toml_data = tomllib.loads((target_path / "task.toml").read_text(encoding="utf-8"))
     except Exception as exc:
@@ -948,7 +918,6 @@ def promote_task(
     except ValueError:
         rel_task_path = str(target_path)
 
-    # Inferred defaults
     if provenance_zone is None:
         if rel_task_path.startswith("library/benchmarks/"):
             provenance_zone = "01-external"
@@ -999,7 +968,6 @@ def promote_task(
     if allowed_uses is None:
         allowed_uses = ["measurement", "training"]
 
-    # Compute digests
     digests = compute_task_digests(target_path)
     certification = (
         certification_envelope_from_packet(
@@ -1017,7 +985,6 @@ def promote_task(
     reg_dir = (registry_dir or (repo_root / "library/registry")).resolve()
     record_file = reg_dir / f"{task_id}.json"
 
-    # Idempotence and integrity check
     if record_file.is_file():
         try:
             existing_data = json.loads(record_file.read_text())
@@ -1151,7 +1118,6 @@ def register_task(
     approved_at: datetime | None = None,
     certification_path: Path | str | None = None,
 ) -> TaskRegistryRecord:
-    """Explicitly register a candidate task in the task registry with human approval."""
     if not actor or not actor.strip():
         raise ValueError("registered task records require approved_by / --actor")
 
@@ -1224,7 +1190,6 @@ def register_task(
 
 
 def verify_control_evidence(root: Path, record: TaskRegistryRecord) -> None:
-    """Verify committed trial evidence, lock identity, and registered package binding."""
     if record.state != "registered":
         return
     if record.control_evidence is None:
@@ -1330,9 +1295,6 @@ def verify_control_evidence(root: Path, record: TaskRegistryRecord) -> None:
 
 
 def verify_package_completeness(root: Path, record: TaskRegistryRecord) -> None:
-    """Verify that a task package contains runnable task.toml, instruction, environment,
-    and separate verifier.
-    """
     target_path = (root / record.task_path).resolve()
     if not target_path.is_dir():
         primary = shared_checkout_root(root)
@@ -1371,7 +1333,6 @@ def verify_package_completeness(root: Path, record: TaskRegistryRecord) -> None:
 
 
 class TaskRegistry:
-    """Explicit repository-backed task registry."""
 
     def __init__(self, root: Path, records: dict[str, TaskRegistryRecord]) -> None:
         self.root = root.resolve()
@@ -1415,12 +1376,6 @@ class TaskRegistry:
         spec: ExperimentSpec,
         repo_root: Path,
     ) -> TaskRegistryRecord | None:
-        """Resolve and validate an experiment spec referencing a registered task.
-
-        Returns the TaskRegistryRecord if spec is a registered/* task, or None if
-        it is not a registered task reference (e.g. canary/* or local control).
-        Raises a RegistryError subclass if registered task invariants are violated.
-        """
         if not spec.task.startswith("registered/"):
             return None
 
@@ -1569,7 +1524,6 @@ class RegistryAuditReport:
 
 
 def audit_registry(root: Path) -> RegistryAuditReport:
-    """Audit explicit task registry records, package digests, control evidence, and queue claims."""
     root = root.resolve()
     registry_dir = root / "library/registry"
     findings: list[AuditFinding] = []
@@ -1609,9 +1563,7 @@ def audit_registry(root: Path) -> RegistryAuditReport:
 
     seen_paths: dict[str, str] = {}
 
-    # 1. Audit explicit registry records
     for record in reg.list_records():
-        # Duplicate path check
         if record.task_path in seen_paths:
             findings.append(
                 AuditFinding(
@@ -1627,7 +1579,6 @@ def audit_registry(root: Path) -> RegistryAuditReport:
         else:
             seen_paths[record.task_path] = record.task_id
 
-        # Existence and completeness of package directory
         target_path = root / record.task_path
         if not target_path.is_dir():
             findings.append(
@@ -1652,7 +1603,6 @@ def audit_registry(root: Path) -> RegistryAuditReport:
                 )
             )
 
-        # Digest verification on disk
         try:
             current_digests = compute_task_digests(target_path)
             if current_digests.package != record.digests.package:
@@ -1689,7 +1639,6 @@ def audit_registry(root: Path) -> RegistryAuditReport:
                 )
             )
 
-        # Control evidence checks
         if record.state == "registered":
             try:
                 verify_control_evidence(root, record)
@@ -1734,7 +1683,6 @@ def audit_registry(root: Path) -> RegistryAuditReport:
                     )
                 )
 
-        # External record checks
         if record.provenance_zone == "01-external":
             if not record.license:
                 findings.append(
@@ -1757,7 +1705,6 @@ def audit_registry(root: Path) -> RegistryAuditReport:
                     )
                 )
 
-    # 2. Audit Queue state for false registered/* claims and malformed specs
     queue_root = root / "queue"
     if queue_root.is_dir():
         for state in ("proposed", "pending", "approved", "waiting", "running"):
@@ -1847,7 +1794,6 @@ def audit_registry(root: Path) -> RegistryAuditReport:
                                 )
                             )
 
-    # 3. Audit Curated Cards that are non-runnable pointers only
     curated_dir = root / "library/curated"
     if curated_dir.is_dir():
         for card_subdir in sorted(curated_dir.iterdir()):
@@ -1868,7 +1814,6 @@ def audit_registry(root: Path) -> RegistryAuditReport:
                     )
                 )
 
-    # 4. The committed inventory is a deterministic projection of repository truth.
     inventory_path = root / "research/registration/inventory.json"
     registry_is_well_formed = not any(
         finding.category == "malformed_registry_record" for finding in findings
@@ -1975,12 +1920,10 @@ class TaskInventory:
 
 
 def inventory_tasks(root: Path) -> TaskInventory:
-    """Mechanically inventory all task surfaces across library/ and policy/."""
     root = root.resolve()
     reg = TaskRegistry.from_repo(root)
     items: list[TaskInventoryItem] = []
 
-    # Canary membership is policy truth; malformed or missing policy cannot mean zero.
     canary_policy = root / "policy/canary-suite.yaml"
     if not canary_policy.is_file():
         raise TaskInventoryPolicyError("canary inventory requires policy/canary-suite.yaml")
@@ -2000,7 +1943,6 @@ def inventory_tasks(root: Path) -> TaskInventory:
             raise TaskInventoryPolicyError(f"canary policy member {index} requires task_path")
         canary_paths.add(task_path)
 
-    # 1. Scan library/ for all task.toml packages
     library_dir = root / "library"
     if library_dir.is_dir():
         for task_toml in sorted(library_dir.rglob("task.toml")):
@@ -2041,7 +1983,6 @@ def inventory_tasks(root: Path) -> TaskInventory:
                 )
             )
 
-    # 2. Scan curated cards that do not have task.toml
     curated_dir = root / "library/curated"
     if curated_dir.is_dir():
         for card_subdir in sorted(curated_dir.iterdir()):

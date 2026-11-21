@@ -1,4 +1,3 @@
-"""Argument declarations for trace inspection; implementations load on dispatch."""
 from __future__ import annotations
 
 import argparse
@@ -22,7 +21,6 @@ def _autoreview_command(args: argparse.Namespace, root: Path, **kwargs: Any) -> 
 
 
 def register_anatomy(actions: Any) -> None:
-    """``evallab trace anatomy``; registration opens nothing."""
     parser = actions.add_parser(
         "anatomy",
         help="Label-free structured case anatomy of one admitted DEV run or local ATIF trial",
@@ -54,7 +52,6 @@ def register_anatomy(actions: Any) -> None:
 
 
 def register_autoreview(actions: Any) -> None:
-    """``evallab trace autoreview`` subparser."""
     parser = actions.add_parser(
         "autoreview",
         help="Budgeted compact view, targeted raw-step retrieval, and L0 cascade monitor",

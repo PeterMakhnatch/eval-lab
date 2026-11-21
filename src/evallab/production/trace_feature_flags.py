@@ -1,20 +1,3 @@
-"""Cheap, deterministic trace leads with on-demand, position-addressed disclosure.
-
-``compute_trace_feature_flags`` accepts ATIF agent steps (including OpenAI-shaped
-calls) or normalized ``command_or_action``/``tool_name`` steps. Only agent-authored
-commands and message/reasoning text count: user prompts, observations and labels
-never do. Counts mean distinct matching steps, not regex occurrences or tool calls.
-Every index is a zero-based position in the *supplied sequence*, not ``step_id``;
-pass that same observed prefix to ``inspect_step_window``, which discloses only
-bounded agent/tool projections of an admitted DEV task's steps. No future steps are read.
-
-These are routing hints, NOT cheating verdicts. In particular, declined shortcuts,
-legitimate test edits and ordinary package use can fire. The compact card uses the
-existing four-characters-per-token approximation, not a model-specific tokenizer;
-full exact indices remain in the result when the card abbreviates them. No model,
-network, database, subprocess or optional dependency is used here.
-"""
-
 from __future__ import annotations
 
 import json
@@ -98,7 +81,6 @@ class TraceFeatureFlags(TypedDict):
     features: dict[str, FeatureFlag]
 
 
-
 def _text(value: Any) -> str:
     if isinstance(value, str):
         return value
@@ -166,13 +148,6 @@ def _extra_action_features(calls: Sequence[Mapping[str, Any]]) -> set[str]:
 
 
 def compute_trace_feature_flags(steps: Sequence[Mapping[str, Any]]) -> TraceFeatureFlags:
-    """Return every flag, step-occurrence count and exact zero-based input position.
-
-    Explicit non-agent ``source``/``role`` values are ignored. Missing both is
-    accepted for command-only normalized steps. Malformed calls are ignored, not
-    converted into invented commands; callers retain responsibility for source
-    completeness. The input and all nested objects are left untouched.
-    """
     features: dict[str, FeatureFlag] = {
         name: {"fired": False, "count": 0, "step_indices": []}
         for name in (*ACTION_FEATURES, *REASONING_FEATURES)

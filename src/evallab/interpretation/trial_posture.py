@@ -1,45 +1,3 @@
-"""Per-trial posture for the HAR-178 trials view (legit census).
-
-Deterministic small-metadata readers over landed trial/job files: no
-trajectory parsing, no projection writes, no network, no database. Every
-reader fails closed (unknown instead of a guessed value) so unfinished,
-infra, and legacy trials stay census rows.
-
-Sources per key (all recorded, never reconstructed):
-
-- ``campaign``: explicit ``linear_card`` from ``lab-metadata.json``
-  ``experiment`` plus the frozen ``experiment-spec.json``, under the
-  existing :func:`evallab.results_home.card_from` rules. Disagreement or
-  malformed values yield unattributed (``None``), never a guessed card.
-- ``date``: full recorded ``started_at`` timestamp from the trial
-  ``result.json``, else the job ``result.json`` (the view casts to
-  TIMESTAMPTZ). Never filesystem mtime.
-- ``model``: observed ``agent_info.model_info`` id first, then landed
-  ``result.config``, then the trial ``config.json`` model, normalized
-  only for the canonical native id and strict ``selfhosted/`` selectors
-  (adapter variants stay distinct).
-- ``harness``: recorded agent import path or name, one
-  precedence-ordered agent record at a time (landed ``result.config``
-  before the config file); the ``mimoagent`` alias maps to the known
-  native class, nothing else is heuristically mapped.
-- ``egress_lock``: lock actually enforced per ``trial/egress-lock.json``
-  (:func:`evallab.egress_verification.lock_enforced`: applied, and for
-  Daytona verified from inside the sandbox). Intent and a provider
-  acknowledgement alone are not evidence.
-- ``reference_profile`` / ``reference_profile_match`` /
-  ``reference_profile_diffs``: HAR-149 exact match of the observed
-  setup fingerprint against the named reference profile. A present
-  trial ``setup-fingerprint.json`` decides alone (corrupt stays
-  nonmatching, never replaced by intention); only an absent trial file
-  falls back to the job fingerprint or the lock-covered
-  ``EVALLAB_SETUP_FINGERPRINT`` agent-env record, each through
-  :func:`trial_fingerprint` (observed lock override). Profile names
-  with path components are rejected. Declared deviations never erase a
-  difference; unsourced reference fields never disqualify; explicitly
-  unbounded (``None``) budget ceilings are not a restriction; anything
-  else unobserved fails closed.
-"""
-
 from __future__ import annotations
 
 import json
@@ -57,13 +15,6 @@ def trial_posture(
     trial_dir: Path,
     result: dict,
 ) -> dict:
-    """One posture row for a single landed trial.
-
-    ``result`` is the trial's parsed ``result.json`` (``{}`` when the
-    trial has none yet: active/unsealed trials stay census rows with
-    unknown posture, never an exception). Never raises on missing or
-    malformed files; every unresolvable key fails closed.
-    """
     job_path = Path(job_dir)
     trial_path = Path(trial_dir)
     record = result if isinstance(result, dict) else {}
@@ -91,12 +42,6 @@ def trial_posture(
 
 
 def cut_short_by_our_limits(stop_reason: str | None) -> bool | None:
-    """Whether HAR-156 attributes this stop to our own limits.
-
-    Exactly ``our_limit`` reads ``True``, ``unknown`` reads ``None``,
-    every other known category (native harness cap, task timeout,
-    model end, error) reads ``False``.
-    """
     from evallab.step_layers import stop_category
 
     category = stop_category(stop_reason)
@@ -129,15 +74,6 @@ def _resolve_fingerprint(
     record: dict[str, Any],
     config: dict[str, Any],
 ) -> dict[str, Any] | None:
-    """Best recorded observed fingerprint, never reconstructed.
-
-    A present trial ``setup-fingerprint.json`` decides alone: sound wins,
-    corrupt or schema-invalid stays nonmatching with no fallback to
-    intention. Only an absent trial file falls back to the job
-    fingerprint or the lock-covered ``EVALLAB_SETUP_FINGERPRINT``
-    agent-env record, each through :func:`trial_fingerprint` (observed
-    lock override). Present-day serving defaults are never consulted.
-    """
     from evallab.setup_fingerprint import FINGERPRINT_FILENAME, trial_fingerprint
 
     if (trial_dir / FINGERPRINT_FILENAME).is_file():
@@ -161,7 +97,6 @@ def _resolve_fingerprint(
 def _agent_env_sources(
     record: dict[str, Any], config: dict[str, Any], trial_dir: Path
 ) -> list[dict[str, Any]]:
-    """Recorded agent-env mappings that may carry the lock-covered fingerprint."""
     sources: list[dict[str, Any]] = []
     landed = record.get("config")
     if isinstance(landed, dict):
@@ -183,7 +118,6 @@ def _lock_covered_fingerprint(
     job_dir: Path,
     trial_dir: Path,
 ) -> dict[str, Any] | None:
-    """Recorded ``EVALLAB_SETUP_FINGERPRINT`` for old records, env first."""
     candidates: list[str] = []
     for source in _agent_env_sources(record, config, trial_dir):
         value = source.get("EVALLAB_SETUP_FINGERPRINT")
@@ -208,11 +142,6 @@ def _lock_covered_fingerprint(
     return None
 
 def _clean_name(value: Any) -> tuple[str | None, bool]:
-    """(cleaned, malformed): plain names clean, else malformed iff set.
-
-    Names with path components never reach profile loading: no arbitrary
-    profile traversal from a recorded string.
-    """
     if value is None:
         return None, False
     if isinstance(value, str) and value.strip():
@@ -226,12 +155,6 @@ def _clean_name(value: Any) -> tuple[str | None, bool]:
 def _reference_claim(
     spec: dict[str, Any], fingerprint: dict[str, Any] | None
 ) -> tuple[str | None, str]:
-    """Agreed reference-profile name and comparison state.
-
-    ``"absent"`` (nothing named anywhere), ``"agreed"`` (one name), or
-    ``"conflict"`` (spec and fingerprint disagree, or a malformed
-    name): no arbitrary profile traversal, ever.
-    """
     spec_name, spec_bad = _clean_name(spec.get("reference_profile"))
     fp_source = fingerprint if isinstance(fingerprint, dict) else {}
     fp_name, fp_bad = _clean_name(fp_source.get("reference_profile"))
@@ -254,13 +177,6 @@ def _reference_match(
     state: str,
     fingerprint: dict[str, Any] | None,
 ) -> tuple[bool | None, str]:
-    """(match, diffs JSON) for the agreed reference, fail-closed.
-
-    ``None`` match means no reference was ever named (nothing to compare);
-    ``False`` means compared-and-not-matching or not comparable. Declared
-    deviations never erase a difference; missing sourced evidence never
-    becomes a match.
-    """
     if state == "absent":
         return None, "[]"
     if state == "conflict" or profile_name is None or fingerprint is None:
@@ -283,12 +199,6 @@ def _reference_match(
 
 
 def _observations_known(fingerprint: dict[str, Any], profile: dict[str, Any]) -> bool:
-    """Every sourced compared field has its required observation.
-
-    Unsourced reference fields never disqualify. An explicitly ``None``
-    budget ceiling is unbounded (no ceiling to violate); any other
-    absent or ``None`` observation fails closed instead of matching.
-    """
     from evallab.setup_fingerprint import (
         CEILING_REFERENCES,
         COMPARED_FIELDS,
@@ -310,7 +220,6 @@ def _observations_known(fingerprint: dict[str, Any], profile: dict[str, Any]) ->
 
 
 def _campaign(job_dir: Path, spec: dict[str, Any]) -> str | None:
-    """Recorded card under existing attribution rules, else unattributed."""
     from evallab.results_home import _explicit_linear_card, card_from
 
     metadata = _read_dict(job_dir / "lab-metadata.json")
@@ -331,7 +240,6 @@ def _campaign(job_dir: Path, spec: dict[str, Any]) -> str | None:
 
 
 def _iso_timestamp(value: Any) -> str | None:
-    """Full recorded ISO timestamp, else None. The view casts to TIMESTAMPTZ."""
     if not isinstance(value, str) or not value.strip():
         return None
     try:
@@ -353,7 +261,6 @@ def _recorded_date(record: dict[str, Any], job_dir: Path) -> str | None:
 
 
 def _agent_records(config: dict[str, Any], record: dict[str, Any]) -> list[dict[str, Any]]:
-    """Agent records, landed ``result.config`` before the config file."""
     records: list[dict[str, Any]] = []
     landed = record.get("config")
     if isinstance(landed, dict):
@@ -375,7 +282,6 @@ def _first_text(records: list[dict[str, Any]], key: str) -> str | None:
 
 
 def _observed_model_info(record: dict[str, Any]) -> dict[str, Any]:
-    """Observed ``agent_info.model_info`` mapping, else empty (trial_facts order)."""
     info = record.get("agent_info")
     info = info if isinstance(info, dict) else {}
     model_info = info.get("model_info")
@@ -383,7 +289,6 @@ def _observed_model_info(record: dict[str, Any]) -> dict[str, Any]:
 
 
 def _normalize_model(raw: str | None) -> str | None:
-    """Canonical native or strict selfhosted selector only; adapters stay distinct."""
     from evallab.execution_contracts import (
         MIMO_SELFHOSTED_MODEL_PREFIX,
         MIMO_SELFHOSTED_NATIVE_MODELS,
@@ -403,7 +308,6 @@ def _normalize_model(raw: str | None) -> str | None:
 
 
 def _model(record: dict[str, Any], config: dict[str, Any]) -> str | None:
-    """Observed model id first, then landed config, then the config file."""
     observed = _observed_model_info(record)
     raw = _first_text([observed], "name") or _first_text([observed], "model_name")
     if raw is None:
@@ -412,12 +316,6 @@ def _model(record: dict[str, Any], config: dict[str, Any]) -> str | None:
 
 
 def _harness(record: dict[str, Any], config: dict[str, Any]) -> str | None:
-    """Actual recorded agent import path (``mimoagent`` alias resolved).
-
-    Each precedence-ordered agent record contributes its import path or
-    its name before the next record is consulted, so a stale
-    lower-priority config file cannot override the landed record.
-    """
     from evallab.execution_contracts import MIMO_AGENT_IMPORT_PATH
 
     raw: str | None = None
@@ -438,7 +336,6 @@ def _harness(record: dict[str, Any], config: dict[str, Any]) -> str | None:
 
 
 def _observed_egress_lock(trial_dir: Path) -> bool:
-    """True only when the trial record shows the lock actually enforced."""
     try:
         payload = json.loads((Path(trial_dir) / "egress-lock.json").read_text(encoding="utf-8"))
     except (OSError, ValueError, UnicodeDecodeError):
@@ -447,7 +344,6 @@ def _observed_egress_lock(trial_dir: Path) -> bool:
 
 
 def _infra(record: dict[str, Any]) -> bool:
-    """Canonical counts infra reason only: never copy/exclusion status."""
     from evallab.campaign_approval import trial_is_infra_excluded
 
     verifier = record.get("verifier_result")
@@ -458,7 +354,6 @@ def _infra(record: dict[str, Any]) -> bool:
 
 
 def _infra_exception(record: dict[str, Any]) -> str | None:
-    """Native exception class when the trial recorded one, else None."""
     exception = record.get("exception_info")
     if not isinstance(exception, dict):
         return None
@@ -469,11 +364,6 @@ def _infra_exception(record: dict[str, Any]) -> str | None:
 
 
 def _laminar_trace_id(trial_dir: Path) -> str | None:
-    """Trace id from the ``trial/laminar-trace.json`` SDK marker only.
-
-    No marker (or an invalid one) reads ``None``: never the deterministic
-    cloud-trace fallback, never a trace URL from unrelated runtime.
-    """
     from evallab.laminar import _sdk_trace_reference
 
     reference = _sdk_trace_reference(Path(trial_dir))

@@ -1,11 +1,3 @@
-"""Canonical event/action projections over Harbor trial evidence.
-
-The mart is deterministic and mechanical: it projects normalized ATIF steps,
-tool calls, observations, phase outlines, and filesystem journal changes without
-claiming that an observed action caused a filesystem effect.  ``action_effects``
-links only by temporal precedence and records the linkage method explicitly.
-"""
-
 from __future__ import annotations
 
 import hashlib

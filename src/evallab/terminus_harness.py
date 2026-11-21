@@ -1,36 +1,3 @@
-"""Pinned Terminus settings/rules/skills trees (HAR-71).
-
-A harness tree is a directory holding the candidate behavior under test:
-
-- ``terminus/config.json`` — flat Terminus 2 constructor arguments.
-- ``terminus/AGENTS.md`` — extra instruction text, used only when nonblank.
-- ``terminus/skills/`` and ``terminus-commands/`` — native skill roots, each
-  admitted only when it carries at least one ``*/SKILL.md``.
-
-This mirrors the Reef tree-to-native mapping (config becomes constructor
-arguments, nonblank rules become an extra-instruction entry, roots containing
-``SKILL.md`` become native skill roots) without importing Reef and without
-rewriting any supplied bytes: no frontmatter synthesis, no type coercion, no
-silent dropping of keys.
-
-Fail-closed boundaries, all enforced before execution:
-
-- unknown constructor knobs refuse;
-- model/transport/credential binding refuses, top-level and nested inside
-  ``llm_call_kwargs`` (candidates vary behavior, never provider routing);
-- any ``terminus/context/`` code extension refuses (Eval Lab never imports
-  candidate code);
-- reserved runtime paths (``terminus/sessions/``, ``terminus/trials/``)
-  refuse when present in a source tree;
-- symlinks and special files refuse;
-- digest drift refuses (expected pin vs. actual content digest).
-
-The content digest is exactly :func:`evallab.evidence_store.evidence_tree_digest`
-(sorted relative paths plus byte contents). Staging and retention copy exact
-bytes through immutable publication: an existing destination is accepted only
-when its file set and bytes match exactly, otherwise retention refuses.
-"""
-
 from __future__ import annotations
 
 import copy
@@ -42,20 +9,13 @@ from typing import Any
 
 from evallab.evidence_store import evidence_tree_digest
 
-#: Flat config file holding Terminus 2 constructor arguments.
 CONFIG_PATH = "terminus/config.json"
-#: Rules file appended to the task instruction when nonblank.
 RULES_PATH = "terminus/AGENTS.md"
-#: First native skill root (inside ``terminus/``).
 SKILL_ROOT = "terminus/skills"
-#: Second native skill root (sibling of ``terminus/``, holds commands).
 COMMAND_ROOT = "terminus-commands"
-#: Outer-runner code extensions live here in Reef; always refused here.
 CONTEXT_ROOT = "terminus/context/"
-#: Reserved for run-time writes under a live episode root, never pinned.
 RUNTIME_PREFIXES = ("terminus/sessions/", "terminus/trials/")
 
-#: Candidate behavior knobs a tree may set (exact contract set).
 ALLOWED_KNOBS = frozenset(
     {
         "completion_fix",
@@ -77,11 +37,8 @@ ALLOWED_KNOBS = frozenset(
     }
 )
 
-#: The only trajectory_config keys Eval Lab admits. Both default to False
-#: upstream; unknown keys refuse here because upstream silently ignores them.
 TRAJECTORY_CONFIG_KEYS = frozenset({"raw_content", "linear_history"})
 
-#: Top-level keys that select model/transport instead of behavior.
 _EXPLICIT_BINDING_KEYS = frozenset(
     {
         "model_name",
@@ -95,7 +52,6 @@ _EXPLICIT_BINDING_KEYS = frozenset(
         "headers",
     }
 )
-#: Substrings marking a key as transport/credential binding.
 _BINDING_SUBSTRINGS = ("api_key", "api_base", "base_url", "credential", "secret")
 
 _SHA256_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -158,9 +114,6 @@ def _validate_config(config: dict[str, Any]) -> None:
                 + " is model/transport binding, not candidate behavior: "
                 "candidates vary Terminus behavior, never provider routing"
             )
-    # HAR-116 loop fix and completion fix. All default off; a tree opts in
-    # by setting them. The adapter rejects the same bad values, but a tree
-    # that cannot be loaded never gets as far as a launch.
     loop_break = config.get("loop_break")
     if loop_break is not None and not isinstance(loop_break, bool):
         raise ValueError("terminus config loop_break must be a boolean")
@@ -180,7 +133,6 @@ def _validate_config(config: dict[str, Any]) -> None:
 
 @dataclass(frozen=True)
 class TerminusHarnessTree:
-    """A validated, digest-pinned harness tree."""
 
     root: Path
     sha256: str
@@ -234,7 +186,6 @@ def _check_fixed_paths(root: Path) -> None:
 def _mapping(
     root: Path, blobs: dict[str, bytes]
 ) -> tuple[dict[str, Any], Path | None, tuple[Path, ...], str | None, list[str]]:
-    """Map pinned bytes to native inputs; refuse non-behavior content."""
     for relative in blobs:
         if relative == "terminus/context" or relative.startswith(CONTEXT_ROOT):
             raise ValueError(
@@ -309,12 +260,6 @@ def load_harness_tree(
     *,
     repo_root: Path | None = None,
 ) -> TerminusHarnessTree:
-    """Validate a harness tree directory and pin its content digest.
-
-    Refuses unknown knobs, model/transport/credential binding (including
-    nested ``llm_call_kwargs`` overrides), code extensions, reserved runtime
-    paths, symlinks/special files, and digest drift — all before execution.
-    """
     root = _resolve_source(source_path, repo_root)
     files = _collect_files(root)
     _check_fixed_paths(root)
@@ -385,11 +330,6 @@ def stage_harness_tree(
     staging_root: Path,
     repo_root: Path | None = None,
 ) -> tuple[Path, dict[str, Any]]:
-    """Freeze an immutable content-addressed copy of the pinned tree.
-
-    The pin is required here (unlike :func:`load_harness_tree`): staging is
-    the pre-execution gate, so drift refuses before anything can run.
-    """
     if not expected_sha256 or not _SHA256_RE.match(expected_sha256):
         raise ValueError(f"harness tree expected digest is malformed: {expected_sha256!r}")
     root = _resolve_source(source_path, repo_root)
@@ -412,13 +352,6 @@ def retain_harness_tree_evidence(
     staged_tree: Path,
     metadata: dict[str, Any],
 ) -> Path:
-    """Retain the exact executed bytes under ``<job_dir>/harness-tree/``.
-
-    Verifies the staged tree still matches the pinned digest, verifies the
-    supplied metadata truthfully describes the staged bytes (config, relative
-    rule/skill paths), then publishes an immutable copy and verifies the
-    retained digest. Never reconstructs bytes from metadata.
-    """
     staged = Path(staged_tree)
     if staged.is_symlink():
         raise ValueError(f"staged harness tree must not be a symlink: {staged}")

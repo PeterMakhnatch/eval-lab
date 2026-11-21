@@ -1,4 +1,3 @@
-"""Direct run and matrix command registration."""
 from __future__ import annotations
 
 import argparse

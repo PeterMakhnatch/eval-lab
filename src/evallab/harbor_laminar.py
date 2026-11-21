@@ -1,21 +1,3 @@
-"""Live Laminar tracing lifecycle for Harbor mimoagent trials (HAR-165).
-
-One live Laminar trace per actual Harbor trial. The root opens on Harbor's
-public lifecycle hooks. ``END`` closes it after Harbor's existing cleanup;
-a narrow ``Trial.run`` finally closes early failures and a missing ``END``.
-Public phase hooks open sandbox, agent and verifier spans. Narrow completion
-wrappers cover only boundaries Harbor does not expose: setup/verifier end,
-agent setup, provider-acknowledged egress lock and environment stop.
-
-Fail-open by construction: every telemetry call is guarded, ``Exception``
-never escapes into Harbor execution, and ``CancelledError``/``KeyboardInterrupt``
-always propagate unchanged. No network calls, no reordered locks, no changed
-await/cancellation/error/cleanup semantics. Non-mimo trials and runs without
-``LMNR_PROJECT_API_KEY`` are no-ops. No Cloud URLs are fabricated; the
-``trial/laminar-trace.json`` sidechannel stores only trace/session/trial
-identity and safe status.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -95,17 +77,7 @@ _VERIFIER_PHASE: ContextVar[tuple[str, Any] | None] = ContextVar(
 )
 
 
-# ---------------------------------------------------------------------------
-# Shared APIs consumed by the native host wrapper
-# ---------------------------------------------------------------------------
-
-
 def trace_runtime() -> Any:
-    """Initialized host runtime for forwarding sanitized native payloads.
-
-    Returns a disabled safe runtime when no key is configured or
-    initialization failed. Never raises.
-    """
     runtime = _RUNTIME
     if runtime is None:
         return _DISABLED
@@ -113,11 +85,6 @@ def trace_runtime() -> Any:
 
 
 def native_worker_context(context_id: str | None) -> dict[str, Any]:
-    """Safe tracing context for the native worker of one actual trial.
-
-    Returns ``{}`` when disabled or unknown. Never raises, never includes
-    secrets, paths, or Cloud URLs.
-    """
     try:
         if context_id is None:
             return {}
@@ -157,11 +124,6 @@ def native_worker_context(context_id: str | None) -> dict[str, Any]:
         return {}
 
 
-# ---------------------------------------------------------------------------
-# Metadata / identity helpers (pure, testable)
-# ---------------------------------------------------------------------------
-
-
 def _safe_text(value: Any, *, limit: int = 256) -> str:
     try:
         text = value if isinstance(value, str) else str(value)
@@ -176,7 +138,6 @@ def _safe_text(value: Any, *, limit: int = 256) -> str:
 
 
 def _load_parent_metadata() -> dict[str, Any]:
-    """Allowlisted parent transport; unknown values stay ``None`` (null)."""
     meta: dict[str, Any] = {}
     raw = os.environ.get(METADATA_ENV)
     parsed: dict[str, Any] = {}
@@ -204,9 +165,6 @@ def _load_parent_metadata() -> dict[str, Any]:
 
 
 def _bearer_pattern_str() -> str | None:
-    # Parent transports the canonical execution_contracts._BEARER_HEADER.pattern
-    # (decoded) in EVALLAB_LAMINAR_METADATA; prefer it, fall back to the same
-    # single convention on direct import. No competing pattern is defined here.
     try:
         supplied = _PARENT_METADATA.get("bearer_pattern")
         if isinstance(supplied, str) and supplied.strip():
@@ -255,8 +213,6 @@ def _is_mimo_config(config: Any) -> bool:
         agent = getattr(config, "agent", None)
         if agent is None:
             return False
-        # Use the same resolution as Harbor: --agent stores an import path in
-        # name, and built-in names take precedence over an explicit import path.
         return AgentFactory.get_agent_class_from_config(agent) is NativeMimoAgent
     except Exception:
         return False
@@ -338,7 +294,6 @@ def _safe_rewards(value: Any) -> Any:
 
 
 def _clean_stop_value(value: Any) -> str | None:
-    """Short safe status string, or ``None`` when unknown."""
     try:
         text = value if isinstance(value, str) else str(value)
     except Exception:
@@ -350,14 +305,6 @@ def _clean_stop_value(value: Any) -> str | None:
 
 
 def _native_stop_from_target(target: Any) -> dict[str, Any]:
-    """Actual ``NativeMimoAgent._persist`` stop attribution, never invented.
-
-    ``_run_agent_phase`` returns ``None`` and populates
-    ``target.agent_result.metadata``; ``_persist`` leaves metadata ``None``
-    when no main messages exist, so unknown stays ``None``. The native
-    result string is deliberately NOT read here: a ``LimitsExceeded`` result
-    is a stop attribution, not an exception and not a guessed success.
-    """
     stop: dict[str, Any] = {"native_exit_status": None, "stop_reason": None}
     try:
         context = getattr(target, "agent_result", None)
@@ -374,7 +321,6 @@ def _native_stop_from_target(target: Any) -> dict[str, Any]:
 
 
 def _native_stop_from_result(result: Any) -> dict[str, Any]:
-    """Stop attribution from a trial/step result, with multistep fallback."""
     stop = _native_stop_from_target(result)
     if stop["native_exit_status"] is not None or stop["stop_reason"] is not None:
         return stop
@@ -428,11 +374,6 @@ def _stash_native_stop(trace: _TrialTrace, stop: dict[str, Any] | None) -> None:
                 }
     except Exception:
         pass
-
-
-# ---------------------------------------------------------------------------
-# Telemetry-safe small wrappers
-# ---------------------------------------------------------------------------
 
 
 def _start_child(
@@ -496,11 +437,6 @@ def _end_span(span: Any, *, error_type: str | None = None) -> None:
         pass
 
 
-# ---------------------------------------------------------------------------
-# Sidechannel persistence (safe identity/status only)
-# ---------------------------------------------------------------------------
-
-
 def _trial_dir_for_event(event: Any) -> Path | None:
     try:
         config = getattr(event, "config", None)
@@ -546,11 +482,6 @@ def _write_sidechannel(trace: _TrialTrace, directory: Path | None) -> None:
         temporary.replace(directory / TRACE_FILENAME)
     except Exception:
         pass
-
-
-# ---------------------------------------------------------------------------
-# Root lifecycle
-# ---------------------------------------------------------------------------
 
 
 def _ensure_runtime() -> Any:
@@ -614,7 +545,6 @@ def _open_trial_root(event: Any, *, session_id: str) -> _TrialTrace | None:
     with _TRACES_LOCK:
         existing = _TRACES.get(trial_id)
         if existing is not None and not existing.closed:
-            # Never orphan a live root: keep the first opener's trace.
             _end_span(root)
             return existing
         _TRACES[trial_id] = trace
@@ -688,10 +618,6 @@ def _close_trial_root(
 def _close_trial_root_from_result(
     event: Any, *, reason: str, close_on_cancel: bool = False
 ) -> None:
-    """Close from a hook event carrying the live ``result``.
-
-    ``CANCEL`` never closes: recovery and shielded stop still follow.
-    """
     try:
         result = getattr(event, "result", None)
         rewards = getattr(getattr(result, "verifier_result", None), "rewards", None)
@@ -720,11 +646,6 @@ def _close_trial_root_from_result(
         )
     except Exception:
         pass
-
-
-# ---------------------------------------------------------------------------
-# Narrow Harbor wrappers (installed once per process)
-# ---------------------------------------------------------------------------
 
 
 def _trial_uuid_of(instance: Any) -> str | None:
@@ -936,9 +857,6 @@ def _wrap_trial_run() -> None:
         try:
             return await original(self)
         finally:
-            # True run finally: after existing cleanup, even when END was
-            # never emitted because result persistence failed. Never changes
-            # the trial result or cancellation.
             try:
                 trial_id = _trial_uuid_of(self)
                 trace = _lookup_trial(trial_id) if trial_id is not None else None
@@ -1008,13 +926,7 @@ def _ensure_wrappers_installed() -> None:
     _WRAPPERS_INSTALLED = True
 
 
-# ---------------------------------------------------------------------------
-# Job plugin (wired through the single existing CLI plugin)
-# ---------------------------------------------------------------------------
-
-
 class LaminarTrialPlugin:
-    """Fail-open per-trial Laminar roots for mimoagent trials only."""
 
     def __init__(self) -> None:
         self._session_id: str | None = None
@@ -1124,7 +1036,6 @@ class LaminarTrialPlugin:
         try:
             if not _is_mimo_event(event):
                 return
-            # CANCEL precedes recovery and shielded stop: annotate, do not close.
             _close_trial_root_from_result(event, reason="cancelled", close_on_cancel=False)
         except asyncio.CancelledError:
             raise

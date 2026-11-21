@@ -1,5 +1,3 @@
-"""Shared JSONL encoding, atomic writes, and Failure Library state location."""
-
 from __future__ import annotations
 
 import json

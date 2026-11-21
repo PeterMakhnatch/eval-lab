@@ -18,7 +18,6 @@ from evallab.runner import subscription_environment
 from evallab.storage.paths import shared_checkout_root
 
 POSTGRES_BACKUP_TIMEOUT_SECONDS = 600
-# One nightly cadence plus slack, matching the daily report's 36-hour window.
 BACKUP_MAX_AGE_HOURS = 36.0
 BackupRunner = Callable[[list[str], BinaryIO], subprocess.CompletedProcess[bytes]]
 BackupPublisher = Callable[[Path, Path], None]
@@ -100,10 +99,6 @@ def _created_at(manifest_path: Path, dump_path: Path) -> datetime:
 
 
 def backup_freshness(repo_root: Path, *, now: datetime) -> dict[str, Any]:
-    """Read-only fact: the newest dump whose manifest checksum verifies, and its age.
-
-    Newer generations that fail verification are listed, never counted as fresh.
-    """
     backup_dir = shared_checkout_root(repo_root) / "backups/postgres"
     candidates: list[tuple[str, Path, Path]] = []
     if backup_dir.is_dir():
@@ -115,7 +110,6 @@ def backup_freshness(repo_root: Path, *, now: datetime) -> dict[str, Any]:
             elif entry.suffix == ".dump":
                 candidates.append((entry.stem, entry, entry.with_suffix(".dump.json")))
     unverified: list[str] = []
-    # Names embed the ISO report date, so reverse name order is newest first.
     for _, dump_path, manifest_path in sorted(candidates, reverse=True):
         if not _verify_backup(dump_path, manifest_path):
             unverified.append(str(dump_path))
@@ -148,7 +142,6 @@ def create_postgres_backup(
     now: Callable[[], datetime] = lambda: datetime.now(UTC),
     publisher: BackupPublisher = lambda source, destination: source.replace(destination),
 ) -> Path:
-    """Publish one immutable dump/manifest generation with one atomic rename."""
     shared_root = shared_checkout_root(repo_root)
     compose_path = shared_root / "compose.yaml"
     if not compose_path.is_file():
@@ -224,12 +217,6 @@ def create_postgres_backup(
 
 
 def sqlite_store_paths(repo_root: Path, home: Path) -> tuple[Path, ...]:
-    """Installed domain journals, including retained journals of retired services.
-
-    Do not recurse through releases, fixtures, caches, or historical snapshots.
-    The trace store is required even when absent; other journals are installed
-    only when their file exists.
-    """
     state = home / ".local/state"
     trace = Path(os.environ.get(
         "EVALLAB_CLOUD_TRACE_DB", state / "evallab-prod-live/cloud-trace-db.sqlite"

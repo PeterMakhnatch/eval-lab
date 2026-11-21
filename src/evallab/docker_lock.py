@@ -20,10 +20,6 @@ DEFAULT_NAME = "docker"
 DEFAULT_TTL_SECONDS = 120.0
 DEFAULT_POLL_SECONDS = 0.5
 DEFAULT_HEARTBEAT_SECONDS = 15.0
-#: Host-wide concurrency default. The host has 16 cores and 64 GiB; the
-#: Docker VM (about 8 GiB) is the binding limit, and measured trial
-#: containers use a few hundred MiB each, so 4 concurrent holders fit.
-#: Lower it with $EVALLAB_DOCKER_LOCK_SLOTS if containers start OOMing.
 DEFAULT_SLOTS = 4
 ENV_DIR = "EVALLAB_DOCKER_LOCK_DIR"
 ENV_SLOTS = "EVALLAB_DOCKER_LOCK_SLOTS"
@@ -34,11 +30,10 @@ PidAliveFn = Callable[[int], bool]
 
 
 class DockerLockTimeout(TimeoutError):
-    """Raised when a slot is not granted within the requested timeout."""
+    pass
 
 
 def default_state_dir() -> Path:
-    """Return the lock state dir: env override, else the per-user cache."""
     override = os.environ.get(ENV_DIR)
     if override:
         return Path(override).expanduser()
@@ -46,7 +41,6 @@ def default_state_dir() -> Path:
 
 
 def default_slots() -> int:
-    """Return the default slot count: ``$EVALLAB_DOCKER_LOCK_SLOTS`` or 4."""
     raw = os.environ.get(ENV_SLOTS)
     if raw:
         try:
@@ -75,7 +69,6 @@ def mutex_path(name: str = DEFAULT_NAME, state_dir: Path | None = None) -> Path:
 
 
 def pid_alive(pid: int) -> bool:
-    """Return True when ``pid`` names a live process on this host."""
     if pid <= 0:
         return False
     try:
@@ -136,11 +129,6 @@ def _write_queue_file(path: Path, entries: list[dict[str, Any]]) -> None:
 def _locked_queue(
     name: str, state_dir: Path | None
 ) -> Iterator[tuple[Path, list[dict[str, Any]]]]:
-    """Hold the mutex flock and yield ``(queue_path, entries)``.
-
-    The caller mutates the list in place; on clean exit the queue is written
-    back atomically. On exception nothing is written.
-    """
     base = state_dir if state_dir is not None else default_state_dir()
     base.mkdir(parents=True, exist_ok=True)
     qpath = queue_path(name, base)
@@ -156,7 +144,6 @@ def _locked_queue(
 
 
 class DockerLock:
-    """One FIFO queue entry: enqueue, wait for a slot, heartbeat, release."""
 
     def __init__(
         self,
@@ -200,7 +187,6 @@ class DockerLock:
         self._stop_heartbeat = threading.Event()
         self._heartbeat_thread: threading.Thread | None = None
 
-    # -- queue primitives -------------------------------------------------
 
     def _new_entry(self, now: float) -> dict[str, Any]:
         return {
@@ -215,7 +201,6 @@ class DockerLock:
         }
 
     def enqueue(self) -> None:
-        """Append this lock's entry to the queue (idempotent)."""
         if self._enqueued:
             return
         now = self._clock()
@@ -239,12 +224,6 @@ class DockerLock:
         entries[:] = kept
 
     def try_acquire_step(self) -> tuple[bool, int, int, list[dict[str, Any]]]:
-        """One acquire check: prune stale, grant if within ``slots``.
-
-        Returns ``(acquired, position, total, holders)`` where ``position``
-        is this entry's 1-based queue index and ``holders`` are the entries
-        with a slot (``started_at`` set), after pruning.
-        """
         if not self._enqueued:
             self.enqueue()
         now = self._clock()
@@ -255,8 +234,6 @@ class DockerLock:
                 None,
             )
             if index is None:
-                # Our entry was pruned by a peer (e.g. long pause); rejoin
-                # at the back rather than spinning on a missing ticket.
                 entries.append(self._new_entry(now))
                 index = len(entries) - 1
             entry = entries[index]
@@ -270,7 +247,6 @@ class DockerLock:
             holders = [e for e in entries if e.get("started_at") is not None]
             return False, index + 1, len(entries), holders
 
-    # -- heartbeat ----------------------------------------------------------
 
     def _heartbeat_loop(self) -> None:
         while not self._stop_heartbeat.wait(self.heartbeat_interval):
@@ -309,7 +285,6 @@ class DockerLock:
             thread.join(timeout=2.0)
         self._heartbeat_thread = None
 
-    # -- acquire / release --------------------------------------------------
 
     def acquire(
         self,
@@ -317,11 +292,6 @@ class DockerLock:
         *,
         on_wait: Callable[[int, int, list[dict[str, Any]]], None] | None = None,
     ) -> None:
-        """Enqueue and block (polling) until a slot is granted.
-
-        Raises :class:`DockerLockTimeout` after ``timeout`` seconds of
-        waiting; the waiter entry is removed before raising.
-        """
         if self._acquired:
             return
         self.enqueue()
@@ -342,7 +312,6 @@ class DockerLock:
             self._sleep(self.poll_interval)
 
     def release(self) -> None:
-        """Remove this lock's entry. Idempotent; safe to call twice."""
         if self._released:
             return
         self._released = True
@@ -383,10 +352,6 @@ def docker_slot(
     is_alive: PidAliveFn = pid_alive,
     hostname: str | None = None,
 ) -> Iterator[DockerLock]:
-    """Context manager holding one FIFO Docker slot.
-
-    Example: ``with docker_slot(label="my-job"): ...``
-    """
     lock = DockerLock(
         label,
         slots=slots,
@@ -423,11 +388,6 @@ def run_with_lock(
     is_alive: PidAliveFn = pid_alive,
     hostname: str | None = None,
 ) -> int:
-    """Acquire a slot, run ``command`` as a child, release, return its code.
-
-    Returns 124 on wait timeout. Signals received by this process are
-    forwarded to the child; the slot is always released.
-    """
     if not command:
         print("error: docker-lock run: no command given", file=sys.stderr)
         return 2
@@ -501,11 +461,6 @@ def run_with_lock(
     return returncode
 
 
-# ---------------------------------------------------------------------------
-# CLI (``evallab docker-lock``)
-# ---------------------------------------------------------------------------
-
-
 def _docker_lock_run_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
     del root
     command = list(args.command or [])
@@ -524,7 +479,6 @@ def _docker_lock_run_command(args: argparse.Namespace, root: Path, **_: Any) -> 
 
 
 def build_docker_lock_parser(commands: argparse._SubParsersAction) -> None:  # noqa: SLF001
-    """Register the ``evallab docker-lock`` subcommand (one self-contained block)."""
     parser = commands.add_parser(
         "docker-lock",
         help="Host-wide FIFO slot lock for shared local Docker ($0, advisory)",

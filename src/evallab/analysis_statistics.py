@@ -1,15 +1,9 @@
-"""Deterministic Wilson intervals for the retained TB4 audit scorer."""
-
 from __future__ import annotations
 
 import math
 
 
 def normal_quantile(p: float) -> float:
-    """Compute the inverse standard normal cumulative distribution function.
-
-    Uses Peter J. Acklam's rational approximation algorithm (precision ~1.15e-9 or better).
-    """
     if not 0.0 < p < 1.0:
         raise ValueError(f"probability p must be strictly between 0 and 1, got {p}")
 

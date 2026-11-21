@@ -1,5 +1,3 @@
-"""CLI registration for the DEV assembly line."""
-
 from __future__ import annotations
 
 import argparse
@@ -18,7 +16,6 @@ from evallab.line.watch_state import State
 
 
 def _batch(given: Path) -> Path:
-    """The batch directory, validated as spelled: a symlink is refused before any resolve."""
     spelled = given.expanduser()
     core.preflight_batch(spelled)
     return spelled.resolve()
@@ -47,7 +44,6 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
                     "--fast checks one batch folder; check a live state directory without it "
                     "(or pass a child batch under increments/)"
                 )
-            # A read-only look: it must never overwrite a verified check.json or scoreboard.
             value = core.check_batch(_batch(args.path), root, fast=True)
             failed = any(check["status"] == "FAIL" for check in value["checks"])
             code = 2 if failed else 3
@@ -55,7 +51,6 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
             given = args.path.expanduser().resolve()
             live = State.locate(given)
             if State.owner_of_child(given) is not None:
-                # a committed live child: read, never write
                 value = core.check_batch(_batch(args.path), root)
                 code = 0 if value["passed"] else 2
             elif live is not None:
@@ -63,13 +58,13 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
                 code = 0 if value["passed"] else 2
             else:
                 batch = _batch(args.path)
-                found = core.invalidate_check(batch)  # a crash below must never leave a stale PASS
+                found = core.invalidate_check(batch)
                 try:
                     value = core.check_batch(batch, root)
                 except (ValueError, OSError) as error:
                     core.settle_check(batch, core.refused_check(error), found)
                     raise
-                core.settle_check(batch, value, found)  # a failing batch's scoreboard is left alone
+                core.settle_check(batch, value, found)
                 code = 0 if value["passed"] else 2
         elif args.line_command == "watch":
             stop = threading.Event()

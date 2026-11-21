@@ -1,5 +1,3 @@
-"""Test and harness path classification used by task QA."""
-
 from __future__ import annotations
 
 import re
@@ -20,7 +18,6 @@ _HARNESS_BASENAMES = frozenset(
 
 
 def is_test_path(path: str) -> bool:
-    """Whether ``path`` is a test/harness file (never a fix-content carrier)."""
     base = path.rsplit("/", 1)[-1]
     if base in _HARNESS_BASENAMES:
         return True

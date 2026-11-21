@@ -1,21 +1,3 @@
-"""Live mode: a thin scheduler that feeds finished DEV runs to the line, increment by increment.
-
-``evallab line watch CONFIG --state-dir DIR`` polls explicit DEV sources. Each cycle it lists the
-runs that have been finished and unchanged for the settling time (``watch_sources``), writes a
-small increment manifest (plus that increment's own labels and AutoReview readings, which the
-line digests as inputs) and calls the line's own ``run_line`` on it. The line's intake, DEV and
-label rules and eight checks do all the gating; a refusal or a failed check stops the watcher.
-Nothing is copied or frozen: the line names each run by its real path and records its digest.
-
-The state is the committed increments, nothing else. An increment folder exists for the line
-only once ``commit.json`` does, and that file is written last, atomically, after the child batch
-passed its eight checks and its review/audit runs are in the owned Judge Station queue.
-The cumulative view is built on demand from the committed children (``watch_rollup``). One
-process owns a state directory; a crash is repaired by restarting: an increment without
-``commit.json`` is moved to ``abandoned/`` and its runs are planned again, and the queue write
-is idempotent.
-"""
-
 from __future__ import annotations
 
 import json
@@ -73,9 +55,6 @@ from evallab.line.watch_state import (
 STATUS_SCHEMA = "evallab.line_watch_status/v1"
 
 
-# ---------------------------------------------------------------- lag
-
-
 def _percentile(values: list[float], q: float) -> float | None:
     if not values:
         return None
@@ -93,19 +72,13 @@ def _summary(values: list[float]) -> dict[str, Any]:
 
 
 def lag_summary(records: list[dict[str, Any]]) -> dict[str, Any]:
-    """Measured delays in seconds, from the times recorded in the commit records.
-
-    ``discovery_to_commit`` starts when the watcher first saw a run, not when the run finished:
-    a backlog found at start-up counts from that scan. ``completion_to_commit`` is reported only
-    for runs whose own recorded finish time carries a timezone; file mtimes are never used.
-    """
     series: dict[str, list[float]] = {"first_seen_at": [], "ready_at": [], "finished_at": []}
     processing: list[float] = []
     for record in records:
         times = record.get("times") if isinstance(record, dict) else None
         runs = record.get("runs") if isinstance(record, dict) else None
         if not isinstance(times, dict) or not isinstance(runs, dict):
-            continue  # a damaged record is the live check's to name, not this report's to crash on
+            continue
         committed = parse_time(times.get("committed_at"))
         planned = parse_time(times.get("planned_at"))
         if committed is None:
@@ -127,17 +100,7 @@ def lag_summary(records: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-# ---------------------------------------------------------------- validation before any write
-
-
 def preflight(config: dict[str, Any], repo_root: Path) -> Admitter:
-    """Read-only checks of everything the configuration names; returns the admission gate.
-
-    Task status, labels and the AutoReview cache are read through the same loaders the line
-    uses, so a non-DEV or malformed one is refused here, before the state directory exists.
-    A cached reading must name an allowed model and be attested: the line's own spend-and-models
-    check would fail the increment that used it, so the watcher refuses it up front.
-    """
     line = config["line"]
     if line["task_status"]:
         core._task_status_dev(line["task_status"])
@@ -162,7 +125,7 @@ def preflight(config: dict[str, Any], repo_root: Path) -> Admitter:
                     "readings must be attested and from models.allowed"
                 )
     verdicts = Path(config["judge"]["verdicts"])
-    if os.path.lexists(verdicts):  # the Station's own reader, so a bad file is refused up front
+    if os.path.lexists(verdicts):
         core._station_verdicts(read_bytes(verdicts), set())
     if config["judge"]["write"]:
         core._refuse_queue({"judge": {"queue": config["judge"]["queue"]}}, [])
@@ -188,7 +151,6 @@ def _open_or_invalid(state: State) -> str | None:
 def record_failure(
     state: State, error: BaseException, fields: dict[str, Any] | None = None
 ) -> None:
-    """Write ``errors.jsonl`` and a ``failed`` ``status.json``; never raises for a damaged state."""
     moment = now_iso(time.time())
     last_error = {"class": type(error).__name__, "message": str(error)[:500]}
     state.root.mkdir(parents=True, exist_ok=True)
@@ -205,9 +167,6 @@ def record_failure(
             **(fields or {}),
         },
     )
-
-
-# ---------------------------------------------------------------- watcher
 
 
 class Watcher:
@@ -230,13 +189,12 @@ class Watcher:
         self.last_activity = self.started_at
         self.last_cycle_at: float | None = None
         self.last_error: dict[str, str] | None = None
-        self.seen: dict[str, dict[str, float | str]] = {}  # settling timers, in memory only
+        self.seen: dict[str, dict[str, float | str]] = {}
         self.visible: dict[str, Any] = {}
         self.records: list[dict[str, Any]] = []
         self.committed_ids: set[str] = set()
         self._reload()
 
-    # -- bookkeeping
 
     def _reload(self) -> None:
         self.records = self.state.committed()
@@ -283,7 +241,6 @@ class Watcher:
         record_failure(self.state, error, fields)
 
     def _guard(self) -> None:
-        """Before anything is planned: the configuration and frozen task status are as created."""
         stored = read_json(self.state.watch_json)
         if stored["config_sha256"] != config_identity(stored["config"]) or stored[
             "config_sha256"
@@ -300,21 +257,14 @@ class Watcher:
         if not result["passed"]:
             raise WatchError(f"live check failed {where}: {failed_checks(result)}")
 
-    # -- recovery
 
     def recover(self) -> dict[str, Any]:
-        """Repair after a crash, then refuse to go on unless the committed state verifies.
-
-        An increment without ``commit.json`` is moved aside (its runs are planned again), and
-        the live checks run on the newest child and the globals.
-        """
         self._touch("recovering")
         self._guard()
         moved = self.state.sweep_open()
         self._require_verified(verify(self.state, self.repo_root, deep=True), "at start-up")
         return {"abandoned": moved}
 
-    # -- one cycle
 
     def cycle(self) -> dict[str, Any]:
         self.cycle_no += 1
@@ -357,7 +307,6 @@ class Watcher:
         }
 
     def _show(self, found: Any, ready: list[Candidate], done: set[str], settle: float) -> None:
-        """What is waiting right now: runs committed in this cycle are no longer waiting."""
         now = self.clock()
         waiting = [c for c in ready if c.run_id not in done]
         reasons = Counter(item["reason"] for item in found.held)
@@ -375,10 +324,8 @@ class Watcher:
             ),
         }
 
-    # -- one increment
 
     def _write_inputs(self, chunk: list[Candidate], n: int) -> Path:
-        """The increment manifest, its labels and its AutoReview readings; returns the spec path."""
         inc = self.state.inc(n)
         inputs = inc / "inputs"
         line = self.config["line"]
@@ -437,7 +384,7 @@ class Watcher:
                 "audit": line["audit"],
                 "judge": {
                     "queue": self.config["judge"]["queue"],
-                    "write": False,  # the watcher publishes after the checks, under its own lock
+                    "write": False,
                     "verdicts": self.config["judge"]["verdicts"],
                 },
                 "labels_policy": line["labels_policy"],
@@ -491,16 +438,13 @@ class Watcher:
             "queue_added": added,
             "times": {"planned_at": now_iso(planned), "committed_at": now_iso(self.clock())},
         }
-        write_json(state.inc(n) / "commit.json", record)  # atomic: the increment now exists
+        write_json(state.inc(n) / "commit.json", record)
         fsync_directory(state.inc(n))
         self._reload()
         self._require_verified(
             verify(state, self.repo_root, deep=False), f"after committing increment {n}"
         )
         return n
-
-
-# ---------------------------------------------------------------- entry points
 
 
 def run_watch(
@@ -514,12 +458,8 @@ def run_watch(
     clock: Callable[[], float] = time.time,
     sleep: Callable[[float], None] | None = None,
 ) -> dict[str, Any]:
-    """Own the state directory and process finished runs; returns a summary (``error`` on failure).
-
-    Nothing is written until the configuration and everything it names have been validated.
-    """
     state = State(state_dir)
-    with core.declared_scope(repo_root):  # every declared input is read the way the line reads it
+    with core.declared_scope(repo_root):
         return _watch(state, config_path, repo_root, once, max_cycles, stop, clock, sleep)
 
 
@@ -567,14 +507,9 @@ def _watch(
 
 
 def install_stop_signals(stop: threading.Event) -> None:
-    """Finish the current increment, then stop, on SIGINT/SIGTERM."""
     for signum in (signal.SIGINT, signal.SIGTERM):
         signal.signal(signum, lambda *_: stop.set())
 
 
 def check_state(state_dir: Path, repo_root: Path, *, deep: bool = True) -> dict[str, Any]:
-    """``evallab line check STATE_DIR``: the line's own check on every child, then the globals.
-
-    Read-only: nothing is written into the state directory.
-    """
     return verify(State(state_dir), repo_root, deep=deep)

@@ -1,11 +1,3 @@
-"""Verdict persistence, validation, and query engine (§2.1, §2.2).
-
-Verdicts record human dispositions on discovery journal findings
-(accepted, rejected, needs_evidence, pending). A verdict is strictly
-append-only: changing a decision appends a new row with a new timestamp;
-the prior row is never mutated or deleted.
-"""
-
 from __future__ import annotations
 
 import sys
@@ -70,10 +62,6 @@ AUTOMATED_ACTOR_PREFIXES: tuple[str, ...] = (
 
 
 def validate_human_actor(by: str) -> str:
-    """Validate that the actor string represents a human name and not an automated agent.
-
-    Refuses empty, whitespace, and known automated actor handles.
-    """
     cleaned = by.strip()
     if not cleaned:
         raise ValueError("Actor (--by) is required and cannot be empty")
@@ -90,7 +78,6 @@ def validate_human_actor(by: str) -> str:
 
 
 def validate_status(status: str) -> Literal["accepted", "rejected", "needs_evidence", "pending"]:
-    """Validate that status is one of the four allowed §2.1 verdict literals."""
     for allowed_status in ALLOWED_STATUSES:
         if status == allowed_status:
             return allowed_status
@@ -103,7 +90,6 @@ def list_current_verdicts_from_catalog(
     *,
     status: str | None = None,
 ) -> list[Verdict]:
-    """Query current (latest by timestamp) verdicts from PostgreSQL catalog."""
     url = database_url_from_environment(database_url)
     target_name = postgres_identity(url)
     try:

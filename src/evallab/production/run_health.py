@@ -1,29 +1,3 @@
-"""Run Health: cheap deterministic detectors for loops, runaway runs, latency and infra.
-
-These are ``trace-findings/v1`` detectors for problems that are not cheating but
-still waste compute or corrupt QA results:
-
-* ``run_health.loop``: the agent repeats itself without progress;
-* ``run_health.runaway``: the run is far too long, or hit a budget or timeout;
-* ``run_health.latency``: steps are slow, or the run stalls between steps;
-* ``run_health.infra``: the run ended on, or was corrupted by, infrastructure.
-
-Every detector reads one :class:`HealthRun`: an ATIF-shaped step list plus
-run-level facts (start/finish times, exception type, stop reason, token totals).
-Two loaders build it, both read-only: :func:`store_runs` for admitted DEV runs of
-the cloud trace database and :func:`trial_run` for a Harbor trial directory.
-Neither reads labels, rewards or publisher judgments, so the same record is safe
-to score against any label set later.
-
-Thresholds are fixed constants set from the unlabelled DEV distribution before
-scoring (``run-health/2``); ``run-health/4`` then narrowed the loop rule after a
-blind DEV precision audit, ``run-health/5`` added repeated identical environment
-feedback after a random-sample DEV recall audit, and ``run-health/6`` added the
-unexplained 10-minute gap after a held-out DEV stall audit. Scores are continuous so a scorer can still sweep
-operating points. A run without an actor transcript is ``unknown`` for every
-kind, never ``clear``; it can still alarm on a run-level exception or stop reason.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -45,59 +19,26 @@ DETECTOR_VERSION = "run-health/6"
 KINDS = ("loop", "runaway", "latency", "infra")
 AGENT_SOURCES = frozenset({"agent", "assistant"})
 
-# --------------------------------------------------------------------------- thresholds
-# run-health/2: chosen from the unlabelled DEV distribution only (3,809 actor runs of
-# the admitted cloud store, 2026-10-28): each step-level threshold sits at or above
-# the pooled DEV p99 of its feature, or keeps an existing harness constant that
-# already does. A component fires when its value reaches the threshold; a
-# detector's score is its largest value/threshold, so >= 1.0 is an alarm.
 
-#: Consecutive agent steps with one normalized command, the same tool output and no
-#: edit (DEV p99 6; the live watch ``repetition_run`` and the agent's
-#: ``loop_command_run_min`` are 8). run-health/4 requires the same output too:
-#: on DEV the normalizer maps file paging (``sed -n '1,300p'``, ``'300,600p'``) and
-#: log polling to one command, and blind raters judged 13 of 13 such alarms progress.
 LOOP_COMMAND_RUN = 8
-#: Consecutive byte-identical agent messages (probe03 ``LOOP_MIN_RUN``; DEV p99 1).
 LOOP_MESSAGE_RUN = 10
-#: Completion claims (live watch ``completion_claims``; DEV p99 1).
 LOOP_COMPLETION_CLAIMS = 5
-#: Any window of this many agent steps with at most ``LOOP_CYCLE_DISTINCT`` distinct
-#: (command, output) pairs and no edit.
 LOOP_CYCLE_WINDOW = 12
 LOOP_CYCLE_DISTINCT = 3
-#: Byte-identical environment feedback (non-agent ``user`` messages after the first agent
-#: step) repeated at least this many times: the agent resubmitted and the outcome did not
-#: change. Random DEV audit: every consensus loop was this semantic resubmission pattern,
-#: which the command-level components miss.
 LOOP_FEEDBACK_REPEATS = 1
-# Explicit undo commands and repeated error output stay features only: blind raters
-# judged 0 of 21 undo-only and 1 of 24 repeated-error DEV alarms to be loops.
 
-#: DEV p99.5 is 250 agent steps (also a common max-turns budget); DEV wall p99 is 1.6 h.
 RUNAWAY_AGENT_STEPS = 250
 RUNAWAY_WALL_SECONDS = 2 * 3600
 
-#: DEV p99: median step 56 s, p90 step 225 s, largest gap 2,528 s.
 LATENCY_MEDIAN_STEP_SECONDS = 60.0
 LATENCY_P90_STEP_SECONDS = 300.0
 LATENCY_MAX_GAP_SECONDS = 2700.0
 LATENCY_SETUP_SECONDS = 900.0
 LATENCY_VERIFIER_SECONDS = 900.0
-#: Fewer timestamped agent steps than this and latency abstains.
 LATENCY_MIN_TIMESTAMPS = 3
-#: A gap between consecutive timestamped agent steps that the earlier step's own
-#: command does not explain (no sleep/wait/timeout in it, no timeout marker in its
-#: output). Blind DEV audits: every agreed stall was such a gap of 10-17 minutes,
-#: far below ``LATENCY_MAX_GAP_SECONDS``.
 LATENCY_UNEXPLAINED_GAP_SECONDS = 600.0
 _WAIT_COMMAND_RE = re.compile(r"\b(?:sleep|wait|timeout)\b|kill -0")
 
-#: Run-level exception types by health kind (Harbor ``exception_info``; the infra
-#: types follow the InfraSigs catalog of 8,374 of our Harbor trials, 2026-10-28).
-#: Budget and loop-break stops are policy stops, not infra. Unknown types fall
-#: through to the message and substring rules below; an unmapped type is reported,
-#: never guessed.
 EXCEPTION_KIND: dict[str, str] = {
     "AgentTimeoutError": "runaway",
     "TrialBudgetExhaustedError": "runaway",
@@ -130,8 +71,6 @@ EXCEPTION_KIND: dict[str, str] = {
 }
 _INFRA_EXCEPTION_SUBSTRINGS = ("daytona", "modal", "docker", "sandbox", "serviceunavailable",
                                "connection", "environment", "image")
-#: Generic exception types (``RuntimeError`` and the like) whose message names an
-#: infrastructure failure.
 INFRA_EXCEPTION_MESSAGE_RE = re.compile(
     r"admission refused|capacity changed before fresh environment allocation|Failed to create sandbox|"
     r"Sandbox build failed|Failed to (?:create|get) session|Healthcheck failed after|"
@@ -139,8 +78,6 @@ INFRA_EXCEPTION_MESSAGE_RE = re.compile(
     r"stopped on (?:ModelQueryError|InfraError)|litellm\.\w+Error|No reward file found",
     re.IGNORECASE,
 )
-#: Harbor/terminus stop reasons, the cloud store receipt's ``native_status.stop_condition``
-#: and the store's run-level ``outcome`` statuses, by kind.
 STOP_KIND: dict[str, str] = {
     "agent_timeout": "runaway",
     "trial_budget_exhausted": "runaway",
@@ -156,12 +93,8 @@ STOP_KIND: dict[str, str] = {
     "error": "infra",
     "provisional_execution_unavailable": "infra",
 }
-#: Store ``agent_traces.outcome`` values read as a run status. Every other value
-#: (including publisher labels such as ``source_label:*``) is never read.
 STORE_RUN_STATUSES = frozenset({"refused", "error", "provisional_execution_unavailable"})
 
-#: Timeout/kill markers in tool output, including the store's JSON ``returncode`` and
-#: ``<returncode>N</returncode>`` forms (124 timeout, 137/-9 SIGKILL, 143/-15 SIGTERM).
 TIMEOUT_MARKER_RE = re.compile(
     r"timed out|time ?out(?:Error| exceeded)|\bexit(?: code|ed with)?[: ]+(?:124|137|143)\b|"
     r"\"returncode\":\s*(?:124|137|143|-9|-15)\b|<returncode>(?:124|137|143|-9|-15)</returncode>|"
@@ -169,12 +102,7 @@ TIMEOUT_MARKER_RE = re.compile(
     re.IGNORECASE,
 )
 
-#: Infrastructure signatures in tool output: (class, pattern). They count in
-#: ``features`` wherever they appear; ``run_health.infra`` alarms on them only in
-#: tool output of the run's last ``INFRA_TAIL_STEPS`` steps with no agent step
-#: after (the failure ended the run). Agent text never counts: agents quote errors.
 INFRA_SIGNATURES: tuple[tuple[str, re.Pattern[str]], ...] = (
-    # ``upstream_failed`` is a measured grader rejection, not infra (VF-29/VF-30).
     ("route", re.compile(r"served_route_mismatch", re.IGNORECASE)),
     ("grader_unavailable", re.compile(
         r"original_grader_unavailable|reward file (?:not found|missing|empty)|"
@@ -201,8 +129,6 @@ INFRA_SIGNATURES: tuple[tuple[str, re.Pattern[str]], ...] = (
 )
 INFRA_TAIL_STEPS = 3
 
-#: Undo commands. ``git stash`` is excluded: agents stash to compare against the
-#: baseline and pop it back, which is not an undo (207 of 245 matches in a DEV check).
 _UNDO_RE = re.compile(
     r"\bgit\s+(?:checkout\s+(?:--\s+|HEAD\s+--\s+)\S|restore\s+\S|reset\s+--hard)|"
     r"\bpatch\s+-R\b|\bcp\s+\S+\.(?:bak|orig)\s+\S|\bmv\s+\S+\.(?:bak|orig)\s+\S",
@@ -214,30 +140,15 @@ _COMPLETION_RE = re.compile(
 _ERROR_LINE_RE = re.compile(r"^.*(?:error|exception|traceback|failed|fatal).*$", re.IGNORECASE | re.MULTILINE)
 _HEX_RE = re.compile(r"0x[0-9a-f]+|\b[0-9a-f]{8,}\b", re.IGNORECASE)
 _DIGITS_RE = re.compile(r"\d+")
-#: Per-call tokens in tool output (error codes, request and container ids): upper-case
-#: or digit runs of 6+ characters, replaced before outputs are compared.
 _CALL_TOKEN_RE = re.compile(r"\b[A-Z0-9_-]{6,}\b")
 
 
 def _output_fingerprint(text: str) -> str:
-    """Tool output with whitespace collapsed and per-call ids and numbers masked."""
     return _DIGITS_RE.sub("#", _CALL_TOKEN_RE.sub("#", " ".join(text.split())))
-
-
-# --------------------------------------------------------------------------- input
 
 
 @dataclass(frozen=True)
 class HealthRun:
-    """One run as the detectors see it.
-
-    ``steps`` are ATIF-shaped (``step_id``, ``source``, ``message``,
-    ``tool_calls``, ``observation``, optional ``timestamp`` and ``metrics``).
-    ``meta`` holds run-level facts only: ``started_at``/``finished_at`` (epoch
-    seconds), ``exception_type``, ``exception_message``, ``stop_reason``,
-    ``n_input_tokens``, ``n_output_tokens``, ``setup_seconds``,
-    ``verifier_seconds`` and ``actor_inputs_available``.
-    """
 
     run_id: str
     source: str
@@ -246,14 +157,13 @@ class HealthRun:
 
 
 def _epoch(value: Any) -> float | None:
-    """ISO-8601 text, epoch seconds or epoch milliseconds -> epoch seconds."""
     if isinstance(value, bool):
         return None
     if isinstance(value, int | float):
         number = float(value)
-        if number > 1e14:  # microseconds
+        if number > 1e14:
             return number / 1e6
-        if number > 1e11:  # milliseconds
+        if number > 1e11:
             return number / 1e3
         return number if number > 1e8 else None
     if isinstance(value, str) and value:
@@ -278,9 +188,6 @@ def _dig(mapping: Any, path: str) -> Any:
 
 def _int(value: Any) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
-
-
-# --------------------------------------------------------------------------- step views
 
 
 def _agent_steps(steps: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
@@ -313,14 +220,12 @@ def _step_text(step: Mapping[str, Any]) -> str:
 
 
 def _output_text(step: Mapping[str, Any]) -> str:
-    """What the environment returned: tool output of agent steps, the whole text of others."""
     if str(step.get("source") or "") in AGENT_SOURCES:
         return _observation_text(step)
     return _step_text(step)
 
 
 def _error_signature(text: str) -> str:
-    """Normalized first error line of an observation, or ''."""
     match = _ERROR_LINE_RE.search(text[-4000:])
     if not match:
         return ""
@@ -329,7 +234,6 @@ def _error_signature(text: str) -> str:
 
 
 def _longest_run(values: Sequence[str], blocked: Sequence[bool] | None = None) -> tuple[int, int | None]:
-    """Longest run of equal non-empty values with no blocked position; (length, start)."""
     best, best_start, start = 0, None, 0
     for i in range(1, len(values) + 1):
         if i == len(values) or values[i] != values[start] or not values[i]:
@@ -340,7 +244,6 @@ def _longest_run(values: Sequence[str], blocked: Sequence[bool] | None = None) -
 
 
 def _cycle(signatures: Sequence[str], edits: Sequence[bool]) -> tuple[int, int | None]:
-    """Smallest distinct-command count over edit-free windows of ``LOOP_CYCLE_WINDOW`` steps."""
     n = LOOP_CYCLE_WINDOW
     best, at = None, None
     for start in range(0, max(0, len(signatures) - n + 1)):
@@ -354,8 +257,6 @@ def _cycle(signatures: Sequence[str], edits: Sequence[bool]) -> tuple[int, int |
 
 
 def _edit_undo(signatures: Sequence[str], edits: Sequence[bool]) -> tuple[list[int], list[int]]:
-    """Positions of explicit undo commands after an edit, and of edits repeating an
-    earlier edit after a different one (a weaker edit/undo signal, reported only)."""
     undos, repeats = [], []
     previous_edits: list[str] = []
     for position, sig in enumerate(signatures):
@@ -369,8 +270,6 @@ def _edit_undo(signatures: Sequence[str], edits: Sequence[bool]) -> tuple[list[i
 
 
 def _repeated_feedback(steps: Sequence[Mapping[str, Any]]) -> tuple[int, Any]:
-    """Repeats of the most frequent byte-identical ``user`` message after the first agent
-    step, and the step id where any message first repeats; (0, None) when nothing repeats."""
     first = next((i for i, s in enumerate(steps) if str(s.get("source") or "") in AGENT_SOURCES), None)
     if first is None:
         return 0, None
@@ -388,9 +287,6 @@ def _repeated_feedback(steps: Sequence[Mapping[str, Any]]) -> tuple[int, Any]:
 
 
 def _unexplained_gap(agent: Sequence[Mapping[str, Any]]) -> tuple[float | None, Any]:
-    """Largest gap between consecutive timestamped agent steps not explained by the
-    earlier step's own waiting command or timeout, and the later step's id.
-    ``(None, None)`` when no two consecutive agent steps are both timestamped."""
     stamps = [_epoch(s.get("timestamp")) for s in agent]
     best: float | None = None
     at = None
@@ -417,11 +313,7 @@ def _quantile(values: Sequence[float], q: float) -> float | None:
     return ordered[index]
 
 
-# --------------------------------------------------------------------------- features
-
-
 def actor_inputs_available(steps: Sequence[Mapping[str, Any]]) -> bool:
-    """Some agent step carries a message or a tool call (the export flag's rule)."""
     for step in _agent_steps(steps):
         message = step.get("message")
         if (isinstance(message, str) and message.strip()) or step.get("tool_calls"):
@@ -430,7 +322,6 @@ def actor_inputs_available(steps: Sequence[Mapping[str, Any]]) -> bool:
 
 
 def features(run: HealthRun) -> dict[str, Any]:
-    """Deterministic run-health features (RH-1). Missing inputs are ``None``, never 0."""
     steps = list(run.steps)
     agent = _agent_steps(steps)
     meta = run.meta
@@ -438,7 +329,6 @@ def features(run: HealthRun) -> dict[str, Any]:
     available = actor_inputs_available(steps) if available is None else bool(available)
 
     signatures = [_signature(s) for s in agent]
-    # A repeat is only a repeat when the environment answered the same way.
     repeats = [f"{sig}\x00{_output_fingerprint(_observation_text(s))}" if sig else ""
                for sig, s in zip(signatures, agent, strict=True)]
     edits = [_is_edit(dict(s))[0] for s in agent]
@@ -456,7 +346,6 @@ def features(run: HealthRun) -> dict[str, Any]:
     feedback_repeats, feedback_at = _repeated_feedback(steps)
     unexplained_gap, unexplained_at = _unexplained_gap(agent)
 
-    # timing
     stamps = [(i, t) for i, s in enumerate(steps) if (t := _epoch(s.get("timestamp"))) is not None]
     agent_stamps = [t for s in agent if (t := _epoch(s.get("timestamp"))) is not None]
     step_seconds: list[float] = []
@@ -480,7 +369,6 @@ def features(run: HealthRun) -> dict[str, Any]:
     else:
         wall, wall_source = None, None
 
-    # tokens
     prompt_steps = [p for s in agent if (p := _int(_dig(s, "metrics.prompt_tokens"))) is not None]
     completion_steps = [c for s in agent if (c := _int(_dig(s, "metrics.completion_tokens"))) is not None]
     prompt_total = _int(meta.get("n_input_tokens"))
@@ -490,7 +378,6 @@ def features(run: HealthRun) -> dict[str, Any]:
     if completion_total is None and completion_steps:
         completion_total = sum(completion_steps)
 
-    # markers
     timeout_hits = [s.get("step_id") for s in agent if TIMEOUT_MARKER_RE.search(_observation_text(s))]
     infra_hits: dict[str, list[Any]] = {}
     for position, step in enumerate(steps):
@@ -569,7 +456,6 @@ def features(run: HealthRun) -> dict[str, Any]:
 
 
 def exception_kind(exc_type: str | None, message: Any = None) -> str | None:
-    """``runaway`` / ``loop`` / ``infra`` for a run-level exception, or None."""
     if not exc_type:
         return None
     if exc_type in EXCEPTION_KIND:
@@ -584,11 +470,7 @@ def exception_kind(exc_type: str | None, message: Any = None) -> str | None:
     return None
 
 
-# --------------------------------------------------------------------------- detectors
-
-
 def _components(values: Iterable[tuple[str, float | None, float, Any]]) -> list[dict[str, Any]]:
-    """(name, value, threshold, step) -> component rows with ratio; None values skipped."""
     rows = []
     for name, value, threshold, step in values:
         if value is None:
@@ -637,7 +519,6 @@ def _decide(run_id: str, kind: str, components: list[dict[str, Any]], started: f
 
 
 def _run_level(f: Mapping[str, Any], kind: str) -> str | None:
-    """The run-level exception or stop reason that maps to ``kind``, if any."""
     if f["exception_kind"] == kind:
         return "exception:" + f["exception_type"]
     if f["stop_kind"] == kind:
@@ -646,11 +527,6 @@ def _run_level(f: Mapping[str, Any], kind: str) -> str | None:
 
 
 def _kind_components(f: Mapping[str, Any]) -> dict[str, list[dict[str, Any]]]:
-    """Every scored component per kind; a component fires at ``ratio >= 1.0``.
-
-    Latency is empty when a run has neither enough timestamps nor phase timings
-    (the detector then abstains). Infra holds only the run-ending tail signatures.
-    """
     loop = _components([
         ("identical_command_run", f["max_identical_command_run"], LOOP_COMMAND_RUN, f["identical_command_run_step"]),
         ("identical_message_run", f["max_identical_message_run"], LOOP_MESSAGE_RUN, f["identical_message_run_step"]),
@@ -658,7 +534,6 @@ def _kind_components(f: Mapping[str, Any]) -> dict[str, list[dict[str, Any]]]:
         ("repeated_feedback", f["max_repeated_feedback"], LOOP_FEEDBACK_REPEATS, f["repeated_feedback_step"]),
     ])
     if f["cycle_step"] is not None and f["cycle_min_distinct"]:
-        # fewer distinct commands in the window is worse: ratio = threshold / distinct
         loop.append({"name": "command_cycle", "value": f["cycle_min_distinct"], "threshold": LOOP_CYCLE_DISTINCT,
                      "op": "<=", "ratio": LOOP_CYCLE_DISTINCT / f["cycle_min_distinct"], "step": f["cycle_step"]})
     runaway = _components([
@@ -683,11 +558,6 @@ def _kind_components(f: Mapping[str, Any]) -> dict[str, list[dict[str, Any]]]:
 
 
 def detect(run: HealthRun, feats: Mapping[str, Any] | None = None) -> list[dict[str, Any]]:
-    """One ``trace-findings/v1`` record per kind for ``run`` (loop, runaway, latency, infra).
-
-    Without an actor transcript a kind is ``unknown``, except that it can still alarm
-    on a run-level exception or stop reason, and infra on a signature that ends the run.
-    """
     started = time.perf_counter()
     f = dict(feats) if feats is not None else features(run)
     rid = run.run_id
@@ -714,24 +584,11 @@ def detect(run: HealthRun, feats: Mapping[str, Any] | None = None) -> list[dict[
     return out
 
 
-#: Live trigger: no new step (or, before the first step, no start) for this long. The
-#: same 45 minutes as ``LATENCY_MAX_GAP_SECONDS`` (DEV p99 between-step gap 2,528 s).
 SILENCE_SECONDS = LATENCY_MAX_GAP_SECONDS
 
 
 def triggers(run: HealthRun, *, now: float | None = None,
              feats: Mapping[str, Any] | None = None) -> list[dict[str, Any]]:
-    """Cheap live triggers for a run that may still be going (Live Supervisor input).
-
-    Every Run Health component at its threshold, plus the run-level exception or stop
-    reason, as ``{"trigger", "kind", "value", "threshold", "op", "step"}``. Pass
-    ``now`` (epoch seconds) only for an actively observed run: with no recorded finish,
-    it also fires ``silence`` (no new step for ``SILENCE_SECONDS``) and
-    ``live_wall_seconds`` (running past ``RUNAWAY_WALL_SECONDS``). Silence needs the
-    latest step's timestamp, or the start time before the first step. Without an actor
-    transcript only run-level facts, infra tail signatures and the clock fire. Omit
-    ``now`` for historical store records whose finish time is unavailable.
-    """
     f = dict(feats) if feats is not None else features(run)
     components = _kind_components(f)
     out: list[dict[str, Any]] = []
@@ -744,7 +601,6 @@ def triggers(run: HealthRun, *, now: float | None = None,
                     "op": c.get("op", ">="), "step": c["step"]} for c in components[kind] if c["ratio"] >= 1.0)
     if now is not None and _epoch(run.meta.get("finished_at")) is None:
         started = _epoch(run.meta.get("started_at"))
-        # before the first step the run start anchors silence; after it, only step times do
         last = f["last_step_at"] if f["steps"] else started
         if last is not None and now - last >= SILENCE_SECONDS:
             out.append({"trigger": "silence", "kind": "latency", "value": round(now - last, 3),
@@ -756,9 +612,6 @@ def triggers(run: HealthRun, *, now: float | None = None,
     return out
 
 
-# --------------------------------------------------------------------------- loaders
-
-
 def _phase_seconds(result: Mapping[str, Any], phase: str) -> float | None:
     block = result.get(phase)
     if not isinstance(block, Mapping):
@@ -768,7 +621,6 @@ def _phase_seconds(result: Mapping[str, Any], phase: str) -> float | None:
 
 
 def trial_metadata(trial_dir: Path) -> dict[str, Any]:
-    """Allowlisted run-health facts; never returns rewards, labels or grader output."""
     try:
         result = json.loads((trial_dir / "result.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -795,16 +647,12 @@ def trial_metadata(trial_dir: Path) -> dict[str, Any]:
 
 
 def trial_run(trial_dir: Path, *, run_id: str | None = None, source: str = "harbor") -> HealthRun:
-    """A Harbor trial directory (stitched ATIF trajectory plus health facts)."""
     steps, _reason = _stitched_steps(trial_dir)
     return HealthRun(run_id=run_id or trial_dir.name, source=source, steps=steps or [],
                      meta=trial_metadata(trial_dir))
 
 
-#: Per-step timestamp paths inside ``trace_steps.flags_json``, first hit wins (Goodfire
-#: epoch seconds; TB4/MiMo ISO; TB4 native epoch milliseconds).
 STORE_TIMESTAMP_PATHS = ("native_node_residual.timestamp", "source_timestamp", "raw_message.timestamp")
-#: Per-step (prompt, completion) token paths inside ``flags_json``, first pair with a prompt wins.
 STORE_TOKEN_PATHS = (
     ("source_metrics.prompt_tokens", "source_metrics.completion_tokens"),
     ("raw_message.usage.input", "raw_message.usage.output"),
@@ -828,15 +676,6 @@ def _store_step_facts(flags: Mapping[str, Any]) -> tuple[Any, dict[str, int]]:
 
 def store_runs(database: Path, *, registry: Any, dataset_ids: Sequence[str] | None = None,
                trace_ids: Sequence[str] | None = None) -> Iterator[HealthRun]:
-    """Admitted DEV runs from the cloud trace DB, read-only, with step timings attached.
-
-    Steps come from :func:`evallab.production.run_atlas.cloud_runs` (which reads no
-    label or publisher flag); this adds only timestamps and token counts from
-    ``flags_json``, keyed by the original ``step_index``. The run's stop reason is a
-    run status in ``outcome`` (only :data:`STORE_RUN_STATUSES`; any other value,
-    including a publisher label, is ignored) or else the receipt's
-    ``native_status.stop_condition``.
-    """
     from evallab.production.run_atlas import cloud_runs, connect_readonly
 
     connection = connect_readonly(database)
@@ -873,9 +712,6 @@ def store_runs(database: Path, *, registry: Any, dataset_ids: Sequence[str] | No
             })
     finally:
         connection.close()
-
-
-# --------------------------------------------------------------------------- CLI
 
 
 def _write_jsonl(path: Path | None, rows: Iterable[Mapping[str, Any]]) -> int:
@@ -918,7 +754,6 @@ def _command(args: argparse.Namespace, root: Path, **_: Any) -> int:
             if want == "features":
                 yield feats
             elif want == "triggers":
-                # store runs are finished history without a recorded finish time: no clock triggers
                 yield {"run_id": run.run_id, "detector_version": DETECTOR_VERSION,
                        "triggers": triggers(run, now=None if args.db else now, feats=feats)}
             else:

@@ -1,4 +1,3 @@
-"""Joins of explicitly named DEV evidence and cached outputs; no cache discovery."""
 from __future__ import annotations
 
 import hashlib
@@ -55,12 +54,11 @@ def _prediction(score: Any, citations: list | None = None, **extra: Any) -> dict
 
 
 def _lengths(path: Path) -> tuple[int | None, int | None]:
-    """Use DetBench's one view/length definition, restricted to the actor view."""
     doc = json.loads(path.read_text())
     library = retained("detbench_lib")
     steps = doc.get("steps")
     if not isinstance(steps, list):
-        return None, None  # Constructed file bundles are not agent trajectories.
+        return None, None
     view = doc if steps and "role" in steps[0] else library.build_view("length", steps)
     view = {**view, "steps": [s for s in view["steps"] if s["role"] in {"agent", "tool"}]}
     n_steps, n_chars = library.view_size(view)
@@ -68,7 +66,6 @@ def _lengths(path: Path) -> tuple[int | None, int | None]:
 
 
 def replay(config: dict, root: Path) -> tuple[dict[str, dict], dict[str, dict], dict]:
-    """Read stored decisions and raw stage scores, never invoking a line stage."""
     intake = _unique(read_rows(source(config["runs"], root)), "run_id")
     decisions = _unique(cached_rows(config["decisions"], root), "run_id")
     traces = _unique(cached_rows(config["trace"], root), "run_id")
@@ -188,7 +185,6 @@ def signals(config: dict, root: Path, eligible: set[str]) -> dict[str, dict]:
 
 def gold_rows(root: Path, state_root: Path | None, *, selected_cohorts: set[str] | None = None,
               unlocked_cohorts: set[str] | None = None) -> tuple[dict[str, dict], dict[str, Any]]:
-    """Use Gold's registry and coordinate authority, never a second label registry."""
     from evallab.gold import load_rows
     from evallab.gold.cohorts import LABELLED_ONLY, check_scoring
 
@@ -213,7 +209,6 @@ def gold_rows(root: Path, state_root: Path | None, *, selected_cohorts: set[str]
         label = {"executed-positive": 1, "reviewed-control": 0}.get(row.label_state)
         label_fields = row.model_dump(mode="json")
         if row.protocol == "action-v1":
-            # Action-v1 freezes predate this field; their label identities stay fixed.
             label_fields.pop("protocol")
         output[key] = {"run_key": key, "set": row.source, "task": row.task_id,
                        "label": label, "label_state": row.label_state, "split": "dev",
@@ -288,6 +283,5 @@ def cached_rows(ref: dict, root: Path) -> list[dict]:
 
 
 def cohort_signature(runs: dict[str, dict]) -> str:
-    # Feature availability changes coverage, never cohort membership or ground truth.
     return identity([{k: v for k, v in row.items() if k not in {"n_chars", "n_steps"}}
                      for _, row in sorted(runs.items())])

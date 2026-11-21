@@ -1,32 +1,3 @@
-"""One deterministic counts verdict per finished trial (HAR-78).
-
-``reward`` is never rewritten. ``counts`` says whether that reward may be
-quoted as a model result. Only deterministic facts exclude a trial:
-
-- ``copied_fix``: a pass with confirmed upstream acquisition, or whose added
-  lines match code read from outside the base checkout
-  (:mod:`evallab.copy_check`, ``copied_code``)
-- ``pass_tainted``: HAR-100, a pass with confirmed acquisition or a guard reject
-- ``red_team``: a declared cheat-agent control, not a model capability trial
-- ``audit_cheat``: a pass the contamination audit labelled ``cheat``
-  (``research/calibration/contamination-audit/labels.jsonl``, reviewed by two
-  judges; :mod:`evallab.contamination`). The label is a recorded review, like a
-  hand label; it catches cheats the deterministic copy facts miss.
-- ``task_not_usable``: census or hand label says the task cannot be read.
-  The census labels a task's original package; a trial that ran a
-  ``validated`` task variant (``library/task-variants``: its own nop was
-  sound, e.g. a HAR-113/HAR-115 environment repair) is not excluded by the
-  original's census label. Hand labels still apply.
-- ``infra``: no verifier reward, or a proxy/gateway error and no score
-
-A fetch on a failure stays ``counted_fail`` and is flagged. First failure,
-blame, and loop kind are attached for display. They never change the verdict.
-GEPA should read ``counts.verdict`` instead of applying its own fetch-to-zero
-rule; this module does not change GEPA.
-Failed and unknown fetch attempts are non-deciding flags. The legacy opt-in
-GEPA ``UPSTREAM_FETCH_ZERO`` rule still zeros any attempt, regardless of outcome.
-"""
-
 from __future__ import annotations
 
 import csv
@@ -53,11 +24,6 @@ _HAND_GLOB = "research/explorations/trace-lab/**/hand/*.json"
 _VARIANT_GLOB = "library/task-variants/*/*.json"
 
 def declared_red_team(trial_dir: Path, result: dict[str, Any]) -> dict[str, Any] | None:
-    """Read a declared cheat control without inferring attack success.
-
-    Missing or malformed declarations on a named cheat agent remain excluded
-    with an explicit uncertainty, rather than becoming model successes.
-    """
     agent = result.get("agent_info")
     cheat_agent = isinstance(agent, dict) and agent.get("name") == "cheat"
     paths = (trial_dir / "agent/cheat/attempts.json", trial_dir / "cheat/attempts.json")
@@ -101,7 +67,6 @@ def classify_counts(
     outcome_failure: dict[str, Any] | None = None,
     flags: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Return ``counts`` for one trial. Judgments are attached and ignored."""
     flags = [flag for flag in (flags or []) if isinstance(flag, str)]
     taint_flags = [flag for flag in (taint or []) if isinstance(flag, dict)]
     attempts = [flag for flag in taint_flags if flag.get("kind") == "upstream_fetch"]
@@ -207,7 +172,6 @@ def classify_counts(
 
 
 def summarize_counts(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    """Job rollup. A trial with two exclusion reasons increments both keys."""
     excluded_reasons: dict[str, int] = {}
     for row in rows:
         counts = row.get("counts") if isinstance(row, dict) else None
@@ -236,12 +200,6 @@ def attach_counts(
     package_digest: str | None = None,
     task_id: str | None = None,
 ) -> dict[str, Any]:
-    """Build ``counts`` from a process-job record and its ``result.json``.
-
-    ``package_digest`` is the task package the job ran (its ExperimentSpec's
-    ``task_package_digest``); a validated variant's digest lifts the original
-    task's census exclusion.
-    """
     result = result if isinstance(result, dict) else {}
     task_name = task_id or record.get("task_name") or result.get("task_name")
     trial_name = record.get("trial_name") or result.get("trial_name")
@@ -269,7 +227,6 @@ def attach_counts(
 
 
 def find_label_root(start: Path) -> Path | None:
-    """Walk parents for the committed task ledger or legacy census."""
     for parent in (start, *start.parents):
         if (parent / _LEDGER_RELATIVE).is_file() or (parent / _CENSUS_RELATIVE).is_file():
             return parent
@@ -283,7 +240,6 @@ def usability(
     task_name: str | None,
     package_digest: str | None = None,
 ) -> dict[str, Any] | None:
-    """Keep hand exclusions; bind ledger/validated-variant rules to the package."""
     hand = index.hand_for(trial_name, task_name)
     if hand is not None and hand["status"] in HAND_NOT_USABLE:
         return hand
@@ -304,7 +260,6 @@ def usability(
 
 
 class TaskIndex:
-    """Version-bound canonical task ledger with legacy hand/census fallback."""
 
     def __init__(
         self,
@@ -321,7 +276,6 @@ class TaskIndex:
     def status_for(
         self, task_name: str | None, task_package_digest: str | None
     ) -> dict[str, Any]:
-        """Display the exact ledger binding, not a guessed usable status."""
         task_id = _task_id(task_name)
         row = self.ledger.get(task_id or "")
         matched = (
@@ -366,7 +320,6 @@ class TaskIndex:
         return None
 
     def validated_variant(self, task_name: str | None, package_digest: str | None) -> bool:
-        """The trial ran a validated variant of this very task."""
         task_id = _task_id(task_name)
         return bool(package_digest) and task_id is not None and (
             self.validated.get(package_digest or "") == task_id
@@ -380,7 +333,6 @@ def task_index_for(root: Path | None) -> TaskIndex:
 
 
 def _audit_labels(root: Path | None) -> dict[str, dict[str, Any]]:
-    """Contamination-audit labels under the label root (empty when never run)."""
     if root is None:
         return {}
     path = labels_path(root)

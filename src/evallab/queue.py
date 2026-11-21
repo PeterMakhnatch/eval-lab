@@ -160,7 +160,6 @@ def approved_spec_digest(spec: ExperimentSpec) -> str:
 
 
 def authorization_required_message(spec: ExperimentSpec) -> str:
-    """Explain the named-approval refusal recorded in queue/reasons/."""
     spec_id = spec.spec_id or "<spec-id>"
     subscription = provider_subscription_description(spec.agent, spec.model)
     return (
@@ -172,15 +171,6 @@ def authorization_required_message(spec: ExperimentSpec) -> str:
 
 
 def standing_rule_admits(rule: AutoRunRule, spec: ExperimentSpec) -> bool:
-    """Whether one standing-approvals rule covers this spec.
-
-    Standing approval is a statement about a *class* of work, written once into
-    `policy/standing-approvals.yaml`. It can never cover a billable agent:
-    paid work is authorised one spec at a time by a human. Enforcing that here
-    rather than only in the policy file is the point — no edit to the policy
-    file, and no agent added to any `auto_run` entry, can re-open unattended
-    spend.
-    """
     if spec.billable:
         return False
     if spec.policy_rule and spec.policy_rule != rule.name:
@@ -194,25 +184,14 @@ def standing_rule_admits(rule: AutoRunRule, spec: ExperimentSpec) -> bool:
     return set(rule.requires).issubset(spec.requires)
 
 
-# --- subscription quota at the moment of authorisation ----------------------
-#
-# `src/evallab/quota.py` measures what remains on the subscription; it
-# deliberately authorises nothing and imports nothing from here. This section
-# is the one-way link: the gate reads the measurement, shows it to whoever is
-# authorising, and refuses only what the *provider itself* says cannot run.
-#
 HeadroomReader = Callable[[], Headroom]
 
 QUOTA_READER_UNCONFIGURED_REASON = (
     "this gate was built without a quota reader, so the subscription allowance was never looked up"
 )
 
-#: Marks a `human_approved` event whose actor accepted the recorded quota state.
-#: It lives on the event because the event log is the only record #65 trusts.
 QUOTA_OVERRIDE_REASON_CODE = "quota_override"
 
-#: What an operator must understand about an unavailable reading. It is not a
-#: reassurance and it is not a zero.
 QUOTA_UNKNOWN_WARNING = (
     "UNKNOWN is not 'plenty left'. This says the allowance could not be "
     "measured, not that this run fits inside it. Check the provider yourself "
@@ -226,40 +205,14 @@ QUOTA_STALENESS_NOTE = (
     "you, not this gate, are the one judging whether it is still true."
 )
 
-#: The lab's refusal threshold on the account-wide `used_percent` lives in
-#: `policy/standing-approvals.yaml` as `refuse_billable_at_used_percent`, read
-#: through `StandingApprovalsPolicy` and passed to `lab_threshold_reached`.
-#: Currently committed at 80%, raised from the original 60% baseline introduced
-#: for the 2026-10-13 overnight subscription-agent work.
-#:
-#: It was an interim module constant here (PR #70) only because the schema field
-#: it needed could not be added in that PR: `StandingApprovalsPolicy` forbids
-#: extras, so the YAML key is a load error until the field exists, and
-#: `schemas.py` was leased elsewhere that round. Both now landed together, so
-#: changing the threshold is a config edit rather than a code edit — which was
-#: the point, since the number is a spend decision belonging to Peter.
-
 
 def _reader_clock(headroom: Headroom) -> datetime | None:
-    """The instant `quota.py` was given when it built this reading.
-
-    Reconstructed from the reading rather than read again, so the gate stays
-    clock-free and its tests stay deterministic.
-    """
     if headroom.observed_at is None or headroom.staleness_seconds is None:
         return None
     return headroom.observed_at + timedelta(seconds=headroom.staleness_seconds)
 
 
 def quota_window_expired(headroom: Headroom) -> bool:
-    """Whether the reading describes a rate-limit window that has since reset.
-
-    The provider states when its window rolls over. Once it has, the recorded
-    `used_percent` and `rate_limit_reached_type` are facts about a window that
-    no longer exists, so they cannot refuse anything. Without this, a final
-    trial that recorded 100% would lock the lab out permanently: the only thing
-    that can produce a fresher reading is another paid trial.
-    """
     if headroom.availability != "observed" or headroom.resets_at is None:
         return False
     now = _reader_clock(headroom)
@@ -267,14 +220,6 @@ def quota_window_expired(headroom: Headroom) -> bool:
 
 
 def provider_reported_exhaustion(headroom: Headroom) -> str | None:
-    """The provider's own statement that paid work cannot succeed, or `None`.
-
-    Trap one: `availability` is checked first, and every numeric comparison
-    below is unreachable unless the reading is observed. An unavailable reading
-    produces no refusal here — it is not evidence of exhaustion — but the caller
-    must still print :func:`render_headroom_notice`, which says UNKNOWN out loud
-    rather than letting silence read as consent.
-    """
     if headroom.availability != "observed":
         return None
     now = _reader_clock(headroom)
@@ -334,7 +279,6 @@ def render_headroom_notice(
     agent: str | None = None,
     model: str | None = None,
 ) -> str:
-    """What the operator is told about one provider's allowance."""
     provider = (
         f"{provider_subscription_description(agent, model)} allowance/policy state"
         if agent is not None
@@ -403,7 +347,6 @@ def _quota_window_lines(headroom: Headroom) -> list[str]:
 
 
 def claude_quota_unavailable(headroom: Headroom) -> bool:
-    """A free live probe removes the historical Codex bootstrap exception."""
     if headroom.availability != "observed":
         return True
     now = _reader_clock(headroom)
@@ -434,7 +377,6 @@ class PolicyGate:
         self._headroom: dict[str, Headroom] = {}
 
     def headroom(self, agent: str | None = None, *, refresh: bool = False) -> Headroom:
-        """Cache per provider; dispatch can explicitly request a fresh reading."""
         key = agent or ""
         if refresh or key not in self._headroom:
             reading = self._read_headroom(agent)
@@ -564,24 +506,13 @@ class PolicyGate:
 
         campaign_rule: str | None = None
         if spec.campaign_id is not None:
-            # HAR-175: one approval per experiment. A spec that claims an
-            # approved campaign is admitted by that approval when every
-            # campaign check passes; any mismatch refuses with its own
-            # reason and the spec is never silently admitted. Specs without
-            # a claim keep the per-ID path below unchanged.
             refusal = campaign_approval.campaign_admission_refusal(self, spec)
             if refusal is not None:
                 return refusal
             campaign_rule = f"campaign:{spec.campaign_id}"
 
         if spec.billable:
-            # Paid execution is authorised one spec at a time by a named human,
-            # or once per experiment by a named campaign approval (above).
-            # No standing rule is consulted below this point for billable work,
-            # so an unattended cycle cannot reach Harbor with a paid agent.
             if authorization is None and campaign_rule is None:
-                # The refusal is also where the operator first sees what the run
-                # would cost them: they are about to be asked to authorise it.
                 return PolicyDecision(
                     admitted=False,
                     reason_code="paid_run_unauthorized",
@@ -616,12 +547,6 @@ class PolicyGate:
                         "The billable request remains blocked; manual queue commands are retired."
                     ),
                 )
-            # The provider's own statement that paid work cannot succeed. This
-            # sits above the dollar ceilings because a lockout is not a budget
-            # question: no amount of remaining budget makes a locked-out call
-            # run. An unavailable or expired reading refuses nothing here — it
-            # is not evidence of exhaustion — but it is never silent either:
-            # every branch below carries `render_headroom_notice`.
             headroom = reading()
             exhausted = provider_reported_exhaustion(headroom)
             override = authorization is not None and authorization.quota_override
@@ -694,8 +619,6 @@ class PolicyGate:
                 f"admitted by {campaign_rule} approval recorded for campaign {spec.campaign_id}"
             ]
             if spec.billable:
-                # Whoever approved the campaign is entitled to see, in the
-                # admission itself, the allowance this spec spends against.
                 admitted_headroom = reading()
                 notes.append(
                     render_headroom_notice(admitted_headroom, agent=spec.agent, model=spec.model)
@@ -712,8 +635,6 @@ class PolicyGate:
                 f"{authorization.authorized_at.isoformat()}"
             ]
             if spec.billable:
-                # Whoever authorised this is entitled to see, in the admission
-                # itself, the allowance they just spent against.
                 admitted_headroom = reading()
                 notes.append(
                     render_headroom_notice(admitted_headroom, agent=spec.agent, model=spec.model)
@@ -828,7 +749,6 @@ class DirectoryQueue:
 
     @contextmanager
     def tick_lock(self) -> Iterator[bool]:
-        """Try to become the one executor allowed to claim specs from this queue."""
         if not _TICK_THREAD_LOCK.acquire(blocking=False):
             yield False
             return
@@ -995,12 +915,6 @@ class DirectoryQueue:
         self.events_path.replace(self.events_path.with_name(f"{self.events_path.name}.1"))
 
     def authorizations(self) -> dict[str, PaidRunAuthorization]:
-        """Live human authorisations, read from the append-only event log.
-
-        `approve` writes the grant, `reject` withdraws it. Raises rather than
-        returning a partial view if the log cannot be read: an authorisation
-        that cannot be proven does not exist.
-        """
         granted: dict[str, PaidRunAuthorization] = {}
         for event in load_events(self.events_path):
             if event.event == "human_approved":
@@ -1023,13 +937,6 @@ class DirectoryQueue:
         return self.authorizations().get(spec.spec_id)
 
     def approve(self, spec_id: str, *, actor: str, quota_override: bool = False) -> Path:
-        """Record one human authorisation.
-
-        `quota_override` is stored on the event, not on the spec: the spec file
-        is written by the automation, so an override asserted there would be the
-        machine authorising itself. It overrides `subscription_quota_exhausted`
-        and `subscription_quota_ceiling` only.
-        """
         source = self.locate(spec_id, ("proposed", "pending", "waiting"))
         spec = self.load(source).model_copy(update={"policy_rule": "human-approval"})
         self._replace_model(source, spec)
@@ -1067,12 +974,6 @@ class DirectoryQueue:
         self.stop_path.touch(exist_ok=True)
 
     def resume(self, *, actor: str = "operator") -> None:
-        """Clear the STOP fence and record the resume time (HAR-174).
-
-        The ``queue_resumed`` event is the batch boundary for the
-        infra-spike fence: alerts from jobs launched before it no longer
-        fence unless their job is still running.
-        """
         self.stop_path.unlink(missing_ok=True)
         self.append_event(
             QueueEvent(
@@ -1085,7 +986,6 @@ class DirectoryQueue:
         )
 
     def last_resume_time(self) -> datetime | None:
-        """Latest queue-resume instant, or ``None`` when never resumed."""
         try:
             events = load_events(self.events_path)
         except (OSError, ValueError):
@@ -1102,10 +1002,6 @@ class DirectoryQueue:
         return latest
 
     def list_specs(self, state: QueueState) -> list[tuple[Path, ExperimentSpec]]:
-        # Two ticks may run concurrently (launchd schedule plus a manual tick).
-        # A file listed here can be claimed — moved to another state — before we
-        # read it. That is normal contention, not corruption: skip vanished
-        # files instead of failing the whole tick.
         records: list[tuple[Path, ExperimentSpec]] = []
         for path in self.state_dir(state).glob("*.json"):
             try:
@@ -1124,7 +1020,6 @@ class DirectoryQueue:
         )
 
     def lease_path(self, spec: ExperimentSpec | Path | str) -> Path:
-        """Return the lease file path in running/ for one experiment spec."""
         if isinstance(spec, ExperimentSpec):
             filename = f"{_safe_component(spec.agent)}-{spec.spec_id}.lease"
         elif isinstance(spec, Path):
@@ -1156,7 +1051,6 @@ class DirectoryQueue:
         *,
         lease_generation: str | None = None,
     ) -> Path:
-        """Return the generation-bound cancellation marker for one lease."""
         lease = self.lease_path(spec)
         generation = lease_generation or self.lease_generation(lease)
         suffix = generation or "unbound"
@@ -1216,7 +1110,6 @@ class DirectoryQueue:
         stale_seconds: float = DEFAULT_LEASE_STALE_SECONDS,
         now: float | None = None,
     ) -> bool:
-        """Return True if the lease file is absent, unreadable, or older than stale_seconds."""
         path = lease if isinstance(lease, Path) else self.lease_path(lease)
         if not path.is_file():
             return True
@@ -1236,7 +1129,6 @@ class DirectoryQueue:
         now: datetime | None = None,
         lease_generation: str | None = None,
     ) -> Path | None:
-        """Atomically claim one spec with an immutable lease generation."""
         path = self.lease_path(spec)
         pid = owner_pid if owner_pid is not None else self.runtime.owner_pid()
         timestamp = now or self.runtime.now()
@@ -1259,16 +1151,6 @@ class DirectoryQueue:
             )
             + "\n"
         ).encode()
-        # The lease guard is held across O_EXCL creation AND generation write so
-        # a concurrent request_cancel/release/heartbeat (all of which take the
-        # same guard) can never observe a freshly-created but not-yet-initialized
-        # lease: an interleaved reader would otherwise see an empty/torn record,
-        # treat it as unowned, and drop a valid cancellation request. The guard
-        # also serializes a stale-lease reclaim against concurrent claimants.
-        # The record itself is advisory, not a recovery root: the strict
-        # generation reader fails closed on a torn write, and a stale lease is
-        # reclaimed by mtime. Skip the per-claim fsync so a wide tick does not
-        # pay a filesystem barrier for every lease (PERF budget).
         with self._lease_guard(path):
             try:
                 descriptor = os.open(
@@ -1297,7 +1179,6 @@ class DirectoryQueue:
         return path
 
     def request_cancel(self, spec: ExperimentSpec) -> bool:
-        """Atomically bind a cancellation request to the currently active generation."""
         lease = self.lease_path(spec)
         with self._lease_guard(lease):
             generation = self.lease_generation(lease)
@@ -1345,7 +1226,6 @@ class DirectoryQueue:
         *,
         lease_generation: str | None = None,
     ) -> bool:
-        """Release only the matching generation and acknowledge its cancellation."""
         path = self.lease_path(spec)
         with self._lease_guard(path):
             generation = lease_generation or self.lease_generation(path)
@@ -1371,7 +1251,6 @@ class DirectoryQueue:
         *,
         lease_generation: str | None = None,
     ) -> bool:
-        """Heartbeat only the currently matching lease generation."""
         path = self.lease_path(spec)
         with self._lease_guard(path):
             if lease_generation is not None and self.lease_generation(path) != lease_generation:
@@ -1392,7 +1271,6 @@ class DirectoryQueue:
                 os.close(descriptor)
 
     def list_leases(self) -> list[Path]:
-        """Return all active lease files in running/."""
         return sorted(self.state_dir("running").glob("*.lease"))
 
     @staticmethod
@@ -1464,7 +1342,6 @@ def _is_locked_docker_spec(spec: ExperimentSpec) -> bool:
 
 
 class Executor:
-    """The sole application boundary allowed to start Harbor experiments."""
 
     def __init__(
         self,
@@ -1542,7 +1419,6 @@ class Executor:
         self._dispatch_headroom: dict[str, Headroom] = {}
 
     def _repo_headroom(self, agent: str) -> Headroom:
-        """Read only the quota evidence belonging to ``agent``."""
         if agent == "claude-code":
             return read_claude_headroom(now=datetime.now(UTC))
         return load_quota_report(
@@ -1594,9 +1470,6 @@ class Executor:
             and not decision.admitted
             and campaign_approval.should_escalate(decision.reason_code)
         ):
-            # Breach or defect: page Research-Harbor once per (spec, reason).
-            # Budget exhaustion also fences the queue: new launches stop via
-            # the existing STOP mechanism while running trials finish alone.
             campaign_approval.escalate_after_refusal(self.repo_root, spec, decision)
             if decision.reason_code == campaign_approval.REASON_BUDGET_EXHAUSTED:
                 self.queue.stop()
@@ -1622,8 +1495,6 @@ class Executor:
                 for _, spec in self.queue.list_specs(state)
             ]
             dispatched = self._tick_locked(parallel=effective_parallel, spec_ids=spec_ids)
-            # Make the existing single infra replacement visible before deciding
-            # the campaign drained; otherwise every replacement buys a cold start.
             try:
                 campaign_approval.reconcile_campaign_replacements(
                     self, report=self._report_progress
@@ -1659,7 +1530,6 @@ class Executor:
         ingest_result: IngestProjectionResult | None,
         archive: EvidenceArchive,
     ) -> ComplianceDisposition:
-        """Evaluate Data's merged contract over archived, catalog-settled evidence."""
         job = load_job(job_dir)
         if len(job.trials) != 1:
             raise ValueError("post-run compliance requires exactly one trial")
@@ -1766,7 +1636,6 @@ class Executor:
         stage = "artifact_scan"
         try:
             self._assert_persistent_artifacts_safe(spec, job_dir)
-            # Validate trial outcomes and evidence fidelity
             try:
                 job = load_job(job_dir)
                 trials = getattr(job, "trials", ())
@@ -1918,7 +1787,6 @@ class Executor:
             )
 
     def _defer_spec_event(self, spec: ExperimentSpec, reason_code: str) -> None:
-        """Record a deferral that leaves the spec approved for a later tick."""
         self.queue.append_event(
             QueueEvent(
                 event_id=new_ulid(),
@@ -1932,14 +1800,6 @@ class Executor:
         )
 
     def _ensure_selfhosted_ready(self, spec: ExperimentSpec) -> bool:
-        """Probe the self-hosted upstream before dispatch; never launch into a 503.
-
-        Non-self-hosted specs pass through. Every self-hosted dispatch
-        re-probes the authenticated ``/v1/chat/completions`` upstream with
-        a fresh probe: no cached-ready reuse. Cold endpoints wait inside
-        ``selfhosted_warmup_seconds``; a still-cold endpoint defers the
-        spec (stays approved) with a clear reason code.
-        """
         if not is_selfhosted_spec(spec):
             return True
         endpoint = resolve_selfhosted_endpoint(model=spec.model)
@@ -1999,15 +1859,6 @@ class Executor:
         *,
         resume_time: datetime | None,
     ) -> bool:
-        """Fence the queue when a current-batch watch alert reports a spike.
-
-        Scans ``watch/alerts.jsonl`` under every runs root behind the
-        approved batch, but only jobs that are running or were launched
-        since the last ``evallab resume`` can fence (HAR-174); acknowledged
-        and provably pre-resume rows never fence. Runs once per tick. On a
-        hit, sets the existing ``STOP`` fence so no further specs dispatch;
-        running trials are never touched. Returns whether the fence was set.
-        """
         if not approved_specs:
             return False
         roots: dict[Path, None] = {}
@@ -2038,13 +1889,6 @@ class Executor:
         *,
         resume_time: datetime | None,
     ) -> bool:
-        """Fence the queue when a just-finished job reports an infra spike.
-
-        Reads only that job's own ``watch/alerts.jsonl`` (the watch final
-        pass lands there synchronously at dispatch end), so a 100-spec tick
-        pays one file probe per dispatch instead of one full scan.
-        Acknowledged and provably pre-resume rows never fence (HAR-174).
-        """
         if not remaining:
             return False
         alerts = read_unacked_spike_alerts(job_dir, resume_time=resume_time)
@@ -2057,7 +1901,6 @@ class Executor:
     def _fence_for_spike(
         self, rule: str, count: int, specs: list[tuple[Path, ExperimentSpec]]
     ) -> bool:
-        """Set the existing ``STOP`` fence and record why; never touches running trials."""
         self.queue.stop()
         for _, spec in specs:
             self.queue.append_event(
@@ -2079,14 +1922,12 @@ class Executor:
         return True
 
     def _job_dir_for(self, spec: ExperimentSpec) -> Path | None:
-        """Best-effort job directory for a spec; ``None`` when unresolvable."""
         try:
             return _safe_repo_path(self.repo_root, spec.jobs_dir) / spec.name
         except ValueError:
             return None
 
     def _observe_daytona(self) -> dict[str, Any]:
-        """Read the Daytona admission snapshot (injectable for tests)."""
         if self._daytona_observe_fn is not None:
             return self._daytona_observe_fn()
         from evallab.daytona_guard import DaytonaGuard
@@ -2096,13 +1937,6 @@ class Executor:
     def _apply_daytona_clamp(
         self, approved_specs: list[tuple[Path, ExperimentSpec]]
     ) -> list[tuple[Path, ExperimentSpec]]:
-        """Clamp the tick plan to Daytona's memory cap up front.
-
-        Non-Daytona specs always pass. Daytona launches are capped at the
-        guard's memory allowance (one sandbox held in reserve), preserving
-        queue order, so admission never refuses an over-planned tick.
-        Trimmed specs retain their current state for a later tick.
-        """
         daytona_count = sum(1 for _, spec in approved_specs if is_daytona_spec(spec))
         if daytona_count == 0:
             return approved_specs
@@ -2143,7 +1977,6 @@ class Executor:
         return selected
 
     def _load_smoke_job(self, spec: ExperimentSpec) -> Any | None:
-        """Best-effort load of a just-dispatched smoke job; never raises."""
         try:
             from evallab.results import load_job
 
@@ -2154,13 +1987,10 @@ class Executor:
     def _dispatch_decision(
         self, spec: ExperimentSpec, authorization: PaidRunAuthorization | None
     ) -> PolicyDecision:
-        # Keep the exact reading per spec, so parallel launches cannot replace
-        # one another's evidence. Each Claude launch uses a fresh, free probe.
         reading = None
         if spec.billable and spec.agent == "claude-code":
             reading = self.gate.headroom(spec.agent, refresh=True)
             self._dispatch_headroom[str(spec.spec_id)] = reading
-        # Non-billable dispatch skips accounting the policy never inspects.
         return self.gate.decide(
             spec,
             spent_today_usd=self._effective_spend_today() if spec.billable else 0.0,
@@ -2180,12 +2010,6 @@ class Executor:
         *,
         preflight_decision: PolicyDecision | None = None,
     ) -> bool:
-        """Publish a completion only after dispatch and settlement have finished.
-
-        Observers run in the dispatch worker, so a long-running sibling cannot
-        delay persistence of this result. Observer errors propagate without
-        rewriting an already-settled queue state.
-        """
         try:
             return self._dispatch_one_inner(
                 path, spec, authorizations, credentials, preflight_decision=preflight_decision
@@ -2267,8 +2091,6 @@ class Executor:
             if spec.campaign_id is not None and campaign_approval.should_escalate(
                 decision.reason_code
             ):
-                # Same breach/defect escalation as submit (deduplicated per
-                # spec and reason); budget exhaustion fences new launches.
                 campaign_approval.escalate_after_refusal(self.repo_root, spec, decision)
                 if decision.reason_code == campaign_approval.REASON_BUDGET_EXHAUSTED:
                     self.queue.stop()
@@ -2293,7 +2115,6 @@ class Executor:
             lease_generation=lease_generation,
         )
         if lease_path is None:
-            # Lost claim race or actively leased; tolerated vanished/claimed skip
             return False
         try:
             running = self.queue.transition(
@@ -2408,7 +2229,6 @@ class Executor:
     def _apply_docker_clamp(
         self, specs: list[tuple[Path, ExperimentSpec]]
     ) -> list[tuple[Path, ExperimentSpec]]:
-        """Bound locked containers by observed host resources, without resizing."""
         if not any(_is_locked_docker_spec(spec) for _, spec in specs):
             return specs
         try:
@@ -2492,8 +2312,6 @@ class Executor:
             by_agent[spec.agent] = by_agent.get(spec.agent, 0) + slots
             if campaign_id is not None:
                 campaign_slots[campaign_id] = campaign_slots.get(campaign_id, 0) + slots
-        # Empty input means no approved specs at all; leave the reason unset so
-        # the tick reports `no_approved_specs` instead of a capacity refusal.
         if not selected and approved_specs:
             self.last_tick_reason = "capacity_no_approved_spec_fits"
         return selected
@@ -2501,7 +2319,6 @@ class Executor:
     def _campaign_for_batch(
         self, specs: list[tuple[Path, ExperimentSpec]]
     ) -> campaign_approval.ExperimentCampaign | None:
-        """Return only one unchanged approved campaign's execution contract."""
         if not specs or not specs[0][1].campaign_id:
             return None
         campaign_id = specs[0][1].campaign_id
@@ -2547,14 +2364,8 @@ class Executor:
         if self.queue.stop_path.exists():
             return 0
         if self.queue.list_specs("running"):
-            # A prior executor may have died while Harbor's detached process
-            # was still running and billing. Until that evidence becomes
-            # terminal (or an operator resolves it), starting any other work
-            # could bypass both the single-owner and daily-cost guarantees.
             self.last_tick_reason = "running_specs_unresolved"
             return 0
-        # HAR-193: release a priority wave of next uncertain draws under the
-        # existing tick lock, preserving the shared warm-server batch.
         campaign_approval.reconcile_adaptive_sampling(
             self, parallel=parallel, spec_ids=set(spec_ids) if spec_ids is not None else None
         )
@@ -2563,9 +2374,6 @@ class Executor:
         try:
             authorizations = self.queue.authorizations()
         except (OSError, ValueError):
-            # Fail closed. Authorisation is proven only from the event log; if
-            # the log cannot be read, nothing in this queue can be shown to be
-            # authorised, so the whole tick stops rather than guessing.
             self.last_tick_reason = "authorization_ledger_unreadable"
             return 0
         credentials = self._credential_probe()
@@ -2585,11 +2393,6 @@ class Executor:
             approved_specs = [
                 (path, spec) for path, spec in approved_specs if spec.spec_id in allowed
             ]
-        # Smoke eligibility is a property of the tick's approved batch,
-        # not of the post-clamp selection: capacity/daytona clamps that
-        # leave a single model-backed spec of a multi-model batch must not
-        # silently drop the gate. A standalone single model-backed spec is
-        # still not a batch (no new smoke requirement).
         smoke_batch = approved_specs
         campaign = self._campaign_for_batch(smoke_batch)
         campaign_parallel = (
@@ -2602,8 +2405,6 @@ class Executor:
         approved_specs = self._capacity_batch(approved_specs)
         if not approved_specs:
             return 0
-        # HAR-174 batch boundary, read once per tick: only alerts from
-        # running jobs or jobs launched since this instant can fence.
         spike_resume = self.queue.last_resume_time()
         if self._stop_on_infra_spike(approved_specs, resume_time=spike_resume):
             return 0
@@ -2645,8 +2446,6 @@ class Executor:
         if not smoke_ran:
             blocks, why = True, "smoke trial did not dispatch; holding batch"
         else:
-            # A dispatched attempt may fail while an older or partial graded
-            # job remains at its path. That evidence cannot release this batch.
             try:
                 self.queue.locate(str(smoke_spec.spec_id), ("done",))
             except (OSError, ValueError):
@@ -2671,17 +2470,9 @@ class Executor:
             request = self.prepare_request(spec, repo_root=self.repo_root)
             return preview_diff(request, repo_root=self.repo_root).counts["rerun"] == 0
         except (OSError, ValueError, RuntimeError, ImportError):
-            # The authoritative dispatch records the refusal; a failed preview
-            # must never exempt real execution from the smoke gate.
             return False
 
     def _smoke_gate_index(self, approved_specs: list[tuple[Path, ExperimentSpec]]) -> int | None:
-        """Position of the smoke trial, or ``None`` when the gate is off.
-
-        Default-on for batches with more than one model-backed spec: the
-        first model-backed spec runs alone so an infra or wiring failure
-        blocks the rest before they spend.
-        """
         if not self._smoke_gate_enabled:
             return None
         backed = [
@@ -2701,7 +2492,6 @@ class Executor:
         batch: list[tuple[Path, ExperimentSpec]],
         why: str,
     ) -> None:
-        """Fence future launches durably before recording the smoke failure."""
         self.queue.stop()
         self.last_tick_reason = SMOKE_REASON_BLOCKED
         self.queue.append_event(
@@ -2724,7 +2514,6 @@ class Executor:
         )
 
     def _record_smoke_opt_out(self, approved_specs: list[tuple[Path, ExperimentSpec]]) -> None:
-        """Record a scoped qualification waiver or the existing explicit opt-out."""
         qualified = self._smoke_gate_enabled and self._qualified_campaign_batch(approved_specs)
         if self._smoke_gate_enabled and not qualified:
             return
@@ -2786,10 +2575,6 @@ class Executor:
             return self._dispatch_serial(
                 batch, authorizations, credentials, resume_time=resume_time
             )
-        # Indexed campaign draws form one reserved wave. Decide before workers
-        # move specs between queue states: concurrent per-worker snapshots can
-        # otherwise count one reservation in both approved and running/done.
-        # This remains the existing policy gate and HAR-189 spend accounting.
         preflight = {
             str(spec.spec_id): self._dispatch_decision(spec, authorizations.get(str(spec.spec_id)))
             for _, spec in batch
@@ -2817,22 +2602,12 @@ class Executor:
         self,
         selected_specs: Sequence[ExperimentSpec],
     ) -> None:
-        """Stop the Modal server when self-hosted work just drained.
-
-        Candidates are specs that were running when the tick started plus
-        specs approved for this dispatch round; the hook itself checks which
-        reached a terminal state and whether any self-hosted work remains.
-        A no-op unless a teardown hook was injected. Teardown failures never
-        fail the tick: the hook records them in job evidence and queue events.
-        """
         hook = self._modal_teardown
         if hook is None:
             return
         candidates = [spec for spec in selected_specs if is_mimo_selfhosted_model(spec.model)]
         if not candidates:
             return
-        # The hook already waits while any self-hosted spec remains; skip it
-        # only when nothing in this window belongs to the Modal app.
         if all(self._runpod_owned(spec) for spec in candidates):
             self._report_progress("Modal teardown not applicable to the Runpod-owned window")
             return
@@ -2868,7 +2643,6 @@ class Executor:
         lease_path: Path | None = None,
         lease_generation: str | None = None,
     ) -> RunRequest:
-        """Resolve execution inputs without opening policy, leases, or storage."""
         repo_root = repo_root.resolve()
         if spec.provider_routes:
             raise ExecutionFailure(
@@ -2995,8 +2769,6 @@ class Executor:
                 )
 
         jobs_dir = _safe_repo_path(repo_root, spec.jobs_dir)
-        # A field the dispatcher never forwards is the defect class this repo keeps
-        # finding, so the elicitation preamble is resolved here beside jobs_dir.
         extra_instruction_path = (
             _safe_repo_path(repo_root, spec.extra_instruction_path)
             if spec.extra_instruction_path
@@ -3086,8 +2858,6 @@ class Executor:
             modal_sandbox_timeout_seconds=spec.modal_sandbox_timeout_seconds,
             modal_sandbox_create_max_attempts=spec.modal_sandbox_create_max_attempts,
             egress_lock=spec.egress_lock,
-            # Harbor's installed agents hard-require a model name; specs that
-            # do not pin one fall back to the per-agent default.
             model=spec.model or DEFAULT_AGENT_MODELS.get(spec.agent),
             concurrency=spec.concurrency,
             attempts=spec.attempts,
@@ -3184,9 +2954,6 @@ class Executor:
         spec: ExperimentSpec,
         request: RunRequest,
     ) -> Path:
-        # HAR-162: every agent job gets a read-only live watch, stopped on
-        # every terminal path (success, failure, cancel) in the finally.
-        # Model-free agents are skipped inside; watch faults never fail here.
         from evallab import auto_watch as _auto_watch
 
         watch = _auto_watch.start_for_request(
@@ -3316,9 +3083,6 @@ class Executor:
                 completed.add(event.spec_id)
         total = 0.0
         for spec_id, estimates in reservations.items():
-            # The catalog accounts for the final successful attempt. Earlier
-            # failed attempts, and every attempt of a failed spec, remain
-            # conservatively reserved in the event ledger.
             unsettled = estimates[:-1] if spec_id in completed else estimates
             total += sum(unsettled)
         return total
@@ -3348,7 +3112,6 @@ class Executor:
     def download_dataset(
         self, dataset_ref: str, output_dir: Path, *, output_to_stderr: bool = False
     ) -> Path:
-        """Download an immutable dataset, optionally preserving a JSON stdout channel."""
         if "@" not in dataset_ref:
             raise ValueError("dataset downloads require an explicit immutable version")
         ref = dataset_ref.rsplit("@", 1)[1].lower()
@@ -3378,9 +3141,6 @@ class Executor:
         return destination
 
     def execute_direct(self, request: RunRequest, *, ingest: bool = True) -> Path:
-        # NEEDS PARENT APPROVAL (HAR-204 cheat lane): the model-free cheat audit
-        # agent joins oracle/nop here. It makes no provider calls ($0 by
-        # construction); every billable agent is still refused.
         if request.agent not in CONTROL_AGENTS and request.agent != CHEAT_AGENT:
             raise ValueError(
                 "direct execution is restricted to oracle/nop/cheat; --allow-billable records "
@@ -3402,16 +3162,11 @@ class Executor:
         return job_dir
 
     def local_runtime_checks(self) -> list[tuple[str, bool, str]]:
-        """Inspect executable runtimes through the executor's process boundary."""
         checks: list[tuple[str, bool, str]] = []
         for command in ("harbor", "docker", "uv"):
             version = tool_version(command)
             checks.append((command, version is not None, version or "not found"))
             if command == "harbor":
-                # Advisory: the CI pin lives in runner.HARBOR_CLI_PIN, and a
-                # local Harbor on another version silently produces jobs CI
-                # cannot reproduce (HAR-265). Doctor reports the mismatch
-                # without adding it to the required set.
                 checks.append(("harbor-pin", *harbor_cli_pin_check(version)))
         if shutil.which("docker"):
             try:
@@ -3609,11 +3364,6 @@ class Executor:
         )
 
     def _catalog_spend(self) -> float:
-        # Gate rule (HAR-104): the gate spends used + attempted as a
-        # conservative ceiling (database.daily_cost_usd sums both columns)
-        # while the catalog cost_usd stays settled ledger usage only.
-        # In-flight queue reservations ride on top via
-        # _effective_spend_today, not in this figure.
         try:
             return database.daily_cost_usd(
                 database_url_from_environment(),

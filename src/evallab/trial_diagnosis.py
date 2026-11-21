@@ -1,86 +1,3 @@
-"""Deterministic trial diagnosis: trajectory -> failure modes + bounded Reef feedback.
-
-Reads a Harbor trial directory (Terminus 2 or mini-swe-agent ATIF at minimum)
-and returns a typed, deterministic diagnosis: an outcome (scored reward,
-unscored, or infra-failed) plus multi-label failure modes with step-level
-evidence. Two renderers serve Reef's report ``feedback`` field (string or
-object, ``docs/reference/http-api.rst:559-562`` @ reef ``818997d7``): a
-JSON-serializable object and a bounded plain-text rendering. The text form
-suits the reefine proposer, which reads each failing sample's score and
-feedback verbatim (``reef/recipe/reefine/evolution.py:686-696``) inside a
-fenced-as-data prompt (``:288-298``), and the object form carries the same
-signal a GEPA ``Feedback`` hook (``recipes/gepa/method.py:61-65``) reflects
-over. HAR-74 will post these as each Reef report's ``feedback``; HAR-74
-itself is out of scope here.
-
-Outcome semantics (never conflated):
-
-* ``infra_failed`` -- the trial raised before scoring (``exception_info``
-  present, no numeric reward). No modes.
-* ``unscored`` -- no exception but no numeric reward. No modes.
-* ``scored`` -- numeric reward present, whatever ended the agent phase: a
-  verifier-scored ``AgentTimeoutError`` passes or fails on its reward (HAR-92)
-  and keeps its exception class as evidence. Modes attach only to scored
-  failures (reward < 1.0) with a featured trajectory; scored passes, controls
-  without an agent trajectory, and unscored/infra trials carry zero modes, so
-  an unscored or infra-failed trial is never labeled as a task failure.
-
-Failure-mode taxonomy (``trial_diagnosis/failure_mode/v1``) reuses
-``trajectory_behavior/v1`` concepts where they exist and extends only where a
-mode is missing:
-
-* ``tool_use_loop`` -- reuses the outline's ``loop_suspicion`` signal.
-* ``planning_no_edit`` -- the heuristic's tool-calls-without-edit concept,
-  with step-level evidence; the outline's edit pattern is OR-ed with a local
-  heredoc/redirect matcher it misses.
-* ``unrecovered_error`` -- the outline's ``unrecovered_at_terminal`` idea,
-  recomputed locally so document-level diagnoses (which have no outline)
-  and REPL ``exit N`` conventions share one path. The outline itself is
-  envelope-aware (traj.py unwraps agent transports); the local walk is
-  retained for uniformity, not for a gap. Detector v3: modes unchanged
-  by the outline fix; ``heuristic_label`` strings follow the corrected
-  outline (shell fails read ``unrecovered_error``, recovered passes read
-  ``recovered_success``).
-* ``no_tool_use`` (new) -- the heuristic taxonomy has ``setup_failure`` for
-  zero agent steps but no mode for an agent that responds without ever
-  calling a tool; mirrors Reef's ``never used a tool`` flag.
-* ``empty_terminal_reply`` (new) -- no heuristic equivalent; mirrors Reef's
-  ``turn ended on an empty reply`` flag.
-* ``silent_tool_output`` (new) -- the outline counts errors but never flags
-  empty successful outputs; mirrors Reef's ``ran code that printed nothing``.
-  Flagged only when two or more tool steps return empty output, since a
-  single empty output (``mkdir``, ``cd``) is routine harness traffic.
-* ``wrong_tool_arguments`` (new) -- the error taxonomy classifies errors but
-  surfaces no argument-specific mode; mirrors Reef's ``called a tool with
-  wrong arguments`` flag.
-* ``state_persistence_assumption`` (new) -- no heuristic equivalent; mirrors
-  Reef's ``assumed state persisted between tool calls`` flag (``NameError``
-  in the REPL harness; bare ``cd`` followed by a relative-path failure in a
-  shell harness).
-* ``malformed_artifact`` (new, detector v2) -- the agent reads back a
-  ``*.json`` file whose displayed content does not parse. Reef's own
-  proposer independently invented this rule on exp05 ("validate JSON
-  before finishing"), which is the external evidence it earns its
-  keep: exp05 ``error-count`` wrote right counts as invalid JSON.
-  Read-backs only -- writes with embedded reads (``echo … $(cat f) >>
-  out.json``) never count, so awk programs in transcripts are safe.
-* ``unclassified_failure`` (fallback) -- a scored failure no detector
-  matched; mirrors Reef's ``no flag matched`` bucket. Keeps the output
-  honest instead of forcing a wrong mode.
-
-Deliberately absent: Reef's ``had the right number in tool output, never
-reported it`` has no deterministic ATIF counterpart without hidden verifier
-inputs, which must never enter analysis output -- so it stays missing and is
-documented here rather than guessed.
-
-Safety rules (mirroring ``gepa_optimizer.feedback``): excerpts are
-deterministic, bounded, and sanitized -- hidden ``tests/``/``solution/``
-path segments are redacted, secret-like tokens are redacted, the text
-rendering is truncated to ``max_chars``, and raw step content never carries
-usage, timestamps, logprobs, or rewards beyond the trial's own recorded
-reward. No model calls of any kind.
-"""
-
 from __future__ import annotations
 
 import json
@@ -234,7 +151,6 @@ _FILE_TASK_RE = re.compile(
 
 
 def _strip_comment_lines(command: str) -> str:
-    """Drop full-line ``#`` comments; narration-as-command carries no signal."""
     kept = [line for line in command.splitlines() if not line.strip().startswith("#")]
     return "\n".join(kept)
 
@@ -250,14 +166,6 @@ _EXIT_CODE_RE = re.compile(r"^exit ([1-9]\d*)\b")
 
 
 def _silence_is_expected(command: str | None, tool_name: str | None = None) -> bool:
-    """File writes, in-place edits, and bare mutations are silent by design.
-
-    Chained commands are expected-silent only when every segment is; a quiet
-    ``mkdir`` must not excuse a silent test run chained behind it. The
-    heredoc/redirect/in-place patterns are shell constructs: Reef's REPL
-    ``execute`` tool runs code where ``>`` is a comparison, so they do not
-    apply there (a bare ``exit 0`` stays silence).
-    """
     if not command:
         return False
     code = _strip_comment_lines(command)
@@ -280,15 +188,6 @@ _WRITE_REDIRECT_RE = re.compile(r"(<<-?\s*['\"]?\w|\d?>>?\s*\S)")
 
 
 def _is_edit_call(tool_name: str | None, command: str | None) -> bool:
-    """Outline edit signal plus writes the outline pattern misses.
-
-    The outline's edit pattern ends in a word boundary after ``>``, so shell
-    redirects such as ``cat <<'EOF' > fix.py`` never match; every such write
-    would otherwise read as ``planning_no_edit`` on mini-swe-agent trials.
-    Script-text heuristics apply to shell tools only: an ``exec`` script body
-    full of ``>`` comparisons is not a redirect. SQL writes count because a
-    DB-task agent that runs UPDATE has changed persistent state.
-    """
     lowered = (tool_name or "").lower()
     if lowered in EDIT_TOOL_NAMES:
         return True
@@ -303,7 +202,6 @@ def _is_edit_call(tool_name: str | None, command: str | None) -> bool:
 
 
 def _task_involves_files(views: list[_StepView]) -> bool:
-    """File-task evidence: without paths, 'never edited a file' is vacuous."""
     haystack = "\n".join(
         ["\n".join(view.all_commands) for view in views] + [view.message or "" for view in views]
     )
@@ -337,7 +235,6 @@ _AGENT_SOURCES = frozenset({"agent", "assistant"})
 
 @dataclass(frozen=True)
 class FailureMode:
-    """One diagnosed failure mode with step-level evidence."""
 
     mode: str
     step_ids: tuple[int, ...]
@@ -355,7 +252,6 @@ class FailureMode:
 
 @dataclass(frozen=True)
 class TrialDiagnosis:
-    """Typed diagnosis of one Harbor trial directory."""
 
     trial_id: str
     trial_name: str
@@ -391,7 +287,6 @@ class TrialDiagnosis:
 
 @dataclass
 class _StepView:
-    """Minimal normalized step for detectors (ATIF today, other logs later)."""
 
     step_id: int
     source: str
@@ -406,7 +301,6 @@ class _StepView:
 
 
 def sanitize_excerpt(text: str, limit: int = EXCERPT_CHARS) -> str:
-    """Collapse, redact hidden paths and secret-like tokens, and bound text."""
     collapsed = _WS_RE.sub(" ", text or "").strip()
     collapsed = _HIDDEN_PATH_RE.sub(r"\1[hidden-path]\3", collapsed)
     for pattern in _SECRET_RES:
@@ -429,12 +323,6 @@ def _command_string(call_args: Any) -> str | None:
 
 
 def _output_text(content: Any) -> str:
-    """Unwrap mini-swe-agent JSON envelopes; pass Terminus terminal text through.
-
-    A blank output with a nonzero returncode or harness exception note is not
-    silence: surface the envelope status so evidence cites the failure, not an
-    empty string.
-    """
     text = content if isinstance(content, str) else str(content or "")
     stripped = text.strip()
     if stripped.startswith("{"):
@@ -459,14 +347,6 @@ def _output_text(content: Any) -> str:
 
 
 def _raw_steps(trial_dir: Path) -> tuple[list[dict[str, Any]], tuple[str, ...]]:
-    """Unique non-copied steps across the head and continuations, plus notices.
-
-    Part discovery comes from the shared stitching library
-    (:func:`evallab.step_layers.discover_trajectory_parts`); steps are merged
-    by :func:`evallab.step_layers.stitch_steps`, so detectors never count the
-    same turn twice. Whole-duplicate parts use the SFT exporter's
-    ``duplicate_of:`` vocabulary (see :mod:`evallab.step_layers`).
-    """
     try:
         _, traj_path, _ = resolve_trial_target(trial_dir, explicit_runs_root=trial_dir)
     except (TrajectoryError, ValueError, OSError):
@@ -498,12 +378,10 @@ def _raw_steps(trial_dir: Path) -> tuple[list[dict[str, Any]], tuple[str, ...]]:
 
 
 def _envelope_returncode(content: Any) -> int | None:
-    """Return the mini-swe-agent JSON envelope returncode, if present."""
     return split_envelope(content)[0]
 
 
 def _result_is_error(result: dict[str, Any]) -> bool:
-    """Mirror the outline's error signals: exit codes, envelopes, type/status."""
     extra = result.get("extra")
     if (
         isinstance(extra, dict)
@@ -541,10 +419,6 @@ def _step_views(raw_steps: list[dict[str, Any]]) -> list[_StepView]:
                 all_commands.append(text)
                 if command is None:
                     command = text
-        # Raw-content Terminus steps carry no native tool calls; an executed
-        # observation still proves the turn ran something. Count it once
-        # without naming a tool (counts feed no_tool_use only; loop/argument
-        # detectors still need named calls).
         if (
             call_count == 0
             and str(raw.get("source") or "").lower() in _AGENT_SOURCES
@@ -561,9 +435,6 @@ def _step_views(raw_steps: list[dict[str, Any]]) -> list[_StepView]:
         extra_results = raw.get("observation_results")
         if isinstance(extra_results, list):
             results.extend(extra_results)
-        # The REPL harness prefixes tool outputs with "exit N"; a nonzero
-        # exit there is the error signal (mini-swe-agent envelopes and
-        # result flags are checked separately).
         step_error = bool(raw.get("is_error"))
         for result in results:
             content = result.get("content") if isinstance(result, dict) else result
@@ -593,7 +464,6 @@ def _step_views(raw_steps: list[dict[str, Any]]) -> list[_StepView]:
 
 
 def _try_json(span: str) -> bool:
-    """True when a candidate span parses as JSON (bounded attempts only)."""
     try:
         json.loads(span)
     except (json.JSONDecodeError, ValueError):
@@ -602,7 +472,6 @@ def _try_json(span: str) -> bool:
 
 
 def _json_spans(text: str) -> list[str]:
-    """Balanced ``{...}``/``[...]`` spans, longest first, quote-aware."""
     opens = {"{": "}", "[": "]"}
     spans: list[tuple[int, int]] = []
     stack: list[tuple[str, int]] = []
@@ -630,11 +499,6 @@ def _json_spans(text: str) -> list[str]:
 
 
 def _mode(name: str, step_ids: list[int], excerpt: str) -> FailureMode:
-    """Build one mode with de-duplicated, ordered, bounded step evidence.
-
-    Step ids are mandatory: callers must supply real evidence or skip the
-    mode. Emitting step 0 or a zero-count excerpt is never allowed.
-    """
     ordered = sorted({step for step in step_ids if isinstance(step, int)})
     if not ordered:
         raise TrajectoryError("refusing to emit a mode without step evidence")
@@ -649,11 +513,6 @@ def _mode(name: str, step_ids: list[int], excerpt: str) -> FailureMode:
 def _longest_command_run(
     tool_views: list[_StepView],
 ) -> tuple[list[int], str]:
-    """Longest consecutive run of identical (tool, command), citing the run.
-
-    Citing the run -- not the first triple -- keeps evidence on the egregious
-    repetition (for example nine identical polls, not the first three calls).
-    """
     best: list[int] = []
     best_cmd = ""
     run: list[int] = []
@@ -674,7 +533,6 @@ def _longest_command_run(
 
 
 def _message_run(agent_views: list[_StepView]) -> list[int]:
-    """Consecutive identical agent messages (the no-tool-call loop)."""
     best: list[int] = []
     run: list[int] = []
     last = ""
@@ -691,11 +549,6 @@ def _message_run(agent_views: list[_StepView]) -> list[int]:
 
 
 def _defined_names(tool_views: list[_StepView]) -> set[str]:
-    """Names the agent's own commands define (assignment, def, class, for, with).
-
-    Imports do not count: importing a name earlier does not prove the agent
-    expected it to persist.
-    """
     script = "\n".join("\n".join(view.all_commands) for view in tool_views)
     names: set[str] = set()
     for template in _DEFINITION_RES:
@@ -707,7 +560,6 @@ def _defined_names(tool_views: list[_StepView]) -> set[str]:
 
 @dataclass(frozen=True)
 class _DetectContext:
-    """Outline signals for detectors, or view-derived equivalents."""
 
     total_tool_calls: int
     step_to_first_tool: int | None
@@ -724,8 +576,6 @@ def _detect(ctx: _DetectContext, views: list[_StepView]) -> list[FailureMode]:
     modes: list[FailureMode] = []
 
     if ctx.total_tool_calls == 0:
-        # Multi-label like Reef's flags: a tool-less run can still end on an
-        # empty reply, so record and continue instead of returning early.
         anchor = agent_views[-1] if agent_views else None
         anchor_id = anchor.step_id if anchor else views[0].step_id
         modes.append(
@@ -778,9 +628,6 @@ def _detect(ctx: _DetectContext, views: list[_StepView]) -> list[FailureMode]:
                     modes.append(_mode("tool_use_loop", top_ids, excerpt))
 
     if agent_views and not any(view.message.strip() for view in agent_views):
-        # Reef parity (04_gate_aa.py): the flag is the absence of any
-        # non-empty assistant reply in the episode, not the shape of the
-        # terminal step. A run of tool calls with no text back is the signal.
         terminal = agent_views[-1]
         modes.append(
             _mode(
@@ -791,15 +638,9 @@ def _detect(ctx: _DetectContext, views: list[_StepView]) -> list[FailureMode]:
         )
 
     def _output_is_silent(text: str) -> bool:
-        # Reef parity: the REPL harness prints a bare "exit 0" when code
-        # prints nothing, so that marker is silence, not output.
         return not text.strip() or bool(_EXIT_ZERO_RE.match(text))
 
     def _step_is_silent(view: _StepView) -> bool:
-        # Reef parity: ANY bare "exit 0" marks the step (multi-output steps
-        # pair confirmations with the marker). A merely blank output only
-        # counts when every output is blank: shell steps routinely trail
-        # whitespace.
         if any(_EXIT_ZERO_RE.match(out) for out in view.outputs):
             return True
         return all(not out.strip() for out in view.outputs)
@@ -812,9 +653,6 @@ def _detect(ctx: _DetectContext, views: list[_StepView]) -> list[FailureMode]:
         and _step_is_silent(view)
         and not _silence_is_expected(view.command, view.tool_name)
     ]
-    # A single quiet shell command (mkdir, cd) is routine traffic, hence the
-    # two-silence minimum -- but a stateful REPL whose only feedback is a
-    # bare "exit 0" tells the agent nothing, so one suffices there.
     tool_names = {tool.lower() for view in tool_views for tool in view.all_tools} | {
         (view.tool_name or "").lower() for view in tool_views
     }
@@ -837,10 +675,6 @@ def _detect(ctx: _DetectContext, views: list[_StepView]) -> list[FailureMode]:
     for view in tool_views:
         haystack = " ".join(view.outputs)
         match = _ARGUMENT_ERROR_RE.search(haystack)
-        # Bare "usage:" lines also appear in --help output, so they only count
-        # when the step itself failed; other argument-error phrasing is specific.
-        # A traceback names the agent's own code failing, not a tool call with
-        # wrong arguments, so tracebacks never count here.
         if (
             match
             and not _TRACEBACK_RE.search(haystack)
@@ -864,11 +698,6 @@ def _detect(ctx: _DetectContext, views: list[_StepView]) -> list[FailureMode]:
             continue
         for out in view.outputs:
             name_match = _NAME_ERROR_RE.search(out)
-            # A bare NameError also names the bug under test (repro scripts) or
-            # words inside displayed source; on shell trials only a name the
-            # agent itself defined earlier signals assumed-persistent state.
-            # On REPL tools every exec call is a fresh cell, so any NameError
-            # in a failing exec is the state signal directly.
             repl_cell = (
                 any(tool.lower() in repl_tools for tool in view.all_tools)
                 or (view.tool_name or "").lower() in repl_tools
@@ -910,11 +739,6 @@ def _detect(ctx: _DetectContext, views: list[_StepView]) -> list[FailureMode]:
         for view in tool_views
         for cmd in view.all_commands or (None,)
     )
-    # 'Never edited a file' is vacuous for MCP-app tasks with no file
-    # evidence, and for REPL harnesses whose files are scratch rather than
-    # the repair target, so the mode is a shell-harness mode: it needs
-    # file-task signals plus a shell (or unknown) tool protocol. Known
-    # non-shell tools (Reef REPL ``execute``, MCP ``exec``/``wait``) opt out.
     tool_names = {(view.tool_name or "").lower() for view in tool_views}
     shell_harness = bool(tool_names & _SHELL_TOOLS) or not (tool_names <= _NON_SHELL_TOOLS)
     if (
@@ -941,9 +765,6 @@ def _detect(ctx: _DetectContext, views: list[_StepView]) -> list[FailureMode]:
                 )
             )
 
-    # Terminal-error state is recomputed here from envelope-aware views with
-    # the outline's own last-was-error semantics, so the document entry
-    # point (no outline) and REPL exit-N conventions share one path.
     error_ids = [view.step_id for view in agent_views if view.is_error]
     last_was_error = False
     for view in agent_views:
@@ -968,8 +789,6 @@ def _detect(ctx: _DetectContext, views: list[_StepView]) -> list[FailureMode]:
     artifact_ids: list[int] = []
     artifact_excerpt = ""
     for view in tool_views:
-        # A read-back, never a write: commands like `echo ... $(cat f) >>
-        # out.json` embed reads inside writes and must not count.
         reads_json = any(
             _JSON_READ_RE.search(segment)
             for cmd in (*view.all_commands, view.command or "")
@@ -999,11 +818,6 @@ def _detect(ctx: _DetectContext, views: list[_StepView]) -> list[FailureMode]:
 
 
 def _final_recorded_accepted(steps: Sequence[dict[str, Any]]) -> dict[str, Any] | None:
-    """Last agent turn's recorded accepted layer, if the trial recorded one.
-
-    Offline-only: recorded layers, never a parser replay (this module stays
-    Harbor-free). Older trials predate recording and yield ``None``.
-    """
     for raw in reversed(steps):
         if raw.get("source") != "agent" or raw.get("is_copied_context"):
             continue
@@ -1015,7 +829,6 @@ def _final_recorded_accepted(steps: Sequence[dict[str, Any]]) -> dict[str, Any] 
 
 
 def _stop_note(trial_dir: Path, steps: Sequence[dict[str, Any]]) -> str | None:
-    """One-line stop reason from result.json plus the last recorded turn."""
     try:
         result = json.loads((trial_dir / "result.json").read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError, ValueError):
@@ -1061,7 +874,6 @@ def diagnose_trial(
     repo_root: Path | None = None,
     explicit_runs_root: str | Path | None = None,
 ) -> TrialDiagnosis:
-    """Diagnose one Harbor trial directory deterministically."""
     trial = Path(trial_dir)
     resolved = trial.resolve()
     jail_root = Path(explicit_runs_root).resolve() if explicit_runs_root else resolved
@@ -1086,9 +898,6 @@ def diagnose_trial(
             notices=("trial target did not resolve to a readable trial directory",),
         )
 
-    # HAR-92: a verifier-scored trial counts as scored whatever ended the
-    # agent phase (an AgentTimeoutError with rewards still passes or fails on
-    # its reward). Only an unscored raise is an infra failure.
     if outline.exception_class is not None and outline.primary_reward is None:
         return TrialDiagnosis(
             trial_id=outline.trial_id,
@@ -1161,7 +970,6 @@ def diagnose_trial(
 
 
 def _order_modes(detected: list[FailureMode]) -> tuple[FailureMode, ...]:
-    """Sort modes into the stable MODE_ORDER for deterministic output."""
     order = {name: index for index, name in enumerate(MODE_ORDER)}
     return tuple(sorted(detected, key=lambda item: order.get(item.mode, 99)))
 

@@ -34,8 +34,6 @@ PINS_SCHEMA = "evallab.line_replay_pins/v1"
 MANIFEST_SCHEMA = "evallab.line_replay_manifest/v1"
 DEFAULT_SET = "~/Developer/eval-lab-results/line/replay-v1"
 DEFAULT_NAME = "replay-v1"
-# Not frozen inputs: the manifest, baseline files and README describe the set, while
-# batches/ and baseline-history/ hold outputs and archives. Everything else is listed.
 UNLISTED_FILES = {"MANIFEST.json", "baseline.json", "baseline-provenance.json", "README.md"}
 UNLISTED_DIRS = {"batches", "baseline-history"}
 VERDICTS = {0: "PASS", 1: "REGRESSION", 2: "INVALID"}
@@ -243,7 +241,6 @@ def _check_spec_paths(root: Path) -> None:
     judge = spec.get("judge")
     if not isinstance(judge, dict):
         raise ValueError("spec judge must be an object")
-    # Without an explicit frozen verdicts file the line would read live Judge Station state.
     frozen_input(judge.get("verdicts"), "judge.verdicts")
     if not _inside(where(judge.get("queue"), "judge.queue"), real_root):
         raise ValueError("spec judge.queue resolves outside the set")

@@ -1,5 +1,3 @@
-"""Shared ``trace-findings/v1`` validation for retained trace readers."""
-
 from __future__ import annotations
 
 import math
@@ -13,7 +11,7 @@ from evallab.production.cloud_trace_db import TRACE_FINDING_KINDS, TRACE_FINDING
 MAX_EVIDENCE_STEPS = 20
 MAX_SUMMARY_WORDS = 40
 MAX_SUMMARY_CHARS = 600
-_INT32 = 2**31 - 1  # the PostgreSQL INTEGER column limit; SQLite would take more
+_INT32 = 2**31 - 1
 _REQUIRED = ("run_id", "detector", "detector_version", "verdict", "kind", "produced_at")
 _DETECTOR = re.compile(r"[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)*\Z")
 _VERSION = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.+:/@\-]*\Z")
@@ -49,7 +47,6 @@ def _token(value: Any, field: str, pattern: re.Pattern[str], limit: int) -> str:
 
 
 def _timestamp(value: Any) -> str:
-    """A timezone-aware ISO instant as canonical, fixed-width UTC text (it sorts as time)."""
     if not isinstance(value, str):
         raise ValueError("produced_at must be a UTC ISO timestamp")
     try:
@@ -66,11 +63,6 @@ def _timestamp(value: Any) -> str:
 
 
 def _finding(record: Any) -> dict[str, Any]:
-    """Validate one ``trace-findings/v1`` record; keys outside the schema are dropped.
-
-    A record's own ``actor_inputs_available`` is kept only so the writer can
-    count disagreements with the value the database computes.
-    """
     if not isinstance(record, Mapping):
         raise ValueError("record must be a JSON object")
     missing = [field for field in _REQUIRED if field not in record]

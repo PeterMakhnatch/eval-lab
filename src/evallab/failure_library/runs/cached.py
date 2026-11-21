@@ -1,5 +1,3 @@
-"""Pinned revisions of retained published trajectory sources."""
-
 from __future__ import annotations
 
 WRENCH_INDEX_REVISION = "622449769ec6ddf33f770794489b8cd21712a0ad"

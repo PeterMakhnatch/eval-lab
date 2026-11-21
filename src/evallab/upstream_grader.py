@@ -44,8 +44,6 @@ _PLATFORMS = frozenset({"linux/amd64", "linux/arm64"})
 _COMPOSE_NAMES = ("docker-compose.yaml", "docker-compose.yml", "compose.yaml", "compose.yml")
 _CLEANUP_SECONDS = 90
 _MAX_STRUCTURED_BYTES = 25 * 1024 * 1024
-# Preparation has no task-sized provider ceiling. Reserve an explicitly labelled
-# larger builder allowance and an explicit 25% contingency, not a short-control rate.
 _PRICE_BASIS: dict[str, Any] = {
     "version": "upstream-grader-resource-lifetime/v1",
     "cpu_usd_per_core_second": 0.00003942,
@@ -207,8 +205,6 @@ def _snapshot_identity(snapshot: ContainerSnapshot) -> dict[str, Any]:
         or str(target) != snapshot.target.rstrip("/")
     ):
         raise GraderRefusal("snapshot target must be a normalized absolute directory")
-    # Application-state snapshots are useful, but replacing /, interpreters,
-    # verifier inputs, or Harbor's log mounts is a different transport contract.
     if len(target.parts) < 2 or target.parts[1] not in {
         "app",
         "workspace",
@@ -403,8 +399,6 @@ def _reserve_spend(
                 raise SpendCapReached(
                     "the full resource/lifetime reservation exceeds the remaining persisted campaign cap"
                 )
-            # Share admission arithmetic, but persist dollars for heterogeneous
-            # shapes, not execution counts or one tiny calibrated unit.
             CloudSpendGate(approval, remaining, reservation["reserved_usd"]).charge()
             reservation_id = uuid.uuid4().hex
             ledger["reservations"].append(
@@ -474,9 +468,6 @@ def _modal_admission(
             "Modal CPU snapshots/images require linux/amd64; no architecture fallback is permitted"
         )
     blocker = modal_resource_blocker(Path(plan["task"]["path"]))
-    # Compose is the one blocker this grader now admits on Modal: Harbor's
-    # DinD strategy bounds the whole stack inside the declared-resource
-    # sandbox (plan_upstream_grader still refuses Compose for Docker/auto).
     if blocker and not blocker.startswith("Modal does not support Compose services"):
         raise GraderRefusal(blocker)
     ledger = _read_ledger(spend_ledger, approval=approval, cap=float(max_usd))
@@ -526,11 +517,6 @@ def plan_upstream_grader(
         raise GraderRefusal("multi-step task replay is unsupported; no partial task is graded")
     if not (package / "instruction.md").is_file() or not (package / "tests" / "test.sh").is_file():
         raise GraderRefusal("an original Harbor instruction.md and tests/test.sh are required")
-    # Compose services have no per-service limits in task.toml, so local
-    # Docker still refuses them. On Modal, Harbor runs the Compose stack
-    # DinD inside one sandbox allocated at the exact declared agent
-    # CPU/memory, which is the bound; explicit backend="modal" is the only
-    # admitted Compose route (auto never silently chooses it).
     if backend != "modal" and any(
         (package / folder / name).exists()
         for folder in ("environment", "tests")
@@ -1085,7 +1071,6 @@ def _observed_image_identity(
             image = getattr(environment, "_image", None)
             identity["modal_image_id"] = getattr(image, "object_id", None)
         except Exception as exc:
-            # Optional evidence must not invalidate an otherwise completed grade.
             errors.append(f"native hydrated Modal image identity unavailable: {exc}")
     if errors:
         identity["errors"] = errors
@@ -1121,7 +1106,6 @@ def _runtime_type(name: str) -> type:
 
             @classmethod
             def _engine_cmd(cls, *command: str) -> list[str]:
-                # A hard opt-out must not strand resources from an earlier start.
                 cleanup = bool(command) and (
                     command[0] in {"stop", "kill", "rm", "rmi"}
                     or len(command) > 1
@@ -1283,8 +1267,6 @@ def _runtime_type(name: str) -> type:
                     await _capture_extra_reports(self)
                     await super().stop(delete=delete)
                     if sandbox is not None:
-                        # Harbor swallows teardown failures and clears its handle.
-                        # Retain ours and demand terminal public SDK evidence.
                         await asyncio.wait_for(
                             sandbox.wait.aio(raise_on_termination=False), _CLEANUP_SECONDS
                         )
@@ -1298,9 +1280,6 @@ def _runtime_type(name: str) -> type:
                     self._upstream_cleaned = True
                 except Exception as exc:
                     _active_execution().cleanup_errors.append(f"Modal closure unconfirmed: {exc}")
-                    # Harbor records raised agent-stop errors as grade failures.
-                    # Keep this explicit cleanup uncertainty separate: no unused
-                    # reservation is released, and outer cleanup may retry.
 
         return UpstreamModalEnvironment
     raise AttributeError(name)
@@ -1338,8 +1317,6 @@ def _stage_inputs(plan: Mapping[str, Any], output: Path) -> tuple[Path, Path | N
         raise GraderRefusal("snapshot changed while staging; no execution")
     payload = solution / "payload"
     payload.mkdir()
-    # Already validated before admission, then revalidate the frozen copy. The
-    # filter also blocks future tarfile extraction behavior from widening it.
     for _ in _snapshot_members(archive):
         pass
     with tarfile.open(archive, "r:*") as stream:
@@ -1412,9 +1389,6 @@ async def _execute_native(config: dict[str, Any], active: _Execution) -> dict[st
 
     runtime_problem = harbor_runtime_problem()
     if runtime_problem is not None:
-        # The trial imports these modules in this process, so the refusal is
-        # raised before any sandbox or reservation exists. Reported as a
-        # backend refusal, never as a missing native reward file.
         raise GraderRefusal(
             f"native execution needs the in-process Harbor runtime "
             f"({runtime_problem}): {HARBOR_RUNTIME_REMEDY}"
@@ -2085,8 +2059,6 @@ def run_upstream_grader(
         with contextlib.ExitStack() as stack:
             if backend in {"docker", "auto"}:
                 require_local_docker(allow_local_docker=allow_local_docker)
-                # One native environment at a time, including separate verifiers;
-                # retain the existing host-wide FIFO rather than private slots.
                 slot = contextlib.ExitStack()
                 try:
                     slot.enter_context(
@@ -2203,8 +2175,6 @@ def run_upstream_grader(
                 spend, active, measured=result["status"] == "measured"
             )
         except (OSError, ValueError) as exc:
-            # Budget bookkeeping uncertainty does not erase a genuinely native
-            # completed grade; no unused reserve was released in this case.
             result["spend"] = {
                 **spend,
                 "reconciliation": {"status": "retained-full-reservation", "error": str(exc)},
@@ -2326,7 +2296,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             if destination.exists():
                 raise GraderRefusal("JSON output already exists; refusing to overwrite evidence")
             output_destination = destination
-        # Native SDK diagnostics must not corrupt the single JSON stdout value.
         with contextlib.redirect_stdout(sys.stderr):
             result = run_upstream_grader(**request)
         code = (
@@ -2360,8 +2329,6 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    # Harbor resolves environment classes by the canonical module import path;
-    # its ContextVar must be the same one used by the CLI's execution lifecycle.
     from importlib import import_module
 
     raise SystemExit(import_module("evallab.upstream_grader").main())

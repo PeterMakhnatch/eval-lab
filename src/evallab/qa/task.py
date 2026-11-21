@@ -1,19 +1,3 @@
-"""QA Agent - Task: executed shortcut-agent & ref-subset probes with S3 confirmation.
-
-Registered as ``evallab qa task`` and ``evallab qa task-score`` beside the shared
-``qa score`` (``evallab.qa.score``). Findings written here are valid
-``qa.finding/v1`` documents, so ``qa score --findings <run>/findings`` also works.
-
-S0 runs static scan, neutral oracle ×3 and nop ×3 controls, and leak inspection.
-S1 runs k=3 text-only rubric review via the subscription lane (fails are Signals).
-S2 runs (a) the verifier-aware shortcut agent (read-only tests view, up to 3
-   attempts with grader output visible), (b) ref-subset reference-block probing
-   and (c) the verifier mutation hunt (surviving mutants, adjudicated against
-   the instruction).
-S3 confirms each candidate in a fresh container: wrong/shortcut submission
-   scores 1, correct fix (oracle) scores 1, do-nothing (nop) scores 0.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -56,7 +40,6 @@ from evallab.schemas import ContractModel
 
 SPEND_TAG = "2026-10-17-v7"
 
-# HAR-449: clear stale rewards before grading, as the Modal grader already does.
 CLEAR_VERIFIER_REWARDS = (
     "mkdir -p /logs/verifier && rm -f /logs/verifier/reward.txt /logs/verifier/reward.json"
 )
@@ -75,7 +58,6 @@ Category = Literal[
     "failure_cause",
 ]
 
-# Defect-bearing dimensions determine advisory S1 signals.
 DEFECT_CRITERIA: dict[str, Category] = {
     "verifiable": "broken",
     "solvable": "broken",
@@ -103,13 +85,8 @@ DEFECT_CRITERIA: dict[str, Category] = {
     "typos": "broken",
 }
 
-#: Directories inside tests/ that hold static golden/evaluation data rather than
-#: verifier logic; omitted from the prompt so the auditor cannot copy static
-#: golden values into the agent container, while listed in ``omitted`` so the
-#: auditor knows their grade-time ``/tests/...`` paths exist in the verifier.
 _GOLDEN_TEST_DIRS = frozenset({"golden-files", "hidden_data", "data", "fixtures"})
 
-#: First lines of every verifier-mutation script (``evallab.verifier_mutation._header``).
 MUTATION_SCRIPT_MARK = "#!/usr/bin/env bash\n# envcheck:"
 
 MIMO_SEMANTIC_SCRIPT_MARK = "#!/usr/bin/env bash\n# qa-task: mimo-semantic-only\n"
@@ -185,12 +162,10 @@ class Finding(ContractModel):
     reproducer: Reproducer
     refutation: Refutation
     reviewer: Reviewer
-    # Optional root-cause ids in the key's vocabulary (shared qa.finding/v1 field).
     root_cause: list[str] = Field(default_factory=list)
 
 
 class Signal(ContractModel):
-    """An advisory rubric/static/low-severity concern without a verified reproducer."""
 
     id: str
     category: Category
@@ -238,8 +213,6 @@ class AnswerKeyItem(ContractModel):
     expected_verdict: Literal["pass", "fail"]
     expected_category: str | None = None
     expected_categories: list[str] = Field(default_factory=list)
-    # Key provenance; ids and source classes are the root-cause vocabulary the
-    # scorer matches findings' ``root_cause`` against.
     root_cause: list[dict[str, Any]] = Field(default_factory=list)
     label_source: str
     label_strength: str
@@ -284,11 +257,11 @@ class LaneReply:
 
 
 class QuotaStop(RuntimeError):
-    """Unreadable or exhausted account-wide weekly quota."""
+    pass
 
 
 class _TrialAbort(RuntimeError):
-    """A container trial cannot proceed; the trial is unmeasured, never a pass."""
+    pass
 
 
 def utcnow() -> str:
@@ -345,7 +318,6 @@ def load_rubric(path: Path | None) -> list[dict[str, str]]:
 
 
 def bundle_package(package: Path, *, char_cap: int = 180_000) -> dict[str, Any]:
-    """Bounded read-only bundle for S1 rubric review; omissions are explicit."""
     paths = [package / n for n in ("instruction.md", "task.toml", "README.md")]
     for directory in ("environment", "tests", "solution"):
         paths.extend(sorted(p for p in (package / directory).rglob("*") if p.is_file()))
@@ -382,12 +354,6 @@ def bundle_verifier_aware(
     file_cap: int = 55_000,
     semantic_only: bool = False,
 ) -> dict[str, Any]:
-    """Read-only S2 bundle, excluding solutions, cheats and static golden data.
-
-    MiMo's semantic-only view contains the instruction and test coverage, not
-    setup/grading scripts or task metadata with embedded control-plane commands.
-    Literal assertions in unit-test code remain visible; static answer files do not.
-    """
     if semantic_only:
         from evallab.fix_content_census import is_test_path
 
@@ -464,7 +430,6 @@ def bundle_verifier_aware(
 
 
 class CodexLane:
-    """One read-only turn per fresh text-only Codex invocation; no tool loop."""
 
     def __init__(
         self, *, repo_root: Path, scratch_root: Path, model: str = "codex/gpt-6-luna"
@@ -509,7 +474,7 @@ class CodexLane:
         from evallab.execution_contracts import new_ulid
         from evallab.gepa_optimizer.codex_transport import CodexTransport
 
-        fraction = self.gate()  # no cached allowance; check before every call
+        fraction = self.gate()
         directory = self.scratch_root / new_ulid().lower()
         result = CodexTransport(repo_root=self.repo_root, model=self.model).request(
             prompt, directory=directory
@@ -547,7 +512,6 @@ def _cap_excerpt(text: str, limit: int = 4_000) -> str:
 def submission_to_script(
     submission: dict[str, Any], *, out_dir: Path, label: str = "shortcut"
 ) -> tuple[str, Reproducer] | None:
-    """Convert a structured shortcut submission into an executable bash script and Reproducer."""
     kind = str(submission.get("kind") or "").strip()
     target = str(submission.get("path") or "").strip()
     content = submission.get("content")
@@ -651,13 +615,6 @@ def submission_to_script(
 
 
 def workdir_patch_script(patch: bytes, workdir: str) -> str:
-    """Bash that applies a repository-relative patch inside ``workdir``.
-
-    For packages whose oracle is a patch (no ``solution/solve.sh``, e.g. raw MiMo code
-    packages) repository-relative paths resolve against the task's declared workdir, not
-    ``/`` or ``/app`` as in :func:`submission_to_script`. ``git apply`` is atomic; a patch
-    neither it nor ``patch`` accepts exits nonzero, so the trial is unmeasured, never a pass.
-    """
     if not patch.endswith(b"\n"):
         patch += b"\n"
     encoded = base64.encodebytes(patch).decode("ascii")
@@ -740,12 +697,6 @@ def _semantic_source_path_error(path: str, hidden_paths: set[str]) -> bool:
 
 
 def mimo_semantic_patch_script(package: Path, patch: str) -> tuple[str, list[str], str]:
-    """Validate a source-only proposal and compile a workdir-bound atomic apply.
-
-    This is a conservative admission guard, not proof of semantic incorrectness
-    or a replacement for the Docker boundary and independent candidate review.
-    No candidate-provided command is executed during application.
-    """
     from evallab.ref_subset import patch_paths
     from evallab.separate_verifier import v3_tamper_hit_for_file
 
@@ -805,7 +756,6 @@ def mimo_semantic_patch_script(package: Path, patch: str) -> tuple[str, list[str
                 "semantic patch adds test/control, introspection, process or network code"
             )
         paths.append(path)
-    # Parse without consulting a source checkout or the caller's repository prefix.
     with tempfile.TemporaryDirectory(prefix="qa-semantic-parse-") as parse_dir:
         parsed = subprocess.run(
             ["git", "apply", "--numstat", "-z", "-"],
@@ -861,7 +811,6 @@ def mimo_semantic_patch_script(package: Path, patch: str) -> tuple[str, list[str
 
 
 def mimo_semantic_edit_patch(package: Path, source_context: dict[str, str], edits: Any) -> str:
-    """Compile exact source edits, never model-authored hunk counts or commands."""
     from difflib import unified_diff
 
     if not isinstance(edits, list) or not edits:
@@ -904,7 +853,6 @@ def mimo_semantic_edit_patch(package: Path, source_context: dict[str, str], edit
 
 
 class HarborBackend:
-    """Sequential fresh-container Docker execution; at most 1 container active at a time."""
 
     environment = "docker"
     spend_gate: CloudSpendGate | None = None
@@ -919,12 +867,6 @@ class HarborBackend:
 
     @contextmanager
     def slot(self, label: str) -> Iterator[None]:
-        """Hold the shared host-wide Docker FIFO slot; re-entering inside a slot is free.
-
-        ``run_task`` holds one slot for a task's whole container work so the queue is joined
-        once per task; the per-trial calls nest inside it. ``docker_slot`` itself is not
-        reentrant, so a nested acquire would deadlock behind its own ticket.
-        """
         require_local_docker(allow_local_docker=self.allow_local_docker)
         if self._slot_depth:
             self._slot_depth += 1
@@ -942,11 +884,6 @@ class HarborBackend:
                 self._slot_depth = 0
 
     def bind_reference_patch(self, package: Path, patch: Path) -> None:
-        """Register the reference patch that is the oracle of ``package`` (no ``solution/solve.sh``).
-
-        It is hashed here and the hash lands in the facts of every control that used it, so a
-        score names the exact reference it was measured against.
-        """
         patch = patch.resolve()
         if not patch.is_file():
             raise ValueError(f"reference patch not found: {patch}")
@@ -966,16 +903,6 @@ class HarborBackend:
 
     @staticmethod
     def patch_workdir(package: Path) -> str | None:
-        """The repository directory a MiMo-style package works in, else ``None``.
-
-        A package that declares ``[environment].workdir`` and either has no
-        ``solution/solve.sh`` (raw MiMo code packages: the oracle is a reference patch) or
-        declares a setup healthcheck (v6 separate-verifier MiMo packages, whose image has no
-        ``WORKDIR`` and whose ``solve.sh`` relies on running in the workdir, as Harbor does)
-        is run and patched there. Every other package keeps the previous behaviour: the
-        image's own directory and the ``/app`` patch convention. No TB4 package declares a
-        ``workdir``.
-        """
         config = tomllib.loads((package / "task.toml").read_text(encoding="utf-8"))
         env = config.get("environment") or {}
         workdir = env.get("workdir")
@@ -1021,11 +948,6 @@ class HarborBackend:
         return ["--platform", "linux/amd64"] if self._needs_amd64(package) else []
 
     def _stage_solution(self, package: Path, stage_dir: Path, facts: dict[str, Any]) -> Path:
-        """The directory copied to ``/solution``: the package's own, or a patch oracle for it.
-
-        A synthesized oracle lives under ``stage_dir``, never in the package, so the package
-        digest the report binds to is untouched.
-        """
         own = package / "solution"
         if (own / "solve.sh").is_file():
             return own
@@ -1063,13 +985,6 @@ class HarborBackend:
         return None
 
     def _run_healthcheck(self, container: str, env_cfg: dict[str, Any]) -> dict[str, Any]:
-        """Run the package's ``[environment.healthcheck]`` in the started container.
-
-        Harbor runs it before the agent. For raw MiMo packages it is the one-time setup that
-        ``tests/test.sh`` needs (it writes ``/var/lib/mimo/base``). It exits 0 or the trial
-        raises: a package that never became ready is unmeasured, never a pass. Packages
-        without a healthcheck are untouched.
-        """
         require_local_docker(allow_local_docker=self.allow_local_docker)
         spec = self._healthcheck_spec(env_cfg)
         if spec is None:
@@ -1107,7 +1022,6 @@ class HarborBackend:
     def _run_probe(
         self, package: Path, env_image: str, script: str, *, timeout: float
     ) -> subprocess.CompletedProcess[str]:
-        """Run ``script`` in a throwaway container; a declared healthcheck (setup) runs first."""
         require_local_docker(allow_local_docker=self.allow_local_docker)
         config = tomllib.loads((package / "task.toml").read_text(encoding="utf-8"))
         env_cfg = config.get("environment") or {}
@@ -1302,12 +1216,6 @@ class HarborBackend:
         with_solution: bool = False,
         capture_logs: bool = False,
     ) -> AuditObservation:
-        """One fresh-container trial holding a shared host-wide Docker FIFO slot.
-
-        ``solve_override`` replaces ``solution/solve.sh`` of an oracle run (mutation and
-        capture scripts); ``with_solution`` stages ``/solution`` for a shortcut script
-        that wraps the reference; ``capture_logs`` copies the agent's ``/logs/artifacts``.
-        """
         require_local_docker(allow_local_docker=self.allow_local_docker)
         with self.slot(f"qa-task/{package.name}/{mode}"):
             return self._run_container_trial(
@@ -1335,7 +1243,6 @@ class HarborBackend:
         with_solution: bool,
         capture_logs: bool,
     ) -> AuditObservation:
-        """Run one fresh-container trial (separate or shared verifier, 1 container at a time)."""
         require_local_docker(allow_local_docker=self.allow_local_docker)
         package = package.resolve()
         if self.compose_file(package) is not None:
@@ -1499,7 +1406,6 @@ class HarborBackend:
                 if oracle_failed_rc is not None and not has_own_solve:
                     exception_msg = f"oracle solve.sh exited {oracle_failed_rc}"
                 else:
-                    # Shared verifier mode: grade in the same container.
                     subprocess.run(
                         ["docker", "cp", f"{package / 'tests'}/.", f"{agent_name}:/tests/"],
                         capture_output=True,
@@ -1554,7 +1460,6 @@ class HarborBackend:
                     elif oracle_failed_rc is not None:
                         extra_facts["oracle_exit_code"] = oracle_failed_rc
             else:
-                # Separate verifier mode: copy artifacts out, stop agent, start fresh verifier.
                 copied: list[tuple[str, Path]] = []
                 for item in artifacts:
                     if isinstance(item, str):
@@ -1594,7 +1499,6 @@ class HarborBackend:
                                         sub.unlink(missing_ok=True)
                         copied.append((raw_path, target))
 
-                # Strictly 1 active container at a time: remove agent before starting verifier.
                 subprocess.run(
                     ["docker", "rm", "-f", agent_name],
                     capture_output=True,
@@ -1704,8 +1608,6 @@ class HarborBackend:
         )
         mimo_setup = (package / "environment/setup/setup.sh").is_file()
         if mimo_setup:
-            # Initialize the clean verifier before importing candidate artifacts,
-            # matching native Harbor's one-time MiMo setup/ready-marker boundary.
             self._run_healthcheck(verifier_name, env_cfg)
         for raw_path, local in copied:
             dest = raw_path.rstrip("/")
@@ -1736,8 +1638,6 @@ class HarborBackend:
                 timeout=120,
             )
         if mimo_setup:
-            # Clean setup removes /tests. Restore the exact private package
-            # harness after setup/artifact import, never a candidate-owned copy.
             subprocess.run(
                 ["docker", "exec", "-u", "root", verifier_name, "mkdir", "-p", "/tests"],
                 capture_output=True,
@@ -1826,7 +1726,6 @@ class HarborBackend:
         with_solution: bool,
         capture_logs: bool,
     ) -> AuditObservation:
-        """Run a multi-service Docker Compose trial with Harbor's phased sidecar collection."""
         require_local_docker(allow_local_docker=self.allow_local_docker)
         trial_dir.mkdir(parents=True, exist_ok=True)
         (trial_dir / "agent").mkdir(exist_ok=True)
@@ -2013,8 +1912,6 @@ class HarborBackend:
                     timeout=120,
                 )
 
-            # Phased collection (matches Harbor _collect_artifacts_phased):
-            # Pass 1: main service hooks and artifacts.
             for hook in collect_hooks:
                 if isinstance(hook, dict) and hook.get("command"):
                     svc = str(hook.get("service") or "main")
@@ -2248,7 +2145,6 @@ class HarborBackend:
         timeout_seconds: int,
         run_dir: Path | None = None,
     ) -> AuditObservation:
-        """Execute one independent control; repeated requests never reuse a trial."""
         if task.path is None or task.package_digest is None:
             raise ValueError(f"{task.task_id}: task package path/digest is unset")
         package = Path(task.path).resolve()
@@ -2298,7 +2194,6 @@ class HarborBackend:
     def leak_observation(
         text: str, *, run_dir: Path, has_repository: bool | None = None
     ) -> AuditObservation:
-        """Interpret the same probe markers on Docker and native cloud environments."""
         from evallab.dataset_audit_checks import parse_probe_output
 
         parsed = parse_probe_output(text)
@@ -2367,7 +2262,6 @@ class HarborBackend:
         run_dir: Path,
         timeout_seconds: int,
     ) -> tuple[AuditObservation, Reproducer | None]:
-        """Grade one S2 candidate shortcut submission on base='environment' in a fresh container."""
         if (package / "environment/setup/setup.sh").is_file() and submission.get(
             "kind"
         ) != "semantic_patch":
@@ -2459,7 +2353,6 @@ class HarborBackend:
         run_dir: Path,
         timeout_seconds: int,
     ) -> AuditObservation:
-        """Re-execute a candidate reproducer on base='environment' in a fresh S3 container."""
         semantic_facts: dict[str, Any] = {}
         repro_path = Path(reproducer.path)
         if not repro_path.is_absolute() and (self.repo_root / repro_path).exists():
@@ -2549,8 +2442,6 @@ class HarborBackend:
                 )
             script = candidate_sh.read_text(encoding="utf-8")
         if reproducer.kind == "command" and script.startswith(MUTATION_SCRIPT_MARK):
-            # A mutation-hunt candidate wraps the reference solution; replay it as the
-            # oracle channel with the same solution directory, in a fresh container.
             return self.run_container_trial(
                 package,
                 digest=digest,
@@ -2665,12 +2556,6 @@ class HarborBackend:
         timeout_seconds: int = 1800,
         mutants: int = 0,
     ) -> dict[str, Any]:
-        """Native ref-subset probe (PR #892/#903/#918) under one Docker slot.
-
-        Raw MiMo packages bring a reference patch; Harbor separate-verifier packages derive
-        the reference from their own oracle. Anything else is not applicable, never a pass.
-        ``mutants`` > 0 adds the line-level pass of one-edit mutants of the reference's lines.
-        """
         from evallab.ref_subset import Package, probe_task
 
         if self.environment == "docker":
@@ -2765,7 +2650,6 @@ class HarborBackend:
         report["package_digest"] = digest
         measured = report.get("status") == "measured"
         if report.get("verdict") == "pass" and not measured:
-            # An exhausted grade budget did not prove every block necessary.
             report["verdict"] = "unknown"
         if report.get("verdict") == "fail":
             report["minimal_patch"] = str(run_dir / "minimal.patch")
@@ -2773,12 +2657,6 @@ class HarborBackend:
         return report
 
     def matrix_runner(self, matrix: Any, repo_root: Path) -> list[dict[str, Any]]:
-        """Run a verifier-mutation matrix through fresh-container trials (one slot per run).
-
-        Mirrors Harbor's oracle channel: each run's script replaces ``solution/solve.sh``,
-        the agent's ``/logs/artifacts`` and the verifier's ``/logs/verifier`` land under
-        ``runs/<name>/trial-0`` where the mutation audit reads captures and coverage.
-        """
         package = Path(matrix.task)
         results: list[dict[str, Any]] = []
         for run in matrix.runs:
@@ -2821,7 +2699,6 @@ class HarborBackend:
         max_mutants: int,
         timeout_seconds: int,
     ) -> dict[str, Any]:
-        """Verifier mutation hunt (#867): mutate the reference output, grade every mutant."""
         from evallab.verifier_mutation import hypotheses, run_mutation_audit
 
         if (package / "environment" / "setup" / "setup.sh").is_file():
@@ -3054,7 +2931,6 @@ Give only concise diagnostic observations. not_applicable requires a rationale.
 
 
 def stage_s1(report: TaskReport, lane: Any, config: QATaskConfig) -> list[Finding]:
-    """k=3 text-only rubric review; majority fails emit Signals, never Findings."""
     if lane is None:
         report.checks["rubric"] = Check(stage="S1", status="not_run", reason="model lane disabled")
         return []
@@ -3295,12 +3171,6 @@ def mutation_findings(
     *,
     check: str = "mutation-hunt",
 ) -> list[Finding]:
-    """Turn a mutation hunt into the ``check`` result, signals and candidate findings.
-
-    A survivor becomes an (unverified) finding only when the model adjudicator reads the
-    instruction and says the mutant is wrong; an equivalent or unspecified mutant is noise.
-    A survivor with a ``script`` replays as a command reproducer, otherwise as its ``patch``.
-    """
     status = hunt.get("status")
     reason = str(hunt.get("reason") or status)
     facts = {
@@ -3443,11 +3313,6 @@ def ref_mutant_findings(
     *,
     out_dir: Path,
 ) -> list[Finding]:
-    """Line-level pass of ref-subset (PR #918): one-edit mutants of the lines the reference wrote.
-
-    Adjudicated and replayed exactly like the output-mutation hunt, under the ``ref-mutants``
-    check; no check is recorded when the pass did not run.
-    """
     summary = rs_report.get("mutants")
     if not isinstance(summary, dict):
         if config.mutants and rs_report:
@@ -3722,11 +3587,6 @@ def stage_s2a(
     run_dir: Path,
     source_context: dict[str, str] | None = None,
 ) -> list[Finding]:
-    """Only the bounded seeker: no reference subset, mutation or evidence import.
-
-    MiMo accepts optional, caller-supplied pristine base source, never oracle
-    patches. Non-MiMo keeps the existing verifier-aware shortcut contract.
-    """
     findings: list[Finding] = []
     blocker = backend.resource_blocker(Path(report.package))
     if blocker:
@@ -3921,7 +3781,6 @@ def stage_s2(
     evidence: Path | None = None,
     ref_patch: Path | None = None,
 ) -> list[Finding]:
-    """Executed S2: bounded seeker, reference subset and verifier mutation."""
     findings: list[Finding] = []
     if evidence is not None:
         findings.extend(import_evidence(evidence, report.subject))
@@ -3937,7 +3796,6 @@ def stage_s2(
         return findings
     findings.extend(stage_s2a(report, backend, lane, config, run_dir=run_dir))
 
-    # (b) ref-subset (PR #892/#903): the smallest part of the reference fix that still passes
     if hasattr(backend, "ref_subset"):
         rs_report: dict[str, Any] = {}
         try:
@@ -4032,7 +3890,6 @@ def stage_s2(
             ref_mutant_findings(report, rs_report, lane, config, out_dir=run_dir / "ref_subset")
         )
 
-    # (c) verifier mutation hunt (#867): surviving mutants, adjudicated against the instruction
     if config.mutants == 0:
         report.checks["mutation-hunt"] = Check(
             stage="S2",
@@ -4076,7 +3933,6 @@ def stage_s3(
     run_dir: Path,
     triplet: Path | None = None,
 ) -> None:
-    """S3 fresh-container 3-control confirmation: shortcut == 1, oracle == 1, nop == 0."""
     if triplet is not None:
         payload = json.loads(triplet.read_text(encoding="utf-8"))
         if Subject.model_validate(payload.get("subject")) != report.subject:
@@ -4097,7 +3953,6 @@ def stage_s3(
         return
 
     task = backend.resolve(Path(report.package))
-    # Check whether S0 already measured oracle and nop controls in this task run.
     s0_oracles = [report.checks[f"oracle-{i}"] for i in (1, 2, 3) if f"oracle-{i}" in report.checks]
     s0_nops = [report.checks[f"nop-{i}"] for i in (1, 2, 3) if f"nop-{i}" in report.checks]
 
@@ -4139,7 +3994,6 @@ def stage_s3(
                     if c.status != "measured":
                         c.scored = False
     else:
-        # Run 1 fresh oracle and 1 fresh nop control in S3 when S0 was not run.
         oracle_obs = backend.control(task, "oracle", timeout_seconds=config.trial_timeout_seconds)
         oracle_chk = observation_check(oracle_obs, agent="oracle", config=config)
         oracle_chk.stage = "S3"
@@ -4237,7 +4091,6 @@ def stage_s3(
                 reason=obs.reason or "fresh-container replay did not produce a usable triplet",
             )
         elif not (oracle_ok and nop_ok):
-            # A task whose own controls fail cannot confirm or refute a candidate.
             candidate.refutation = Refutation(
                 status="unverified",
                 by="qa-task/S3",
@@ -4301,7 +4154,6 @@ def stage_s3(
 
 
 def import_evidence(path: Path, subject: Subject) -> list[Finding]:
-    """Import candidate records; never trust their claimed refutation status."""
     if path.is_dir() and (path / subject.task_id.split("/")[-1]).is_dir():
         path = path / subject.task_id.split("/")[-1]
     paths = sorted(path.glob("*.json")) if path.is_dir() else [path]
@@ -4321,7 +4173,6 @@ def import_evidence(path: Path, subject: Subject) -> list[Finding]:
 
 
 def validate_triplet(evidence: dict[str, Any]) -> Verdict:
-    """Check supplied measurement records, not execute any referenced command."""
     rewards = []
     for name in ("wrong_submission", "oracle", "nop"):
         record = evidence.get(name)
@@ -4407,7 +4258,6 @@ def _independent_s0_controls(report: TaskReport) -> bool:
 
 
 def _resume_report_complete(report: TaskReport, config: QATaskConfig, package: Path) -> bool:
-    """Revalidate required evidence; a historical completeness flag is insufficient."""
     if (
         not report.quality_complete
         or report.error
@@ -4464,9 +4314,6 @@ def run_task(
     if ref_patch is not None and bind is not None:
         bind(package, ref_patch)
     subject = Subject(kind="task", task_id=task.task_id, task_digest=task.package_digest)
-    # The resolver strips the namespace from `[task].name`. Keys carry it (`terminal-bench/<id>`,
-    # `mimo-v2.6-rl/<id>`), so restore the package's own; older TB2 packages have no
-    # `[task].name` and take the benchmark prefix.
     native = getattr(task, "task_name", None)
     if "/" not in subject.task_id:
         if isinstance(native, str) and "/" in native:
@@ -4600,9 +4447,6 @@ def run_task(
             )
             report.error = f"{stage}: {type(exc).__name__}: {exc}"
 
-    # S1 needs no container: run it before taking the host-wide Docker slot. The remaining
-    # stages hold one slot for the whole task, so the FIFO queue is joined once per task
-    # rather than once per trial.
     for stage in config.stages:
         if stage == "S1":
             run_stage(stage)
@@ -4645,7 +4489,6 @@ def load_answer_key(path: Path) -> list[AnswerKeyItem]:
 
 def load_findings(path: Path) -> tuple[list[Finding], list[TaskReport]]:
     directory = path / "findings" if (path / "findings").is_dir() else path
-    # `._*` are macOS AppleDouble metadata twins left by archives made on a Mac.
     findings = [
         Finding.model_validate_json(p.read_text())
         for p in sorted(directory.glob("*.json"))
@@ -4739,8 +4582,6 @@ def score_findings(
     names_causes = any(f.root_cause for f in findings)
 
     def cause_rate(level: str) -> float | None:
-        # Among positives hit at this level that carry a labelled cause. None
-        # (n/a) when the findings name no causes at all: not measured, not 0.
         hits = [r for r in positives if r[f"{level}_hit"] and r["labelled_cause"]]
         if not names_causes or not hits:
             return None
@@ -4806,8 +4647,6 @@ def key_packages(items: list[AnswerKeyItem], *, package_root: Path | None = None
     return paths
 
 
-# Native Harbor prepares an image and retries sandbox creation at most twice.
-# Reserve the preparation and both possible attempts, including unused attempts.
 MODAL_RESERVATIONS_PER_ENVIRONMENT = 3
 
 
@@ -4824,7 +4663,6 @@ def plan_task_run(
     evidence: Path | None = None,
     ref_patch: Path | None = None,
 ) -> dict[str, Any]:
-    """Bound executions using package bytes only; never construct a runtime or model."""
     from evallab.ref_subset import modal_execution_bound
     from evallab.registry import task_directory_digest
     from evallab.verifier_mutation import MAX_FILES_PER_TARGET, declared_targets
@@ -4843,8 +4681,6 @@ def plan_task_run(
         has_reference = (
             separate or ref_patch is not None or (package / "solution" / "patch.diff").is_file()
         )
-        # Docker's execution count is descriptive; cloud units include native preparation
-        # and both possible creation attempts for each environment.
         trial_units = (2 if separate else 1) * (
             MODAL_RESERVATIONS_PER_ENVIRONMENT if environment == "modal" else 1
         )
@@ -4875,8 +4711,6 @@ def plan_task_run(
                 if "S2" in config.stages
                 else 0
             )
-            # Two controls remain reserved even with S0: S3 may replace transient
-            # unmeasured controls. Every candidate needs an independent fresh trial.
             stages["S3-controls-and-confirmations"] = (2 + candidates) * trial_units
         blocker = modal_resource_blocker(package) if environment == "modal" else None
         upper_bound = 0 if blocker else sum(stages.values())
@@ -5077,7 +4911,6 @@ def task_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
 
 
 def scoreboard_row(result: dict[str, Any], *, level: str) -> ScoreRow:
-    """One shared-board row; flagged and verified are separate ``system`` labels."""
     scored = [r for r in result["rows"] if not r["excluded"]]
     n_measured = sum(1 for r in scored if r["measured"])
     status = (
@@ -5119,11 +4952,6 @@ def scoreboard_row(result: dict[str, Any], *, level: str) -> ScoreRow:
 
 
 def exposed_item_ids(root: Path, key_id: str) -> frozenset[str]:
-    """Reported-split items of ``key_id`` that QA Task was tuned on or selected by.
-
-    Reads the split guard's exposure registry; ``inspected`` records only warn there and are
-    not excluded here.
-    """
     import importlib.util
 
     path = root / "research" / "answer-keys" / "splits" / "guard.py"

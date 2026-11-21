@@ -1,15 +1,3 @@
-"""TrajectoryIR v1: Canonical intermediate representation with full ATIF fidelity.
-
-Preserves all ATIF-v1.7 and Harbor trajectory fields without loss:
-- Full reasoning_content stored in CAS blobs (cas://sha256/<hash>) and in-memory IR
-- Exact reasoning tokens, prompt/completion token IDs, logprobs
-- Sampling parameters (temperature, top_p, top_k, max_tokens, reasoning_effort)
-- Sample index, LLM call counts, and copied context flags
-- Tool definitions and invocation schemas
-- Multi-step observation results, byte sizes, and digests
-- Linked TrajectoryLossReport guaranteeing complete field preservation
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -24,7 +12,6 @@ from evallab.trajectory_loss_manifest import TrajectoryLossReport, audit_traject
 
 @dataclass(frozen=True)
 class SamplingParams:
-    """Sampling parameters applied during generation."""
 
     temperature: float | None = None
     top_p: float | None = None
@@ -40,7 +27,6 @@ class SamplingParams:
 
 @dataclass(frozen=True)
 class MetricsRecord:
-    """Detailed token usage, inference costs, and token sequences."""
 
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
@@ -58,7 +44,6 @@ class MetricsRecord:
 
 @dataclass(frozen=True)
 class ToolCallRecord:
-    """Typed tool invocation specification."""
 
     tool_call_id: str
     function_name: str
@@ -69,7 +54,6 @@ class ToolCallRecord:
 
 @dataclass(frozen=True)
 class ObservationResultRecord:
-    """Typed environment observation or tool execution result."""
 
     source_call_id: str | None = None
     content: str | list[Any] | None = None
@@ -82,7 +66,6 @@ class ObservationResultRecord:
 
 @dataclass(frozen=True)
 class SourceEventRef:
-    """A source coordinate and its explicit projection onto an action step."""
 
     source_event_id: str
     normalized_step_id: int | None
@@ -100,7 +83,6 @@ class SourceEventRef:
 
 @dataclass(frozen=True)
 class StepRecord:
-    """Full-fidelity trajectory step record."""
 
     step_id: int
     source: str
@@ -125,7 +107,6 @@ class StepRecord:
 
 @dataclass(frozen=True)
 class FinalMetricsRecord:
-    """Overall trajectory execution metrics."""
 
     total_prompt_tokens: int | None = None
     total_completion_tokens: int | None = None
@@ -137,7 +118,6 @@ class FinalMetricsRecord:
 
 @dataclass(frozen=True)
 class TrajectoryIR:
-    """Canonical, immutable intermediate representation with lossless fidelity."""
 
     schema_version: str
     session_id: str | None = None
@@ -159,7 +139,6 @@ class TrajectoryIR:
     source_event_map: tuple[SourceEventRef, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert TrajectoryIR into a comprehensive dictionary."""
         data = asdict(self)
         if self.loss_report:
             data["loss_report"] = self.loss_report.to_dict()
@@ -169,7 +148,6 @@ class TrajectoryIR:
 def _extract_reasoning_tokens(
     step_data: dict[str, Any], metrics_data: dict[str, Any]
 ) -> int | None:
-    """Extract reasoning / thinking tokens from metrics or extra subfields."""
     extra = metrics_data.get("extra")
     if isinstance(extra, dict):
         for k in (
@@ -181,7 +159,6 @@ def _extract_reasoning_tokens(
             val = extra.get(k)
             if isinstance(val, int):
                 return val
-        # LiteLLM usage shape (mini-swe-agent): extra.completion_tokens_details.reasoning_tokens
         details = extra.get("completion_tokens_details")
         if isinstance(details, dict) and isinstance(details.get("reasoning_tokens"), int):
             return details["reasoning_tokens"]
@@ -194,7 +171,6 @@ def _extract_reasoning_tokens(
 def _extract_sampling_params(
     step_data: dict[str, Any], agent_extra: dict[str, Any]
 ) -> SamplingParams | None:
-    """Extract sampling parameters from step or agent level."""
     sp = step_data.get("sampling_params") or step_data.get("sampling_parameters")
     if not isinstance(sp, dict):
         sp = (
@@ -268,7 +244,6 @@ def _extract_sampling_params(
 
 
 def _normalize_raw_observation(item: Any) -> Any:
-    """Normalize a raw observation dictionary for consistent equality checks."""
     if not isinstance(item, dict):
         return item
     normalized: dict[str, Any] = {}
@@ -284,7 +259,6 @@ def _normalize_raw_observation(item: Any) -> Any:
 
 
 def _observation_results_equal(list_a: list[Any], list_b: list[Any]) -> bool:
-    """Check whether two observation result candidate lists contain equal data."""
     if list_a == list_b:
         return True
     if len(list_a) != len(list_b):
@@ -300,7 +274,6 @@ def build_trajectory_ir(
     source_path: str = "",
     source_sha256: str = "",
 ) -> TrajectoryIR:
-    """Build a lossless TrajectoryIR instance from raw ATIF / Harbor trajectory data."""
     schema_version = str(raw_data.get("schema_version") or "ATIF-v1.7")
     session_id = raw_data.get("session_id")
     trajectory_id = raw_data.get("trajectory_id") or session_id
@@ -317,7 +290,6 @@ def build_trajectory_ir(
     tool_definitions = tuple(tool_defs_raw) if isinstance(tool_defs_raw, list) else ()
     raw_agent_extra = agent_data.get("extra")
     agent_extra: dict[str, Any] = raw_agent_extra if isinstance(raw_agent_extra, dict) else {}
-    # Root final metrics
     raw_fm = raw_data.get("final_metrics")
     fm_raw: dict[str, Any] = raw_fm if isinstance(raw_fm, dict) else {}
     final_metrics = FinalMetricsRecord(
@@ -353,7 +325,6 @@ def build_trajectory_ir(
         message_sha256 = raw_step.get("message_sha256")
         message_chars = raw_step.get("message_chars")
 
-        # Reasoning content & CAS storage
         reasoning_content = raw_step.get("reasoning_content") or raw_step.get("thought")
         reasoning_ref = None
         if reasoning_content:
@@ -364,7 +335,6 @@ def build_trajectory_ir(
                 digest = hashlib.sha256(reasoning_str.encode("utf-8")).hexdigest()
                 reasoning_ref = f"cas://sha256/{digest}"
 
-        # Metrics
         metrics_data = raw_step.get("metrics") if isinstance(raw_step.get("metrics"), dict) else {}
         reasoning_tokens = _extract_reasoning_tokens(raw_step, metrics_data)
 
@@ -407,13 +377,11 @@ def build_trajectory_ir(
             else {},
         )
 
-        # Sampling params & sample index
         sampling_params = _extract_sampling_params(raw_step, agent_extra)
         sample_index = raw_step.get("sample_index")
         llm_call_count = raw_step.get("llm_call_count")
         is_copied_context = raw_step.get("is_copied_context")
 
-        # Tool calls
         tool_calls_list: list[ToolCallRecord] = []
         tc_raw = raw_step.get("tool_calls")
         if isinstance(tc_raw, list):
@@ -431,16 +399,11 @@ def build_trajectory_ir(
                         )
                     )
 
-        # Observation results ingestion:
-        # Preserves standard native ATIF step.observation.results while retaining
-        # support for normalized flattened step.observation_results.
         flat_raw = raw_step.get("observation_results")
         obs_container = raw_step.get("observation")
         nested_raw = obs_container.get("results") if isinstance(obs_container, dict) else None
 
         if isinstance(flat_raw, list) and isinstance(nested_raw, list):
-            # Both representations present: equal data not duplicated,
-            # contradictory data rejected rather than silently discarded.
             if not _observation_results_equal(flat_raw, nested_raw):
                 raise ValueError(
                     f"Contradictory observation data in step {step_id}: "
@@ -472,8 +435,6 @@ def build_trajectory_ir(
                         else:
                             c_ref = obs.get("content_ref") or f"cas://sha256/{c_digest}"
                     else:
-                        # Content is absent (missing-inline content):
-                        # Preserve supplied raw content_ref; do not synthesize an empty-content CAS hash.
                         raw_ref = obs.get("content_ref")
                         c_ref = str(raw_ref) if raw_ref is not None else None
                         content_bytes = int(obs.get("content_bytes") or 0)
@@ -535,7 +496,6 @@ def build_trajectory_ir(
         if entry.normalized_step_id is not None and entry.normalized_step_id not in used_ids:
             raise ValueError(f"Source event targets missing step: {key}")
 
-    # Audit loss manifest
     loss_report = audit_trajectory_loss(raw_data, source_path=source_path)
 
     return TrajectoryIR(

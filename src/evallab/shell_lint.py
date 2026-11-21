@@ -1,5 +1,3 @@
-"""Shell lexing shared by the task lint rules; nothing here executes task content."""
-
 from __future__ import annotations
 
 import re
@@ -22,7 +20,6 @@ WRAPPER_VALUE_OPTIONS = frozenset(
 
 
 def logical_lines(text: str) -> Iterator[tuple[int, str]]:
-    """Join backslash continuations and retain the first physical line number."""
     pending = ""
     start = 1
     for number, raw in enumerate(text.splitlines(), 1):
@@ -43,7 +40,6 @@ def logical_lines(text: str) -> Iterator[tuple[int, str]]:
 
 
 def split_shell(line: str) -> list[str]:
-    """Split a shell line, separating operators attached without spaces."""
     lexer = shlex.shlex(line, posix=True, punctuation_chars=SHELL_PUNCTUATION)
     lexer.whitespace_split = True
     lexer.commenters = "#"
@@ -54,7 +50,6 @@ def split_shell(line: str) -> list[str]:
 
 
 def command_head(tokens: list[str]) -> list[str]:
-    """Remove assignments, shell keywords, and wrappers before the command."""
     index = 0
     while index < len(tokens):
         token = tokens[index]

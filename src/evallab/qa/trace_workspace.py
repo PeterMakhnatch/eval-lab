@@ -1,16 +1,3 @@
-"""Blind, digest-bound evidence workspaces for ``qa.trace_bundle/v3``.
-
-The workspace is a review surface, not an execution environment. Source packages,
-retained trials, and prior QA results are only read; no task code is executed.
-
-Every ATIF crosses the boundary only through CheatBench's ``blind_atif``
-projection (evaluator metadata, annotation steps and step ``extra`` removed;
-steps renumbered from 0). The answer key's reference for each workspace step
-is sealed in the manifest's ``step_origin``, which reviewers never see. Sealing
-refuses any workspace whose trajectory still carries evaluator fields or whose
-files carry CheatBench annotation text.
-"""
-
 from __future__ import annotations
 
 import ast
@@ -112,7 +99,6 @@ def _checkout_roots(trial_dir: Path | None = None) -> tuple[Path, ...]:
 def _crosswalk(
     roots: tuple[Path, ...], leaf: str
 ) -> tuple[dict[str, set[str]], list[tuple[str, Path]]]:
-    """Full/Harbor digest edges and package locations; never materialize a task."""
     equivalents: dict[str, set[str]] = {}
     packages: list[tuple[str, Path]] = []
 
@@ -200,7 +186,6 @@ def _path_candidates(value: str, bases: Sequence[Path]) -> list[Path]:
 
 
 def _trial_refs(trial_dir: Path) -> tuple[list[str], list[str], list[tuple[str, Path]]]:
-    """Read only task references, not arbitrary strings in agent/config metadata."""
     names: list[str] = []
     digests: list[str] = []
     paths: list[tuple[str, Path]] = []
@@ -239,7 +224,6 @@ def _trial_refs(trial_dir: Path) -> tuple[list[str], list[str], list[tuple[str, 
         if isinstance(task, str):
             values.append(task)
         bases = (source.parent, *roots)
-        # Staged paths retain their original checkout even after a job is published.
         for ref in task_refs:
             raw = ref.get("path")
             if isinstance(raw, str) and ".exec-stage" in Path(raw).parts:
@@ -269,19 +253,12 @@ def _match_package(
         return found, actual in known
     if actual.startswith(wanted):
         return found, True
-    # A lock digest is Harbor's hash, not task_directory_digest's package hash.
     return found, (_digest(harbor_task_digest(package)) or "").startswith(wanted)
 
 
 def resolve_task_package(
     trial_dir: Path, *, task_name: str | None = None, digests: Sequence[str] = ()
 ) -> Resolution:
-    """Resolve the recorded task, checking full/Harbor digest crosswalks first.
-
-    A final name-only fallback is explicitly marked unbound when its bytes do
-    not match. It can supply the request and grader context but is not proof
-    that the original trial executed that version.
-    """
     from evallab.readers.harbor_analyze import resolve_trial_task
 
     trial_dir = Path(trial_dir)
@@ -339,7 +316,6 @@ def resolve_task_package(
         store = root / "derived/task-store/variants"
         for digest in sorted(fulls):
             hits = [store / slug / digest[:12]] if slug else sorted(store.glob(f"*/{digest[:12]}"))
-            # Some callers carry only a task leaf, whereas stores use a namespace.
             if slug and "/" not in (name or ""):
                 hits.extend(store.glob(f"*__{slug}/{digest[:12]}"))
             for path in hits:
@@ -375,7 +351,6 @@ def _nonempty(path: Path) -> str | None:
 
 
 def _snapshot_diff(archive: Path) -> tuple[str | None, str]:
-    """Inspect a retained Git workspace without executing repository hooks/filters."""
     try:
         with tempfile.TemporaryDirectory(prefix="qa-trace-snapshot-") as directory:
             root = Path(directory)
@@ -383,7 +358,6 @@ def _snapshot_diff(archive: Path) -> tuple[str | None, str]:
                 members = tar.getmembers()
                 if len(members) > 100_000 or sum(m.size for m in members) > 512 * 1024 * 1024:
                     return None, "snapshot exceeds extraction cap"
-                # Links and devices are unnecessary for a diff and can escape the scratch root.
                 safe = [m for m in members if m.isfile() or m.isdir()]
                 tar.extractall(root, members=safe, filter="data")
             git_dirs = sorted(root.rglob(".git"))
@@ -400,10 +374,7 @@ def _snapshot_diff(archive: Path) -> tuple[str | None, str]:
             }
             for marker in git_dirs:
                 if not marker.is_dir():
-                    continue  # Linked-worktree gitfiles refer to a different host.
-                # Retained .git/config is untrusted: clean filters can execute even
-                # with --no-ext-diff/--no-textconv. Replace it only in this scratch
-                # extraction, preserving SHA-256 object format when declared.
+                    continue
                 original_config = _nonempty(marker / "config") or ""
                 object_format = bool(
                     re.search(r"objectformat\s*=\s*sha256", original_config, re.IGNORECASE)
@@ -458,7 +429,6 @@ def _snapshot_diff(archive: Path) -> tuple[str | None, str]:
                 real_repo = repo.resolve()
                 for rel in untracked.stdout.split("\x00"):
                     path = repo / rel
-                    # macOS temp dirs sit behind a /var -> /private/var symlink.
                     if (
                         not rel
                         or not path.resolve().is_relative_to(real_repo)
@@ -491,7 +461,6 @@ def _snapshot_diff(archive: Path) -> tuple[str | None, str]:
 
 
 def recover_file_changes(trial_dir: Path) -> FileChanges:
-    """Recover the fullest retained change evidence, never equating writes with a diff."""
     kept = None
     for rel in ("verifier/agent.kept.diff", "verifier/agent.full.diff", "verifier/agent.diff"):
         try:
@@ -571,7 +540,6 @@ def _trace_counts(steps: list[dict[str, Any]]) -> dict[str, Any]:
                 times.append(datetime.fromisoformat(stamp.replace("Z", "+00:00")))
     wall = None
     if len(times) > 1:
-        # Mixed naive/aware timestamps cannot establish elapsed wall time.
         with contextlib.suppress(TypeError):
             wall = (max(times) - min(times)).total_seconds()
     return {
@@ -588,7 +556,6 @@ def _one_line(value: Any, limit: int = 160) -> str:
 
 
 def trajectory_summary(steps: list[dict[str, Any]], *, agent_logs: dict[str, str]) -> str:
-    """One-line-per-step timeline plus an inventory of non-ATIF scripted actions."""
     counts = _trace_counts(steps)
     lines = [
         "# Trajectory timeline",
@@ -668,12 +635,6 @@ def trajectory_summary(steps: list[dict[str, Any]], *, agent_logs: dict[str, str
 def trace_evidence(
     steps: list[dict[str, Any]], *, max_bytes: int = MAX_TRACE_EVIDENCE_BYTES
 ) -> dict[str, Any]:
-    """Bounded observations from already-blinded ATIF, never a recovered final state.
-
-    Keep chronology and source references, including delayed results and later undo
-    actions. Content-independent head/tail selection is explicit when the full
-    event stream cannot fit. Unknown/reused call ids are not guessed from position.
-    """
     if max_bytes < 2048:
         raise ValueError("trace evidence requires at least 2048 bytes")
     calls: dict[str, list[tuple[int, str]]] = {}
@@ -683,7 +644,7 @@ def trace_evidence(
             if not identity or identity == "unknown":
                 continue
             if call.get("function_name") == "unknown_tool" and not call.get("arguments"):
-                continue  # Import placeholders are not the originating command.
+                continue
             ref = f"trajectory.json#/steps/{index}/tool_calls/{number}"
             calls.setdefault(identity, []).append((index, ref))
 
@@ -792,7 +753,6 @@ def trace_evidence(
         if limit == 256:
             break
         limit = max(256, limit // 2)
-    # Keep readable excerpts and whole events from both ends; pin the last statement.
     selected = {last_message} if last_message is not None else set()
     if (
         last_message is not None
@@ -907,12 +867,6 @@ def _prior_records(roots: tuple[Path, ...], extras: Path) -> tuple[tuple[str, di
 
 
 def task_priors(task_name: str | None, digest: str | None) -> dict[str, Any]:
-    """Join prior task audits by normalized task name and report digest binding.
-
-    A mismatching prior is retained as explicitly unbound historical context;
-    it must not be presented as a finding about the trial's package version.
-    Answer-key trees are neither searched nor opened.
-    """
     leaf = _task_leaf(task_name)
     result: dict[str, Any] = {"task_id": task_name, "task_digest": digest, "priors": []}
     if not leaf:
@@ -955,12 +909,7 @@ def _redactor(trial_dir: Path, trial_id: str, blind: str) -> Callable[[str], str
     if isinstance(config.get("trials_dir"), str):
         identities.add(Path(config["trials_dir"]).name)
     replacements = sorted((name for name in identities if name), key=len, reverse=True)
-    # Protect the already-blinded value as well: summaries contain copied logs,
-    # and a caller's blind id may itself contain a short original name.
     alternatives = "|".join(re.escape(name) for name in (blind, *replacements))
-    # A short directory name such as "trial" is not the "trial" in the
-    # structural JSON key "trial_id". Paths, quoted ids and hyphenated run
-    # names still match at their actual identifier boundaries.
     pattern = re.compile(r"(?<!\w)(?:" + alternatives + r")(?!\w)")
 
     def redact(text: str) -> str:
@@ -1047,7 +996,6 @@ def _python_assertion_sites(source: str) -> list[dict[str, Any]]:
 
 
 def _patch_assertion_sites(source: str) -> tuple[list[dict[str, Any]], int, int]:
-    """Map parseable contiguous additions back to patch lines, not a guessed postimage."""
     source = "\n".join(source.splitlines())
     sections = patch_sections(source)
     if not sections:
@@ -1097,7 +1045,6 @@ def _patch_assertion_sites(source: str) -> tuple[list[dict[str, Any]], int, int]
 def _verifier_test_index(
     files: dict[str, bytes], resolution: Resolution, notes: Sequence[str]
 ) -> dict[str, Any]:
-    """Index retained test syntax, never execute it or infer semantic coverage."""
     paths = sorted(rel for rel in files if rel.startswith("task_codebase/tests/"))
     entries: list[dict[str, Any]] = []
     remaining = MAX_VERIFIER_ASSERTION_SITES
@@ -1225,7 +1172,6 @@ def _readme(
 
 
 def _evaluator_leaks(files: dict[str, bytes]) -> list[str]:
-    """Paths of evaluator-only content (CheatBench labels/annotations) in ``files``."""
     leaks: list[str] = []
     trajectory = files.get("trajectory.json")
     if trajectory is not None:
@@ -1249,11 +1195,6 @@ def _seal(
     provenance: dict[str, Any],
     step_origin: list[Any],
 ) -> Bundle:
-    """Write and seal the workspace; refuses evaluator-only content (fail closed).
-
-    ``step_origin[i]`` is the answer key's reference for workspace step ``i``:
-    the source ATIF ``step_id``, or the upstream index for trajectory-judge rows.
-    """
     files["verifier_tests.json"] = _json_bytes(
         _verifier_test_index(files, resolution, provenance.get("truncations") or ())
     )
@@ -1284,7 +1225,6 @@ def _seal(
         "files": hashes,
         "inputs_digest": _sha256_bytes(_canonical(hashes).encode()),
     }
-    # Paths are machine provenance, never reviewer-facing content.
     manifest["resolution"]["package"] = str(resolution.package) if resolution.package else None
     (out_dir / "bundle.json").write_bytes(_json_bytes(manifest))
     return Bundle(root=out_dir, manifest=manifest)
@@ -1299,7 +1239,6 @@ def build_workspace(
     digests: Sequence[str] = (),
     blind: str | None = None,
 ) -> Bundle:
-    """Freeze all retained trace evidence into a blind, sealed v3 review workspace."""
     from evallab.tripwires import extract_content_prompt
 
     trial_dir, out_dir = Path(trial_dir), Path(out_dir)

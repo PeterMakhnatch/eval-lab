@@ -1,35 +1,3 @@
-"""Shared constants and pure record utilities for file-access observation.
-
-HAR-180 observes protected files with ``inotifywait -m`` from inside the
-agent sandbox and pairs the event stream with evaluator-owned before/after
-content hashes. This module stays dependency-free (stdlib only, no Harbor
-imports) so the live watch can import the constants and parse the per-trial
-log read-only.
-
-Per-trial log: ``agent/file-access.jsonl`` (relative to the trial dir).
-Evaluator-owned baselines live under ``evaluator/file-access/`` (relative to
-the trial dir), which is never mounted into the sandbox.
-
-Record schema ``evallab.file_access/v1``. Every record carries the common
-fields ``schema``/``source``/``phase``/``window_id``/``observed_at`` plus a
-``kind`` discriminator:
-
-* ``coverage`` -- exactly how far observation got (``disabled`` when the
-  opt-in is off, ``unavailable`` when setup failed, ``active``/``starting``
-  while watching, ``stopped`` after a clean drain, ``partial`` when events
-  were lost, ``error`` for malformed configuration). Every trial gets at
-  least one coverage record, even without capture.
-* ``access`` -- one inotify OPEN/ACCESS observation. ``OPEN`` alone is open
-  evidence, not proof bytes were read. No PID, command, or step attribution:
-  inotify cannot provide it and this module never invents it.
-* ``file_change`` -- a protected-file before/after hash comparison with an
-  evaluator-owned ``baseline_ref``.
-
-Limits are always explicit on coverage records: no PID/command attribution,
-events can coalesce or overflow (absence is not clean proof), and the
-same-authority sandbox observer is not tamper-proof.
-"""
-
 from __future__ import annotations
 
 import json
@@ -39,76 +7,46 @@ from typing import Any
 
 FILE_ACCESS_SCHEMA = "evallab.file_access/v1"
 
-#: Per-trial observation log, relative to the trial directory.
 FILE_ACCESS_LOG = Path("agent/file-access.jsonl")
 
-#: Opt-in capture switch. Anything but ``"1"`` means disabled (explicit record).
 FILE_ACCESS_ENV = "EVALLAB_FILE_ACCESS"
 
-#: Optional evaluator configuration for extra protected targets (JSON, see
-#: :func:`parse_paths_env` for the exact shape).
 FILE_ACCESS_PATHS_ENV = "EVALLAB_FILE_ACCESS_PATHS"
 
-#: Probe-discovery switch for the default protected targets (probe-discovered
-#: git object/ref storage and the default grader root). ``"on"`` (the default
-#: when unset or blank) keeps today's behavior; ``"off"`` watches only the
-#: declared ``EVALLAB_FILE_ACCESS_PATHS`` targets. Anything else is a visible
-#: misconfiguration (``ValueError``, never silently narrowed).
 FILE_ACCESS_DISCOVERY_ENV = "EVALLAB_FILE_ACCESS_DISCOVERY"
 DISCOVERY_ON = "on"
 DISCOVERY_OFF = "off"
 
-#: Evaluator-owned snapshot directory, relative to the trial directory.
-#: Never mounted into the sandbox; baselines stay on the evaluator host.
 EVALUATOR_SNAPSHOT_DIR = Path("evaluator/file-access")
 
-#: Where file-access observation runs.
 SOURCE = "inotifywait"
 
-#: Coverage states (see module docstring).
 COVERAGE_STATES = frozenset(
     {"disabled", "starting", "active", "partial", "unavailable", "stopped", "error"}
 )
 
 
-#: Explicit limits stamped on every coverage record.
 LIMIT_NO_PID = "no PID/command attribution"
 LIMIT_COALESCE_OVERFLOW = "events can coalesce or overflow; absence is not clean proof"
 LIMIT_SAME_AUTHORITY = "same-authority sandbox observer is not tamper-proof"
 COVERAGE_LIMITS = (LIMIT_NO_PID, LIMIT_COALESCE_OVERFLOW, LIMIT_SAME_AUTHORITY)
 
-#: Protected-path categories.
 CATEGORY_GIT_OBJECTS = "git_objects"
 CATEGORY_GIT_REFS = "git_refs"
 CATEGORY_GRADER = "grader"
 CATEGORIES = (CATEGORY_GIT_OBJECTS, CATEGORY_GIT_REFS, CATEGORY_GRADER)
 
-#: Live host-publication cadence: the controller polls sealed sandbox chunks
-#: this often while a window is open, so alerts precede agent end.
 POLL_SECONDS = 2.0
 
-#: Bounded transport/storage caps (documented on coverage records when hit).
 MAX_DOWNLOAD_BYTES = 8 * 1024 * 1024
 MAX_SAVED_EVENTS = 20_000
 REASON_MAX_CHARS = 500
 STDERR_TAIL_CHARS = 2_000
 
-#: Sandbox discovery candidates (plus the exec working directory and any
-#: evaluator-configured extras). The smoke workdir ``/testbed`` is included.
 
-#: Hidden git-history locations that never appear as a normal ``.git`` entry.
-
-#: Default grader root inside the sandbox.
 DEFAULT_TESTS_DIR = "/tests"
 
-#: inotifywait framing: ``--format '%e%0%w%f%0' --no-newline`` emits NUL-joined
-#: ``(events, path)`` pairs with no line terminator.
 
-#: How the sandbox helper is invoked for a live window.
-
-#: ``inotifywait`` stderr marker proving the initial watch set is registered.
-
-#: Timing bounds (seconds) for the controller side of a live window.
 READY_TIMEOUT_SEC = 20.0
 READY_POLL_SEC = 0.5
 EXEC_TIMEOUT_SEC = 15
@@ -117,7 +55,6 @@ STOP_TIMEOUT_SEC = 15
 
 
 def utc_now_iso() -> str:
-    """Current UTC time as an ISO-8601 observer timestamp (not a kernel time)."""
     return datetime.now(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
@@ -140,7 +77,6 @@ def coverage_record(
     missing_paths: list[str] | None = None,
     observed_at: str | None = None,
 ) -> dict[str, Any]:
-    """Build a ``coverage`` record. ``reason`` is truncated to a bound."""
     if state not in COVERAGE_STATES:
         raise ValueError(f"unknown coverage state: {state!r}")
     record = _common(window_id=window_id, observed_at=observed_at)
@@ -167,7 +103,6 @@ def access_record(
     protected_root: str,
     observed_at: str | None = None,
 ) -> dict[str, Any]:
-    """Build an ``access`` record. Never carries PID/command/step attribution."""
     if category not in CATEGORIES:
         raise ValueError(f"unknown category: {category!r}")
     record = _common(window_id=window_id, observed_at=observed_at)
@@ -195,7 +130,6 @@ def file_change_record(
     baseline_ref: str,
     observed_at: str | None = None,
 ) -> dict[str, Any]:
-    """Build a ``file_change`` record for a protected grader path."""
     if change not in {"modified", "created", "deleted", "type_changed", "unavailable"}:
         raise ValueError(f"unknown change: {change!r}")
     record = _common(window_id=window_id, observed_at=observed_at)
@@ -214,18 +148,6 @@ def file_change_record(
 
 
 def parse_paths_env(raw: str | None) -> dict[str, list[str]]:
-    """Parse ``EVALLAB_FILE_ACCESS_PATHS`` into per-category path lists.
-
-    Exact agreed shape::
-
-        {"git_objects": ["<abs sandbox path>", ...],
-         "git_refs": ["<abs sandbox path>", ...],
-         "grader": ["<abs sandbox path>", ...]}
-
-    Every key is optional; unknown keys, non-absolute paths, and paths
-    claimed by two categories are ``ValueError`` (visible misconfiguration,
-    never silently narrowed). Unset/blank input means defaults only (``{}``).
-    """
 
     def _check(paths: Any, *, category: str) -> list[str]:
         if not isinstance(paths, list):
@@ -262,12 +184,6 @@ def parse_paths_env(raw: str | None) -> dict[str, list[str]]:
 
 
 def parse_discovery_env(raw: str | None) -> str:
-    """Parse ``EVALLAB_FILE_ACCESS_DISCOVERY`` into ``"on"`` or ``"off"``.
-
-    Unset/blank input means ``"on"`` (today's behavior, unchanged). Anything
-    but exactly ``"on"``/``"off"`` is ``ValueError`` (visible misconfiguration,
-    never silently narrowed or defaulted).
-    """
     if raw is None or not raw.strip():
         return DISCOVERY_ON
     value = raw.strip()
@@ -282,11 +198,6 @@ def parse_discovery_env(raw: str | None) -> str:
 def classify_path(
     path: str, targets: list[tuple[str, str]]
 ) -> tuple[str, str] | None:
-    """Map an absolute sandbox path to ``(category, protected_root)``.
-
-    ``targets`` holds ``(root, category)`` pairs; the longest matching root
-    wins. Returns ``None`` when the path is outside every protected target.
-    """
     candidate: tuple[str, str] | None = None
     for root, category in targets:
         if path != root and not path.startswith(root.rstrip("/") + "/"):
@@ -299,12 +210,6 @@ def classify_path(
 
 
 def split_frame_events(token: str) -> tuple[list[str], bool] | None:
-    """Split one ``%e`` token into ``(events, is_directory)``.
-
-    Returns ``None`` when the token is empty or carries no read-shaped event
-    after removing the ``ISDIR`` flag. Loss tokens (overflow/ignored/unmount)
-    are reported by the caller, never fabricated into access records here.
-    """
     names = [part for part in token.split(",") if part]
     if not names or any(name not in {"OPEN", "ACCESS", "ISDIR"} for name in names):
         return None
@@ -315,13 +220,10 @@ def split_frame_events(token: str) -> tuple[list[str], bool] | None:
     return events, is_directory
 
 
-# A terminal field distinguishes a truncated pathname from the next event.
-# Filenames cannot contain NUL, so a pathname cannot forge this delimiter.
 FRAME_END = b"\x00EVALLAB_END\x00"
 
 
 def parse_frames(data: bytes) -> tuple[list[tuple[list[str], bool, str]], int, bool]:
-    """Decode complete event/path frames; reject truncated or merged records."""
     frames: list[tuple[list[str], bool, str]] = []
     invalid = 0
     blocks = data.split(FRAME_END)
@@ -349,7 +251,6 @@ def parse_frames(data: bytes) -> tuple[list[tuple[list[str], bool, str]], int, b
 def parse_stream_chunk(
     carry: bytes, new: bytes
 ) -> tuple[list[tuple[list[str], bool, str]], int, bytes]:
-    """Publish complete frames and retain a split frame until its end marker."""
     data = carry + new
     boundary = data.rfind(FRAME_END)
     if boundary < 0:
@@ -360,7 +261,6 @@ def parse_stream_chunk(
 
 
 def scan_loss_tokens(data: bytes) -> dict[str, bool]:
-    """Report whether the raw stream carries overflow/ignored/unmount tokens."""
     seen = {"overflow": False, "ignored": False, "unmount": False}
     for block in data.split(FRAME_END):
         token = block.partition(b"\x00")[0]
@@ -377,14 +277,6 @@ def scan_loss_tokens(data: bytes) -> dict[str, bool]:
 def diff_entries(
     before: dict[str, dict[str, Any]], after: dict[str, dict[str, Any]]
 ) -> list[dict[str, Any]]:
-    """Diff two ``{path: snapshot entry}`` maps into ``file_change`` bodies.
-
-    Each body holds ``path``/``category``/``change``/``before_sha256``/
-    ``after_sha256``; the caller wraps them with :func:`file_change_record`.
-    Type/absence/unreadable states stay distinct from empty content: a file
-    whose hash cannot be compared on either side is ``unavailable``, never
-    silently ``modified`` or clean.
-    """
     bodies: list[dict[str, Any]] = []
     for path in sorted(set(before) | set(after)):
         old = before.get(path)

@@ -1,5 +1,3 @@
-"""Small built-in registry for dataset-specific audit evidence conventions."""
-
 from __future__ import annotations
 
 import hashlib

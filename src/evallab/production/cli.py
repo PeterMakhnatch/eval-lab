@@ -1,5 +1,3 @@
-"""Public DEV evidence exports."""
-
 from __future__ import annotations
 
 import argparse
@@ -14,10 +12,6 @@ from typing import Any
 
 _CONNECTION_URL = re.compile(r"(?i)\b(?:postgres(?:ql)?|nats|tls|ws|wss)://[^\s\"'<>]+")
 _LIVE_DATABASE = Path.home() / ".local/state/evallab-prod-live/cloud-trace-db.sqlite"
-
-
-
-
 
 
 def _resolve(root: Path, path: Path) -> Path:
@@ -116,7 +110,6 @@ def _export_cluster_scope(args: argparse.Namespace, root: Path) -> dict[str, Any
 
 
 def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int:
-    """Honor the existing CLI's integer return convention, with redacted JSON errors."""
     try:
         root = _resolve(root, args.repo_root) if args.repo_root is not None else root.resolve()
         if args.prod_command == "export-runs":

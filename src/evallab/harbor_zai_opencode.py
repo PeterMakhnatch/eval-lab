@@ -1,11 +1,3 @@
-"""Harbor adapter for the Z.ai Coding Plan via OpenCode.
-
-``SecretSafeZaiOpenCodeAgent`` provides proxy-grade credential isolation.
-Untrusted task/agent containers talk only to the internal credential broker
-(``zai-secret-proxy``) and receive a placeholder capability token, never
-the real provider secret.
-"""
-
 from __future__ import annotations
 
 import contextlib
@@ -35,21 +27,13 @@ from evallab.harbor_common import (
     sanitize_native_trajectory as _sanitize_native_trajectory,
 )
 
-#: OpenCode release every install uses unless an explicit override is passed.
 PINNED_OPENCODE_VERSION = "1.18.25"
 
-#: The only accepted provider prefix; the Z.ai credential is scoped to it.
 REQUIRED_MODEL_PREFIX = "zai-coding-plan/"
 
-#: OpenCode reads ``$XDG_DATA_HOME/opencode/auth.json``; Harbor's pinned
-#: OpenCode ``run()`` exports ``XDG_DATA_HOME=/logs/agent/opencode/xdg-data``.
 AUTH_LINK_DIR = "/logs/agent/opencode/xdg-data/opencode"
 AUTH_LINK_PATH = f"{AUTH_LINK_DIR}/auth.json"
 
-
-# --------------------------------------------------------------------------
-# Proxy lane constants
-# --------------------------------------------------------------------------
 
 ZAI_SECRET_COMPOSE = Path("containers/zai-secret.compose.yaml")
 
@@ -62,11 +46,6 @@ REMOVE_PROXY_AUTH_COMMAND = f"rm -f {AUTH_LINK_PATH}"
 
 
 def validate_model_name(model_name: str | None) -> str:
-    """Return ``model_name`` when it selects a Z.ai Coding Plan model.
-
-    Raises ``ValueError`` otherwise. ``model_name`` is a provider/model
-    selector, not a secret, so the offending value may appear in the message.
-    """
     if not model_name or "/" not in model_name:
         raise ValueError(f"ZaiOpenCodeAgent requires a provider/model selector, got {model_name!r}")
     provider, _, model = model_name.partition("/")
@@ -87,7 +66,6 @@ def validate_model_name(model_name: str | None) -> str:
 def collected_zai_secret_values(
     environment: Mapping[str, str] | None = None,
 ) -> frozenset[str]:
-    """Return non-placeholder Z.ai provider secret strings present in environment."""
     source = os.environ if environment is None else environment
     values: set[str] = set()
     for key in ZAI_CREDENTIAL_ENVIRONMENT_KEYS:
@@ -113,7 +91,6 @@ def collected_zai_secret_values(
 
 
 def sanitize_native_trajectory(path: Path, secrets: frozenset[str] | None = None) -> None:
-    """Rewrite a native trajectory on disk only after in-memory redaction."""
     _sanitize_native_trajectory(
         path,
         secrets=secrets,
@@ -138,11 +115,6 @@ def _scrubbed_connection_env(connection: ResolvedModelConnection) -> dict[str, s
 
 
 class SecretSafeZaiOpenCodeAgent(OpenCode):
-    """OpenCode agent that talks only to the internal Z.ai credential broker.
-
-    Proxy-grade credential isolation: the container receives a per-trial
-    capability token and an internal endpoint, never the real Z.ai secret.
-    """
 
     def __init__(
         self,
@@ -156,7 +128,6 @@ class SecretSafeZaiOpenCodeAgent(OpenCode):
             validate_model_name(model_name)
 
         config = copy.deepcopy(opencode_config or {})
-        # Wire the zai-coding-plan provider baseURL to the internal proxy
         provider_cfg = config.setdefault("provider", {}).setdefault("zai-coding-plan", {})
         provider_cfg.setdefault("options", {})["baseURL"] = ZAI_PROXY_URL
 
@@ -192,7 +163,6 @@ class SecretSafeZaiOpenCodeAgent(OpenCode):
     def model_connection(self) -> ResolvedModelConnection:
         connection = super().model_connection
         if connection.provider != "zai-coding-plan" and connection.provider != "zai":
-            # Also check if provider is part of model name
             model = getattr(self, "model_name", None)
             if model:
                 validate_model_name(model)

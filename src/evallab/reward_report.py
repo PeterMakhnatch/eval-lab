@@ -1,9 +1,3 @@
-"""HAR-440 reward/report contradiction evidence, mirroring HAR-437 rules.
-
-Use retained CTRF test statuses and reward.txt to flag contradictory rewards.
-This is evidence only: reward, scored, counts, and decision are never rewritten.
-"""
-
 from __future__ import annotations
 
 import math
@@ -17,7 +11,6 @@ SCHEMA = "evallab.reward_report/v1"
 
 
 def ctrf_counts(trial_dir: Path) -> dict[str, int] | None:
-    """Count a retained CTRF report, preferring its test list over its summary."""
     counts = probe03.ctrf_counts(trial_dir)
     if counts is None:
         return None
@@ -26,7 +19,6 @@ def ctrf_counts(trial_dir: Path) -> dict[str, int] | None:
 
 
 def reward_file(trial_dir: Path) -> float | None:
-    """Read finite numeric text from verifier/reward.txt, or return None."""
     try:
         text = (trial_dir / "verifier" / "reward.txt").read_text(encoding="utf-8").strip()
         reward = float(text)
@@ -36,7 +28,6 @@ def reward_file(trial_dir: Path) -> float | None:
 
 
 def contradiction_reason(reward: float, counts: Mapping[str, int]) -> str:
-    """Return the HAR-437 contradiction reason, or an empty string."""
     if counts["tests"] <= 0:
         return ""
     passed, failed, skipped = counts["passed"], counts["failed"], counts["skipped"]
@@ -49,7 +40,6 @@ def contradiction_reason(reward: float, counts: Mapping[str, int]) -> str:
 
 
 def classify(reward: float, counts: Mapping[str, int]) -> str:
-    """Classify a contradiction, or return an empty string when none exists."""
     if not contradiction_reason(reward, counts):
         return ""
     passed, failed = counts["passed"], counts["failed"]
@@ -61,15 +51,11 @@ def classify(reward: float, counts: Mapping[str, int]) -> str:
 
 
 def assess(trial_dir: Path) -> dict[str, Any] | None:
-    """Return evidence for a contradiction, reward mismatch, or orphan reward file."""
     try:
         reward, scored, source = probe03.read_reward(trial_dir)
     except (OSError, ValueError, RecursionError):
         return None
     if not scored or reward is None:
-        # An unscored reward never yields a mismatch or contradiction record,
-        # even when a reward file holds a different finite value. HAR-446 keeps
-        # a leftover verifier file as orphan evidence.
         if source != "exception_no_captured_reward":
             return None
         reward_txt = reward_file(trial_dir)
@@ -105,13 +91,11 @@ def assess(trial_dir: Path) -> dict[str, Any] | None:
 
 
 def _number_text(value: float) -> str:
-    """Format up to 6 decimal places without trailing zeros or negative zero."""
     text = f"{value:.6f}".rstrip("0").rstrip(".")
     return "0" if text == "-0" else text
 
 
 def flags(record: Mapping[str, Any]) -> list[str]:
-    """Return orphan, contradiction, and reward mismatch flags in that order."""
     result: list[str] = []
     if record.get("orphan"):
         result.append(f"reward_report:orphan:{_number_text(record['reward_txt'])}")
@@ -130,7 +114,6 @@ def flags(record: Mapping[str, Any]) -> list[str]:
 
 
 def kind_counts(flag_strings: Iterable[str]) -> dict[str, int]:
-    """Count reward-report flag kinds; sort keys for deterministic JSON and repr."""
     counts: dict[str, int] = {}
     for flag in flag_strings:
         parts = flag.split(":", 2)

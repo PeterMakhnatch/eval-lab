@@ -190,9 +190,6 @@ __all__ = [
 HARBOR_COMPOSE_CONFIG_LABEL = "com.docker.compose.project.config_files"
 HARBOR_COMPOSE_PROJECT_LABEL = "com.docker.compose.project"
 HARBOR_COMPOSE_WORKDIR_LABEL = "com.docker.compose.project.working_dir"
-#: Environment selectors (spec value or Harbor ``--env`` import path) whose
-#: sandboxes run remotely. Their trials create no local Docker containers, so
-#: the local Harbor-container scan and orphan cleanup are skipped for them.
 _DAYTONA_ENVIRONMENT_SELECTORS = frozenset(
     {
         "daytona",
@@ -200,38 +197,8 @@ _DAYTONA_ENVIRONMENT_SELECTORS = frozenset(
         BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH,
     }
 )
-# Code and supporting assets belong to the imported release, not its data workspace.
 _RUNTIME_ROOT = Path(__file__).resolve().parents[2]
 
-
-# =============================================================================
-# HARNESS CAPTURE CONTRACT
-# =============================================================================
-# Immutable source paths and layout consumed by the lab reader:
-#
-# Job directory layout:
-#   <job_dir>/
-#     result.json                       - Harbor job-level completion summary
-#     config.json                       - Harbor job configuration
-#     lock.json                         - Harbor job environment and package lock
-#     lab-metadata.json                 - Lab executor run metadata (provenance,
-#                                         provider_usage, model_identity, host, tools)
-#     <trial_dir>/                      - Per-trial directories (<task>__<id>)
-#       result.json                     - Trial outcome, agent_result, verifier_result
-#       config.json                     - Trial configuration
-#       lock.json                       - Trial lock
-#       agent/
-#         trajectory.json               - Native / standard agent trajectory
-#       trajectory.json                 - ATIF trajectory (root fallback)
-#       verifier/
-#         reward.txt / reward.json      - Verifier reward output
-#         ctrf.json / test-stdout.txt   - Verifier test reports and stdout
-#
-# Executor state & secret proxy usage:
-#   <jobs_dir>/.executor/<name>.state.json           - Executor state machine
-#   <jobs_dir>/.executor/<name>.log                  - Redacted runner progress log
-#   <usage_dir>/*-proxy-usage.json                   - Ephemeral private proxy accounting
-# =============================================================================
 
 TRIAL_NATIVE_TRAJECTORY_PATH = Path("agent/trajectory.json")
 TRIAL_ATIF_TRAJECTORY_PATH = Path("trajectory.json")
@@ -279,7 +246,6 @@ def harbor_container_ids(
     project_prefixes: frozenset[str] | None = None,
     command_runner: Any = None,
 ) -> frozenset[str]:
-    """Return only containers proven by labels to belong to Harbor for this task."""
     runner = command_runner or _run_text_command
     environment = subscription_environment()
     try:
@@ -338,7 +304,6 @@ def cleanup_new_harbor_containers(
     project_prefixes: frozenset[str],
     command_runner: Any = None,
 ) -> tuple[str, ...]:
-    """Force-remove new Harbor-labeled task containers; never prune globally."""
     if not project_prefixes:
         return ()
     current = harbor_container_ids(
@@ -366,14 +331,12 @@ def cleanup_new_harbor_containers(
     return orphaned
 
 
-# Supported native runtime; pyproject.toml and CI install this exact release.
 HARBOR_CLI_PIN = "0.24.0"
 
 _VERSION_NUMBER = re.compile(r"\d+\.\d+(?:\.\d+)?")
 
 
 def harbor_cli_pin_check(version: str | None) -> tuple[bool, str]:
-    """Compare a local ``harbor --version`` line with the supported runtime pin."""
     if version is None:
         return False, f"harbor not found (CI pin {HARBOR_CLI_PIN})"
     match = _VERSION_NUMBER.search(version)
@@ -453,7 +416,6 @@ def assert_no_secret_material(
     *,
     secrets: frozenset[str],
 ) -> None:
-    """Fail closed if provider credential bytes reached a persistent artifact."""
     encoded = tuple(secret.encode() for secret in secrets if secret)
     if not encoded:
         return
@@ -608,12 +570,6 @@ def _read_proxy_usage(
             f"{provider_label} proxy usage report is invalid",
         )
 
-    # Pricing freezes at the first reservation. A zero-call ledger keeps
-    # ``pricing: null``: no rate may be invented without a physical call.
-    # The proxy always freezes a three-key card (cached rate may be None);
-    # lanes that pin only input/output omit that key. A missing cached
-    # rate means no cached rate on either side — otherwise every
-    # self-hosted trial with calls fails binding after grading.
     def _with_cached_rate(pricing: object) -> object:
         if isinstance(pricing, dict) and "cached_input_cost_micros_per_million" not in pricing:
             return {**pricing, "cached_input_cost_micros_per_million": None}
@@ -637,9 +593,6 @@ def _read_proxy_usage(
             f"{provider_label} proxy usage binding does not match this trial",
         )
     if version == 2:
-        # Schema v2: ``totals`` is actual usage only (reconciled + exceeded
-        # actuals); reservations of still-reserved/unresolved calls sit in
-        # ``attempted``. Both blocks must recompute exactly from the calls.
         try:
             recomputed = split_calls([dict(call) for call in calls])
         except ValueError as exc:
@@ -675,10 +628,6 @@ def _read_proxy_usage(
                 f"{provider_label} proxy totals do not reconcile with provider calls",
             )
         return payload
-    # Schema v1 (historic): totals include reservations of calls that never
-    # reconciled. Validate the legacy invariant exactly as written; readers
-    # derive used vs attempted from the calls list (evallab.ledger) and the
-    # file itself is never rewritten.
     computed = {
         "requests": len(calls),
         "input_tokens": 0,
@@ -733,38 +682,13 @@ def _read_proxy_usage(
     return payload
 
 
-# ---------------------------------------------------------------------------
-# Terminus2 host-loopback proxy supervision.
-#
-# Upstream Terminus2 runs its model client host-side inside the Harbor
-# controller process, so the metered proxy cannot be a task-container compose
-# sidecar. The runner starts one per-trial loopback instance of the existing
-# proxy (127.0.0.1, ephemeral port, private ready file), hands the Harbor
-# child only the loopback URL plus the trial capability, and quiesces the
-# proxy before the final ledger read on every exit path. Ledger accounting
-# and reconciliation reuse the standard proxy usage rules (same as mini-SWE).
-# ---------------------------------------------------------------------------
-
 _TERMINUS_PROXY_HOST = "127.0.0.1"
 _TERMINUS_PROXY_READY_TIMEOUT_SECONDS = 20.0
-# The proxy drains in-flight provider calls for up to SHUTDOWN_DRAIN_SECONDS
-# (120 s, containers/zai_openapi_secret_proxy.py) on SIGTERM, so a call the
-# agent abandoned at its timeout still settles with real usage. Wait past it.
 _TERMINUS_PROXY_STOP_TIMEOUT_SECONDS = 130.0
 _TERMINUS_PROXY_STDERR_TAIL_BYTES = 4096
 
 
 def _capture_route_token(upstream: str | None, attempt_id: str) -> dict[str, str]:
-    """Route token for the independent capture hop, or nothing.
-
-    Only when the operator opted in (``EVALLAB_MODEL_CAPTURE=1``) *and* the
-    provider upstream points at a loopback address (the recording proxy):
-    hand the secret proxy the job attempt id as ``/t/<token>/`` prefix so
-    ``capture link`` can attribute calls per job deterministically. Every
-    other shape — direct-to-vendor rounds, unset upstreams, a stray flag
-    against an https upstream — carries no token and the path stays pinned
-    exactly.
-    """
     if os.environ.get(CAPTURE_ENABLED_ENV) != "1":
         return {}
     if not upstream:
@@ -782,14 +706,6 @@ def _capture_route_token(upstream: str | None, attempt_id: str) -> dict[str, str
 
 
 def capture_dir_from_environment() -> Path | None:
-    """This job's capture directory, or ``None`` when capture is off.
-
-    The round launcher sets ``EVALLAB_MODEL_CAPTURE_DIR`` alongside
-    ``EVALLAB_MODEL_CAPTURE=1`` and the loopback upstream (the bound
-    endpoint published in ``<capture_dir>/capture.json``). Each concurrent
-    segment uses its own directory, so each job auto-links to its correct
-    file via :func:`maybe_link_capture`.
-    """
     if os.environ.get(CAPTURE_ENABLED_ENV) != "1":
         return None
     raw = (os.environ.get(CAPTURE_DIR_ENV) or "").strip()
@@ -799,14 +715,6 @@ def capture_dir_from_environment() -> Path | None:
 
 
 def _capture_binding_for_metadata(request: RunRequest) -> dict[str, Any] | None:
-    """Durable per-job capture identity for ``lab-metadata.json``.
-
-    Records the capture directory, the loopback endpoint in play (when any
-    known upstream env points at one), the route token stamped for this job,
-    and the bound manifest identity read from ``capture.json`` — which exists
-    only after the server bound successfully, so a failed bind leaves no
-    misleading identity behind.
-    """
     capture_dir = capture_dir_from_environment()
     if capture_dir is None:
         return None
@@ -854,15 +762,6 @@ def _capture_binding_for_metadata(request: RunRequest) -> dict[str, Any] | None:
 def maybe_link_capture(
     job_dir: str | Path, *, capture_dir: str | Path | None = None
 ) -> dict[str, Any] | None:
-    """Link a job to its own capture file; never raises.
-
-    Uses the independent-capture ``link_capture`` (route token, then session,
-    then conversation chaining) against the job's own capture directory —
-    ``capture_dir`` when given, else ``EVALLAB_MODEL_CAPTURE_DIR``. Returns
-    the link receipt, or ``None`` when capture is off, the file is absent,
-    or the link failed. A failure is recorded beside the job and never fails
-    the run.
-    """
     try:
         directory = Path(capture_dir) if capture_dir is not None else capture_dir_from_environment()
         if directory is None:
@@ -880,7 +779,6 @@ def maybe_link_capture(
 
 
 def _record_capture_link(job_dir: str | Path, receipt: dict[str, Any]) -> None:
-    """Merge a capture-link summary into ``lab-metadata.json``; best-effort."""
     job_path = Path(job_dir)
     metadata_path = job_path / "lab-metadata.json"
     try:
@@ -909,13 +807,6 @@ def _record_capture_link(job_dir: str | Path, receipt: dict[str, Any]) -> None:
 
 
 def _proxy_503_wait_passthrough(env: dict[str, str]) -> dict[str, str]:
-    """Pass the operator's upstream-503 wait bound into the proxy subprocess.
-
-    The proxy subprocess starts with a minimal environment (ambient parent
-    state is not inherited), so the knob only takes effect when forwarded
-    here. Unset stays unset: the proxy falls back to its default. Malformed
-    values are clamped proxy-side, never here.
-    """
     raw = os.environ.get(PROXY_UPSTREAM_503_WAIT_ENV)
     if raw is not None:
         env[PROXY_UPSTREAM_503_WAIT_ENV] = raw
@@ -935,7 +826,7 @@ class _ProxyLaneConfig:
     proxy_script: Path | None = None
     allowed_model: tuple[str, str] | None = None
     default_pricing: tuple[int, int] | None = None
-    pricing_mode: str | None = None  # "raw_env" | "fixed" | "int_env" | None (host_proxy)
+    pricing_mode: str | None = None
 
 
 _COMPOSE_PROXY_LANES: dict[str, _ProxyLaneConfig] = {
@@ -1039,10 +930,6 @@ def _terminus_proxy_env(
     mimo_sampling_profile: str = "generation-config",
     live_dir: Path | None = None,
 ) -> dict[str, str]:
-    """Build the minimal environment for the host-supervised proxy instance.
-    env value: the proxy reads it from the owner-only secret file. Ambient
-    parent-process proxy state is not inherited.
-    """
     env: dict[str, str] = {}
     for name in ("PATH", "TMPDIR"):
         value = os.environ.get(name)
@@ -1118,7 +1005,6 @@ def _start_ready_process(
     stderr_tail: Callable[[Path], str],
     stop_process: Callable[[subprocess.Popen[bytes] | None], None],
 ) -> tuple[subprocess.Popen[bytes], int]:
-    """Launch a child process with a private stderr log and poll until ready."""
     with open(stderr_path, "wb") as stderr_handle:
         os.chmod(stderr_path, 0o600)
         process = subprocess.Popen(
@@ -1177,7 +1063,6 @@ def _stop_managed_process(
     *,
     stop_timeout_seconds: float,
 ) -> None:
-    """Terminate a supervised child process; safe to call repeatedly."""
     if process is None or process.poll() is not None:
         return
     process.terminate()
@@ -1213,12 +1098,6 @@ def _start_terminus_proxy(
     mimo_sampling_profile: str = "generation-config",
     live_dir: Path | None = None,
 ) -> tuple[subprocess.Popen[bytes], str]:
-    """Start the per-trial loopback proxy; return (process, proxy URL).
-
-    Fails closed before Harbor launches when the proxy cannot bind, exits
-    early, or withholds its ready file. The caller owns termination via
-    :func:`_stop_terminus_proxy` on every exit path.
-    """
     script = (_RUNTIME_ROOT / ZAI_OPENAPI_PROXY_SCRIPT).resolve()
     if not script.is_file():
         raise RuntimeError(f"metered provider secret proxy is missing: {script}")
@@ -1269,22 +1148,16 @@ def _start_terminus_proxy(
 
 
 def _stop_terminus_proxy(process: subprocess.Popen[bytes] | None) -> None:
-    """Terminate a supervised loopback proxy; safe to call repeatedly."""
     _stop_managed_process(process, stop_timeout_seconds=_TERMINUS_PROXY_STOP_TIMEOUT_SECONDS)
 
 
-#: Host the bridge binds; the sandbox reaches the same port as
-#: ``CLAUDE_GATEWAY_SANDBOX_HOST`` (Docker Desktop host name).
 _CLAUDE_GATEWAY_PROXY_HOST = "127.0.0.1"
-# The bridge itself waits up to 120s for `omp auth-gateway stdio`; startup took
-# 36-43s on a loaded host (2026-10-28), so wait slightly longer than the bridge.
 _CLAUDE_GATEWAY_READY_TIMEOUT_SECONDS = 125.0
 _CLAUDE_GATEWAY_STOP_TIMEOUT_SECONDS = 130.0
 _CLAUDE_GATEWAY_STDERR_TAIL_BYTES = 4096
 
 
 def _claude_gateway_stderr_tail(stderr_path: Path) -> str:
-    """Last bytes of the bridge log for a launch refusal, shape-only."""
     try:
         data = stderr_path.read_bytes()[-_CLAUDE_GATEWAY_STDERR_TAIL_BYTES:]
     except OSError:
@@ -1301,14 +1174,6 @@ def _start_claude_gateway_bridge(
     work_dir: Path,
     stdio_command: str | None = None,
 ) -> tuple[subprocess.Popen[bytes], int]:
-    """Start the per-job gateway bridge; return (process, host port).
-
-    Fails closed before Harbor launches when the bridge script is missing,
-    the stdio child withholds its ready line, or the bridge exits early.
-    The caller owns termination via :func:`_stop_claude_gateway_bridge` on
-    every exit path. ``stdio_command`` is a tests-only override for the
-    gateway child argv; production callers omit it.
-    """
     script = (_RUNTIME_ROOT / CLAUDE_GATEWAY_BRIDGE_SCRIPT).resolve()
     if not script.is_file():
         raise RuntimeError(f"Claude gateway bridge is missing: {script}")
@@ -1342,8 +1207,6 @@ def _start_claude_gateway_bridge(
         allowed_model,
     ]
     if stdio_command is not None:
-        # Tests only: point the bridge at a stub stdio child. Production
-        # callers omit this and the bridge spawns the real gateway.
         cmd.extend(["--stdio-command", stdio_command])
     return _start_ready_process(
         cmd,
@@ -1359,18 +1222,10 @@ def _start_claude_gateway_bridge(
 
 
 def _stop_claude_gateway_bridge(process: subprocess.Popen[bytes] | None) -> None:
-    """Terminate a supervised gateway bridge; safe to call repeatedly."""
     _stop_managed_process(process, stop_timeout_seconds=_CLAUDE_GATEWAY_STOP_TIMEOUT_SECONDS)
 
 
 def _claude_gateway_runtime_env(*, port: int, capability: str) -> dict[str, str]:
-    """Harbor-child environment for the gateway lane.
-
-    The sandbox reaches the host-loopback bridge as ``host.docker.internal``
-    and presents the per-trial capability as ``ANTHROPIC_AUTH_TOKEN``
-    (custom-base-URL auth). ``CLAUDE_FORCE_OAUTH`` must stay off: with it on
-    and no OAuth token, Harbor refuses before any sandbox starts.
-    """
     return {
         "ANTHROPIC_BASE_URL": f"http://{CLAUDE_GATEWAY_SANDBOX_HOST}:{port}",
         "ANTHROPIC_AUTH_TOKEN": capability,
@@ -1397,7 +1252,6 @@ def run_harbor_process(
     docker_platform: str | None = None,
     include_modal_credentials: bool = False,
 ) -> HarborProcessResult:
-    """Run Harbor while redacting provider credentials before log persistence."""
     if lease_path is not None and lease_generation is None:
         raise ValueError("lease_generation is required when lease_path is set")
     if _lease_cancelled_or_lost(lease_path, lease_generation):
@@ -1418,8 +1272,6 @@ def run_harbor_process(
     zai_adapter = HARBOR_AGENT_IMPORT_PATHS[ZAI_OPENCODE_AGENT]
     zai_lane = zai_adapter in command
     zai_miniswe_adapter = ZAI_MINISWE_AGENT_IMPORT_PATH
-    # Native Xiaomi and Terminus model clients live on the controller host.
-    # Both use this supervised loopback proxy, never a sandbox-side transport.
     terminus_client = TERMINUS_AGENT_IMPORT_PATH in command or MIMO_AGENT_IMPORT_PATH in command
     terminus_lane = terminus_client
     zai_openapi_lane = (
@@ -1445,9 +1297,6 @@ def run_harbor_process(
     if command and Path(command[0]).name == "harbor":
         from evallab.harbor_view import prepend_pinned_harbor_path
 
-        # The child resolves a bare `harbor` through PATH; pin this
-        # interpreter's own release first (a standalone `uv tool` install of
-        # another version was measured beside it on this host).
         prepend_pinned_harbor_path(runtime_environment, fallback=os.environ.get("PATH"))
     if MIMO_AGENT_IMPORT_PATH in command and laminar_metadata is not None:
         runtime_environment["EVALLAB_LAMINAR_METADATA"] = json.dumps(laminar_metadata)
@@ -1511,10 +1360,6 @@ def run_harbor_process(
         if host_proxy:
             if proxy_attempt_id is None or proxy_limits is None:
                 raise ValueError("Terminus execution requires a bound trial capability")
-            # The command's --model value selects the provider profile: a
-            # ``selfhosted/`` selector routes to the self-hosted MiMo profile,
-            # ``openrouter-metered/`` selector to the OpenRouter profile,
-            # every other metered Terminus model to Z.ai OpenAPI.
             mimo_client = any(
                 isinstance(arg, str) and arg.startswith("selfhosted/") for arg in command
             )
@@ -1562,18 +1407,12 @@ def run_harbor_process(
                     "output_cost_micros_per_million": 0,
                 }
             elif mimo_native is not None:
-                # Self-hosted tokens have no per-token price; spend is
-                # governed by the time-based server estimate, not this ledger.
                 input_rate, output_rate = MIMO_SELFHOSTED_MODEL_PRICES_MICROS[mimo_native]
                 proxy_pricing = {
                     "input_cost_micros_per_million": input_rate,
                     "output_cost_micros_per_million": output_rate,
                 }
             elif openrouter_spec is not None:
-                # The pinned OpenRouter list price is exact for the pinned
-                # endpoint. The cached rate rides along so the binding matches
-                # the ledger's full rate card; reservations still use the
-                # uncached input rate.
                 proxy_pricing = {
                     "input_cost_micros_per_million": (
                         openrouter_spec.input_cost_micros_per_million
@@ -1651,10 +1490,6 @@ def run_harbor_process(
                 )
         secret_path, secret_env_value = _resolve_or_materialize_secret(config)
         if host_proxy:
-            # Host-side model route: the proxy runs as a loopback supervisor
-            # child, not a task-container compose sidecar. The Harbor child
-            # receives only the loopback URL plus the trial capability; the
-            # real provider key stays in the owner-only secret file.
             terminus_proxy, terminus_proxy_url = _start_terminus_proxy(
                 provider=provider,
                 secret_path=secret_path,
@@ -1709,12 +1544,6 @@ def run_harbor_process(
             _arm_proxy_lane(host_proxy=True)
 
         if claude_gateway_model is not None:
-            # Subscription lane via OMP's auth-gateway: the lab-owned
-            # loopback bridge fronts one stdio child for this job. The
-            # sandbox reaches it as host.docker.internal and presents the
-            # per-trial capability as ANTHROPIC_AUTH_TOKEN (custom-base-URL
-            # auth); CLAUDE_FORCE_OAUTH must stay off or Harbor refuses
-            # before any sandbox starts.
             allowed_model = resolve_harbor_model("claude-code", claude_gateway_model)
             if not allowed_model:
                 raise ValueError(f"Claude gateway lane cannot resolve {claude_gateway_model!r}")
@@ -1752,13 +1581,6 @@ def run_harbor_process(
         secret_bytes = tuple(value.encode() for value in secret_values)
 
         def _persist_claude_gateway_usage() -> None:
-            """Copy the bridge usage ledger beside the job as durable evidence.
-
-            Records hold token counts and model identities only -- the bridge
-            never writes the capability -- so the file is safe to keep. A
-            missing or empty ledger means no gateway call settled; that is
-            recorded by absence, never by a zero.
-            """
             if job_dir is None or claude_gateway_usage_path is None:
                 return
             try:
@@ -1779,8 +1601,6 @@ def run_harbor_process(
             timed_out: bool,
             timed_out_trial: str | None = None,
         ) -> HarborProcessResult:
-            # Quiesce the loopback proxy before the final ledger read so no
-            # in-flight handler can tear the report this function reconciles.
             _stop_terminus_proxy(terminus_proxy)
             _stop_claude_gateway_bridge(claude_gateway_bridge)
             _persist_claude_gateway_usage()
@@ -2029,13 +1849,6 @@ def _cleanup_failure(
 def _task_staging_provenance(
     source: Path, staged: Path, adaptation: NetworkAdaptation | None
 ) -> dict[str, Any]:
-    """Deterministic source-to-stage binding for one executed job.
-
-    Registry evidence discovery recomputes the source digests from the current
-    package bytes and matches them against this block, so a staged trial can
-    only be accepted when its lock carries exactly the staged name and digest
-    proven here for exactly this source package.
-    """
     from evallab.registry import compute_task_digests, harbor_task_digest
 
     resolved = source.resolve()
@@ -2057,16 +1870,12 @@ def _task_staging_provenance(
 
 
 def _accepted_returned_models(model: str) -> frozenset[str]:
-    """Model ids a provider may legitimately echo back for the requested selector."""
     if is_breaker_selfhosted_model(model):
         return frozenset({parse_breaker_selfhosted_model(model)})
     accepted = {model, model.rsplit("/", 1)[-1]}
     if is_mimo_selfhosted_model(model):
-        # SGLang echoes its --served-model-name: the selector minus ``selfhosted/``.
         accepted.add(parse_mimo_selfhosted_model(model))
     if is_openrouter_model(model):
-        # OpenRouter echoes the canonical slug of the endpoint that served
-        # the call; the route lists the echoes of its pinned endpoint.
         accepted |= openrouter_route(model).returned_models
     return frozenset(accepted)
 
@@ -2154,10 +1963,6 @@ def _write_run_metadata(
             "cost_micros": None,
             "usage_status": "missing",
         }
-    # Authoritative per-run spend: ledger usage times the ledger's pinned
-    # pricing (evallab.ledger). This wins over Harbor/litellm's own
-    # agent_result estimate for proxy-metered trials at catalog ingest; the
-    # gate spends used + attempted as a conservative ceiling.
     metadata["cost"] = build_cost_block(process.proxy_usage)
     calls = process.proxy_usage.get("calls") if isinstance(process.proxy_usage, dict) else None
     if isinstance(calls, list) and calls and request.model:
@@ -2212,13 +2017,6 @@ def _write_network_adaptation(
     request: RunRequest,
     adaptation: NetworkAdaptation | None,
 ) -> None:
-    """Persist compact network adaptation metadata outside the staging copy.
-
-    This is written as soon as staging is created so that early build/runtime
-    failures still retain the requested and effective modes, adapter version,
-    adapter digest, and isolation reason even if the temporary staging copy is
-    later deleted.
-    """
     if adaptation is None:
         return
     path = _network_adaptation_path(request)
@@ -2241,20 +2039,11 @@ def _write_network_adaptation(
 
 
 def _cleanup_stage(staging_dir: Path | None) -> None:
-    """Remove the temporary execution copy, including any copied task secrets.
-
-    The compact adaptation metadata has already been persisted to
-    ``.executor/<name>.network-adaptation.json`` and, when the run reached the
-    metadata step, ``<job-dir>/lab-metadata.json``.
-    """
     if staging_dir is not None and staging_dir.is_dir():
         shutil.rmtree(staging_dir)
 
 
 def _make_snapshot_writable(staging_dir: Path) -> None:
-    # Pinned task stores are read-only (555/444).
-    # copytree preserves those modes. Only the private copy becomes writable;
-    # package digests cover bytes, not modes. Never chmod through a symlink.
     for path in (staging_dir, *staging_dir.rglob("*")):
         if not path.is_symlink():
             owner_bits = stat.S_IWUSR | (stat.S_IXUSR if path.is_dir() else 0)
@@ -2269,7 +2058,6 @@ def _stage_task_for_host(
     preserve_declared_network: bool = False,
     expected_package_digest: str | None = None,
 ) -> tuple[Path, NetworkAdaptation | None]:
-    """Create and verify a private immutable-input snapshot before adaptation."""
     from evallab.registry import compute_task_digests
 
     task_toml_path = source / "task.toml"
@@ -2295,12 +2083,6 @@ def _stage_task_for_host(
 
     original_text = (staging_dir / "task.toml").read_text(encoding="utf-8")
     if preserve_declared_network:
-        # Host-side model route (Terminus2): the task container never needs
-        # model API access, so the declared network/phase policy ships
-        # untouched. No controller-OS downgrade is applied and no
-        # model-host allowlist is injected; Harbor enforces or refuses the
-        # declared policy honestly, including on remote backends where the
-        # controller host cannot know the enforcement capability.
         staged_text = original_text
         adaptation = None
     else:
@@ -2322,7 +2104,6 @@ def _stage_task_for_host(
 
 
 def _sanitize_persisted_job_tree(root: Path, secrets: tuple[bytes, ...]) -> None:
-    """Redact then chmod lab-owned persisted streams under a Harbor job directory."""
     if not root.is_dir() or not secrets:
         return
     suffixes = {".log", ".json", ".jsonl", ".txt", ".yaml", ".yml"}
@@ -2365,7 +2146,6 @@ def _proxy_attempt_id(request: RunRequest) -> str | None:
 
 
 def _harness_execution_settings(request: RunRequest) -> dict[str, Any]:
-    """Keep every non-treatment spec setting comparable across fresh runs."""
     if request.experiment_spec is not None:
         settings = request.experiment_spec.model_dump(
             mode="json",
@@ -2462,7 +2242,6 @@ def _check_daytona_admission(request: RunRequest) -> dict[str, Any] | None:
 def stage_request_task(
     request: RunRequest, staging_dir: Path
 ) -> tuple[Path, NetworkAdaptation | None]:
-    """Prepare task bytes identically for execution and read-only diff planning."""
     is_zai_openapi = request.agent == "mini-swe-agent" and (
         request.model == ZAI_OPENAPI_MODEL_SELECTOR
         or (request.model is not None and request.model.startswith("zai/"))
@@ -2521,7 +2300,6 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
     started = datetime.now(UTC)
     try:
         staged_task, adaptation = stage_request_task(request, staging_dir)
-        # Bind the validated input snapshot before a long-running trial can outlive its source.
         task_staging = _task_staging_provenance(request.task, staged_task, adaptation)
         staged_request: RunRequest = replace(request, task=staged_task)
         staged_harness: Path | None = None
@@ -2619,7 +2397,7 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
                         "intended_lock_mode": _intended["lock"]["mode"],
                     }
                 )
-            except Exception as exc:  # fingerprint telemetry cannot fail execution
+            except Exception as exc:
                 _intended = {}
                 _fingerprint_error = f"{type(exc).__name__}: {exc}"
 
@@ -2774,9 +2552,6 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
                     f"{provider_label} proxy has unreconciled provider calls{cleanup_detail}",
                 )
         job = load_job(job_dir)
-        # Setup fingerprint into the batch and every trial (HAR-149): the
-        # intended setup plus the per-trial observed lock. Best-effort: the
-        # trial already ran, so a persistence failure is recorded, not raised.
         if _intended is None:
             try:
                 _intended = build_intended_fingerprint(
@@ -2788,7 +2563,7 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
                     repo_root=repo_root,
                     request=request,
                 )
-            except Exception as exc:  # fingerprint persistence cannot fail a run
+            except Exception as exc:
                 _intended = {}
                 _fingerprint_error = f"{type(exc).__name__}: {exc}"
         if _intended:
@@ -2799,7 +2574,6 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
                     f"{_fingerprint_error}\n", encoding="utf-8"
                 )
 
-        # Validate trial outcomes and evidence fidelity:
         metadata_path = job_dir / JOB_METADATA_PATH
         for trial in getattr(job, "trials", ()):
             native_traj = trial.path / TRIAL_NATIVE_TRAJECTORY_PATH
@@ -2883,10 +2657,6 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
                 transient_reason,
                 message=transient_reason + cleanup_detail,
             )
-        # Independent-capture auto-link (HAR-145): each job links to its own
-        # capture file via route token/session/chaining. Best-effort: the
-        # round's final ``capture link`` per job remains the backstop, and a
-        # link failure is recorded beside the job and never fails the run.
         try:
             capture_receipt = maybe_link_capture(job_dir)
             if capture_receipt is not None:
@@ -2918,9 +2688,6 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
                         f"{type(exc).__name__}: {exc}\n"
                     )
         if os.environ.get("EVALLAB_NO_PROCESS_JOB") != "1":
-            # Automatic post-finalize processing (HAR-107): ingest, detectors,
-            # run/job reports under <job>/processed/. Best-effort: a processing
-            # failure is recorded beside the job and never fails the run.
             try:
                 from evallab.process_job import process_job
 
@@ -2942,7 +2709,6 @@ def load_matrix(path: Path) -> ExperimentMatrix:
 
 
 def _pin_task_platform(task_dir: Path, platform: str) -> None:
-    """Pin a staged execution copy to ``platform``. Never call this on an answer-key package."""
     if not re.fullmatch(r"linux/[a-z0-9_]+", platform):
         raise ValueError(f"unsupported docker platform {platform!r}")
     environment = task_dir / "environment"
@@ -2998,11 +2764,6 @@ def request_from_matrix(matrix: ExperimentMatrix, run: MatrixRun, *, repo_root: 
 def staged_matrix_request(
     matrix: ExperimentMatrix, run: MatrixRun, *, repo_root: Path
 ) -> Iterator[tuple[RunRequest, dict[str, str]]]:
-    """Keep a solution-control snapshot alive only for the duration of its run.
-
-    A requested ``docker_platform`` is applied only to that snapshot. The
-    answer-key package bytes stay unchanged.
-    """
     from evallab.registry import compute_task_digests
 
     request = request_from_matrix(matrix, run, repo_root=repo_root)
@@ -3060,14 +2821,11 @@ def staged_matrix_request(
 
 
 def matrix_run_outcome(job: JobRecord, run: MatrixRun) -> dict[str, Any]:
-    """Never count harness failures or absent/non-finite rewards as negative controls."""
     if job.result.get("exception_info") or len(job.trials) != run.attempts:
         return {"status": "infra", "rewards": [], "error": "job exception or trial count mismatch"}
     rewards: list[float] = []
     for trial in job.trials:
         if run.agent == "oracle":
-            # Harbor 0.21/0.22 writes exit-code.txt only on nonzero script exit;
-            # a successful Harbor process and reward zero do not establish setup.
             exit_path = trial.path / "agent" / "exit-code.txt"
             try:
                 exit_code = int(exit_path.read_text()) if exit_path.exists() else None
@@ -3121,7 +2879,6 @@ def expected_primary_reward(run: MatrixRun) -> float | None:
 
 @dataclass(frozen=True)
 class MatrixExecution:
-    """Observed result of one matrix invocation; receipts stay the evidence."""
 
     exit_code: int
     results: list[dict[str, Any]]
@@ -3137,15 +2894,6 @@ def run_matrix(
     reuse_existing: bool = False,
     harbor: Any | None = None,
 ) -> MatrixExecution:
-    """Run every control in a matrix through the free local direct path.
-
-    Moved here from ``cli._matrix_command`` so a second caller (the
-    reward-hacking audit) requests the *same* execution instead of a parallel
-    implementation. Execution stays model-free and un-gated: matrices are
-    structurally incapable of spending (``Executor.execute_direct`` refuses any
-    agent outside ``CONTROL_AGENTS``, consults no policy gate and writes no
-    queue state), which is why they need no approval of their own.
-    """
     completed: list[JobRecord] = []
     results: list[dict[str, Any]] = []
     receipt_path = root / Path(matrix.jobs_dir) / ".executor" / f"{matrix.matrix_id}.matrix.json"
@@ -3221,8 +2969,6 @@ def run_matrix(
             file=sys.stdout if status == "ok" else sys.stderr,
         )
         receipt_path.parent.mkdir(parents=True, exist_ok=True)
-        # The job receipt is evidence, not the status of the latest invocation.
-        # Refusing a rerun must not erase the binding used by --reuse-existing.
         if saved_results.get(run.name, {}).get("status") not in {"ok", "mismatch"}:
             saved_results[run.name] = result
             saved_receipt["results"] = list(saved_results.values())
@@ -3255,22 +3001,11 @@ def database_url_from_environment(explicit: str | None = None) -> str:
     )
 
 
-# ---------------------------------------------------------------------------
-# M003: profile-aware preflight (additive; wiring into the queue is a later
-# integrator change). An auth failure here stops before any trial exists —
-# it can never be recorded as a reward.
-# ---------------------------------------------------------------------------
-
 if TYPE_CHECKING:
     from evallab.profiles import AgentProfile, PreflightDecision, ProbeFn
 
 
 def profile_for_request(request: RunRequest) -> AgentProfile:
-    """Resolve the immutable profile for a request's agent (+ optional model).
-
-    Raises ValueError when no profile matches or the requested model differs
-    from the profile's pin — change profiles, not pins.
-    """
     from evallab import profiles as profiles_module
 
     registry = profiles_module.builtin_profiles()
@@ -3281,8 +3016,6 @@ def profile_for_request(request: RunRequest) -> AgentProfile:
         for profile in candidates:
             if profile.model == request.model:
                 return profile
-        # Fine-tuned weights on a pinned base (Tinker checkpoint, admitted
-        # self-hosted LoRA adapter) inherit the base model's profile.
         pinned = profiles_module.pinned_model(request.model)
         for profile in candidates:
             if profile.model == pinned:
@@ -3300,12 +3033,6 @@ def preflight_request(
     probe: ProbeFn | None = None,
     home: Path | None = None,
 ) -> PreflightDecision:
-    """Fail-closed credential preflight for one request.
-
-    Control agents pass with no credential. Billable profiles require a
-    passing probe; a missing or failing probe blocks dispatch with a reason
-    and no trial is started (auth failure never becomes reward zero).
-    """
     from evallab import profiles as profiles_module
 
     profile = profile_for_request(request)
@@ -3321,21 +3048,8 @@ def preflight_request(
     return profiles_module.preflight(profile, probe)
 
 
-# ---------------------------------------------------------------------------
-# HAR-126 G0: harness agent-import preflight. HAR-116 wave A burned its
-# dispatch on an agent-side import (ModuleNotFoundError: duckdb) that failed
-# inside Harbor's tool venv, which never had the package. When a spec's
-# harness tree enables lab agent knobs, the trial loads lab adapter code in
-# that venv — so dispatch first proves the import works there, before any
-# sandbox or Modal spend. Runs once per spec, only when knobs are on.
-# ---------------------------------------------------------------------------
-
-#: Harness-tree knobs whose code executes inside Harbor's tool venv at trial
-#: time. A tree enabling any of them opts into the import preflight.
 LAB_AGENT_KNOB_KEYS = ("loop_break", "output_cap_chars", "completion_fix")
 
-#: The adapter plus the live closure the loop break and completion fix run:
-#: exactly the import chain that died as ModuleNotFoundError in wave A.
 HARBOR_AGENT_PROBE_IMPORTS = (
     "evallab.harbor_terminus",
     "evallab.loopfix",
@@ -3344,12 +3058,10 @@ HARBOR_AGENT_PROBE_IMPORTS = (
     "evallab.mimo_tool_calls",
 )
 
-#: Env override for the Harbor tool python (tests point it at a fake).
 HARBOR_PYTHON_ENV = "EVALLAB_HARBOR_PYTHON"
 
 
 def _harbor_tool_python() -> Path | None:
-    """Harbor's tool-venv python, the interpreter trial agents run in."""
     override = os.environ.get(HARBOR_PYTHON_ENV)
     if override:
         candidate = Path(override)
@@ -3367,13 +3079,6 @@ def preflight_harness_agent_imports(
     repo_root: Path,
     python: Path | None = None,
 ) -> str | None:
-    """Refusal reason, or None when the spec may dispatch.
-
-    Only harness-tree terminus-2 specs enabling lab agent knobs pay for this:
-    one subprocess running Harbor's python with the lab ``src`` on its path,
-    importing the agent modules the trial will load. Anything else returns
-    None without spawning anything.
-    """
     if request.agent != TERMINUS_AGENT or request.harness_tree_path is None:
         return None
     from evallab.terminus_harness import load_harness_tree
@@ -3422,7 +3127,6 @@ def preflight_harness_agent_imports(
 
 
 def _security_status(args: list[str]) -> int:
-    """Existence check via /usr/bin/security; output discarded unread."""
     completed = subprocess.run(
         ["/usr/bin/security", *args],
         stdin=subprocess.DEVNULL,

@@ -1,18 +1,3 @@
-"""Judge station: a human judges DEV runs blind, then sees the label and our detectors.
-
-A *queue* is a JSONL file of run ids (``{"run_id": ..., "reason": ..., "reveal": {...}}`` or a
-bare id per line). The station serves each admitted DEV run as a timeline (narration, tool
-calls, tool outputs) with the benchmark, label, grader result and every detector verdict
-hidden. When the judge submits a verdict the label and detectors are revealed and the
-agreement is recorded.
-
-Verdicts go to an append-only JSONL outside the repository
-(``~/.local/state/evallab-judge/verdicts.jsonl``). Nothing here calls a model or the network.
-Admission and labels come from the lab's own helpers: the run loaders admit DEV only (a TEST or
-cross-key run is refused and never shown), and labels come from
-``run_atlas_score.load_labels``. ``research/answer-keys/`` is never read directly.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -74,30 +59,21 @@ GUIDE_PATH = Path(__file__).resolve().parents[3] / "policy" / "judge-rubric.txt"
 
 
 class JudgeError(ValueError):
-    """A request the station refuses; the message is safe to show the judge."""
+    pass
 
 
 def blind_id(run_id: str) -> str:
-    """The id the judge sees: the same ``run-<16 hex>`` the DT-series packets use."""
     return "run-" + hashlib.sha256(run_id.encode()).hexdigest()[:16]
 
 
 def mechanisms() -> list[str]:
-    """Taxonomy categories of the QA trace reader, plus the two judge-only choices."""
     from evallab.qa.trace_agents import TAXONOMY
 
     return [*(m for m in TAXONOMY if m != "other"), *EXTRA_MECHANISMS]
 
 
-# --------------------------------------------------------------------------- #
-# queues
-# --------------------------------------------------------------------------- #
-
-
 @dataclass(frozen=True)
 class QueueEntry:
-    """One queued run. ``signals`` (``{detector: alarm|clear}``) and ``control`` are optional
-    ordering hints a queue producer can attach; the station never shows them before a verdict."""
 
     run_id: str
     reason: str | None = None
@@ -112,10 +88,6 @@ class QueueEntry:
 
 
 def append_judge_queue_entry(queue_file: Path, entry: QueueEntry) -> bool:
-    """Append a QueueEntry to the Judge Station queue file idempotently.
-
-    Returns True if appended, False if run_id was already present.
-    """
     queue_file.parent.mkdir(parents=True, exist_ok=True)
     if queue_file.is_file():
         existing = queue_file.read_text(encoding="utf-8").splitlines()
@@ -147,7 +119,6 @@ def append_judge_queue_entry(queue_file: Path, entry: QueueEntry) -> bool:
 
 
 def load_queue(path: Path) -> list[QueueEntry]:
-    """Read a queue file: JSON objects with ``run_id`` or one bare id per line."""
     entries: dict[str, QueueEntry] = {}
     for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         text = line.strip()
@@ -206,14 +177,9 @@ def load_queue(path: Path) -> list[QueueEntry]:
     return list(entries.values())
 
 
-# --------------------------------------------------------------------------- #
-# data access (the lab's own helpers)
-# --------------------------------------------------------------------------- #
-
-
 @dataclass(frozen=True)
 class Label:
-    state: str  # cheat | clean | considered_only | none | unavailable
+    state: str
     text: str
 
 
@@ -226,7 +192,6 @@ class RunSource(Protocol):
 
 
 class LabSource:
-    """Admitted-DEV run loading, labels and stored detector verdicts from the lab's helpers."""
 
     def __init__(self, repo_root: Path, findings_paths: Sequence[Path] | None = None) -> None:
         self.repo_root = repo_root
@@ -314,8 +279,6 @@ LOCAL_INTEGRITY = "local rollout failed its integrity check"
 
 
 class _LocalRefused(Exception):
-    """A local run the station will not show. ``public`` is safe for the judge; ``detail`` is
-    logged server-side only because it can hold paths, hashes and ids."""
 
     def __init__(self, public: str, detail: str = "") -> None:
         super().__init__(public)
@@ -323,13 +286,6 @@ class _LocalRefused(Exception):
 
 
 class LocalRunSource:
-    """Native Harbor trials pinned by a line ``runs.jsonl``, with cloud/CheatBench fallback.
-
-    ``registry`` is the corpus registry (``assigned_test_anywhere``); it is required so that a
-    local run can never skip the TEST-split assignment check the other loaders apply.
-    ``sealed_roots`` are folders of sealed material (the answer keys): no served file may be a
-    hard link to a file inside them.
-    """
 
     def __init__(
         self,
@@ -396,7 +352,6 @@ class LocalRunSource:
                 else LOCAL_NOT_ADMITTED
             )
             raise _LocalRefused(public, error.detail) from error
-        # built from the document the digest covered; nothing is read from disk again
         run = atif_run(admitted.document, str(admitted.trajectory))
         doc = dict(run.doc)
         if submission := admitted.diff or run.submission:
@@ -412,7 +367,7 @@ class LocalRunSource:
             except _LocalRefused as error:
                 LOCAL_LOG.warning("local run %s refused: %s", blind_id(run_id), error.detail)
                 unavailable[run_id] = error.public
-            except Exception as error:  # fail closed: nothing about the failure reaches the page
+            except Exception as error:
                 LOCAL_LOG.warning(
                     "local run %s unreadable: %s: %s", blind_id(run_id), type(error).__name__, error
                 )
@@ -429,7 +384,6 @@ class LocalRunSource:
 
 
 def read_findings(paths: Iterable[Path], wanted: set[str]) -> dict[str, list[dict[str, Any]]]:
-    """Latest stored verdict per (run, detector, version, reader) for the wanted runs."""
     latest: dict[tuple[str, str, str, str], dict[str, Any]] = {}
     for path in paths:
         if not path.is_file():
@@ -474,11 +428,6 @@ def read_findings(paths: Iterable[Path], wanted: set[str]) -> dict[str, list[dic
     return result
 
 
-# --------------------------------------------------------------------------- #
-# the run as a timeline
-# --------------------------------------------------------------------------- #
-
-
 def _text(value: Any) -> str:
     if value is None:
         return ""
@@ -505,8 +454,6 @@ TASK_COMPLETE = "mark_task_complete"
 
 
 def _visible(typed: str) -> str:
-    """What was typed, character for character: newlines and tabs stay, every other control
-    character is shown (carriage return as ``␍``, the rest as ``\\xNN``)."""
     return "".join(
         ch
         if ch in "\n\t" or (ord(ch) >= 32 and ord(ch) != 127)
@@ -518,9 +465,6 @@ def _visible(typed: str) -> str:
 
 
 def _display_call(call: Mapping[str, Any]) -> Mapping[str, Any]:
-    """The call as the judge reads it. Terminus-2 types ``arguments.keystrokes`` into a
-    terminal: shown verbatim as the command (no parsing), and ``mark_task_complete`` is a
-    visible step with its arguments verbatim."""
     arguments = call.get("arguments")
     if not isinstance(arguments, Mapping):
         return call
@@ -540,7 +484,6 @@ def _display_call(call: Mapping[str, Any]) -> Mapping[str, Any]:
 
 
 def display_steps(steps: Sequence[Any]) -> list[Any]:
-    """``steps`` with every tool call in its display form (what the card is built from)."""
     return [
         {
             **step,
@@ -577,10 +520,6 @@ def _call_text(call: Mapping[str, Any]) -> tuple[str, str]:
 
 
 def build_timeline(run: Any) -> tuple[list[dict[str, str]], list[dict[str, Any]], Any]:
-    """``(task_blocks, steps, blind_run)`` of the blinded run; every text is source-name redacted.
-
-    Step numbers are the blinded run's own (the numbering the DT-series packets cite).
-    """
     from evallab.production import run_atlas as ra
 
     blind = ra.blind_run(run)
@@ -638,11 +577,6 @@ def build_timeline(run: Any) -> tuple[list[dict[str, str]], list[dict[str, Any]]
     return task, steps, blind
 
 
-# --------------------------------------------------------------------------- #
-# the station
-# --------------------------------------------------------------------------- #
-
-
 def _agrees(label: Label, verdict: str) -> bool | None:
     if verdict == "unclear":
         return None
@@ -655,7 +589,6 @@ def _agrees(label: Label, verdict: str) -> bool | None:
 
 @dataclass
 class Loaded:
-    """One admitted run, blinded: the full timeline and the compact card."""
 
     run: Any
     task: list[dict[str, str]]
@@ -675,7 +608,6 @@ DRAFT_FIELDS = (
 
 
 def _merge_entries(first: QueueEntry, other: QueueEntry) -> QueueEntry:
-    """One entry for a run that sits in several queues: nothing either queue says is dropped."""
     reasons = [r for r in dict.fromkeys([first.reason, other.reason]) if r]
     reveal: dict[str, Any] = dict(first.reveal or {})
     for key, identity in (
@@ -711,11 +643,6 @@ def _merge_entries(first: QueueEntry, other: QueueEntry) -> QueueEntry:
 
 
 def merge_queues(queues: Mapping[str, Sequence[QueueEntry]]) -> dict[str, Sequence[QueueEntry]]:
-    """The named queues plus, when there are several, one combined queue of every distinct run.
-
-    Every entry records the queues it came from (``source_queues``); in the combined queue a run
-    that sits in several queues keeps every queue's reason, notes and signals, and is a control if
-    any queue says so."""
     merged: dict[str, Sequence[QueueEntry]] = {
         name: [replace(e, source_queues=(name,)) for e in entries]
         for name, entries in queues.items()
@@ -792,13 +719,11 @@ class Station:
         return collect_signals(detectors, entry.signals)
 
     def strata_counts(self, name: str) -> dict[str, int]:
-        """How many runs of a queue sit in each stratum (operator view; never sent to the page)."""
         counts = dict.fromkeys(STRATA, 0)
         for stratum in self._strata[self._resolve(name)].values():
             counts[stratum] += 1
         return counts
 
-    # -- storage ---------------------------------------------------------- #
 
     @property
     def verdicts_path(self) -> Path:
@@ -809,7 +734,6 @@ class Station:
         return self.state_dir / DRAFTS_FILE
 
     def read_verdicts(self) -> list[dict[str, Any]]:
-        """Every stored row: verdict records and undo markers, in file order."""
         return load_rows(self.verdicts_path)
 
     def _latest(self) -> dict[tuple[str, str], dict[str, Any]]:
@@ -846,7 +770,6 @@ class Station:
             os.fsync(handle.fileno())
         os.replace(scratch, self.drafts_path)
 
-    # -- views ------------------------------------------------------------ #
 
     def state(self) -> dict[str, Any]:
         done = self._latest()
@@ -882,7 +805,6 @@ class Station:
         return next((p for p, name in self._public.items() if name == real), real)
 
     def _resolve(self, name: str) -> str:
-        """The real queue name for a page-facing id (a real name is accepted too)."""
         real = self._public.get(name, name)
         if real not in self._ordered:
             raise JudgeError("unknown queue")
@@ -942,7 +864,6 @@ class Station:
             return self._cache[entry.run_id]
 
     def run_view(self, name: str, blind: str) -> dict[str, Any]:
-        """Everything the judge may see before the verdict. Never a label, detector or stratum."""
         entry = self._entry(name, blind)
         name = self._resolve(name)
         loaded = self._run(entry)
@@ -1013,10 +934,8 @@ class Station:
             revealed["keep_audit"] = extra["keep_audit"]
         return revealed
 
-    # -- drafts ----------------------------------------------------------- #
 
     def save_draft(self, name: str, blind: str, payload: Mapping[str, Any]) -> dict[str, Any]:
-        """Autosave an unsubmitted verdict so a reload or crash loses nothing. Not a verdict."""
         entry = self._entry(name, blind)
         draft = {k: payload[k] for k in DRAFT_FIELDS if k in payload}
         verdict = draft.get("verdict")
@@ -1046,7 +965,6 @@ class Station:
             self._write_drafts(drafts)
         return {"saved": True}
 
-    # -- verdicts --------------------------------------------------------- #
 
     def submit(self, name: str, blind: str, payload: Mapping[str, Any]) -> dict[str, Any]:
         entry = self._entry(name, blind)
@@ -1081,8 +999,6 @@ class Station:
         with self._lock:
             live = self._latest().get((self.judge, entry.run_id))
             if live is not None:
-                # A held or doubled Enter, or two tabs: the first verdict stands. Judging a run
-                # again goes through undo, so the second look is flagged as having seen the label.
                 if live.get("verdict") != verdict:
                     raise JudgeError(
                         f"this run is already judged as {live.get('verdict')}; "
@@ -1157,11 +1073,6 @@ class Station:
         }
 
     def undo_last(self) -> dict[str, Any]:
-        """Take back this judge's most recent verdict (append-only: a marker, not a deletion).
-
-        The judge has already seen the label, so any later verdict on the same run is recorded
-        with ``seen_label_before`` and left out of the agreement counts.
-        """
         with self._lock:
             mine = [
                 r for r in effective_records(self.read_verdicts()) if r.get("judge") == self.judge
@@ -1185,7 +1096,6 @@ class Station:
             "verdict": last["verdict"],
         }
 
-    # -- reports ---------------------------------------------------------- #
 
     def stats(self) -> dict[str, Any]:
         mine = [r for r in self._latest().values() if r.get("judge") == self.judge]
@@ -1201,8 +1111,6 @@ class Station:
 def export_verdicts(
     path: Path, out: Path, fmt: str, *, judge: str | None = None, history: bool = False
 ) -> int:
-    """Write the latest live verdict per (judge, run); ``history`` writes every verdict record,
-    undone ones included and flagged."""
     all_rows = load_rows(path)
     undone = {str(r.get("undoes")) for r in all_rows if r.get("schema") == UNDO_SCHEMA}
     rows: list[dict[str, Any]]
@@ -1247,13 +1155,7 @@ def export_verdicts(
     return len(rows)
 
 
-# --------------------------------------------------------------------------- #
-# CLI
-# --------------------------------------------------------------------------- #
-
-
 def discover_queues(state_dir: Path, extra: Sequence[str]) -> dict[str, list[QueueEntry]]:
-    """``NAME=PATH`` / ``PATH`` arguments, or every queue under the state dir plus the S2 census."""
     queues: dict[str, list[QueueEntry]] = {}
     if extra:
         for spec in extra:
@@ -1267,9 +1169,6 @@ def discover_queues(state_dir: Path, extra: Sequence[str]) -> dict[str, list[Que
     if DEFAULT_S2_QUEUE.is_file():
         queues.setdefault("goodfire-census", load_queue(DEFAULT_S2_QUEUE))
     return queues
-
-
-
 
 
 def _serve(args: argparse.Namespace, root: Path, **_: Any) -> int:
@@ -1305,8 +1204,6 @@ def _serve(args: argparse.Namespace, root: Path, **_: Any) -> int:
         show_hints=not args.no_hints,
     )
     return serve(station, port=args.port, open_browser=args.open)
-
-
 
 
 def _export(args: argparse.Namespace, root: Path, **_: Any) -> int:

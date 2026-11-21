@@ -1,12 +1,3 @@
-"""Historical OMP event parsing and a permanently sealed live transport route.
-
-A separate user-derived reader executed a built-in mutating tool despite frozen
-no-tools/no-skills/no-extensions flags; this does not establish native METR tool
-use. Read-only isolation is unproven, so live calls and Inspect registration deny
-unconditionally, without an override or SDK fallback. Historical stream parsing,
-prompt rendering and environment filtering remain available as pure utilities.
-"""
-
 from __future__ import annotations
 
 import json
@@ -27,12 +18,11 @@ _REFUSAL = re.compile(
 
 
 class OmpRouteError(RuntimeError):
-    """An unattested, refused, incomplete or failed subscription response."""
+    pass
 
 
 @dataclass(frozen=True)
 class OmpReply:
-    """Attested final text and native OMP usage (no reasoning text)."""
 
     text: str
     served_model: str
@@ -54,7 +44,6 @@ class OmpReply:
 
 
 def subscription_env(environ: Mapping[str, str]) -> dict[str, str]:
-    """Keep stored OAuth discoverable, but remove inherited provider credentials."""
     return {key: value for key, value in environ.items() if not _KEY_ENV.search(key)}
 
 
@@ -66,13 +55,12 @@ def _tokens(usage: Mapping[str, Any], name: str, *, required: bool = False) -> i
 
 
 def parse_omp_stream(stdout: str, requested_model: str = KIMI_MODEL) -> OmpReply:
-    """Fail closed on fallback, identity mismatch, refusal and truncated streams."""
     end = None
     for line in stdout.splitlines():
         try:
             event = json.loads(line)
         except ValueError:
-            continue  # OMP startup diagnostics are not JSON events.
+            continue
         if not isinstance(event, dict):
             continue
         kind = str(event.get("type", ""))

@@ -25,20 +25,14 @@ from evallab.registry import (
 from evallab.schemas import ContractModel
 from evallab.storage.paths import shared_checkout_root
 
-#: Task components a variant may change (classified via registry.compute_task_digests).
 ComponentKey = Literal["task_toml", "instruction", "environment", "verifier", "solution"]
 
-#: Durable lineage-record schema tag. Owned here, read by the task catalog.
 VARIANT_RECORD_SCHEMA = "evallab.task_variant/v1"
 
-#: Git-tracked lineage records live under this repo-relative directory.
 RECORDS_DIRNAME = Path("library/task-variants")
 
-#: Materialized packages live under this derived-root-relative directory
-#: (zone 03 storage; rebuildable, gitignored with all of ``derived/``).
 VARIANTS_STORE_DIRNAME = Path("task-store/variants")
 
-#: Hard inline-content ceiling for one changed file in the git-tracked record.
 MAX_INLINE_FILE_BYTES = 1024 * 1024
 
 SHA256_PATTERN = r"^sha256:[0-9a-f]{64}$"
@@ -50,19 +44,19 @@ TaskVariantStatus = Literal["candidate", "validated", "rejected"]
 
 
 class VariantError(ValueError):
-    """Base error for task-variant derivation and verification."""
+    pass
 
 
 class VariantInvalid(VariantError):
-    """Raised when a derivation request violates the variant rules."""
+    pass
 
 
 class VariantExistsError(VariantError):
-    """Raised when a record or package already exists (never overwrite)."""
+    pass
 
 
 class LineageError(VariantError):
-    """Raised when a lineage chain is broken, cyclic, or unresolvable."""
+    pass
 
 
 def _validate_transform(value: str) -> None:
@@ -75,7 +69,6 @@ def _utc_now_iso() -> str:
 
 
 def _task_slug(task_name: str) -> str:
-    """Filesystem-safe one-level slug from a task name like ``mimo-v2.6-rl/x``."""
     return task_name.strip("/").replace("/", "__") or "task"
 
 
@@ -87,13 +80,7 @@ def _sha256_bytes(data: bytes) -> str:
     return f"sha256:{hashlib.sha256(data).hexdigest()}"
 
 
-# --------------------------------------------------------------------------- #
-# Record schema
-# --------------------------------------------------------------------------- #
-
-
 class TaskVariantParentSource(ContractModel):
-    """Where the parent package came from; exactly one recognized shape."""
 
     kind: Literal["hf", "variant", "local"]
     repo: str | None = None
@@ -119,7 +106,6 @@ class TaskVariantParent(ContractModel):
 
 
 class TaskVariantFileChange(ContractModel):
-    """One changed file: before/after digests and the after-bytes inline."""
 
     path: str = Field(min_length=1)
     before_sha256: str | None = Field(default=None, pattern=SHA256_PATTERN)
@@ -138,7 +124,6 @@ class TaskVariantFileChange(ContractModel):
 
 
 class TaskVariantEvidence(ContractModel):
-    """Append-only validation evidence; never rewrites record identity."""
 
     at: str = Field(min_length=1)
     by: str = Field(min_length=1)
@@ -147,7 +132,6 @@ class TaskVariantEvidence(ContractModel):
 
 
 class VariantRecord(ContractModel):
-    """One derived task version; the durable ``evallab.task_variant/v1`` record."""
 
     schema_: str = Field(alias="schema", pattern=r"^evallab\.task_variant/v1$")
     task_name: str = Field(min_length=1)
@@ -188,14 +172,8 @@ class VariantRecord(ContractModel):
         return RECORDS_DIRNAME / self.task_slug / f"{self.digest12}.json"
 
 
-# --------------------------------------------------------------------------- #
-# Path resolution
-# --------------------------------------------------------------------------- #
-
-
 @dataclass(frozen=True)
 class VariantLocations:
-    """Resolved paths for one variant's record and package."""
 
     record_path: Path
     package_dir: Path
@@ -227,12 +205,6 @@ def _locations(
 
 
 def default_variants_root(repo_root: Path) -> Path:
-    """Materialized-variant store: shared across worktrees, outside Git.
-
-    Resolves relative to the *primary* checkout's ``derived/`` directory (not
-    the per-worktree tree, and not the shared Parquet root), so every worktree
-    materializes into the one store the lineage records describe.
-    """
     return shared_checkout_root(repo_root) / "derived" / VARIANTS_STORE_DIRNAME
 
 
@@ -241,7 +213,6 @@ def _resolve_store_roots(
     records_dir: Path | str,
     variants_root: Path | str | None,
 ) -> tuple[Path, Path, Path]:
-    """Resolve (repo root, records dir, variants store) for one operation."""
     root = _resolve_repo_root(repo_root)
     records = _under(root, records_dir)
     variants = (
@@ -250,11 +221,6 @@ def _resolve_store_roots(
         else default_variants_root(root)
     )
     return root, records, variants
-
-
-# --------------------------------------------------------------------------- #
-# Derivation
-# --------------------------------------------------------------------------- #
 
 
 def _relative_member_path(relative: str, *, label: str) -> Path:
@@ -324,13 +290,10 @@ def _apply_changes(
     changes: Mapping[str, bytes | None],
     destination: Path,
 ) -> list[TaskVariantFileChange]:
-    """Copy the parent package and apply changes; return the file-change rows."""
     if destination.exists():
         raise VariantExistsError(f"destination already exists: {destination}")
     destination.mkdir(parents=True)
     shutil.copytree(parent_dir, destination, dirs_exist_ok=True, symlinks=False)
-    # Pinned parent stores (``derived/task-store/hf``) are read-only and
-    # copytree keeps their modes; the copy is the variant's to change.
     for path in (destination, *destination.rglob("*")):
         path.chmod(path.stat().st_mode | stat.S_IWUSR)
     rows: list[TaskVariantFileChange] = []
@@ -375,10 +338,6 @@ def _task_name_of(task_dir: Path, fallback_parent: Path) -> str:
 def _classify_components(
     parent_dir: Path, variant_dir: Path, changes: Sequence[TaskVariantFileChange]
 ) -> list[ComponentKey]:
-    """Components whose digest changed, via ``registry.compute_task_digests``.
-    Falls back to classifying the changed paths when either package has no
-    ``task.toml`` (``compute_task_digests`` requires one).
-    """
     try:
         parent_digests = compute_task_digests(parent_dir)
         variant_digests = compute_task_digests(variant_dir)
@@ -444,13 +403,6 @@ def derive_task(
     records_dir: Path | str = RECORDS_DIRNAME,
     variants_root: Path | str | None = None,
 ) -> VariantRecord:
-    """Derive a variant package plus its git-tracked lineage record.
-
-    Materializes into the shared variants store (never a worktree), writes
-    ``library/task-variants/<slug>/<digest12>.json``, and refuses to overwrite
-    either. The record pins the variant digest; ``materialize`` must be able
-    to reproduce it from the parent bytes plus the record.
-    """
     _validate_transform(transform)
     parent = Path(parent_dir).resolve()
     if not parent.is_dir():
@@ -514,11 +466,6 @@ def derive_task(
     return record
 
 
-# --------------------------------------------------------------------------- #
-# Materialization and verification
-# --------------------------------------------------------------------------- #
-
-
 def _content_bytes(change: TaskVariantFileChange) -> bytes:
     if change.content is None:
         raise VariantError(f"recorded change for {change.path!r} has no inline content")
@@ -546,13 +493,6 @@ def materialize(
     records_dir: Path | str = RECORDS_DIRNAME,
     variants_root: Path | str | None = None,
 ) -> Path:
-    """Rebuild the variant package from parent bytes plus the record's files.
-
-    Proves the record's invariant: the rebuilt digest must equal
-    ``record.variant_digest``. Refuses to overwrite an existing package that
-    does not match; returning an existing, digest-matching package is a no-op
-    so callers can rebuild after a store cleanup.
-    """
     resolved = resolve_record(record, repo_root=repo_root, records_dir=records_dir)
     root, records_path, variants_store = _resolve_store_roots(
         repo_root, Path(records_dir), variants_root
@@ -635,11 +575,6 @@ def verify(
     records_dir: Path | str = RECORDS_DIRNAME,
     variants_root: Path | str | None = None,
 ) -> list[str]:
-    """Verify a record against bytes; return the list of failures (empty = valid).
-
-    Checks the parent digest, per-file before/after digests, and the variant
-    package digest. ``parent_dir`` overrides the record's parent location.
-    """
     resolved = resolve_record(record, repo_root=repo_root, records_dir=records_dir)
     root, _records_path, variants_store = _resolve_store_roots(
         repo_root, Path(records_dir), variants_root
@@ -692,18 +627,12 @@ def verify(
     return failures
 
 
-# --------------------------------------------------------------------------- #
-# Loading and lineage walking
-# --------------------------------------------------------------------------- #
-
-
 def resolve_record(
     record: VariantRecord | Path | str,
     *,
     repo_root: Path | str | None = None,
     records_dir: Path | str = RECORDS_DIRNAME,
 ) -> VariantRecord:
-    """Resolve a record from a model, an absolute path, or a repo-relative path."""
     if isinstance(record, VariantRecord):
         return record
     path = _record_path_input(record, repo_root=repo_root, records_dir=records_dir)
@@ -741,10 +670,6 @@ def load_records(
     *,
     records_dir: Path | str = RECORDS_DIRNAME,
 ) -> list[VariantRecord]:
-    """Load every strict ``evallab.task_variant/v1`` record under a repo root.
-
-    Raises ``LineageError`` on the first invalid record: lineage is fail-closed.
-    """
     base = Path(root)
     tree = _under(base, records_dir)
     if not tree.is_dir():
@@ -758,7 +683,6 @@ def load_records(
 
 @dataclass(frozen=True)
 class LineageStep:
-    """One node in a lineage chain, newest first."""
 
     record: VariantRecord
     record_path: Path
@@ -799,11 +723,6 @@ def lineage_chain(
     records_dir: Path | str = RECORDS_DIRNAME,
     max_depth: int = 64,
 ) -> list[LineageStep]:
-    """Walk parents back to the original package, newest first.
-
-    Detects cycles (a repeated digest short-circuits with an error step) and
-    missing parents (a final step with ``parent_found=False``).
-    """
     records_arg = Path(records_dir)
     root, records_path, _variants = _resolve_store_roots(repo_root, records_arg, None)
     start = _resolve_start(digest_or_record, repo_root=root, records_dir=records_arg)
@@ -869,11 +788,6 @@ def _resolve_start(
     return resolve_record(path, repo_root=repo_root, records_dir=records_dir)
 
 
-# --------------------------------------------------------------------------- #
-# Status transitions
-# --------------------------------------------------------------------------- #
-
-
 def append_status_evidence(
     record: VariantRecord | Path | str,
     status: TaskVariantStatus,
@@ -883,13 +797,6 @@ def append_status_evidence(
     repo_root: Path | str | None = None,
     records_dir: Path | str = RECORDS_DIRNAME,
 ) -> VariantRecord:
-    """Append validation evidence and update ``status`` without rewriting history.
-
-    Identity fields are immutable: only ``status`` and the append-only
-    ``evidence`` list change. A ``validated`` or ``rejected`` verdict cannot
-    be reversed — a new decision needs a new variant derived from the same
-    parent, so scores stay attributable to one exact package.
-    """
     root, records_path, _variants = _resolve_store_roots(
         repo_root, Path(records_dir), None
     )

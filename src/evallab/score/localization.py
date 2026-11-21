@@ -1,4 +1,3 @@
-"""Score cited actions only through Gold's validated source-event crosswalk."""
 from __future__ import annotations
 
 from pathlib import Path

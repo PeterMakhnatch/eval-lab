@@ -1,39 +1,3 @@
-"""Harbor job plugin observing protected files with ``inotifywait -m``.
-
-Opt-in via ``EVALLAB_FILE_ACCESS=1`` (sanitized through the Harbor
-environment by the execution layer). Every trial gets at least one
-``coverage`` record in ``agent/file-access.jsonl``, even with capture
-disabled: ``disabled`` without the opt-in, ``unavailable`` when setup fails.
-No automatic installs, privilege changes, agent-command wrapping, or campaign
-deployment. Missing ``inotifywait``/``python3``, platform, permission, or
-setup failures stay visible as ``unavailable``/``partial`` -- never clean.
-
-Lifecycle per agent window (multi-step trials repeat it per agent phase):
-
-1. ``AGENT_START``: probe the sandbox (``probe``), hash the protected roots
-   (``snapshot``) into ``evaluator/file-access/`` on the evaluator host --
-   never into agent-mounted directories -- then start the sandbox observer
-   and await ``Watches established.`` before the agent runs.
-2. While the agent runs, a cancellable poll task downloads newly sealed
-   sandbox chunks (bounded new bytes each, never whole-file re-downloads)
-   and appends access records to the host log, so alerts precede agent end.
-3. ``AGENT_END``: cancel and await the poll task, stop the observer, run a
-   final drain (unseen chunks in order, torn tail counted not fabricated),
-   take the after snapshot, diff before/after hashes into ``file_change``
-   records, append everything, and remove the sandbox scratch directory.
-4. ``END``/``CANCEL`` (plus job end): backstops that close a still-open
-   window, clean up, and consolidate any step-relocated fragments back into
-   the root per-trial log (a lossy merge degrades rather than ends clean),
-   so no sandbox observer or host task is orphaned
-   on failure or cancellation and no window is lost to log relocation.
-
-The plugin needs the actual ``Trial`` (hook events carry no environment), so
-it wraps the existing ``job._trial_queue._setup_hooks(trial)`` seam -- the
-same pattern as the watch-hooks log subscription -- and uses only the public
-``trial.add_hook`` afterwards. Control PIDs live only in memory for ``kill``
-and are never written to any record.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -117,8 +81,6 @@ class _Window:
     baseline_entries: dict[str, dict[str, Any]] = field(default_factory=dict)
     baseline_complete: bool = False
     baseline_ref: str = ""
-    #: Pre-agent git ancestry from the sandbox probe, persisted verbatim into
-    #: the evaluator-owned baseline file (never refreshed after agent start).
     git_history: list[dict[str, Any]] = field(default_factory=list)
     targets: list[tuple[str, str]] = field(default_factory=list)
     watched: list[str] = field(default_factory=list)
@@ -137,13 +99,10 @@ class _Window:
     loss_unmount: bool = False
     stream_truncated: bool = False
     poll_notes: list[str] = field(default_factory=list)
-    #: A final-drain gap (listing or chunk download failure) means events may
-    #: be lost even when capture-status.json reports a complete capture.
     drain_incomplete: bool = False
 
 
 class FileAccessPlugin:
-    """Harbor ``JobPlugin``: inotifywait observation plus hash baselines."""
 
     def __init__(self, poll_seconds: float | str = POLL_SECONDS, **_kwargs: Any) -> None:
         self.enabled = os.environ.get(FILE_ACCESS_ENV) == "1"
@@ -173,7 +132,6 @@ class FileAccessPlugin:
         self._consolidated: set[str] = set()
         self._lock = asyncio.Lock()
 
-    # -- Harbor plugin surface -------------------------------------------
 
     async def on_job_start(self, job: Any) -> None:
         try:
@@ -192,8 +150,6 @@ class FileAccessPlugin:
 
             queue._setup_hooks = setup_with_file_access
         except Exception:
-            # Seam missing (older Harbor or a bare fake): fall back to
-            # job-level hooks that record honestly without sandbox access.
             with contextlib.suppress(Exception):
                 job.on_agent_started(self._on_agent_started_no_trial)
                 job.on_agent_ended(self._on_agent_ended_backstop)
@@ -212,9 +168,6 @@ class FileAccessPlugin:
             with contextlib.suppress(Exception):
                 await self._consolidate_trial(key, trial_name, trial_dir)
 
-    #: Trial lifecycle hook names (``TrialEvent.value``) this plugin needs,
-    #: mapped to handler attributes. Matched against the trial's own hook
-    #: registry so no Harbor import is required at module scope or at bind time.
     _WANTED_HOOKS = {
         "start": "_on_trial_started",
         "agent-start": "_on_agent_started",
@@ -225,7 +178,6 @@ class FileAccessPlugin:
     }
 
     def _bind_trial(self, trial: Any) -> None:
-        """Attach per-trial hooks via the public ``trial.add_hook``."""
         registry = getattr(trial, "_hooks", None)
         if not isinstance(registry, dict):
             raise AttributeError("trial exposes no hook registry")
@@ -242,17 +194,9 @@ class FileAccessPlugin:
         self._remember_trial(trial)
 
     def _bound_trial(self, event: Any) -> Any | None:
-        # The bound Trial object is stashed per trial name at bind time; hook
-        # events themselves carry no environment.
         return getattr(self, "_trials", {}).get(event.trial_name)
 
     def _record_unbindable(self, trial: Any, error: Exception) -> None:
-        """Record coverage for a trial whose hooks could not be bound.
-
-        Binding failure means no lifecycle events ever reach this plugin, so
-        the record is written at bind time from the trial's own config --
-        waiting for a hook event would write nothing at all.
-        """
         config = getattr(trial, "config", None)
         name = getattr(config, "trial_name", None)
         trials_dir = getattr(config, "trials_dir", None)
@@ -272,7 +216,6 @@ class FileAccessPlugin:
                 ],
             )
 
-    # -- Hook handlers ----------------------------------------------------
     async def _on_trial_started(self, event: Any) -> None:
         key = _trial_key(event)
         directory = _trial_dir(event)
@@ -286,7 +229,6 @@ class FileAccessPlugin:
 
 
     async def _on_agent_started(self, event: Any) -> None:
-        # Observation never fails a trial; failures surface as records.
         with contextlib.suppress(Exception):
             await self._open_window(event)
 
@@ -321,7 +263,6 @@ class FileAccessPlugin:
         with contextlib.suppress(Exception):
             await self._consolidate_trial(key, event.trial_name, _trial_dir(event))
 
-    # -- Window open ------------------------------------------------------
 
     async def _open_window(self, event: Any) -> None:
         trial_dir = _trial_dir(event)
@@ -380,8 +321,6 @@ class FileAccessPlugin:
             )
             return
         env = trial.agent_environment
-        # Per-window scratch: a later window must never re-ingest an earlier
-        # window's sealed chunks as its own observations.
         scratch = f"/tmp/evallab-file-access-{_sanitize(event.trial_name)}-w{window_id}"
         window = _Window(
             window_id=window_id,
@@ -465,7 +404,6 @@ class FileAccessPlugin:
         await self._launch_observer(env, helper_remote, window)
         await self._await_ready(env, window)
 
-    # -- Sandbox primitives -------------------------------------------------
 
     def _helper_source(self) -> Path:
         return Path(__file__).with_name(HELPER_FILENAME)
@@ -533,7 +471,6 @@ class FileAccessPlugin:
             for extra in self.extra_paths.get(category, []):
                 info = by_path.get(extra, {})
                 _take(extra, category, bool(info.get("exists")))
-        # Deterministic order: category order, then path.
         order = {category: index for index, category in enumerate(CATEGORIES)}
         targets.sort(key=lambda item: (order[item[1]], item[0]))
         window.targets = targets
@@ -541,8 +478,6 @@ class FileAccessPlugin:
         window.missing = sorted(set(missing) - set(watched))
 
     async def _take_snapshot(self, env: Any, helper: str, window: _Window, *, label: str) -> dict[str, Any]:
-        # Git storage is watched but presence-only; only protected grader
-        # content participates in the evaluator-owned content baseline.
         shallow = sorted(
             root for root, category in window.targets if category != CATEGORY_GRADER
         )
@@ -600,7 +535,6 @@ class FileAccessPlugin:
 
     @staticmethod
     def _baseline_history(window: _Window) -> list[dict[str, Any]]:
-        """Ancestry for the baseline file: initial host state is never overwritten."""
         if window.baseline_path is not None:
             try:
                 if window.baseline_path.is_file():
@@ -659,7 +593,6 @@ class FileAccessPlugin:
             await asyncio.sleep(READY_POLL_SEC)
         raise RuntimeError(f"observer was not ready within {READY_TIMEOUT_SEC:.0f}s")
 
-    # -- Window close -------------------------------------------------------
 
     async def _close_window(self, key: str, *, reason: str) -> None:
         async with self._lock:
@@ -671,7 +604,6 @@ class FileAccessPlugin:
         try:
             await asyncio.shield(cleanup)
         except asyncio.CancelledError:
-            # Preserve caller cancellation, but do not leave its observer running.
             await cleanup
             raise
 
@@ -690,8 +622,6 @@ class FileAccessPlugin:
             if after_ok and window.baseline_complete:
                 records.extend(self._change_records(window, after_entries))
             else:
-                # No after image: diffing against nothing would frame every
-                # baseline file as deleted, so report the gap instead.
                 details.append("after snapshot unavailable; file changes unknown")
                 self._note(window, "incomplete before/after snapshot; file changes unknown")
             state = self._terminal_state(window, status, records, details)
@@ -719,7 +649,6 @@ class FileAccessPlugin:
         records: list[dict[str, Any]],
         details: list[str],
     ) -> str:
-        """Honest terminal state: any observed or possible loss degrades."""
         if window.invalid_frames:
             details.append(f"{window.invalid_frames} invalid frame(s) rejected")
         if window.stream_truncated:
@@ -803,7 +732,6 @@ class FileAccessPlugin:
             window.poll_notes.append(text)
 
     async def _poll_window(self, key: str, window: _Window) -> None:
-        """Publish sealed chunks to the host log while the agent runs."""
         try:
             while window.open:
                 await asyncio.sleep(self.poll_seconds)
@@ -843,7 +771,6 @@ class FileAccessPlugin:
         return sorted({name for name in names if CHUNK_NAME_RE.match(name)})
 
     def _ingest(self, window: _Window, data: bytes) -> list[dict[str, Any]]:
-        """Fold downloaded chunk bytes into access records (carry-aware)."""
         loss = scan_loss_tokens(window.carry + data)
         frames, invalid, carry = parse_stream_chunk(window.carry, data)
         window.carry = carry
@@ -887,7 +814,6 @@ class FileAccessPlugin:
         return records
 
     async def _poll_pass(self, window: _Window) -> None:
-        """Download unseen sealed chunks once; append their access records."""
         if window.env is None:
             return
         try:
@@ -910,8 +836,6 @@ class FileAccessPlugin:
                 )
             except Exception as exc:  # noqa: BLE001 -- retried next pass
                 self._note(window, f"chunk {name} missed: {exc}")
-                # Preserve byte order across retries: skipping a missing middle
-                # fragment could fabricate a different, valid-looking pathname.
                 break
             window.seen_chunks.add(name)
             records = self._ingest(window, data)
@@ -948,7 +872,6 @@ class FileAccessPlugin:
         return {}
 
     async def _final_drain(self, env: Any, window: _Window, details: list[str]) -> None:
-        """Download unseen chunks in order after the observer stops."""
         try:
             names = await self._list_chunks(env, window)
         except Exception as exc:  # noqa: BLE001
@@ -1024,7 +947,6 @@ class FileAccessPlugin:
                 env, f"rm -rf {shlex.quote(window.scratch)}", timeout=EXEC_SMALL_TIMEOUT
             )
 
-    # -- Log sink and relocation consolidation ----------------------------------
 
     def _append(self, trial_dir: Path, records: list[dict[str, Any]]) -> None:
         if not records:
@@ -1036,18 +958,6 @@ class FileAccessPlugin:
                 handle.write(json.dumps(record, sort_keys=True) + "\n")
 
     async def _consolidate_trial(self, key: str, trial_name: str, trial_dir: Path) -> None:
-        """Merge step-relocated fragments back into the root per-trial log.
-
-        Multi-step Harbor moves the trial-root ``agent/`` contents (including
-        this log) into ``steps/{name}/agent/`` after each step, so without
-        consolidation the root log would retain only the last window. Fragments
-        merge in ``(window_id, observed_at)`` order with byte-identical lines
-        deduplicated (resume steps copy rather than move); malformed lines are
-        counted and skipped, never interpolated, and a source that cannot be
-        read is counted too. Any lost record degrades the summary -- a merge
-        that dropped content never ends ``stopped``. A no-fragment trial is a
-        no-op with no extra record.
-        """
         _ = trial_name
         if key in self._consolidated:
             return
@@ -1069,8 +979,6 @@ class FileAccessPlugin:
             try:
                 text = source.read_text(encoding="utf-8")
             except OSError:
-                # An absent root log is expected (multi-step relocation moves
-                # it aside); anything else unreadable is lost records.
                 if source != sources[0] or source.exists():
                     unreadable += 1
                 continue
@@ -1121,7 +1029,6 @@ class FileAccessPlugin:
             ],
         )
 
-    # -- Trial binding stash --------------------------------------------------
 
     @property
     def _trials(self) -> dict[str, Any]:

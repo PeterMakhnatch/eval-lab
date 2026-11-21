@@ -1,4 +1,3 @@
-"""Doctor, preflight, and nightly command registration."""
 from __future__ import annotations
 
 import argparse
@@ -15,14 +14,6 @@ if TYPE_CHECKING:
 
 
 def _configured_quota_ceiling(root: Path) -> float | None:
-    """Read the lab's policy-controlled `used_percent` refusal ceiling.
-
-    `policy/standing-approvals.yaml` governs the ceiling through
-    `StandingApprovalsPolicy.refuse_billable_at_used_percent`. It is currently
-    committed at 80%, raised from the original 60% baseline introduced for the
-    2026-10-13 overnight subscription-agent work. The legacy module constant
-    is consulted only if the policy has no configured ceiling.
-    """
     from evallab import queue as queue_module
     from evallab.queue import load_policy
 
@@ -50,15 +41,11 @@ def _doctor(
     checks = Executor.from_repo(root).local_runtime_checks()
 
     database_url = database_url_from_environment()
-    # The same green `catalog-parquet` line reported catalog=69 and catalog=4
-    # in one M009 session because DATABASE_URL differed between shells. Name
-    # the database on the line itself; `identity` never returns a credential
-    # even when the connection string carries a password (F-11).
     catalog = f"db={database.identity(database_url)}"
     try:
         detail = database.ping(database_url)
         checks.append(("postgres", True, detail))
-    except Exception as exc:  # Doctor should report all checks, not stop at the first.
+    except Exception as exc:
         checks.append(("postgres", False, f"unavailable: {type(exc).__name__}"))
         checks.append(("catalog-parquet", False, f"catalog unavailable {catalog}"))
     else:
@@ -83,9 +70,6 @@ def _doctor(
         checks.extend(("launchagent", False, issue.describe()) for issue in launch_agents.broken)
     else:
         checks.append(("launchagent", True, f"{launch_agents.checked} evallab LaunchAgents intact"))
-    # Advisory: the primary checkout's sync timer. It is deliberately absent
-    # from `required` so a stalled sync is visible without changing doctor's
-    # exit code (a 2026-10-12 dirty tree left the primary 848 commits behind).
     sync = sync_primary_status(home_dir, now=clock() if clock else None)
     checks.append(("sync-primary", sync.ok, sync.detail))
     for name, ok, detail in checks:
@@ -127,18 +111,6 @@ def _doctor_command(
 def _preflight_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
-    """Print the preflight and exit non-zero when a provider refuses billable work.
-
-    Costs nothing and blocks on nothing: the report is built from Harbor job
-    directories and `queue/` alone. `provider_reported_exhaustion` is passed in
-    rather than reimplemented so this surface and the dispatch gate can never
-    disagree about what the provider said.
-
-    With `--spec`, dry-runs each spec file against its named setup reference
-    instead (HAR-149): same comparison dispatch enforces, before anything is
-    approved. Needs no Daytona or Modal; `--root` points the task paths,
-    ledger, and serve config at another checkout (read-only).
-    """
     from evallab.preflight import build_preflight_report, render_preflight
     from evallab.queue import provider_reported_exhaustion
 

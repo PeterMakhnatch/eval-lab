@@ -1,11 +1,3 @@
-"""Model-free corpus audit: a reference run and a do-nothing control per task (``evallab qa corpus``).
-
-Each task's own ``solution/solve.sh`` (``oracle``) and an empty run (``nop``) execute
-once each through the native Harbor Modal trial path (``ModalBackend.control``) under one
-run-wide cloud spend gate. No agent, model, candidate or mutation stage runs. Rows are
-classified from the observed rewards and trial statuses only.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -25,7 +17,6 @@ from evallab.dataset_audit_contracts import AuditObservation, AuditTask
 from evallab.qa.task import _cap_excerpt, finite_reward
 from evallab.regrade import SpendCapReached
 
-# Report order: the most important finding first.
 CLASSES = (
     "control_paid",
     "reference_below_one",
@@ -38,14 +29,11 @@ STUB_SHA256_PREFIX = "4e25c8e51ff8"
 STUB_TEXT = "no solution written"
 EXCERPT_LIMIT = 4_000
 
-# Runs one native trial of ``package`` as ``"oracle"`` or ``"nop"``.
 TrialRunner = Callable[[Path, str], AuditObservation]
-# Builds the command that reproduces a table holding exactly these task keys.
 CommandBuilder = Callable[[Sequence[str]], str]
 
 
 def is_stub(data: bytes) -> bool:
-    """True for the known placeholder bytes or any single command printing the stub text."""
     if hashlib.sha256(data).hexdigest().startswith(STUB_SHA256_PREFIX):
         return True
     try:
@@ -74,12 +62,6 @@ def _measured(cell: dict[str, Any]) -> bool:
 
 
 def classify(*, oracle: dict[str, Any], nop: dict[str, Any]) -> str:
-    """Class of a task whose reference ran; ``no_reference`` is decided before running.
-
-    A ``nop`` cell with status ``skipped`` (``--skip-controls``) leaves the oracle alone to
-    decide. With controls on, an oracle reward of 1 is ``clean`` only when the nop control
-    measured 0; an unmeasured control keeps the task ``cannot_run``.
-    """
     oracle_ok, nop_ok = _measured(oracle), _measured(nop)
     if not oracle_ok and not nop_ok:
         return "cannot_run"
@@ -105,7 +87,6 @@ def select_tasks(
     done: frozenset[str] = frozenset(),
     limit: int | None = None,
 ) -> list[Path]:
-    """Filter by ``--task`` (relative path or directory name), drop audited tasks, then limit."""
     wanted = set(only)
     selected = [
         package
@@ -135,13 +116,12 @@ def _excerpt(observation: AuditObservation) -> str:
 def _run_cell(
     package: Path, agent: str, *, run_trial: TrialRunner, clock: Callable[[], float]
 ) -> tuple[dict[str, Any], str]:
-    """One native trial; its exception becomes an ``error`` cell, except an exhausted cap."""
     started = clock()
     try:
         observation = run_trial(package, agent)
     except SpendCapReached:
         raise
-    except Exception as exc:  # one cell's failure must not stop the task or the corpus
+    except Exception as exc:
         cell = _cell("error")
         excerpt = _cap_excerpt(f"{type(exc).__name__}: {exc}", EXCERPT_LIMIT)
     else:
@@ -159,7 +139,6 @@ def audit_task(
     clock: Callable[[], float],
     controls: bool = True,
 ) -> dict[str, Any]:
-    """One row: oracle, then nop unless ``controls`` is off. A cap stop writes no row."""
     from evallab.registry import task_directory_digest
 
     started = clock()
@@ -205,7 +184,7 @@ def audit_task(
             )
     except SpendCapReached:
         raise
-    except Exception as exc:  # one task's failure must not stop the corpus
+    except Exception as exc:
         row["log_excerpt"] = _cap_excerpt(f"{type(exc).__name__}: {exc}", EXCERPT_LIMIT)
     row["seconds"] = round(clock() - started, 1)
     return row
@@ -273,10 +252,6 @@ def run_corpus(
     clock: Callable[[], float] = time.monotonic,
     today: date | None = None,
 ) -> tuple[list[dict[str, Any]], bool]:
-    """Audit ``packages`` after ``prior`` rows; rewrite both outputs after every task.
-
-    Returns the rows and whether the run stopped early because the spend cap was reached.
-    """
     rows = list(prior)
     stopped = False
     day = today or datetime.now(UTC).date()
@@ -311,13 +286,11 @@ def run_corpus(
 
 
 def _current(row: dict[str, Any], *, controls: bool) -> bool:
-    """A row is reusable only in the oracle-and-nop schema, with a nop cell if controls are on."""
     nop = row.get("nop")
     return isinstance(nop, dict) and not (controls and nop.get("status") == "skipped")
 
 
 def load_prior(out: Path, *, resume: bool, controls: bool = True) -> list[dict[str, Any]]:
-    """Rows to keep. Older-schema rows move to ``audit.superseded.json`` and their tasks re-run."""
     path = out / "audit.json"
     if not path.exists():
         return []
@@ -337,7 +310,6 @@ def load_prior(out: Path, *, resume: bool, controls: bool = True) -> list[dict[s
 def reproduce_command(
     args: argparse.Namespace, *, corpus_root: Path, out: Path, tasks: Sequence[str]
 ) -> str:
-    """The ``evallab qa corpus`` call that rebuilds these rows into a fresh ``--out``."""
     parts = ["uv", "run", "evallab", "qa", "corpus", str(corpus_root), "--out", str(out)]
     for task in tasks:
         parts += ["--task", task]
@@ -380,7 +352,7 @@ def _modal_runner(
     def run(package: Path, agent: str) -> AuditObservation:
         if agent not in {"oracle", "nop"}:
             raise ValueError(f"unknown control agent: {agent}")
-        if package not in resolved:  # both cells of a task share one resolution
+        if package not in resolved:
             resolved.clear()
             resolved[package] = backend.resolve(package)
         trial_dir = out / "trials" / task_key(package, corpus_root).replace("/", "__")
@@ -390,7 +362,6 @@ def _modal_runner(
             timeout_seconds=args.trial_timeout,
             run_dir=trial_dir,
         )
-        # The native path records an exhausted cap as a failed trial; it is not a task result.
         if (observation.reason or "").startswith(f"{SpendCapReached.__name__}:"):
             raise SpendCapReached(observation.reason)
         return observation

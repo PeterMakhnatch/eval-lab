@@ -33,6 +33,7 @@ laminar = [
 [project.scripts]
 evallab = "evallab.entry:main"
 tidegauge = "tidegauge.cli:main"
+muster = "muster.cli:main"
 
 [dependency-groups]
 benchmarks = [
@@ -59,7 +60,7 @@ exclude-newer = "7 days"
 default-groups = ["dev"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/evallab", "tidegauge"]
+packages = ["src/evallab", "tidegauge", "muster"]
 
 [tool.ruff]
 line-length = 100
@@ -78,6 +79,7 @@ extend-exclude = [
     # digests are pinned in each bundle's PROMOTION.json, so linting or
     # reformatting it would falsify the record rather than improve it.
     "research/evidence/runs",
+    "muster/tasks",
 ]
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]

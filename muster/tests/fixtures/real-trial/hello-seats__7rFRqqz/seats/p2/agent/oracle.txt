@@ -1,3 +1,0 @@
-p2 posts its note
-{"author": "p2", "text": "hello from p2"}
-p2 sees a note from p1

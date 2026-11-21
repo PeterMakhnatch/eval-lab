@@ -1,7 +1,7 @@
 # muster results: more agents, talking, and the budget of 3
 
 Written 2026-11-21 for Peter. OBSERVED means a run or a file shows it. INFERRED means our reasoning.
-Each number comes from `FINDINGS.md` (F11 to F17) and the dated entries in `LOG.md`, both in this folder.
+Each number comes from `FINDINGS.md` (F11 to F18) and the dated entries in `LOG.md`, both in this folder.
 Run outputs stay outside Git, in `muster-runs/`. Paths written before 2026-11-21 refer to the old muster
 repository: `docs/` and `experiments/` are now this folder, `tasks/` is `muster/tasks/`.
 
@@ -12,7 +12,10 @@ repository: `docs/` and `experiments/` are now this folder, `tasks/` is `muster/
 - The team loses its flags to repeated opens: alike agents choose the same box at nearly the same time.
   A rule that each agent posts a box before it opens it closes the gap (98.8%). A fixed box order per seat
   gets near (94.5%). A shared view of past opens, 1 open at a time, or a pooled budget does not.
-- Limits: 1 harness, 1 main model, 1 synthetic task, 10 instances.
+- When the facts are split and no agent can act alone (`ledger`, E4), the talking team scores 100%, like 1
+  agent that holds all facts. Every team waited for both reports before it answered. So the team's losses in
+  `boxes` come from acting on a shared resource at the same time, not from passing information.
+- Limits: 1 harness, 1 main model, 2 synthetic tasks, 10 instances each.
 
 ## The task and the setup
 
@@ -126,6 +129,32 @@ stop the repeats. A fixed order per seat (F17) removes half the repeats at no me
 Of the 5 changes tested, only a claim before the act (F14) closes the gap: 98.8% against 100.0%, with 0.9
 repeats per trial, at about 12 times the cost of the single agent.
 
+## E4: when no agent has all the facts (2026-11-21)
+
+`ledger`: warehouses A, B and C each keep a ledger of 12 rows over 5 items, and every item is in at least 2
+ledgers. The team reports the total of each item over all 3 ledgers. The first accepted answer, from any agent,
+is final. Score: the share of the 5 totals that are exactly right. Pre-registered in `PREREGISTRATION.md`
+(Amendment 6) before the first trial. 10 instances, 2 attempts, 20 trials per arm, the same seats as E1.
+
+| Arm | Who reads what | Score | Messages | Answers sent | Real cost per trial |
+|---|---|---|---|---|---|
+| `solo` | 1 agent reads A, B and C | 100.0% | 0 | 1.00 | $0.0008 |
+| `team-3` | each agent reads 1 ledger, channel | 100.0% | 4.85 | 2.55 | $0.0041 |
+| `indep-3` | each agent reads 1 ledger, no channel | 0.0% | 0 | 2.35 | $0.0304 |
+
+- OBSERVED: `solo` minus `team-3` is 0 (95% interval [0, 0]). Test 1 (team at least 2/3 of solo) passes.
+  Test 2 (premature answers explain the losses) does not apply, because the team lost no points.
+- OBSERVED: in all 20 `team-3` trials, the answering agent had read the reports of both other agents before it
+  answered (`premature` 0 in 20 of 20). The first answer came after 3 to 6 posts. The answering agent changed:
+  p3 10 times, p2 8 times, p1 2 times. The later answers were refused, as the rules say.
+- OBSERVED: `indep-3` cannot pool, and scores 0 in 20 of 20 trials (the expected floor; no leak). Its agents
+  spend their turns on the problem and cost 7 times as much as the team.
+- INFERRED: passing 5 numbers from each agent is easy for this model, and the first-answer-is-final rule did
+  not tempt any agent to answer early. In `boxes` the team loses because agents act on the same boxes at the
+  same time (F13), not because information does not arrive. A harder `ledger` (more items, a message limit,
+  or a deadline) is needed to find where pooling starts to fail. The team still costs 5 times as much as 1
+  agent that holds all facts, so when 1 agent can hold the facts, it is the cheaper choice.
+
 ## How this fits other work
 
 - Anthropic Fellows, "Worse Together" (2026-11): messages reach the committing agent in 94% to 99% of episodes,
@@ -152,10 +181,10 @@ repeats per trial, at about 12 times the cost of the single agent.
 - **1 harness:** terminus-2 in every seat. Other harnesses may read the channel or plan differently.
 - **1 main model:** DeepSeek Flash with thinking off. The only other models are 2 seats of 1 E2 arm and
   2 single pilot trials. A stronger model or thinking on can change the size of every gap.
-- **1 synthetic task:** `boxes` has 1 obvious split of the work (rooms), free messages, and a reward that
-  only counts distinct flags. It rewards a team for not repeating work, and for nothing else. Tasks that need
-  facts that no single agent has (`ledger`), shared pools (`commons`) or honest claims (`scarce`) exist in
-  muster but have no model results yet.
+- **2 synthetic tasks:** `boxes` has 1 obvious split of the work (rooms), free messages, and a reward that
+  only counts distinct flags. It rewards a team for not repeating work, and for nothing else. `ledger` has 5
+  items and free messages, and is at its ceiling for the team. Shared pools (`commons`) and honest claims
+  (`scarce`) exist in muster but have no scored model results yet.
 - **Small samples:** 10 instances; 20 or 30 trials per arm. The design detects differences of about 12 to 16
   pts, so smaller real effects can show as "not resolved".
 - **Time:** E1 and E2 ran on 11-19, F14 on 11-20, F14c to F17 on 11-21. F14c checks for drift for the
@@ -175,6 +204,7 @@ repeats per trial, at about 12 times the cost of the single agent.
 | F15 (11-21) | 60 | $0.53 |
 | F16 (11-21) | 20 | $0.25 |
 | F17 (11-21) | 20 | $0.27 |
-| **Total** | **368** | **$3.65** |
+| E4 `ledger` (11-21, pilot included) | 63 | $0.72 |
+| **Total** | **431** | **$4.37** |
 
 Real cost is computed from tokens at DeepSeek's price for the hour of the run. Harbor records the peak price.

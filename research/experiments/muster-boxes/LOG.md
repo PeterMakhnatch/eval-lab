@@ -12,6 +12,21 @@ Times are New York time (ET). Newest entry first. Each entry says what is done a
 
 ## 2026-11-21
 
+**12:12 PM. E4 `ledger` done (Peter: "run e4"). Real cost $0.72 (63 trials, pilot included). F18.**
+Pre-registered as Amendment 6 (`a06875d2`, landed before the first trial). Runs 15:53 to 17:09 UTC, Saturday,
+off-peak. Outputs: `muster-runs/e4/{pilot-*,solo,indep-3,team-3}`, tasks copied to `muster-runs/e4/tasks`.
+- Result: `solo` 1.000, `team-3` 1.000, `indep-3` 0.000 (20 trials each). Test 1 passes, test 2 does not
+  apply (no team losses), no leak in `indep-3`. Every answering seat had read both other reports first.
+- Cost from tokens, at half of Harbor's recorded peak price: pilot $0.018, `solo` $0.016, `team-3` $0.083,
+  `indep-3` $0.609 (Harbor recorded $1.449 in total). The balance went from $4.69 to $3.63 ($1.06); the rest of
+  the drop is other agents' spend in the same window, which I cannot separate.
+- Incident: my shell job hit its 60-minute limit and killed the run script and its cost watchdog, but not
+  `harbor run` (it continued as an orphan, PID 5550). I found it within 1 minute and restarted a watchdog with
+  the same $0.80 cap, and the job finished the 20 `indep-3` trials. No trial was lost or counted twice.
+  Next time: start long arms with no shell deadline, and kill the whole process group on a timeout.
+- Next for this question: `ledger` is at the team's ceiling. A harder version (more items, a message limit
+  or a deadline) can find where pooling fails. It needs a new family version and its own pre-registration.
+
 **4:17 AM. $0 follow-up to F14: how agents follow the report-first rule.** Question and test, fixed before I
 looked at the numbers: the rule is "followed" if at least 90% of opens come after a post and a read by the
 same seat since its previous open; claims "work" if at most 10% of opens hit a box that another seat

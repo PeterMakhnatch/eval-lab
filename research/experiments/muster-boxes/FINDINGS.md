@@ -270,3 +270,24 @@ INFERRED. A fixed role breaks the tie between alike agents inside a room, withou
 number per seat, without a channel, gave no resolved gain.) It does not split the scouting, so seats spend
 more opens on empty rooms.
 A claim before the act does both, at the price of about 2.4 times the messages.
+
+## F18. E4: with split facts the talking team scores like 1 agent with all facts (2026-11-21, $0.72)
+
+Pre-registered in `PREREGISTRATION.md` (Amendment 6). Family `ledger`, arms `solo`, `indep-3`, `team-3`, 10
+instances x 2 attempts, roster `t2-deepseek-flash-plain`. Analysis: `analysis/e4_ledger.py`.
+
+OBSERVED:
+
+| Arm | Score | Messages | `premature` | Answers sent | Real cost |
+|---|---|---|---|---|---|
+| `solo` | 1.000 | 0 | 0 | 1.00 | $0.016 |
+| `team-3` | 1.000 | 4.85 | 0 | 2.55 | $0.083 |
+| `indep-3` | 0.000 | 0 | 1 | 2.35 | $0.609 |
+
+- `solo` minus `team-3`: 0, 95% interval [0, 0], not resolved. Test 1 passes. Test 2 does not apply (no losses).
+- `seen_before_answer` is 2 in all 20 team trials: the answering seat had read both other seats.
+- `indep-3` scores 0 in 20 of 20: no leak between seats without the channel.
+
+INFERRED. The cost of split information is 0 here: the task is at the team's ceiling. Together with F13, the
+team's losses in `boxes` come from simultaneous action on shared boxes, not from information transfer. The team
+costs 5 times as much as `solo` for the same score.

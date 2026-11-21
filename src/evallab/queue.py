@@ -757,6 +757,37 @@ class PolicyGate:
         )
 
 
+class QueueRuntime:
+    def now(self) -> datetime:
+        return datetime.now(UTC)
+
+    def wall_time(self) -> float:
+        return time.time()
+
+    def new_id(self) -> str:
+        return new_ulid()
+
+    def new_generation(self) -> str:
+        return secrets.token_hex(16)
+
+    def owner_pid(self) -> int:
+        return os.getpid()
+
+    def hostname(self) -> str:
+        return platform.node()
+
+    def write_event(self, descriptor: int, payload: memoryview) -> int:
+        return os.write(descriptor, payload)
+
+    def write_lease(self, descriptor: int, payload: bytes) -> None:
+        with os.fdopen(descriptor, "wb", closefd=False) as destination:
+            destination.write(payload)
+            destination.flush()
+
+    def heartbeat(self, descriptor: int) -> None:
+        os.utime(descriptor)
+
+
 class DirectoryQueue:
     def __init__(
         self,
@@ -765,6 +796,7 @@ class DirectoryQueue:
         events_max_bytes: int = DEFAULT_EVENTS_MAX_BYTES,
         event_backups: int = DEFAULT_EVENT_BACKUPS,
         create: bool = True,
+        runtime: QueueRuntime | None = None,
     ) -> None:
         if events_max_bytes < 1:
             raise ValueError("events_max_bytes must be positive")
@@ -773,6 +805,7 @@ class DirectoryQueue:
         self.root = root
         self.events_max_bytes = events_max_bytes
         self.event_backups = event_backups
+        self.runtime = QueueRuntime() if runtime is None else runtime
         self.reasons_dir = root / "reasons"
         if create:
             self.ensure_directories()
@@ -822,15 +855,15 @@ class DirectoryQueue:
         spent_today_usd: float,
         consecutive_harness_failures: int = 0,
     ) -> tuple[Path, PolicyDecision]:
-        now = datetime.now(UTC)
-        spec_id = spec.spec_id or new_ulid()
+        now = self.runtime.now()
+        spec_id = spec.spec_id or self.runtime.new_id()
         normalized = spec.model_copy(update={"spec_id": spec_id, "submitted_at": now})
         filename = f"{_safe_component(spec.agent)}-{spec_id}.json"
         pending = self.state_dir("pending") / filename
         self._create_exclusive(pending, normalized)
         self.append_event(
             QueueEvent(
-                event_id=new_ulid(),
+                event_id=self.runtime.new_id(),
                 spec_id=spec_id,
                 occurred_at=now,
                 event="submitted",
@@ -902,9 +935,9 @@ class DirectoryQueue:
         source.rename(destination)
         self.append_event(
             QueueEvent(
-                event_id=new_ulid(),
+                event_id=self.runtime.new_id(),
                 spec_id=str(spec.spec_id),
-                occurred_at=datetime.now(UTC),
+                occurred_at=self.runtime.now(),
                 event=event,
                 from_state=source_state,
                 to_state=destination_state,
@@ -922,12 +955,12 @@ class DirectoryQueue:
     def write_reason(self, spec: ExperimentSpec, decision: PolicyDecision) -> Path:
         reason = QueueReason(
             spec_id=str(spec.spec_id),
-            occurred_at=datetime.now(UTC),
+            occurred_at=self.runtime.now(),
             code=decision.reason_code or "unspecified",
             message=decision.message,
             policy_rule=decision.policy_rule,
         )
-        path = self.reasons_dir / f"{spec.spec_id}-{new_ulid()}.json"
+        path = self.reasons_dir / f"{spec.spec_id}-{self.runtime.new_id()}.json"
         self._create_exclusive(path, reason)
         return path
 
@@ -948,7 +981,7 @@ class DirectoryQueue:
             try:
                 view = memoryview(payload)
                 while view:
-                    view = view[os.write(descriptor, view) :]
+                    view = view[self.runtime.write_event(descriptor, view) :]
             finally:
                 os.close(descriptor)
 
@@ -1043,9 +1076,9 @@ class DirectoryQueue:
         self.stop_path.unlink(missing_ok=True)
         self.append_event(
             QueueEvent(
-                event_id=new_ulid(),
+                event_id=self.runtime.new_id(),
                 spec_id="queue",
-                occurred_at=datetime.now(UTC),
+                occurred_at=self.runtime.now(),
                 event=QUEUE_RESUMED_EVENT,
                 actor=actor,
             )
@@ -1191,7 +1224,7 @@ class DirectoryQueue:
             mtime = path.stat().st_mtime
         except OSError:
             return True
-        current = now if now is not None else time.time()
+        current = now if now is not None else self.runtime.wall_time()
         return (current - mtime) > stale_seconds
 
     def acquire_lease(
@@ -1205,10 +1238,10 @@ class DirectoryQueue:
     ) -> Path | None:
         """Atomically claim one spec with an immutable lease generation."""
         path = self.lease_path(spec)
-        pid = owner_pid if owner_pid is not None else os.getpid()
-        timestamp = now or datetime.now(UTC)
+        pid = owner_pid if owner_pid is not None else self.runtime.owner_pid()
+        timestamp = now or self.runtime.now()
         spec_id = spec.spec_id if isinstance(spec, ExperimentSpec) else str(spec)
-        generation = lease_generation or secrets.token_hex(16)
+        generation = lease_generation or self.runtime.new_generation()
         if len(generation) != 32 or any(
             character not in "0123456789abcdef" for character in generation
         ):
@@ -1219,7 +1252,7 @@ class DirectoryQueue:
                     "spec_id": spec_id,
                     "pid": pid,
                     "acquired_at": timestamp.isoformat(),
-                    "host": platform.node(),
+                    "host": self.runtime.hostname(),
                     "lease_generation": generation,
                 },
                 indent=2,
@@ -1258,9 +1291,7 @@ class DirectoryQueue:
             except OSError:
                 return None
             try:
-                with os.fdopen(descriptor, "wb", closefd=False) as destination:
-                    destination.write(payload)
-                    destination.flush()
+                self.runtime.write_lease(descriptor, payload)
             finally:
                 os.close(descriptor)
         return path
@@ -1278,7 +1309,7 @@ class DirectoryQueue:
                     {
                         "spec_id": spec.spec_id,
                         "lease_generation": generation,
-                        "requested_at": datetime.now(UTC).isoformat(),
+                    "requested_at": self.runtime.now().isoformat(),
                     },
                     sort_keys=True,
                 )
@@ -1353,7 +1384,7 @@ class DirectoryQueue:
             except OSError:
                 return False
             try:
-                os.utime(descriptor)
+                self.runtime.heartbeat(descriptor)
                 return True
             except OSError:
                 return False
@@ -1373,10 +1404,9 @@ class DirectoryQueue:
         finally:
             os.close(descriptor)
 
-    @staticmethod
-    def _replace_model(path: Path, model: Any) -> None:
-        temporary = path.with_name(f".{path.name}.{new_ulid()}.tmp")
-        DirectoryQueue._create_exclusive(temporary, model)
+    def _replace_model(self, path: Path, model: Any) -> None:
+        temporary = path.with_name(f".{path.name}.{self.runtime.new_id()}.tmp")
+        self._create_exclusive(temporary, model)
         temporary.replace(path)
 
 
@@ -2257,7 +2287,7 @@ class Executor:
         no_agent_execution = self._spec_runs_no_agent(spec)
         if not no_agent_execution and not self._ensure_selfhosted_ready(spec):
             return False
-        lease_generation = secrets.token_hex(16)
+        lease_generation = self.queue.runtime.new_generation()
         lease_path = self.queue.acquire_lease(
             spec,
             lease_generation=lease_generation,
@@ -3206,9 +3236,9 @@ class Executor:
                 )
                 self.queue.append_event(
                     QueueEvent(
-                        event_id=new_ulid(),
+                        event_id=self.queue.runtime.new_id(),
                         spec_id=str(spec.spec_id),
-                        occurred_at=datetime.now(UTC),
+                        occurred_at=self.queue.runtime.now(),
                         event="dispatch_retry_scheduled",
                         actor="executor",
                         reason_code=exc.reason_code,
@@ -3218,9 +3248,9 @@ class Executor:
                 if archived is not None:
                     self.queue.append_event(
                         QueueEvent(
-                            event_id=new_ulid(),
+                            event_id=self.queue.runtime.new_id(),
                             spec_id=str(spec.spec_id),
-                            occurred_at=datetime.now(UTC),
+                            occurred_at=self.queue.runtime.now(),
                             event="transient_attempt_archived",
                             actor="executor",
                             reason_code="transient_harness:attempt_archived",
@@ -3274,7 +3304,7 @@ class Executor:
         )
 
     def _reserved_attempt_spend_today(self, *, now: datetime | None = None) -> float:
-        today = (now or datetime.now(UTC)).astimezone(UTC).date()
+        today = (now or self.queue.runtime.now()).astimezone(UTC).date()
         reservations: dict[str, list[float]] = {}
         completed: set[str] = set()
         for event in load_events(self.queue.events_path):
@@ -3418,7 +3448,7 @@ class Executor:
             return False
         if str(state.get("status")) != "running":
             return False
-        return datetime.now(UTC) >= started + timedelta(seconds=timeout)
+        return self.queue.runtime.now() >= started + timedelta(seconds=timeout)
 
     def reconcile_running(self) -> None:
         for path, spec in self.queue.list_specs("running"):

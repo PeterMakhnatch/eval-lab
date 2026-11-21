@@ -12,6 +12,27 @@ Times are New York time (ET). Newest entry first. Each entry says what is done a
 
 ## 2026-11-21
 
+**4:12 AM. muster now lives in Eval Lab (`main` at `2ad853fc1`, $0). This log moved with it.** 4 commits,
+landed with `make land` after `make gate` passed:
+1. `8bc316398` imports the muster repository at `eed7a2f` unchanged, so all of it stays in Eval Lab history.
+2. `902216776` makes `muster/` a top-level package (`uv run muster ...`). The task families sit in
+   `muster/tasks/` as frozen task supply, byte-identical: the gate runs each family's `generate.py --check`.
+   The studies (this log, findings, results page, pre-registration, rosters, analysis) are in this folder.
+3. `2b8ab7ef8` puts the analysis scripts in Eval Lab style. The F13 script now reads the frozen build when a
+   recorded task path is gone, and gives the recorded numbers again (69% of `team-3` repeats "not sent").
+4. `2ad853fc1` applies the Eval Lab rules to the code (no comments or docstrings, functions at most 70 lines,
+   asserts) and replaces the ~6,000 lines of unit tests with a seeded simulation (`muster/sim.py`: 48 seeds,
+   12 task conditions, 26,232 invariant checks in 5 s). Checks: CLI output byte-identical on 144 cases over
+   20 real job folders; the old suite passes on the new code (722 passed); the simulation catches 2 planted
+   bugs.
+- The simulation found 2 real bugs, both fixed and replayed in every gate: `muster regrade` exited 0 when no
+  trial could be compared (for example, "30 no-task" on E1, whose old task paths are gone); it now exits 3.
+  An event log with invalid UTF-8 crashed `regrade` and `events`; it is now reported as a log problem.
+- `muster regrade muster-runs/e1run/team-3 --task-root muster/tasks/boxes/build/team-3` gives 30 of 30 match:
+  the frozen build reproduces the E1 rewards.
+- The GitHub repository `PeterMakhnatch/muster` stays as it is, with a note that points here. You decide
+  whether to archive it.
+
 **4:10 AM. Next real-agent experiment, proposed, not started (needs about $0.40 of DeepSeek budget).**
 `boxes` favors 1 agent, because 1 agent can hold the whole state. The pre-registered E4 (`ledger`, a hidden-
 profile task) tests the opposite case: each seat holds 1 of 3 warehouse ledgers, every item is in at least 2

@@ -1,0 +1,11 @@
+{
+  "pool": 48,
+  "cap": 32,
+  "seats": [
+    "p1",
+    "p2",
+    "p3"
+  ],
+  "channel": false,
+  "pledges": false
+}

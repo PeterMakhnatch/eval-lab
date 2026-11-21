@@ -1,0 +1,172 @@
+{
+ "family": "ledger",
+ "instance": "i08",
+ "condition": "solo",
+ "items": [
+  "bolt",
+  "clamp",
+  "gasket",
+  "hinge",
+  "valve"
+ ],
+ "channel": false,
+ "holds": {
+  "p1": [
+   "A",
+   "B",
+   "C"
+  ]
+ },
+ "ledgers": {
+  "A": [
+   {
+    "item": "hinge",
+    "qty": 26
+   },
+   {
+    "item": "hinge",
+    "qty": 66
+   },
+   {
+    "item": "gasket",
+    "qty": 94
+   },
+   {
+    "item": "gasket",
+    "qty": 19
+   },
+   {
+    "item": "hinge",
+    "qty": 55
+   },
+   {
+    "item": "valve",
+    "qty": 93
+   },
+   {
+    "item": "hinge",
+    "qty": 68
+   },
+   {
+    "item": "valve",
+    "qty": 60
+   },
+   {
+    "item": "clamp",
+    "qty": 5
+   },
+   {
+    "item": "hinge",
+    "qty": 24
+   },
+   {
+    "item": "valve",
+    "qty": 85
+   },
+   {
+    "item": "bolt",
+    "qty": 43
+   }
+  ],
+  "B": [
+   {
+    "item": "valve",
+    "qty": 57
+   },
+   {
+    "item": "hinge",
+    "qty": 55
+   },
+   {
+    "item": "gasket",
+    "qty": 41
+   },
+   {
+    "item": "gasket",
+    "qty": 90
+   },
+   {
+    "item": "clamp",
+    "qty": 98
+   },
+   {
+    "item": "hinge",
+    "qty": 44
+   },
+   {
+    "item": "bolt",
+    "qty": 3
+   },
+   {
+    "item": "bolt",
+    "qty": 66
+   },
+   {
+    "item": "gasket",
+    "qty": 51
+   },
+   {
+    "item": "clamp",
+    "qty": 14
+   },
+   {
+    "item": "gasket",
+    "qty": 33
+   },
+   {
+    "item": "gasket",
+    "qty": 45
+   }
+  ],
+  "C": [
+   {
+    "item": "valve",
+    "qty": 58
+   },
+   {
+    "item": "clamp",
+    "qty": 94
+   },
+   {
+    "item": "bolt",
+    "qty": 50
+   },
+   {
+    "item": "valve",
+    "qty": 86
+   },
+   {
+    "item": "bolt",
+    "qty": 59
+   },
+   {
+    "item": "valve",
+    "qty": 96
+   },
+   {
+    "item": "bolt",
+    "qty": 8
+   },
+   {
+    "item": "clamp",
+    "qty": 66
+   },
+   {
+    "item": "bolt",
+    "qty": 69
+   },
+   {
+    "item": "clamp",
+    "qty": 24
+   },
+   {
+    "item": "valve",
+    "qty": 12
+   },
+   {
+    "item": "bolt",
+    "qty": 58
+   }
+  ]
+ }
+}

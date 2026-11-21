@@ -1,0 +1,20 @@
+{
+  "about": "terminus-2 with DeepSeek Flash, thinking on (low) in every seat",
+  "each": {
+    "kwargs": {
+      "interleaved_thinking": true,
+      "llm_call_kwargs": {
+        "extra_body": {
+          "reasoning_effort": "low"
+        }
+      },
+      "max_turns": 30,
+      "reasoning_effort": "low",
+      "record_terminal_session": false,
+      "suppress_max_turns_warning": true
+    },
+    "model_api_key_name": "DEEPSEEK_API_KEY",
+    "model_name": "deepseek/deepseek-flash",
+    "name": "terminus-2"
+  }
+}

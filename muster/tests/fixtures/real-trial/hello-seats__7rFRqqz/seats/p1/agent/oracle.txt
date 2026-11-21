@@ -1,0 +1,3 @@
+p1 posts its note
+{"author": "p1", "text": "hello from p1"}
+p1 sees a note from p2

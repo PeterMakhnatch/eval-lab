@@ -1,0 +1,18 @@
+{
+  "family": "boxes",
+  "condition": "indep-3",
+  "instance": 10,
+  "seats": [
+    "p1",
+    "p2",
+    "p3"
+  ],
+  "budget": 9,
+  "channel": false,
+  "rooms": 6,
+  "room_size": 10,
+  "treasure_rooms": [
+    2,
+    6
+  ]
+}

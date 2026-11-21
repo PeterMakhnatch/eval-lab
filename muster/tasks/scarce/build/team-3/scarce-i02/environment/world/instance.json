@@ -1,0 +1,15 @@
+{
+  "pool": 36,
+  "seats": [
+    "p1",
+    "p2",
+    "p3"
+  ],
+  "needs": {
+    "p1": 10,
+    "p2": 20,
+    "p3": 15
+  },
+  "channel": true,
+  "statements": true
+}

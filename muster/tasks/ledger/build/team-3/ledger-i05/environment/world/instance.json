@@ -1,0 +1,176 @@
+{
+ "family": "ledger",
+ "instance": "i05",
+ "condition": "team-3",
+ "items": [
+  "bolt",
+  "clamp",
+  "gasket",
+  "hinge",
+  "valve"
+ ],
+ "channel": true,
+ "holds": {
+  "p1": [
+   "A"
+  ],
+  "p2": [
+   "B"
+  ],
+  "p3": [
+   "C"
+  ]
+ },
+ "ledgers": {
+  "A": [
+   {
+    "item": "gasket",
+    "qty": 3
+   },
+   {
+    "item": "gasket",
+    "qty": 39
+   },
+   {
+    "item": "bolt",
+    "qty": 3
+   },
+   {
+    "item": "gasket",
+    "qty": 4
+   },
+   {
+    "item": "bolt",
+    "qty": 26
+   },
+   {
+    "item": "valve",
+    "qty": 69
+   },
+   {
+    "item": "bolt",
+    "qty": 85
+   },
+   {
+    "item": "hinge",
+    "qty": 51
+   },
+   {
+    "item": "valve",
+    "qty": 97
+   },
+   {
+    "item": "hinge",
+    "qty": 25
+   },
+   {
+    "item": "clamp",
+    "qty": 64
+   },
+   {
+    "item": "hinge",
+    "qty": 9
+   }
+  ],
+  "B": [
+   {
+    "item": "bolt",
+    "qty": 44
+   },
+   {
+    "item": "gasket",
+    "qty": 16
+   },
+   {
+    "item": "valve",
+    "qty": 30
+   },
+   {
+    "item": "hinge",
+    "qty": 59
+   },
+   {
+    "item": "bolt",
+    "qty": 3
+   },
+   {
+    "item": "hinge",
+    "qty": 60
+   },
+   {
+    "item": "hinge",
+    "qty": 11
+   },
+   {
+    "item": "hinge",
+    "qty": 3
+   },
+   {
+    "item": "bolt",
+    "qty": 6
+   },
+   {
+    "item": "valve",
+    "qty": 12
+   },
+   {
+    "item": "bolt",
+    "qty": 95
+   },
+   {
+    "item": "gasket",
+    "qty": 2
+   }
+  ],
+  "C": [
+   {
+    "item": "gasket",
+    "qty": 19
+   },
+   {
+    "item": "hinge",
+    "qty": 25
+   },
+   {
+    "item": "gasket",
+    "qty": 77
+   },
+   {
+    "item": "gasket",
+    "qty": 14
+   },
+   {
+    "item": "valve",
+    "qty": 82
+   },
+   {
+    "item": "bolt",
+    "qty": 23
+   },
+   {
+    "item": "valve",
+    "qty": 58
+   },
+   {
+    "item": "hinge",
+    "qty": 24
+   },
+   {
+    "item": "valve",
+    "qty": 87
+   },
+   {
+    "item": "clamp",
+    "qty": 32
+   },
+   {
+    "item": "gasket",
+    "qty": 97
+   },
+   {
+    "item": "clamp",
+    "qty": 55
+   }
+  ]
+ }
+}

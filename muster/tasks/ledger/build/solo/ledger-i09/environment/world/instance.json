@@ -1,0 +1,172 @@
+{
+ "family": "ledger",
+ "instance": "i09",
+ "condition": "solo",
+ "items": [
+  "bolt",
+  "clamp",
+  "gasket",
+  "hinge",
+  "valve"
+ ],
+ "channel": false,
+ "holds": {
+  "p1": [
+   "A",
+   "B",
+   "C"
+  ]
+ },
+ "ledgers": {
+  "A": [
+   {
+    "item": "clamp",
+    "qty": 57
+   },
+   {
+    "item": "hinge",
+    "qty": 89
+   },
+   {
+    "item": "bolt",
+    "qty": 3
+   },
+   {
+    "item": "hinge",
+    "qty": 1
+   },
+   {
+    "item": "gasket",
+    "qty": 22
+   },
+   {
+    "item": "gasket",
+    "qty": 81
+   },
+   {
+    "item": "valve",
+    "qty": 13
+   },
+   {
+    "item": "bolt",
+    "qty": 82
+   },
+   {
+    "item": "valve",
+    "qty": 85
+   },
+   {
+    "item": "gasket",
+    "qty": 50
+   },
+   {
+    "item": "clamp",
+    "qty": 38
+   },
+   {
+    "item": "bolt",
+    "qty": 83
+   }
+  ],
+  "B": [
+   {
+    "item": "bolt",
+    "qty": 25
+   },
+   {
+    "item": "clamp",
+    "qty": 1
+   },
+   {
+    "item": "gasket",
+    "qty": 80
+   },
+   {
+    "item": "gasket",
+    "qty": 47
+   },
+   {
+    "item": "clamp",
+    "qty": 24
+   },
+   {
+    "item": "valve",
+    "qty": 10
+   },
+   {
+    "item": "valve",
+    "qty": 60
+   },
+   {
+    "item": "valve",
+    "qty": 81
+   },
+   {
+    "item": "bolt",
+    "qty": 20
+   },
+   {
+    "item": "clamp",
+    "qty": 16
+   },
+   {
+    "item": "clamp",
+    "qty": 62
+   },
+   {
+    "item": "clamp",
+    "qty": 67
+   }
+  ],
+  "C": [
+   {
+    "item": "valve",
+    "qty": 44
+   },
+   {
+    "item": "valve",
+    "qty": 38
+   },
+   {
+    "item": "hinge",
+    "qty": 89
+   },
+   {
+    "item": "bolt",
+    "qty": 18
+   },
+   {
+    "item": "clamp",
+    "qty": 19
+   },
+   {
+    "item": "valve",
+    "qty": 99
+   },
+   {
+    "item": "hinge",
+    "qty": 47
+   },
+   {
+    "item": "valve",
+    "qty": 40
+   },
+   {
+    "item": "clamp",
+    "qty": 90
+   },
+   {
+    "item": "clamp",
+    "qty": 12
+   },
+   {
+    "item": "bolt",
+    "qty": 87
+   },
+   {
+    "item": "hinge",
+    "qty": 1
+   }
+  ]
+ }
+}

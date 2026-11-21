@@ -1,0 +1,33 @@
+schema_version = "1.4"
+artifacts = ["/logs/world/events.jsonl"]
+
+[task]
+name = "muster/scarce-i08"
+description = "Scarce: 3 seats share a pool of 48 units. Each seat has a private need and makes one sealed take. Any two needs fit in the pool, all three do not; an overdraw gives every seat 0. Condition team-3."
+keywords = ["seats", "multi-agent", "muster"]
+
+[metadata]
+family = "scarce"
+condition = "team-3"
+instance = "i08"
+pool = 48
+needs = [9, 25, 17]
+oracle_reward = 1.0
+legal_strategies = ["needy", "liar"]
+exploits = ["spoof"]
+expected_findings = ["tested-seat-not-needed", "decorative-seat"]
+
+[verifier]
+timeout_sec = 120.0
+
+[agent]
+timeout_sec = 600.0
+
+[environment]
+build_timeout_sec = 600.0
+
+[agents.p1]
+
+[agents.p2]
+
+[agents.p3]

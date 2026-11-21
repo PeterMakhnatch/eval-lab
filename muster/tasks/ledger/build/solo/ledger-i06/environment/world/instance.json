@@ -1,0 +1,172 @@
+{
+ "family": "ledger",
+ "instance": "i06",
+ "condition": "solo",
+ "items": [
+  "bolt",
+  "clamp",
+  "gasket",
+  "hinge",
+  "valve"
+ ],
+ "channel": false,
+ "holds": {
+  "p1": [
+   "A",
+   "B",
+   "C"
+  ]
+ },
+ "ledgers": {
+  "A": [
+   {
+    "item": "bolt",
+    "qty": 46
+   },
+   {
+    "item": "bolt",
+    "qty": 46
+   },
+   {
+    "item": "gasket",
+    "qty": 67
+   },
+   {
+    "item": "valve",
+    "qty": 99
+   },
+   {
+    "item": "bolt",
+    "qty": 17
+   },
+   {
+    "item": "gasket",
+    "qty": 24
+   },
+   {
+    "item": "valve",
+    "qty": 60
+   },
+   {
+    "item": "gasket",
+    "qty": 69
+   },
+   {
+    "item": "valve",
+    "qty": 65
+   },
+   {
+    "item": "hinge",
+    "qty": 11
+   },
+   {
+    "item": "gasket",
+    "qty": 54
+   },
+   {
+    "item": "hinge",
+    "qty": 14
+   }
+  ],
+  "B": [
+   {
+    "item": "clamp",
+    "qty": 10
+   },
+   {
+    "item": "gasket",
+    "qty": 99
+   },
+   {
+    "item": "gasket",
+    "qty": 89
+   },
+   {
+    "item": "clamp",
+    "qty": 60
+   },
+   {
+    "item": "clamp",
+    "qty": 5
+   },
+   {
+    "item": "clamp",
+    "qty": 6
+   },
+   {
+    "item": "bolt",
+    "qty": 45
+   },
+   {
+    "item": "gasket",
+    "qty": 33
+   },
+   {
+    "item": "bolt",
+    "qty": 29
+   },
+   {
+    "item": "hinge",
+    "qty": 89
+   },
+   {
+    "item": "hinge",
+    "qty": 23
+   },
+   {
+    "item": "hinge",
+    "qty": 49
+   }
+  ],
+  "C": [
+   {
+    "item": "valve",
+    "qty": 22
+   },
+   {
+    "item": "bolt",
+    "qty": 11
+   },
+   {
+    "item": "bolt",
+    "qty": 34
+   },
+   {
+    "item": "valve",
+    "qty": 20
+   },
+   {
+    "item": "gasket",
+    "qty": 84
+   },
+   {
+    "item": "bolt",
+    "qty": 87
+   },
+   {
+    "item": "hinge",
+    "qty": 26
+   },
+   {
+    "item": "clamp",
+    "qty": 70
+   },
+   {
+    "item": "clamp",
+    "qty": 56
+   },
+   {
+    "item": "valve",
+    "qty": 67
+   },
+   {
+    "item": "hinge",
+    "qty": 62
+   },
+   {
+    "item": "valve",
+    "qty": 83
+   }
+  ]
+ }
+}

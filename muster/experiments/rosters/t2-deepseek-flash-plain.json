@@ -1,0 +1,14 @@
+{
+  "about": "terminus-2 with DeepSeek Flash, thinking off in every seat",
+  "each": {
+    "kwargs": {
+      "max_turns": 30,
+      "reasoning_effort": "none",
+      "record_terminal_session": false,
+      "suppress_max_turns_warning": true
+    },
+    "model_api_key_name": "DEEPSEEK_API_KEY",
+    "model_name": "deepseek/deepseek-flash",
+    "name": "terminus-2"
+  }
+}

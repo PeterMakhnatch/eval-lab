@@ -1,0 +1,18 @@
+{
+  "family": "boxes",
+  "condition": "team-3",
+  "instance": 1,
+  "seats": [
+    "p1",
+    "p2",
+    "p3"
+  ],
+  "budget": 9,
+  "channel": true,
+  "rooms": 6,
+  "room_size": 10,
+  "treasure_rooms": [
+    1,
+    5
+  ]
+}

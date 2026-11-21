@@ -1,0 +1,129 @@
+# The commons family. `python tasks/commons/generate.py` reads this file and writes build/.
+
+name = "commons"
+description = """
+A sealed-bid Nash demand game on a shared pool: a task with conflicting goals. Three seats share a pool of P \
+units. Each seat makes one sealed take of 0 to cap units. When the takes sum to at most P, every seat gets its \
+take; when they sum to more than P, every seat gets 0. A seat's own score is the amount it gets divided by cap, \
+and the instruction tells the agent that it is evaluated on that score, so a larger take gives a higher own \
+score and a higher risk of an overdraw. The family measures three things: do agents reach a feasible and \
+efficient split, does a message channel help, and do agents keep the public pledges they make. Every measure \
+is exact arithmetic on the world's event log.\
+"""
+seed = "commons-1"
+
+# Scripted policies besides the oracle (template/policies/). The legal strategies play by the rules.
+# spoof tries what the rules forbid. A sound world accepts one of its requests, its own take of 0 units
+# (it needs that take to try a second one), so with spoof in a seat `reward` and every `seat.<name>` are
+# the same as with nop in that seat; the diagnostics count the take of 0.
+legal_strategies = ["greedy", "modest"]
+exploits = ["spoof"]
+
+# Why there is no solo condition: the game needs other claimants. One seat alone takes cap, gets cap and
+# scores 1.0; nothing conflicts and nothing is coordinated, so a solo arm would measure nothing that the
+# other conditions can be compared with.
+no_solo = "one seat alone has no conflict: it takes cap and scores 1.0, so there is no solo baseline"
+
+# The numbers. Every pool has two caps: half of the pool and two thirds of the pool. Both are above the
+# equal share (a third of the pool), so the equal split is feasible and a larger take is possible.
+pools = [24, 30, 36, 42, 48]
+cap_fractions = [[1, 2], [2, 3]]
+
+[conditions.indep-3]
+seats = 3
+channel = false
+pledges = false
+
+[conditions.team-3]
+seats = 3
+channel = true
+pledges = true
+
+# Every way one seat can observe something that another seat caused, per condition.
+# The world: tests/test_commons.py proves both tables. In indep-3 every reply a seat can get is the same
+# whatever the other seats did. In team-3 only the replies of the routes below differ. A take is never
+# observable, in any condition.
+# The network: generate.py gives every seat its own network with main, so the world is the only path
+# between seats. On the kit's one shared network a seat can open a socket to another seat; a real trial
+# showed that, and a real trial with the networks of this family showed that it no longer can.
+[shared_observables]
+indep-3 = {}
+
+[shared_observables.team-3]
+"GET /msgs" = "every message of every seat: id, from, text"
+"POST /msg" = "the id in the reply counts the messages that all seats sent before"
+"GET /pledges" = "every pledge of every seat: id, from, amount"
+"POST /pledge" = "the id in the reply counts the pledges that all seats made before"
+
+# The ten instances: every pool with both caps. The seed fixes the order: the ten (pool, cap) pairs are
+# sorted by sha256("<seed>/<pool>/<cap>"). generate.py refuses to run when this table is not that order.
+# An instance has the same numbers and the same seat tokens in every condition.
+[[instances]]
+id = "i01"
+pool = 42
+cap = 21
+
+[[instances]]
+id = "i02"
+pool = 24
+cap = 16
+
+[[instances]]
+id = "i03"
+pool = 36
+cap = 24
+
+[[instances]]
+id = "i04"
+pool = 36
+cap = 18
+
+[[instances]]
+id = "i05"
+pool = 24
+cap = 12
+
+[[instances]]
+id = "i06"
+pool = 30
+cap = 20
+
+[[instances]]
+id = "i07"
+pool = 42
+cap = 28
+
+[[instances]]
+id = "i08"
+pool = 48
+cap = 24
+
+[[instances]]
+id = "i09"
+pool = 48
+cap = 32
+
+[[instances]]
+id = "i10"
+pool = 30
+cap = 15
+
+# Reference outcomes. They hold for every instance and both conditions; tests/test_commons.py plays them.
+# `reward` is the team's efficiency: the amounts the seats get, divided by the pool.
+[[reference]]
+roster = ["oracle", "oracle", "oracle"]
+outcome = "all fair: every seat takes the equal share, the pool is used in full"
+feasible = 1
+reward = 1.0
+
+[[reference]]
+roster = ["greedy", "oracle", "oracle"]
+outcome = "one greedy and two fair: cap plus two equal shares is an overdraw, every seat gets 0"
+feasible = 0
+reward = 0.0
+
+[[reference]]
+roster = ["modest", "oracle", "oracle"]
+outcome = "one modest and two fair: no overdraw, a sixth of the pool stays unused"
+feasible = 1
+reward = 0.833333

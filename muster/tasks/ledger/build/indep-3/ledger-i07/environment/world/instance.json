@@ -1,0 +1,176 @@
+{
+ "family": "ledger",
+ "instance": "i07",
+ "condition": "indep-3",
+ "items": [
+  "bolt",
+  "clamp",
+  "gasket",
+  "hinge",
+  "valve"
+ ],
+ "channel": false,
+ "holds": {
+  "p1": [
+   "A"
+  ],
+  "p2": [
+   "B"
+  ],
+  "p3": [
+   "C"
+  ]
+ },
+ "ledgers": {
+  "A": [
+   {
+    "item": "gasket",
+    "qty": 47
+   },
+   {
+    "item": "valve",
+    "qty": 28
+   },
+   {
+    "item": "gasket",
+    "qty": 8
+   },
+   {
+    "item": "bolt",
+    "qty": 14
+   },
+   {
+    "item": "gasket",
+    "qty": 80
+   },
+   {
+    "item": "valve",
+    "qty": 51
+   },
+   {
+    "item": "gasket",
+    "qty": 1
+   },
+   {
+    "item": "gasket",
+    "qty": 29
+   },
+   {
+    "item": "clamp",
+    "qty": 3
+   },
+   {
+    "item": "hinge",
+    "qty": 53
+   },
+   {
+    "item": "gasket",
+    "qty": 96
+   },
+   {
+    "item": "valve",
+    "qty": 80
+   }
+  ],
+  "B": [
+   {
+    "item": "clamp",
+    "qty": 81
+   },
+   {
+    "item": "gasket",
+    "qty": 20
+   },
+   {
+    "item": "gasket",
+    "qty": 99
+   },
+   {
+    "item": "bolt",
+    "qty": 60
+   },
+   {
+    "item": "gasket",
+    "qty": 16
+   },
+   {
+    "item": "clamp",
+    "qty": 74
+   },
+   {
+    "item": "valve",
+    "qty": 39
+   },
+   {
+    "item": "clamp",
+    "qty": 17
+   },
+   {
+    "item": "valve",
+    "qty": 78
+   },
+   {
+    "item": "valve",
+    "qty": 7
+   },
+   {
+    "item": "gasket",
+    "qty": 93
+   },
+   {
+    "item": "bolt",
+    "qty": 45
+   }
+  ],
+  "C": [
+   {
+    "item": "bolt",
+    "qty": 50
+   },
+   {
+    "item": "clamp",
+    "qty": 7
+   },
+   {
+    "item": "valve",
+    "qty": 64
+   },
+   {
+    "item": "valve",
+    "qty": 87
+   },
+   {
+    "item": "hinge",
+    "qty": 9
+   },
+   {
+    "item": "gasket",
+    "qty": 99
+   },
+   {
+    "item": "valve",
+    "qty": 91
+   },
+   {
+    "item": "hinge",
+    "qty": 14
+   },
+   {
+    "item": "clamp",
+    "qty": 38
+   },
+   {
+    "item": "clamp",
+    "qty": 10
+   },
+   {
+    "item": "gasket",
+    "qty": 66
+   },
+   {
+    "item": "bolt",
+    "qty": 33
+   }
+  ]
+ }
+}

@@ -1,0 +1,176 @@
+{
+ "family": "ledger",
+ "instance": "i04",
+ "condition": "indep-3",
+ "items": [
+  "bolt",
+  "clamp",
+  "gasket",
+  "hinge",
+  "valve"
+ ],
+ "channel": false,
+ "holds": {
+  "p1": [
+   "A"
+  ],
+  "p2": [
+   "B"
+  ],
+  "p3": [
+   "C"
+  ]
+ },
+ "ledgers": {
+  "A": [
+   {
+    "item": "gasket",
+    "qty": 91
+   },
+   {
+    "item": "hinge",
+    "qty": 29
+   },
+   {
+    "item": "gasket",
+    "qty": 74
+   },
+   {
+    "item": "hinge",
+    "qty": 54
+   },
+   {
+    "item": "clamp",
+    "qty": 65
+   },
+   {
+    "item": "clamp",
+    "qty": 93
+   },
+   {
+    "item": "valve",
+    "qty": 9
+   },
+   {
+    "item": "hinge",
+    "qty": 50
+   },
+   {
+    "item": "valve",
+    "qty": 91
+   },
+   {
+    "item": "bolt",
+    "qty": 48
+   },
+   {
+    "item": "bolt",
+    "qty": 7
+   },
+   {
+    "item": "bolt",
+    "qty": 32
+   }
+  ],
+  "B": [
+   {
+    "item": "hinge",
+    "qty": 45
+   },
+   {
+    "item": "clamp",
+    "qty": 25
+   },
+   {
+    "item": "clamp",
+    "qty": 36
+   },
+   {
+    "item": "hinge",
+    "qty": 31
+   },
+   {
+    "item": "bolt",
+    "qty": 72
+   },
+   {
+    "item": "clamp",
+    "qty": 89
+   },
+   {
+    "item": "clamp",
+    "qty": 51
+   },
+   {
+    "item": "valve",
+    "qty": 48
+   },
+   {
+    "item": "clamp",
+    "qty": 91
+   },
+   {
+    "item": "valve",
+    "qty": 10
+   },
+   {
+    "item": "gasket",
+    "qty": 47
+   },
+   {
+    "item": "clamp",
+    "qty": 99
+   }
+  ],
+  "C": [
+   {
+    "item": "gasket",
+    "qty": 76
+   },
+   {
+    "item": "hinge",
+    "qty": 77
+   },
+   {
+    "item": "valve",
+    "qty": 40
+   },
+   {
+    "item": "bolt",
+    "qty": 89
+   },
+   {
+    "item": "valve",
+    "qty": 95
+   },
+   {
+    "item": "bolt",
+    "qty": 17
+   },
+   {
+    "item": "valve",
+    "qty": 76
+   },
+   {
+    "item": "valve",
+    "qty": 9
+   },
+   {
+    "item": "gasket",
+    "qty": 54
+   },
+   {
+    "item": "valve",
+    "qty": 78
+   },
+   {
+    "item": "hinge",
+    "qty": 91
+   },
+   {
+    "item": "gasket",
+    "qty": 82
+   }
+  ]
+ }
+}

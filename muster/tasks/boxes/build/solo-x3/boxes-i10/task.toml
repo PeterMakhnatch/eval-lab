@@ -1,0 +1,25 @@
+schema_version = "1.4"
+artifacts = ["/logs/world/events.jsonl"]
+
+[task]
+name = "muster/boxes-i10"
+description = "boxes-i10, condition solo-x3: 1 seat without a message channel, 27 opens per seat, look for the flags in 60 boxes."
+keywords = ["seats", "multi-agent", "muster"]
+
+[metadata]
+family = "boxes"
+condition = "solo-x3"
+instance = 10
+oracle_reward = 1.0
+exploits = ["spoof"]
+
+[verifier]
+timeout_sec = 120.0
+
+[agent]
+timeout_sec = 600.0
+
+[environment]
+build_timeout_sec = 600.0
+
+[agents.p1]

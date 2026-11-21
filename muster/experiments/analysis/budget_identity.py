@@ -1,0 +1,120 @@
+"""F13: where the budget goes in E1 (boxes). Exact, from the graded event logs. No model, $0.
+
+Budget identity for each trial (all seats together):
+  budget = new flag opens + repeated opens + new empty opens + unused opens
+A repeated open is an open of a box that some seat had opened before. For each repeated open of another seat's
+box we also ask what the actor knew: had the first opener posted a message after its open and before the
+repeat? If yes, had the actor fetched it (informed), or not yet (in flight)? If no, the information never left
+the first opener (not sent).
+"""
+
+import json
+import os
+import sys
+from pathlib import Path
+from statistics import fmean
+
+ROOT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("runs/e1")
+ARMS = ["solo-a", "solo-x3", "indep-3", "indep-3-salt", "indep-3-mixed", "team-3"]
+
+
+def trials(arm):
+    for dirpath, dirnames, filenames in os.walk(ROOT / arm):
+        if "result.json" in filenames:
+            r = json.loads((Path(dirpath) / "result.json").read_text())
+            if "trial_name" in r:
+                dirnames[:] = []
+                yield Path(dirpath), r
+
+
+def analyze(path, result):
+    log = [
+        json.loads(line)
+        for line in (path / "verifier" / "events.jsonl").read_text().splitlines()
+        if line.strip()
+    ]
+    played = []
+    for e in log:
+        if e["kind"] == "admin.close" and e["ok"]:
+            break
+        if e["seat"] is not None:
+            played.append(e)
+    task = Path(result["config"]["task"]["path"])
+    inst = json.loads((task / "environment" / "world" / "instance.json").read_text())
+    budget = inst["budget"] * len(inst["seats"])
+    opened = {}  # box -> (seat, seq)
+    fetched = {}  # seat -> {message id: t}
+    posts = []  # (seq, t, seat, id)
+    out = dict(
+        new_flag=0,
+        repeat=0,
+        repeat_own=0,
+        rep_informed=0,
+        rep_inflight=0,
+        rep_notsent=0,
+        new_empty=0,
+        opens=0,
+        first_post_open_index=None,
+        opens_before_any_fetch=0,
+    )
+    fetched_any = set()
+    for e in played:
+        if e["kind"] == "msg" and e["ok"] and e["method"] == "POST":
+            posts.append((e["seq"], e["t"], e["seat"], e["response"]["id"]))
+        elif e["kind"] == "msgs" and e["ok"]:
+            fetched_any.add(e["seat"])
+            seen = fetched.setdefault(e["seat"], {})
+            for m in e["response"].get("messages", []):
+                seen.setdefault(m["id"], e["t"])
+        elif e["kind"] == "open" and e["ok"]:
+            out["opens"] += 1
+            if inst["channel"] and e["seat"] not in fetched_any:
+                out["opens_before_any_fetch"] += 1
+            box = e["request"]["box"]
+            if box in opened:
+                out["repeat"] += 1
+                first_seat, first_seq = opened[box]
+                if first_seat == e["seat"]:
+                    out["repeat_own"] += 1
+                else:
+                    reports = [p for p in posts if p[2] == first_seat and p[0] > first_seq]
+                    seen = fetched.get(e["seat"], {})
+                    if any(p[3] in seen and seen[p[3]] <= e["t"] for p in reports):
+                        out["rep_informed"] += 1
+                    elif reports:
+                        out["rep_inflight"] += 1
+                    else:
+                        out["rep_notsent"] += 1
+            else:
+                opened[box] = (e["seat"], e["seq"])
+                if e["response"].get("flag"):
+                    out["new_flag"] += 1
+                else:
+                    out["new_empty"] += 1
+    out["unused"] = budget - out["opens"]
+    out["budget"] = budget
+    out["reward"] = result["verifier_result"]["rewards"]["reward"]
+    return out
+
+
+rows = {}
+for arm in ARMS:
+    data = [analyze(p, r) for p, r in trials(arm)]
+    rows[arm] = {k: fmean(d[k] for d in data) for k in data[0] if data[0][k] is not None} | {"n": len(data)}
+cols = [
+    "n",
+    "budget",
+    "reward",
+    "new_flag",
+    "new_empty",
+    "repeat",
+    "repeat_own",
+    "rep_notsent",
+    "rep_inflight",
+    "rep_informed",
+    "unused",
+    "opens_before_any_fetch",
+]
+print("arm            " + " ".join(f"{c[:12]:>12s}" for c in cols))
+for arm, row in rows.items():
+    print(f"{arm:14s} " + " ".join(f"{row.get(c, 0):12.2f}" for c in cols))

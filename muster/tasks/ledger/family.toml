@@ -1,0 +1,97 @@
+# ledger: a hidden-profile task family (docs/DESIGN.md, section 5).
+# generate.py reads every value from this file. After a change run: python tasks/ledger/generate.py
+
+name = "ledger"
+description = """\
+A hidden-profile task. Three warehouses A, B and C each keep a private ledger of 12 rows \
+{"item", "qty"} over 5 items, and every item is in at least 2 ledgers, so no single ledger gives a \
+right total for any item. The team reports the total quantity of every item over all 3 ledgers in one \
+answer: the first accepted answer is final for the whole team. The reward is the number of items with \
+an exactly right total, divided by 5. The family measures information pooling and its failure modes: \
+an answer before the pool is complete, messages that the answering seat never read, and no answer.\
+"""
+
+# The ledgers and the seat tokens of every instance follow from the seed, and build/ holds them in
+# clear text. A seat has no route to this repository, because the kit's seat networks are internal.
+# A build with internet access for the seats would give an agent that route.
+seed = "ledger-v1"
+instances = 10 # i01..i10; an instance has the same ledgers in every condition
+items = ["bolt", "clamp", "gasket", "hinge", "valve"]
+warehouses = ["A", "B", "C"]
+rows_per_ledger = 12 # a row is {"item": <one of items>, "qty": <1..99>}
+# With 2, an answer from one ledger is wrong for every item. An answer from two ledgers is still right
+# for an item that the third ledger does not hold. With 3, every item needs all three ledgers.
+min_ledgers_per_item = 2
+
+# Credit is shared. The verifier writes `reward` and the diagnostics below, and no `seat.<name>` key:
+# the answer is the team's, whichever seat sends it.
+seat_credit = false
+diagnostics = [
+  "answered",                # 1 when the team has an accepted answer
+  "messages",                # accepted POST /msg calls
+  "reporters_before_answer", # other seats that had posted a message before the answer
+  "seen_before_answer",      # other seats whose messages GET /msgs had returned to the answering seat before the answer
+  "premature",               # 1 when the team answered and seen_before_answer is below the number of other seats
+  "late_answers",            # answers refused with 409 because the team had already answered
+  "attempts",                # well-formed answers from any seat, accepted or refused with 409
+  "best_attempt",            # the highest fraction of right totals among the attempts
+  "selection_gap",           # best_attempt minus reward
+]
+
+# template/policies/<name>.sh. `oracle` is the best legal play and becomes solution/solve.sh.
+# `eager` (answers at once) and `silent` (tells nobody) are legal failures. `spoof` is the exploit attempt.
+policies = ["eager", "oracle", "silent", "spoof"]
+exploits = ["spoof"]
+
+# A condition names its seats in order, says whether the message channel exists, and gives the
+# warehouses each seat can read. All seats are under test.
+[conditions.solo] # one seat holds everything: the control for the arithmetic
+seats = ["p1"]
+channel = false
+holds = { p1 = ["A", "B", "C"] }
+
+[conditions.indep-3] # three seats, no message channel: pooling is impossible, this is the floor
+seats = ["p1", "p2", "p3"]
+channel = false
+holds = { p1 = ["A"], p2 = ["B"], p3 = ["C"] }
+
+[conditions.team-3] # three seats and the message channel POST /msg, GET /msgs
+seats = ["p1", "p2", "p3"]
+channel = true
+holds = { p1 = ["A"], p2 = ["B"], p3 = ["C"] }
+
+# Reference scores: the reward of every instance when every seat plays oracle. The generator plays the
+# oracle for each instance, condition and seat start order, writes the value into task.toml as
+# metadata.oracle_reward, and refuses a draw of ledgers that gives another value.
+[reference]
+solo = 1.0
+indep-3 = 0.0
+team-3 = 1.0
+
+# Every way one seat can observe something that another seat caused. The world is the only path between
+# seats: the kit gives each seat its own internal network with main, so a seat reaches the world and
+# nothing else. A condition without the message channel must carry no ledger data between seats, so
+# these lists are the audit of the design. tests/test_ledger.py checks them against the replies of the
+# world: one seat asks every route the same questions before and after the play of the other seats.
+[shared_observables]
+solo = []
+indep-3 = [
+  "GET /status: `answered` turns from false to true when the answer of another seat is accepted (1 bit, and its time)",
+  "POST /answer: a well-formed answer gets 409 `already answered` after the answer of another seat was accepted (the same bit)",
+]
+team-3 = [
+  "GET /msgs: the text, the sender and the order of every message",
+  "POST /msg: the `id` in the reply is the number of messages that all seats have posted",
+  "GET /status: `answered` turns from false to true when the answer of another seat is accepted (1 bit, and its time)",
+  "POST /answer: a well-formed answer gets 409 `already answered` after the answer of another seat was accepted (the same bit)",
+]
+# What the world shows to no other seat, in every condition.
+closed = [
+  "the accepted answer: only the reply to the answering seat holds the totals and the name of that seat; /status and the 409 reply hold neither",
+  "the ledger of another warehouse: GET /ledger is the only reply with rows, and the token alone selects them",
+  "the requests of another seat: the event log stays in main, and no reply holds a count of events",
+]
+# What the world cannot close.
+open = [
+  "time: the world serves one request at a time, so a reply can come a little later while the world serves another seat",
+]

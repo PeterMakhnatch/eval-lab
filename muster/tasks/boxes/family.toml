@@ -1,0 +1,107 @@
+# The boxes family. tasks/boxes/generate.py builds the tasks from this file and from template/.
+
+name = "boxes"
+description = """
+60 boxes stand in 6 rooms of 10. 2 of the rooms are treasure rooms: every box in them holds a flag. \
+A seat can open 9 boxes, sees only its own opens, and learns what a room holds from one open in it. \
+The team reward is the number of distinct flag boxes opened, divided by 20. \
+The conditions keep the world and change the team: 1 seat (solo), 3 seats that cannot talk (indep-3), \
+3 seats with a message channel (team-3), and 1 seat with the budget of 3 (solo-x3). \
+indep-3 against solo shows what more agents add. team-3 against indep-3 shows what coordination adds. \
+One treasure room holds more flags than one seat can open, so agents that play alike open the same boxes. \
+indep-3-salt is indep-3 with a different number in each seat's instruction: it shows whether a difference \
+between agents that are alike can do the work of a channel.\
+"""
+seed = "boxes-v1"
+instances = 10
+
+# One table per condition. `budget` is the number of successful opens of each seat.
+# `shared_observables` lists every route whose answer to one seat can depend on what another seat did.
+# The list is empty when no answer does. tests/test_boxes.py proves each list against the real world
+# class: one seat asks every route the same questions with and without the play of the other seats.
+# The world is the only path between seats: the kit gives each seat its own internal network with main.
+
+[conditions.solo]
+seats = ["p1"]
+budget = 9
+channel = false
+shared_observables = []
+
+[conditions.indep-3]
+seats = ["p1", "p2", "p3"]
+budget = 9
+channel = false
+shared_observables = []
+
+# indep-3 with one more line at the end of each instruction: "Your random number is NNNN."
+# The 3 seats of an instance get 3 different numbers. Nothing else differs from indep-3.
+[conditions.indep-3-salt]
+seats = ["p1", "p2", "p3"]
+budget = 9
+channel = false
+salt = true
+shared_observables = []
+
+[conditions.team-3]
+seats = ["p1", "p2", "p3"]
+budget = 9
+channel = true
+shared_observables = ["POST /msg", "GET /msgs"]
+
+[conditions.solo-x3]
+seats = ["p1"]
+budget = 27
+channel = false
+shared_observables = []
+
+# Reference scores for the write-up: the team reward when every seat of `condition` plays `policy`,
+# as mean, min and max over the shipped instances. tasks/boxes/reference.py computes and prints
+# these tables; do not edit a number by hand (tests/test_boxes.py compares).
+
+[reference.solo_best]
+condition = "solo"
+policy = "oracle"
+note = "Best play of 1 seat that knows the rules and not the layout: walk the rooms from room 1, open one box per room until a box holds a flag, then stay in that room. Over all 15 layouts the mean is 23/60, and no play of 1 seat has a higher mean."
+mean = 0.38
+min = 0.3
+max = 0.45
+
+[reference.identical_x3]
+condition = "indep-3"
+policy = "solo"
+note = "Identical agents: 3 seats that each play the solo oracle open the same boxes. The team scores what 1 seat scores, in indep-3 and in team-3."
+mean = 0.38
+min = 0.3
+max = 0.45
+
+[reference.random_x3]
+condition = "indep-3"
+policy = "random"
+note = "3 seats that each open 9 distinct boxes in a seeded pseudo-random order (the seed is the seat token)."
+mean = 0.385
+min = 0.2
+max = 0.55
+
+[reference.tacit_convention]
+condition = "indep-3"
+policy = "oracle"
+note = "A named reference, not a proven ceiling: 3 seats that follow one rule fixed before play and never talk. Seat 1 scans the rooms upward and seat 2 downward; each stays in the first treasure room it finds. Seat 3 opens the boxes of both treasure rooms that seats 1 and 2 cannot reach with their budgets. Over all 15 layouts the mean is 299/300: the rule misses 1 flag when the treasure rooms are 5 and 6."
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.team]
+condition = "team-3"
+policy = "oracle"
+note = "3 seats with the channel: each scouts 2 rooms and reports; then they share the unopened treasure boxes."
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.solo_x3]
+condition = "solo-x3"
+policy = "oracle"
+note = "1 seat with the budget of 3: it finds and empties both treasure rooms."
+mean = 1.0
+min = 1.0
+max = 1.0

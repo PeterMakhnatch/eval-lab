@@ -1,0 +1,176 @@
+{
+ "family": "ledger",
+ "instance": "i01",
+ "condition": "indep-3",
+ "items": [
+  "bolt",
+  "clamp",
+  "gasket",
+  "hinge",
+  "valve"
+ ],
+ "channel": false,
+ "holds": {
+  "p1": [
+   "A"
+  ],
+  "p2": [
+   "B"
+  ],
+  "p3": [
+   "C"
+  ]
+ },
+ "ledgers": {
+  "A": [
+   {
+    "item": "bolt",
+    "qty": 25
+   },
+   {
+    "item": "bolt",
+    "qty": 20
+   },
+   {
+    "item": "valve",
+    "qty": 54
+   },
+   {
+    "item": "valve",
+    "qty": 62
+   },
+   {
+    "item": "valve",
+    "qty": 73
+   },
+   {
+    "item": "bolt",
+    "qty": 15
+   },
+   {
+    "item": "bolt",
+    "qty": 78
+   },
+   {
+    "item": "clamp",
+    "qty": 46
+   },
+   {
+    "item": "gasket",
+    "qty": 16
+   },
+   {
+    "item": "hinge",
+    "qty": 76
+   },
+   {
+    "item": "bolt",
+    "qty": 5
+   },
+   {
+    "item": "valve",
+    "qty": 41
+   }
+  ],
+  "B": [
+   {
+    "item": "clamp",
+    "qty": 87
+   },
+   {
+    "item": "clamp",
+    "qty": 14
+   },
+   {
+    "item": "gasket",
+    "qty": 39
+   },
+   {
+    "item": "clamp",
+    "qty": 97
+   },
+   {
+    "item": "gasket",
+    "qty": 70
+   },
+   {
+    "item": "valve",
+    "qty": 92
+   },
+   {
+    "item": "valve",
+    "qty": 6
+   },
+   {
+    "item": "gasket",
+    "qty": 40
+   },
+   {
+    "item": "hinge",
+    "qty": 11
+   },
+   {
+    "item": "valve",
+    "qty": 13
+   },
+   {
+    "item": "gasket",
+    "qty": 78
+   },
+   {
+    "item": "gasket",
+    "qty": 44
+   }
+  ],
+  "C": [
+   {
+    "item": "hinge",
+    "qty": 33
+   },
+   {
+    "item": "clamp",
+    "qty": 51
+   },
+   {
+    "item": "gasket",
+    "qty": 79
+   },
+   {
+    "item": "bolt",
+    "qty": 79
+   },
+   {
+    "item": "valve",
+    "qty": 83
+   },
+   {
+    "item": "valve",
+    "qty": 36
+   },
+   {
+    "item": "bolt",
+    "qty": 86
+   },
+   {
+    "item": "hinge",
+    "qty": 93
+   },
+   {
+    "item": "gasket",
+    "qty": 31
+   },
+   {
+    "item": "clamp",
+    "qty": 65
+   },
+   {
+    "item": "hinge",
+    "qty": 33
+   },
+   {
+    "item": "bolt",
+    "qty": 64
+   }
+  ]
+ }
+}

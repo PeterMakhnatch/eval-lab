@@ -1,0 +1,16 @@
+{
+  "family": "boxes",
+  "condition": "solo",
+  "instance": 6,
+  "seats": [
+    "p1"
+  ],
+  "budget": 9,
+  "channel": false,
+  "rooms": 6,
+  "room_size": 10,
+  "treasure_rooms": [
+    3,
+    4
+  ]
+}

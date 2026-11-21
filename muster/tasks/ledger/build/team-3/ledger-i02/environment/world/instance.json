@@ -1,0 +1,176 @@
+{
+ "family": "ledger",
+ "instance": "i02",
+ "condition": "team-3",
+ "items": [
+  "bolt",
+  "clamp",
+  "gasket",
+  "hinge",
+  "valve"
+ ],
+ "channel": true,
+ "holds": {
+  "p1": [
+   "A"
+  ],
+  "p2": [
+   "B"
+  ],
+  "p3": [
+   "C"
+  ]
+ },
+ "ledgers": {
+  "A": [
+   {
+    "item": "hinge",
+    "qty": 46
+   },
+   {
+    "item": "bolt",
+    "qty": 70
+   },
+   {
+    "item": "hinge",
+    "qty": 97
+   },
+   {
+    "item": "gasket",
+    "qty": 68
+   },
+   {
+    "item": "clamp",
+    "qty": 71
+   },
+   {
+    "item": "hinge",
+    "qty": 9
+   },
+   {
+    "item": "valve",
+    "qty": 81
+   },
+   {
+    "item": "bolt",
+    "qty": 65
+   },
+   {
+    "item": "valve",
+    "qty": 51
+   },
+   {
+    "item": "clamp",
+    "qty": 41
+   },
+   {
+    "item": "valve",
+    "qty": 16
+   },
+   {
+    "item": "hinge",
+    "qty": 18
+   }
+  ],
+  "B": [
+   {
+    "item": "gasket",
+    "qty": 37
+   },
+   {
+    "item": "clamp",
+    "qty": 19
+   },
+   {
+    "item": "valve",
+    "qty": 20
+   },
+   {
+    "item": "clamp",
+    "qty": 53
+   },
+   {
+    "item": "hinge",
+    "qty": 64
+   },
+   {
+    "item": "clamp",
+    "qty": 41
+   },
+   {
+    "item": "valve",
+    "qty": 32
+   },
+   {
+    "item": "bolt",
+    "qty": 31
+   },
+   {
+    "item": "clamp",
+    "qty": 36
+   },
+   {
+    "item": "valve",
+    "qty": 89
+   },
+   {
+    "item": "valve",
+    "qty": 22
+   },
+   {
+    "item": "hinge",
+    "qty": 25
+   }
+  ],
+  "C": [
+   {
+    "item": "hinge",
+    "qty": 59
+   },
+   {
+    "item": "bolt",
+    "qty": 81
+   },
+   {
+    "item": "hinge",
+    "qty": 5
+   },
+   {
+    "item": "bolt",
+    "qty": 83
+   },
+   {
+    "item": "clamp",
+    "qty": 37
+   },
+   {
+    "item": "gasket",
+    "qty": 83
+   },
+   {
+    "item": "hinge",
+    "qty": 28
+   },
+   {
+    "item": "bolt",
+    "qty": 85
+   },
+   {
+    "item": "valve",
+    "qty": 68
+   },
+   {
+    "item": "clamp",
+    "qty": 88
+   },
+   {
+    "item": "valve",
+    "qty": 82
+   },
+   {
+    "item": "bolt",
+    "qty": 21
+   }
+  ]
+ }
+}

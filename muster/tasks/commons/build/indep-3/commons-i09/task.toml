@@ -1,0 +1,32 @@
+schema_version = "1.4"
+artifacts = ["/logs/world/events.jsonl"]
+
+[task]
+name = "muster/commons-i09"
+description = "Commons: 3 seats share a pool of 48 units and each makes one sealed take of 0 to 32; an overdraw gives every seat 0. Condition indep-3."
+keywords = ["seats", "multi-agent", "muster"]
+
+[metadata]
+family = "commons"
+condition = "indep-3"
+instance = "i09"
+pool = 48
+cap = 32
+oracle_reward = 1.0
+legal_strategies = ["greedy", "modest"]
+exploits = ["spoof"]
+
+[verifier]
+timeout_sec = 120.0
+
+[agent]
+timeout_sec = 600.0
+
+[environment]
+build_timeout_sec = 600.0
+
+[agents.p1]
+
+[agents.p2]
+
+[agents.p3]

@@ -1,0 +1,20 @@
+{
+  "family": "crowdrules",
+  "condition": "zones-4",
+  "instance": 5,
+  "seats": [
+    "p1",
+    "p2",
+    "p3",
+    "p4"
+  ],
+  "budget": 6,
+  "channel": true,
+  "rule": "zones",
+  "rooms": 6,
+  "room_size": 10,
+  "treasure_rooms": [
+    3,
+    6
+  ]
+}

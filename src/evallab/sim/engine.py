@@ -156,6 +156,7 @@ def run(seed: int) -> RunResult:
     from evallab.sim.mutation import MutationSimulation
     from evallab.sim.protected import ProtectedPathSimulation
     from evallab.sim.rewards import RewardSimulation
+    from evallab.sim.rigor import RigorSimulation
     from evallab.sim.verifier import VerifierSimulation
 
     sim = Simulation(seed)
@@ -182,6 +183,8 @@ def run(seed: int) -> RunResult:
             VerifierSimulation(sim, root / "verifier").run()
             sim.subsystem = "package-anatomy"
             AnatomySimulation(sim, root / "anatomy").run()
+            sim.subsystem = "test-suite-rigor"
+            RigorSimulation(sim, root / "rigor").run()
         except InvariantViolation as exc:
             failure = exc
         except (Exception, ProcessCrash) as exc:

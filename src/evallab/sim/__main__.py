@@ -17,6 +17,7 @@ from evallab.sim.engine import InvariantViolation, run
 
 REGRESSIONS = Path(__file__).with_name("regressions.json")
 _FIXED_SEEDS = range(64)
+_STEP_BUDGET = 160
 
 
 class FailureKey(TypedDict):
@@ -68,6 +69,33 @@ def record(failure: InvariantViolation) -> None:
             path.unlink(missing_ok=True)
 
 
+def max_steps(trace: bytes) -> dict[str, int]:
+    steps: dict[str, int] = {}
+    for line in trace.splitlines():
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(row, dict):
+            continue
+        step = row.get("step")
+        subsystem = row.get("subsystem")
+        if isinstance(step, int) and isinstance(subsystem, str):
+            steps[subsystem] = max(steps.get(subsystem, 0), step)
+    return steps
+
+
+def merge_steps(total: dict[str, int], seed: dict[str, int]) -> None:
+    for subsystem, step in seed.items():
+        total[subsystem] = max(total.get(subsystem, 0), step)
+
+
+def steps_line(steps: dict[str, int]) -> str:
+    overall = max(steps.values(), default=0)
+    listed = ", ".join(f"{subsystem}={step}" for subsystem, step in steps.items())
+    return f"Steps: {listed}. Overall: {overall}/{_STEP_BUDGET}."
+
+
 def check() -> int:
     rows = regressions()
     seeds = list(dict.fromkeys([*(row["seed"] for row in rows), *_FIXED_SEEDS]))
@@ -75,10 +103,12 @@ def check() -> int:
     checks = 0
     identical = 0
     failed = False
+    steps: dict[str, int] = {}
     for seed in seeds:
         first = run(seed)
         second = run(seed)
         checks += first.checks + second.checks
+        merge_steps(steps, max_steps(first.trace))
         digest = first.digest
         suite_digest.update(bytes.fromhex(digest))
         if digest != second.digest or first.trace != second.trace:
@@ -100,6 +130,7 @@ def check() -> int:
     print(
         f"Determinism hash match: {identical}/{len(seeds)}. Suite SHA-256: {suite_digest.hexdigest()}"
     )
+    print(steps_line(steps))
     return int(failed)
 
 
@@ -128,6 +159,7 @@ def replay(seed: int, trace: bool) -> int:
         f"Seed: {seed}. Invariants checked: {result.checks}. Trace SHA-256: {result.digest}",
         file=sys.stderr if trace else sys.stdout,
     )
+    print(steps_line(max_steps(result.trace)), file=sys.stderr if trace else sys.stdout)
     if result.failure is not None:
         print(f"Failure: {result.failure}", file=sys.stderr)
         return 1

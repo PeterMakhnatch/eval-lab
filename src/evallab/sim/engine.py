@@ -147,6 +147,7 @@ def run(seed: int) -> RunResult:
     from evallab.sim.execution import ExecutionSimulation
     from evallab.sim.leases import LeaseSimulation
     from evallab.sim.lint import LintSimulation
+    from evallab.sim.rewards import RewardSimulation
 
     sim = Simulation(seed)
     failure = None
@@ -158,6 +159,8 @@ def run(seed: int) -> RunResult:
             ExecutionSimulation(sim, root).run()
             sim.subsystem = "task-lint"
             LintSimulation(sim, root / "packages").run()
+            sim.subsystem = "reward-readers"
+            RewardSimulation(sim, root / "rewards").run()
         except InvariantViolation as exc:
             failure = exc
         except (Exception, ProcessCrash) as exc:

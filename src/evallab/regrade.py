@@ -364,7 +364,10 @@ def _reward_mapping(result: Mapping[str, Any]) -> dict[str, float] | None:
     for key, value in rewards.items():
         if isinstance(value, bool) or not isinstance(value, int | float):
             continue
-        numeric[str(key)] = float(value)
+        reward = float(value)
+        if not math.isfinite(reward):
+            continue
+        numeric[str(key)] = reward
     return numeric or None
 
 

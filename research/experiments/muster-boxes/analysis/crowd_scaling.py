@@ -27,9 +27,14 @@ SLOPE_KS = (2, 3, 4, 8)
 MIN_SLOPE_KS = 3
 SLOPE_KINDS = (("team", "primary"), ("claim", "secondary"), ("indep", "secondary"))
 MARGIN_KS = ((8, "primary"), (2, "secondary"), (3, "secondary"), (4, "secondary"))
-LABEL = re.compile(r"(solo|indep|team|claim|scout)-([1-9][0-9]*)")
+RULE_KINDS = ("zones", "share", "chief")
+RULE_PAIRS = (("zones", "share"), ("zones", "chief"), ("share", "chief"))
+HOLM_FAMILY = len(RULE_KINDS)
+RULE_PRIMARY_K = 8
+PLANNED_INSTANCES = 10
+LABEL = re.compile(r"(solo|indep|team|claim|scout|share|chief|zones)-([1-9][0-9]*)")
 NUMBER = re.compile(r"(?<![A-Za-z0-9_])[0-9]+(?![A-Za-z0-9_])")
-CHANNEL_KINDS = ("team", "claim", "scout")
+CHANNEL_KINDS = ("team", "claim", "scout", *RULE_KINDS)
 E6_SETS = (("team", "primary"), ("scout", "secondary"))
 FIELD_KEYS = (
     "flags_per_open",
@@ -75,7 +80,7 @@ def parse_arm(text: str, total: int | None, per_seat: int | None) -> dict:
     label, sep, path = text.partition("=")
     match = LABEL.fullmatch(label)
     assert sep and match and path, (
-        f"--arm wants LABEL=JOB_DIR, LABEL solo|indep|team|claim|scout-N: {text}"
+        f"--arm wants LABEL=JOB_DIR, LABEL solo|indep|team|claim|scout|share|chief|zones-N: {text}"
     )
     kind, n = match.group(1), int(match.group(2))
     assert (total is None) != (per_seat is None)
@@ -589,11 +594,13 @@ def slope_test(kind: str, role: str, means: dict[str, dict[str, float]]) -> dict
     }
 
 
-def margin_test(k: int, role: str, means: dict, total: int, margin: float) -> dict | None:
-    a, b = f"solo-{total}", f"claim-{k}"
+def margin_test(
+    k: int, role: str, means: dict, total: int, margin: float, kind: str
+) -> dict | None:
+    a, b = f"solo-{total}", f"{kind}-{k}"
     if a not in means or b not in means:
         return None
-    found = contrast(a, b, "split cost, claim", means)
+    found = contrast(a, b, f"split cost, {kind}", means)
     edge = 100.0 * margin
     verdict = "inconclusive"
     verdict = "pass" if found["hi"] < edge else verdict
@@ -663,6 +670,101 @@ def load_arms(arms: list[dict], cfg: dict) -> tuple[list[dict], dict, dict]:
     return summaries, rows_by, means
 
 
+def arm_status(label: str, rows: list[dict], planned: int) -> dict:
+    scored = [r for r in rows if r["reward"] is not None]
+    instances = len({r["instance"] for r in scored})
+    complete = len(scored) >= planned and instances >= PLANNED_INSTANCES
+    return {
+        "label": label,
+        "scored": len(scored),
+        "instances": instances,
+        "status": "complete" if complete else "incomplete",
+    }
+
+
+def unavailable(a: str, b: str, question: str) -> dict:
+    keys = ("instances", "diff_pts", "lo", "hi", "p_sign_flip")
+    return {"contrast": f"{a} - {b}", "question": question, **dict.fromkeys(keys)}
+
+
+def rule_contrast(a: str, b: str, question: str, means: dict, status: dict) -> dict | None:
+    if a not in means or b not in means:
+        return None
+    if status[a]["status"] != "complete" or status[b]["status"] != "complete":
+        return unavailable(a, b, question) | {"verdict": "not available"}
+    return contrast(a, b, question, means)
+
+
+def holm(found: list[dict]) -> list[dict]:
+    assert len(found) <= HOLM_FAMILY, len(found)
+    tested = sorted(
+        (c for c in found if c["p_sign_flip"] is not None), key=lambda c: c["p_sign_flip"]
+    )
+    passing = True
+    decided = {}
+    for c in tested:
+        place = next(i for i, d in enumerate(tested) if d["p_sign_flip"] == c["p_sign_flip"])
+        threshold = P_PASS / (HOLM_FAMILY - place)
+        passing = passing and c["p_sign_flip"] <= threshold
+        verdict = resolved(c, "helps", "hurts", "not resolved") if passing else "not resolved"
+        decided[c["contrast"]] = {
+            "holm_threshold": threshold,
+            "holm": "pass" if passing else "fail",
+            "verdict": verdict,
+        }
+    blank = {"holm_threshold": None, "holm": None}
+    return [c | decided.get(c["contrast"], blank) for c in found]
+
+
+def rule_margin(kind: str, k: int, means: dict, status: dict, cfg: dict) -> dict | None:
+    a, b = f"solo-{cfg['total']}", f"{kind}-{k}"
+    found = rule_contrast(a, b, f"split cost, {kind}", means, status)
+    extra = {"k": k, "role": "secondary", "margin_pts": 100.0 * cfg["margin"]}
+    if found is None or found["p_sign_flip"] is None:
+        return found if found is None else found | extra
+    return margin_test(k, "secondary", means, cfg["total"], cfg["margin"], kind) | extra
+
+
+def rule_pair(a: str, b: str, k: int, means: dict, status: dict) -> dict | None:
+    found = rule_contrast(f"{a}-{k}", f"{b}-{k}", "between rules", means, status)
+    if found is None:
+        return None
+    extra = {"k": k, "role": "secondary", "correction": "none"}
+    if found["p_sign_flip"] is None:
+        return found | extra
+    return (
+        found | extra | {"verdict": resolved(found, f"{a} higher", f"{b} higher", "not resolved")}
+    )
+
+
+def rule_block(arms: list[dict], rows_by: dict, means: dict, cfg: dict) -> dict:
+    planned = cfg["planned_trials"]
+    status = {label: arm_status(label, rows, planned) for label, rows in rows_by.items()}
+    versus, margins, pairs = [], [], []
+    for k in sorted({a["n"] for a in arms if a["kind"] == "team"}):
+        role = "primary" if k == RULE_PRIMARY_K else "secondary"
+        found = [
+            rule_contrast(f"{r}-{k}", f"team-{k}", f"rule {r}", means, status) for r in RULE_KINDS
+        ]
+        versus += holm([c | {"k": k, "role": role} for c in found if c is not None])
+        margins += [rule_margin(r, k, means, status, cfg) for r in RULE_KINDS]
+        pairs += [rule_pair(a, b, k, means, status) for a, b in RULE_PAIRS]
+    return {
+        "settings": {
+            "planned_trials": planned,
+            "planned_instances": PLANNED_INSTANCES,
+            "holm_family_size": HOLM_FAMILY,
+            "alpha": P_PASS,
+            "primary_k": RULE_PRIMARY_K,
+            "margin_pts": 100.0 * cfg["margin"],
+        },
+        "arms": [status[a["label"]] for a in arms],
+        "versus_team": versus,
+        "margin": [m for m in margins if m is not None],
+        "pairwise": [p for p in pairs if p is not None],
+    }
+
+
 def analyze(arms: list[dict], cfg: dict) -> dict:
     if cfg["per_seat"] is not None:
         return analyze_per_seat(arms, cfg)
@@ -672,9 +774,9 @@ def analyze(arms: list[dict], cfg: dict) -> dict:
     means |= {f"union-{u['k']}": u["instance_rewards"] for u in pooled if u["instance_rewards"]}
     ks = sorted({a["n"] for a in arms if a["kind"] != "solo"})
     slopes = [slope_test(kind, role, means) for kind, role in SLOPE_KINDS]
-    margins = [margin_test(k, role, means, total, cfg["margin"]) for k, role in MARGIN_KS]
+    margins = [margin_test(k, role, means, total, cfg["margin"], "claim") for k, role in MARGIN_KS]
     base_ks = sorted({1, *ks}) if f"solo-{total}" in means else ks
-    return {
+    report = {
         "settings": {key: cfg[key] for key in ("total", "boxes", "flags", "cap", "margin")}
         | {"missing_as_zero": cfg["missing_as_zero"]},
         "arms": summaries,
@@ -684,6 +786,9 @@ def analyze(arms: list[dict], cfg: dict) -> dict:
         "contrasts": contrasts(means, ks, total),
         "baselines": baselines(base_ks, total, cfg["boxes"]),
     }
+    if any(a["kind"] in RULE_KINDS for a in arms):
+        report["rules"] = rule_block(arms, rows_by, means, cfg)
+    return report
 
 
 def resolved(found: dict, above: str, below: str, neither: str) -> str:
@@ -944,7 +1049,53 @@ def render(report: dict) -> str:
     base_cols += (("identRepeats", "identical_repeats", 0),)
     title = f"BASELINES (n={s['boxes']} boxes, total {s['total']} opens)"
     parts.append(spec_table(title, report["baselines"], "k", base_cols))
+    if "rules" in report:
+        parts += render_rules(report["rules"])
     return "\n\n".join(parts)
+
+
+def render_rules(block: dict) -> list[str]:
+    s = block["settings"]
+    planned, inst = s["planned_trials"], s["planned_instances"]
+    alpha, family = s["alpha"], s["holm_family_size"]
+    arm_cols = (("scored", "scored", 0), ("inst", "instances", 0), ("status", "status", 0))
+    lead = (("k", "k", 0), ("role", "role", 0), ("inst", "instances", 0))
+    lead += (("diffPts", "diff_pts", 1), ("lo95", "lo", 1), ("hi95", "hi", 1))
+    lead += (("pSignFlip", "p_sign_flip", 4),)
+    versus_cols = lead + (("holmThreshold", "holm_threshold", 4), ("holm", "holm", 0))
+    versus_cols += (("verdict", "verdict", 0),)
+    margin_cols = lead + (("marginPts", "margin_pts", 1), ("verdict", "verdict", 0))
+    pair_cols = lead + (("correction", "correction", 0), ("verdict", "verdict", 0))
+    return [
+        spec_table(
+            f"RULES: arms (complete: >= {planned} trials with a reward and >= {inst} instances;"
+            " contrasts of an incomplete arm are not available)",
+            block["arms"],
+            "label",
+            arm_cols,
+        ),
+        spec_table(
+            f"RULES: rule-k - team-k, Holm step-down at each k (family size {family}, fixed even"
+            f" when an arm is missing; alpha {alpha}; p <= threshold; helps/hurts need a Holm pass"
+            f" and a 95% interval on one side of 0; primary at k = {s['primary_k']})",
+            block["versus_team"],
+            "contrast",
+            versus_cols,
+        ),
+        spec_table(
+            f"RULES: d = solo-T - rule-k, secondary (pass: hi95 < margin; fail: lo95 > margin;"
+            f" margin {s['margin_pts']:.1f} pts)",
+            block["margin"],
+            "contrast",
+            margin_cols,
+        ),
+        spec_table(
+            "RULES: pairwise between rules at each k, secondary, no correction",
+            block["pairwise"],
+            "contrast",
+            pair_cols,
+        ),
+    ]
 
 
 def render_field(arms: list[dict]) -> str:
@@ -1018,6 +1169,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--margin", type=float, default=0.05)
     parser.add_argument("--missing-as-zero", action="store_true")
     parser.add_argument("--reference", metavar="JSON_OR_FAMILY_TOML")
+    parser.add_argument("--planned-trials", type=int, default=20)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
     per_seat = args.per_seat_budget
@@ -1025,6 +1177,7 @@ def main(argv: list[str]) -> int:
     assert 0 < (per_seat or total) < args.boxes and 0 < args.flags <= args.boxes
     assert args.boxes % args.room_size == 0 and args.flags % args.room_size == 0
     assert args.turn_cap > 0 and 0.0 <= args.margin < 1.0
+    assert 0 < args.planned_trials <= MAX_TRIALS
     assert 0 < len(args.arm) <= MAX_ARMS
     arms = [parse_arm(text, total, per_seat) for text in args.arm]
     assert len({a["label"] for a in arms}) == len(arms), "arm labels repeat"
@@ -1038,6 +1191,7 @@ def main(argv: list[str]) -> int:
         "cap": args.turn_cap,
         "margin": args.margin,
         "missing_as_zero": args.missing_as_zero,
+        "planned_trials": args.planned_trials,
         "reference": load_reference(args.reference),
     }
     report = analyze(arms, cfg)

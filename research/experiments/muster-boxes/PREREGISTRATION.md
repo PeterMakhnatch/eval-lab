@@ -326,7 +326,7 @@ world and adds the missing control. Design evidence:
 - OBSERVED: from 20:38Z, new Daytona trials failed before any seat started: `docker compose build` got
   `429 Too Many Requests` from Docker Hub for `python:3.13-slim`. 111 E5 trials failed that way (no model call,
   no reward): `claim-2` 20, `solo-8` 30, `claim-4` 16, `indep-2` 16, `indep-3` 13, `indep-4` 9, `solo-12` 7.
-  (Corrected at 4:15 PM ET: the first text said 131 and 20:34Z. 131 was an addition error; 20:38Z is the start
+  (Corrected at 4:09 PM ET: the first text said 131 and 20:34Z. 131 was an addition error; 20:38Z is the start
   time of the first failed trial. The counts for each arm did not change.)
   The arms of both primary tests were complete before that (`solo-24`, `team-2/3/4/8`, `claim-8`, 20 trials
   each), and so was `indep-8`.

@@ -12,7 +12,36 @@ Times are New York time (ET). Newest entry first. Each entry says what is done a
 
 ## 2026-11-23
 
-**4:15 PM. The OpenRouter account is empty. E5 and E6 stop here until credits are added. F19, F20, F21.**
+**4:31 PM. Independent audit of F19 to F21, and the corrections. Fork sync table.**
+- A worker that did not run E5 recomputed the results with its own code (no import of `crowd_scaling.py`,
+  other bootstrap seeds): every arm mean, the budget split, messages, costs, both primary tests, the
+  contrasts, `union-2` and the missing-as-zero check match; every interval end is within 0.25 points. The
+  reward equals `reward.json` in 200 of 200 trials, and no seat opened more than its budget. Thinking is off
+  in all 817 seats, and every seat is pinned to `deepinfra/fp8` without fallback. The `team-k` instruction
+  texts differ only in the numbers. No primary verdict changed.
+- The audit found errors in my text, now corrected in `FINDINGS.md` and `RESULTS.md`:
+  - Wrong numbers: the F19 heading said $2.64 (it is $2.68); "160 seats at once" (the peak was 96 seats in 20
+    trials); the Daytona latency sentence compared an agent phase with a whole local trial (115 s against
+    43 s is right); "286 trials started" at 3:52 PM (290); the `solo-12` cost was missing ($0.0035).
+  - Overclaims: "8 random agents would repeat 3.8 opens, the team more than twice that" used the wrong
+    chance level (random choice among the 20 flag boxes repeats about 9.5); "all the growth is in later
+    repeats" ignored that round 1 gets shorter as k grows (the repeat rate in round 1 doubles); "a free
+    channel recovers about half" (it is 28.5 of 74.2 points); 2 sentences compared E5 with F11 and F14, which
+    E5 cannot support without an anchor; "a rule must give each box 1 owner" (no such rule was tested).
+  - Deviations that I had not disclosed: 5 lanes (20 trials at once, not 8); the order of Amendment 7a was
+    not kept inside the lanes; the order of Amendment 9 was not kept (both groups ran at once, so the last
+    credits went to `indep-2` reruns and not to `solo-8`, `solo-6`, `solo-3`); Amendment 9 was written after
+    the primary results were seen. F19 now lists them.
+  - A bug on `main`: `crowd_messages.py` called `parse_arm` with the old signature and did not run after the
+    per-seat mode landed. Fixed in this commit; its output for E5 is in `muster-runs/e5/analysis/e5-messages.txt`.
+- Lesson for the next experiment: run the audit before the results land, not after.
+- Fork: a worker ran a trial merge of all 84 open pull requests into upstream head `711ca65a`, read-only
+  (`research-context/multi-agent/olam-labs/2026-11-23-fork-main-sync-impact.md`). `main` can fast-forward. Of
+  the 33 pull requests against `main`, 16 are clean, 6 conflict only in changelog text, 7 have code conflicts,
+  3 are partly superseded and 1 is superseded. Upstream's change of the upload code is the main cost. 1 clean
+  merge fails a test, so "clean" is not "safe". The decision to sync is Peter's.
+
+**4:09 PM. The OpenRouter account is empty. E5 and E6 stop here until credits are added. F19, F20, F21.**
 - OBSERVED: the account held $0.16 at 4:04 PM. The last 2 `indep-2` reruns failed with "This request would
   exceed your available credits". My lane spent $2.99 of the $23.19 that the account held at 2:25 PM.
 - E5 final count: 313 trials started, 200 with a reward, 111 failed at the pull limit, 2 at the empty account.
@@ -46,8 +75,13 @@ Times are New York time (ET). Newest entry first. Each entry says what is done a
 - Next experiment after E6 (E7, not registered): rules that give each box 1 owner at 8 seats without a
   message for each box: a fixed share by seat name, 1 agent that assigns, and a claim that the world enforces
   and that expires (the last one belongs to the lane that builds server-side claims).
+- Fork, after the entry above: #99 (draft, base `mirror/olam-main-711ca65a`) adds a `registry_mirrors` option
+  to the Daytona DinD environment. It writes `/etc/docker/daemon.json` before `dockerd` starts, merges an
+  existing file, and refuses URLs with credentials. With `dind_snapshot` it warns that resource overrides do
+  not size the sandbox and logs the real size. 32 new unit tests pass. A live sandbox lists the mirror in
+  `docker info`. Docker Hub did not rate-limit any more at 21:07Z, so the control did not fail.
 
-**3:52 PM. E5 primary arms done ($2.54, 286 trials started). Docker Hub pull limit on Daytona, fixed.**
+**3:52 PM. E5 primary arms done ($2.54, 290 trials started). Docker Hub pull limit on Daytona, fixed.**
 - Result of the complete arms (20 trials each, 0 exceptions, 140 of 140 rewards replay with `muster regrade`
   against the clean landed `crowd` tree): `solo-24` 100.0%, `team-2` 84.0%, `team-3` 79.2%, `team-4` 69.2%,
   `team-8` 54.2%, `claim-8` 73.5%, `indep-8` 25.8%.

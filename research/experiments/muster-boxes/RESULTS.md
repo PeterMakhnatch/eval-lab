@@ -16,8 +16,9 @@ old muster repository: `docs/` and `experiments/` are now this folder, `tasks/` 
   agent that holds all facts. Every team waited for both reports before it answered. So the team's losses in
   `boxes` come from acting on a shared resource at the same time, not from passing information.
 - More agents make it worse (E5, 2026-11-23). With 24 opens in total, 1 agent scores 100%, a talking team of 2
-  84%, of 3 79%, of 4 69% and of 8 54%: 15 points lost for each doubling. The post-first rule that closed the
-  gap at 3 agents leaves 8 agents at 74%, because their claims block boxes that nobody opens.
+  84%, of 3 79%, of 4 69% and of 8 54%: 15 points lost for each doubling. Under the post-first rule, 8 agents
+  score 73.5%, 26.5 points below 1 agent: their claims block boxes that nobody opens. E5 did not run the rule
+  at 2 or 3 agents; at 3 agents it closed the gap in F14, on another route and backend.
 - Limits: 1 harness, 1 main model, 2 synthetic tasks, 10 instances each.
 
 ## The task and the setup
@@ -161,9 +162,11 @@ is final. Score: the share of the 5 totals that are exactly right. Pre-registere
 ## E5: more seats at the same total budget (2026-11-23)
 
 `crowd`: the `boxes` world and layouts with 24 opens in total, split equally over k seats (24, 12, 8, 6 or 3
-each). Pre-registered in `PREREGISTRATION.md` (Amendments 7, 7a, 9) after an independent review of the plan.
-Seats: terminus-2 with DeepSeek V4.1 Flash through OpenRouter, thinking off. Runner: Daytona sandboxes, up to
-20 trials at once. 20 trials for each arm. Details: F19 and F20.
+each). Pre-registered in `PREREGISTRATION.md` (Amendments 7 and 7a) after an independent review of the plan;
+Amendment 9 (reruns and the order after the pull limit) was written after the primary arms were seen. Seats:
+terminus-2 with DeepSeek V4.1 Flash through OpenRouter, thinking off. Runner: Daytona sandboxes. 20 trials for
+each complete arm (`indep-2` 18). An independent audit recomputed the numbers from the event logs. Details,
+deviations and the audit: F19, F20 and `LOG.md`.
 
 | Arm | Seats x opens | Score | Repeats (of 24 opens) | Unused opens | Messages | Cost per trial |
 |---|---|---|---|---|---|---|
@@ -179,26 +182,30 @@ Seats: terminus-2 with DeepSeek V4.1 Flash through OpenRouter, thinking off. Run
   (95% interval [-20.1, -10.7], exact sign-flip p 0.002, slopes for each of the 10 layouts).
 - OBSERVED: the second primary test fails. `solo-24` minus `claim-8` is 26.5 points [20.8, 32.3], far above
   the 5-point margin. The rule still adds 19.2 points [14.0, 24.5] to the plain team of 8.
-- OBSERVED: the team of 8 repeats 8.4 of its 24 opens. 8 agents that choose boxes at random would repeat 3.8.
-  The repeats at the start of a trial do not grow with k (0.8 to 1.65). The growth is later: when a treasure
-  room is known, the agents take the lowest closed box in it, inside the 7 s before a report exists. 82% of
-  the repeats of `team-8` happen when no report of that box had reached the agent; 0 happen after it read one.
+- OBSERVED: the team of 8 repeats 8.4 of its 24 opens; 8 silent agents repeat 13.85. The count of repeats
+  before any agent saw a report stays at 0.8 to 1.65 for each trial, and most of the growth is in later
+  repeats (0.70 at 2 seats, 7.00 at 8). None of the 168 repeats of `team-8` came after the agent had read a
+  report of that box: for 82% no report existed yet, and for 18% it existed but was not read. 75% of the
+  repeats hit the lowest closed box of a room. The median repeat comes 4.2 s after the first open of the box;
+  the median report comes after 7.4 s.
 - OBSERVED: every team of 3 or more writes a plan, mostly before the first open. A team of 8 writes 5.75
   plans from 4.4 authors in a trial. An agent's first open obeys the plan it read in 84% of cases at 4 seats
   and in 59% at 8. Plans for 6 rooms leave seats 7 and 8 without a room.
 - OBSERVED: under the post-first rule, 31 of 160 agents stop with opens left. 28 of them say that every
   remaining treasure box is claimed, while 7.8 flag boxes are still closed. Only 31% of claims end in an open
   by the claimant.
-- INFERRED: the loss of F11 is not a fixed tax on teams. It grows with the number of agents that race for the
-  same next step. A written claim turns the race into a queue that blocks. To make 8 agents work, each box
-  needs 1 owner without a message for each box (a fixed share by seat name, 1 agent that assigns, or a claim
-  that the world enforces and that expires).
+- INFERRED: within E5, the loss grows with the number of agents that race for the same next step: when a
+  treasure room is known, the agents take the lowest closed box in it, inside the 7 s before a report exists.
+  A written claim turns the race into a queue that blocks. The next candidate is a rule that gives each box 1
+  owner without a message for each box (a fixed share by seat name, 1 agent that assigns, or a claim that the
+  world enforces and that expires). No such rule was tested; E7 is built for it (`LOG.md`).
 - OBSERVED, 2 seats: `team-2` 84.0%, 2 silent agents (`indep-2`) 67.5%, 1 agent with 12 opens (`solo-12`)
   45.2%, and the distinct flags of 2 separate `solo-12` runs 52.0%. The channel adds 16.5 points [5.3, 29.2]
   even at 2 seats, where best silent play can score 1.0.
 - Not done: the arms without a channel at 3 and 4 seats have 7 and 11 of 20 trials. The claim rule at 2, 3 and
-  4 seats, the single-agent arms with 3, 6 and 8 opens (for the union control) and the route anchor did not
-  run. Docker Hub's pull limit stopped them (F21), and then the shared OpenRouter account was empty.
+  4 seats, the single-agent arms with 3, 6 and 8 opens (for the union control) and the route anchor have no
+  result. Docker Hub's pull limit failed 111 trials (F21). After the fix, the last credits of the shared
+  OpenRouter account went to the reruns of `solo-12` and `indep-2`, and then the account was empty.
 - E6 `field` (agents added to a fixed large world of 240 boxes, 9 opens for each agent, with the single agent
   that has the whole budget as control) is pre-registered as Amendment 8. Its family, its analysis and its
   pilot exist. 1 of 13 scored arms is complete: 1 agent with 72 opens scores 70.5%, which is 93.5% of best
@@ -218,9 +225,10 @@ Seats: terminus-2 with DeepSeek V4.1 Flash through OpenRouter, thinking off. Run
   https://benchmarks.bespokelabs.ai/multi-agent-coordination-bench/ (local copy:
   `research-context/multi-agent/sources/posts/2026-11-18-multi-agent-coordination-bench.md`)
   E5 adds the control that the benchmark lacks, a fixed total budget: there the team of 8 scores 54% against
-  100% for 1 agent, and talking adds 28.5 points over 8 silent agents. On MAC Bench at 8 agents, talking
-  teams beat silent teams by +0.046 and lose to the best of 8 single runs by 0.039 (recomputed from the page
-  data in `research-context/multi-agent/2026-11-23-agent-count-scaling-designs-and-evidence.md`).
+  100% for 1 agent, and talking adds 28.5 points over 8 silent agents. On MAC Bench at 8 agents, on the 3
+  tasks that have a silent team (9 task and model cells), talking teams beat silent teams by +0.046; on the
+  27 cells with a best-of-8 control they lose by 0.039 (recomputed from the page data in
+  `research-context/multi-agent/2026-11-23-agent-count-scaling-designs-and-evidence.md`).
 - "Test-Time Compute Scales Better with Parallel Agent Teams" (Duke, Modal, Princeton, NYU, 2026-11) reports
   the other direction on long tasks. At equal cost, 1 agent that works 12 hours scores 52.7 and a team of 2
   that works 6 hours each scores about 5.4 points above 1 agent at 6 hours (Graph Node Classification).
@@ -249,6 +257,10 @@ Seats: terminus-2 with DeepSeek V4.1 Flash through OpenRouter, thinking off. Run
   sandboxes (E5, E6).
 - **E5 is at 1 total budget (24 opens).** At 8 seats each agent has 3 opens and there are more seats than
   rooms, so the game differs in kind from 2 to 4 seats. E5 equalizes opens, not tokens or time.
+- **E5 reruns and secondary tests.** 21 of the 200 E5 trials are reruns that ran 12 to 27 minutes later
+  through another sandbox image route; 6 of the 10 `indep-2` instances have rerun trials only. The secondary
+  contrasts have no correction for their number. The message classes of F20 come from keyword rules that
+  agree with a hand check on 87% to 95% of sampled messages.
 
 ## Cost
 
@@ -269,4 +281,4 @@ Seats: terminus-2 with DeepSeek V4.1 Flash through OpenRouter, thinking off. Run
 
 Real cost until E4 is computed from tokens at DeepSeek's price for the hour of the run; Harbor records the
 peak price. From E5 the route is OpenRouter, and the recorded cost is the billed cost. E5 and E6 also used
-11.8 hours of Daytona sandbox time, about $2.00 at list price.
+11.9 hours of Daytona sandbox time, about $2.00 at list price (not checked against a bill).

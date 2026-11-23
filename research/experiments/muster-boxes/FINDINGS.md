@@ -292,13 +292,16 @@ INFERRED. The cost of split information is 0 here: the task is at the team's cei
 team's losses in `boxes` come from simultaneous action on shared boxes, not from information transfer. The team
 costs 5 times as much as `solo` for the same score.
 
-## F19. E5: at the same total budget, a talking team loses 15 points for each doubling of its size (2026-11-23, $2.64)
+## F19. E5: at the same total budget, a talking team loses 15 points for each doubling of its size (2026-11-23, $2.68)
 
-Pre-registered in `PREREGISTRATION.md` (Amendments 7, 7a and 9) before the first scored trial. Family `crowd`:
-the `boxes` world and its 10 layouts, 24 opens in total, split equally over k seats. Roster
-`t2-or-flash-deepinfra` (terminus-2, DeepSeek V4.1 Flash through OpenRouter, thinking off), at most 30 turns for
-each seat. Runner: the fork at `6aeb609e` on Daytona sandboxes (Docker inside the sandbox, 2 vCPU, 4 GiB).
-Analysis: `analysis/crowd_scaling.py`. 10 instances x 2 attempts for each arm.
+Pre-registered in `PREREGISTRATION.md` (Amendments 7 and 7a) before the first scored trial. Amendment 9 (the
+rerun rule and the order after the pull limit) was written at 3:50 PM ET, after the primary arms were done and
+seen, and before the first rerun. Family `crowd`: the `boxes` world and its 10 layouts, 24 opens in total,
+split equally over k seats. Roster `t2-or-flash-deepinfra` (terminus-2, DeepSeek V4.1 Flash through OpenRouter,
+thinking off), at most 30 turns for each seat. Runner: the fork at `6aeb609e` on Daytona sandboxes (Docker
+inside the sandbox, 2 vCPU, 4 GiB). Analysis: `analysis/crowd_scaling.py`. 10 instances x 2 attempts for each
+arm. An independent audit recomputed every number of this finding from the event logs with its own code
+(`LOG.md`, 2026-11-23).
 
 OBSERVED (the 8 complete arms, 20 trials each, 0 trial or seat exceptions; 140 of 140 rewards of the first 7
 replay with `muster regrade` against the clean landed task tree):
@@ -312,7 +315,7 @@ replay with `muster regrade` against the clean landed task tree):
 | `team-8` | 8 x 3 | 54.2% | 10.85 | 4.60 | 8.40 | 0.15 | 31.2 | $0.0178 |
 | `claim-8` | 8 x 3, claim rule | 73.5% | 14.70 | 5.45 | 1.25 | 2.60 | 78.4 | $0.0502 |
 | `indep-8` | 8 x 3, no channel | 25.8% | 5.15 | 5.00 | 13.85 | 0.00 | 0 | $0.0123 |
-| `solo-12` | 1 x 12 | 45.2% | 9.05 | 2.95 | 0.00 | 0.00 | 0 | - |
+| `solo-12` | 1 x 12 | 45.2% | 9.05 | 2.95 | 0.00 | 0.00 | 0 | $0.0035 |
 
 The 4 middle columns sum to 24 in every row (`solo-12`: 12). Best scripted play scores 1.0 in every `team-k`
 and `claim-k` arm, 0.70 in `indep-8` and 0.50 in `solo-12`.
@@ -326,10 +329,13 @@ and `claim-k` arm, 0.70 in `indep-8` and 0.50 in `solo-12`.
   k = 2, 3, 4, 8. All have sign-flip p below 0.02.
 - The channel still helps at 8 seats: `team-8 - indep-8` = 28.5 points [22.0, 35.2]. The claim rule helps too:
   `claim-8 - team-8` = 19.2 points [14.0, 24.5].
-- Repeats grow by about 1 for each added seat: 2.35, 3.45, 5.45 and 8.40 of the 24 opens. 8 agents that pick
-  boxes at random would repeat 3.8 opens. The talking team of 8 repeats more than twice that.
-- Cost: `team-8` costs 10 times as much as `solo-24` for a trial, `claim-8` 30 times. A Daytona trial took
-  108 s (`solo-24`) to 253 s (`claim-8`).
+- Repeats grow by about 1 for each added seat: 2.35, 3.45, 5.45 and 8.40 of the 24 opens (8 silent agents:
+  13.85). For scale, computed: 8 agents that pick 3 boxes each at random from all 60 would repeat 3.8 opens,
+  and 8 agents that pick at random among the 20 flag boxes would repeat about 9.5. Neither is a fair chance
+  level, so the data do not show that the team does worse than chance.
+- Cost: `team-8` costs about 11 times as much as `solo-24` for a trial, `claim-8` 30 times. A Daytona trial
+  took 108 s (`solo-24`) to 253 s (`claim-8`). 1 seat reached the 30-turn cap (in `claim-8`, after it had used
+  its 3 opens). No seat reached the 600 s time limit.
 - The pre-registered expectations: `team-2` 95% (observed 84.0%), `team-8` 70% (54.2%), `indep-8` 10% to 20%
   (25.8%), `claim-8` not a pass (it fails). I was too optimistic for every team arm.
 
@@ -341,7 +347,8 @@ More arms:
 | `indep-3` | 7 | 20 | 46.4% | incomplete |
 | `indep-4` | 11 | 20 | 42.5% | incomplete |
 | `claim-4` | 4 | 20 | 87.5% | incomplete |
-| `claim-2`, `claim-3`, `team-3-e1`, `solo-8`, `solo-6`, `solo-3` | 0 | 20 to 80 | - | not run |
+| `claim-2`, `solo-8` | 0 | 20, 30 | - | started; every trial failed at the pull limit |
+| `claim-3`, `team-3-e1`, `solo-6`, `solo-3` | 0 | 20 to 80 | - | not run |
 
 - With 2 seats: `team-2 - indep-2` = 16.5 points [5.3, 29.2] (the channel helps, although best silent play
   can score 1.0); `indep-2 - solo-12` = 22.2 points [14.7, 29.0]; `indep-2 - union-2` = 15.5 points
@@ -349,24 +356,42 @@ More arms:
   unmeasured `indep-2` trials counted as 0, these are 23.5 [12.0, 35.2], 15.2 [4.5, 25.8] and 8.5
   [-5.5, 21.8]. So "2 silent agents with different names cover more than 2 copies of 1 agent" is not robust.
 - The incomplete arms were stopped by the Docker Hub pull limit (F21) and then by an empty OpenRouter account.
-  The pre-registration says that their contrasts are not available; their numbers are for the record only
-  (for example the slope of `indep-k` over 7 layouts, -19.8 points for each doubling).
+  The pre-registration says that their contrasts are not available; their scores are for the record only.
 - E5 has no route anchor (`team-3-e1`) and no union control above 2 seats. Levels must not be compared with
   E1 to F18 (other route, other backend, 27 opens there).
 - Counting: 313 trials were started. 200 have a reward. 111 failed at the pull limit before any seat started,
   and 2 failed when the account was empty. Failed trials are unmeasured, never 0. 23 of the failed trials were
-  run again (`solo-12` 7, `indep-2` 16); 21 of the reruns have a reward and are in the table.
+  run again (`solo-12` 7, `indep-2` 16); 21 of the reruns have a reward and are in the table. The reruns ran 12
+  to 27 minutes after the first runs, through the mirror snapshot (F21). 6 of the 10 `indep-2` instances have
+  rerun trials only. Paired by instance, rerun minus first run is 0.0 points for `solo-12` (7 pairs) and +3.8
+  for `indep-2` (4 pairs).
+- Deviations from the pre-registration:
+  - Up to 20 E5 trials ran at once (5 lanes from 3:31 PM ET), not 8. Median model latency by arm was 2.4 s to
+    2.6 s and is not ordered by k.
+  - The order of Amendment 7a was not kept inside the lanes: `team-4` started before `claim-8` and `team-2`,
+    and `solo-12` (last in the order) started before `indep-2`, `indep-3`, `claim-4` and `claim-2`. So
+    `solo-12` had 13 rewards before the pull limit and `indep-2` had 4.
+  - Amendment 9 put the single-agent arms before the reruns of `indep-k`. I ran both groups at once. The last
+    credits went to the `solo-12` and `indep-2` reruns; `solo-8` was not run again, and `solo-6` and `solo-3`
+    never started.
+  - Amendment 9 moved `claim-2`, `claim-3` and `claim-4` behind E6 after the `claim-8` result was known.
+  - The task copy has untracked Python 3.12 bytecode files that the landed tree lacks (`LOG.md`, 3:10 PM).
+    Every tracked file is equal, and the images run Python 3.13.
+- The secondary contrasts have no correction for their number (Amendment 7).
 
-INFERRED. The loss that F11 found at 3 seats is not a constant tax. It grows with the number of seats when the
-work is held fixed, and it grows in the count of repeated opens. A free channel recovers about half of what
-8 silent agents lose, and a written claim rule recovers part of the rest, at 3 times the cost of the plain
-team. 1 agent stays best and cheapest on this task at every team size tested.
+INFERRED. Within E5, the loss of a talking team grows with the number of seats when the work is held fixed,
+and it grows in the count of repeated opens. A free channel recovers 28.5 of the 74.2 points that 8 silent
+agents lose (about 40%). The claim rule recovers 19.2 of the remaining 45.8 points (about 40%), at 2.8 times
+the cost of the plain team. 1 agent beats every team size tested and is the cheapest. The single steps from 2
+to 3 seats (4.8 points) and from 3 to 4 seats (10.0 points) are not resolved alone; the step from 4 to 8 seats
+is (15.0 points, [6.8, 24.2]).
 
 ## F20. Why 8 agents lose: a race for the next free box, plans that bind no one, and claims that block boxes (2026-11-23, $0)
 
-Analysis of the E5 event logs, `analysis/crowd_messages.py` (deterministic; keyword rules checked by hand on
-samples: plans 35 of 40, claims 37 of 40, empty-room messages 38 of 40). Each lost flag is a repeat, an extra
-empty box, or an unused open, counted against `solo-24`.
+Analysis of the E5 event logs, `analysis/crowd_messages.py` (the same output on each run; its message classes
+are keyword rules that agree with a hand check on 35 of 40 plans, 37 of 40 claims and 38 of 40 empty-room
+messages, so counts of plans and claims have an error of about 5% to 13%). Each lost flag is a repeat, an
+extra empty box, or an unused open, counted against `solo-24`.
 
 OBSERVED:
 
@@ -381,22 +406,31 @@ OBSERVED:
 | Median time from an open to its report | 13.2 s | 10.1 s | 8.7 s | 7.4 s | 7.1 s |
 | Messages and reads for each open | - | - | - | 1.3 and 1.3 | 3.7 and 4.3 |
 
-- The collision at the start does not grow: 0.8 to 1.65 repeats in round 1 at every k. All the growth is in
-  later repeats (0.70 to 7.00).
-- In `team-8`, 138 of 168 repeats (82%) happen when no report of that box had reached the repeater. 0 happen
-  after the repeater read a report. 73% come after both treasure rooms had an open flag, and 80% land on flag
-  boxes. The median repeat comes 4.2 s after the first open of the box; the median report comes after 7.4 s.
+- The count of repeats in round 1 stays at 0.8 to 1.65 for each trial. But round 1 holds fewer opens at larger
+  k (13.3, 6.8, 5.3 and 5.8), so the repeat rate in round 1 doubles (0.12 to 0.24 for each open). Most of the
+  growth in the count is in later repeats (0.70 to 7.00).
+- In `team-8`, none of the 168 repeats came after the repeater had read a report of that box (a post that
+  names the box, by a seat that had opened it). For 137 (82%) no report existed yet. For 31 (18%) a report
+  existed, but the repeater had not read it. 44 repeats (26%) came after the repeater had read another kind of
+  message that names the box, such as a plan or an intent. 73% of the repeats come after both treasure rooms
+  had an open flag, 80% land on flag boxes, and 75% hit the lowest closed box of the room. The median repeat
+  comes 4.2 s after the first open of the box; the median report comes after 7.4 s.
 - Every `team-3`, `team-4` and `team-8` trial has a plan, usually before the first open (at about 15 s). At 8
   seats, 4.4 authors post 5.75 plans in a trial. Plans for 6 rooms have no room for seats 7 and 8: in 107 of 142
   cases a plan keeps them in reserve or adds them to a room that another seat has.
+- The seat number becomes the room number. In `team-8`, the first box of seat p1 is box 1 in 90% of trials, of
+  p2 box 11 in 65%, of p3 box 21 in 70%, of p4 box 31 in 50%, of p5 box 41 in 60%, of p6 box 51 in 70%. Seats
+  p7 and p8 have no such box (their most frequent first box has 15% and 21%). Without a channel (`indep-8`)
+  every seat opens box 1 first in 50% to 80% of trials.
 - `claim-8`: 31 of 160 seats stop with opens left (52 opens). 28 of the 31 final texts say that every
   remaining treasure box is claimed. At that moment 7.8 flag boxes are still closed, and only 0.97 of them
   were never named in a message. A trial has 63.5 claim posts for 26 boxes; 15.4 boxes have 2 or more
   claimants and 4.9 of those are never opened. Only 31% of claims end in an open by the claimant (`team-8`:
   90% of its few claims).
-- Share of the lost points: in `team-8` (45.8 points lost) the race explains 34.5 points (75%), plan overlap
-  7.5 (16%) and extra empty boxes 6.3 (14%); the parts overlap a little. In `claim-8` (26.5 points lost): extra
-  empty boxes 10.5 (40%), unused opens 9.8 (37%), repeats 6.3 (24%).
+- Share of the lost points. In `team-8` (45.8 points lost): repeats before a report could be read 34.5 points
+  (75%), repeats that follow a plan that overlaps another seat's open 7.5 (16%), extra empty boxes 6.3 (14%);
+  `team-8` uses 0.5 more opens than `solo-24`, worth -2.5 points, so the parts sum to 45.8. In `claim-8`
+  (26.5 points lost): extra empty boxes 10.5 (40%), unused opens 9.8 (37%), repeats 6.3 (24%).
 
 Example (`team-8`, `crowd-i07__RLX8rfF`): box 2 was opened by p7 (seq 98), p3 (105), p8 (108) and p2 (112);
 p7's report came at seq 103. Example (`claim-8`, `crowd-i10__YyAX4QU`, p7's last text): "The first mention for
@@ -407,8 +441,9 @@ INFERRED. The mechanism is the race of F13 at every size, with more racers: once
 each agent takes the lowest closed box in it, inside the 7 s before a report exists. What changes in kind at 8
 seats is the plan: more seats than rooms breaks the "1 seat for each room" plan, and nobody owns the extra
 seats. The claim rule replaces the race by a queue in which every mention reserves a box for ever, so the
-queue blocks. A rule that fixes 8 agents must give each box 1 owner without a message for each box (a fixed
-share by seat name, or 1 agent that assigns), or the world must enforce a claim that expires.
+queue blocks. The next candidate is a rule that gives each box 1 owner without a message for each box (a
+fixed share by seat name, or 1 agent that assigns), or a claim that the world enforces and that expires. No
+such rule was tested here; E7 should test it.
 
 ## F21. Daytona for multi-seat trials: 20 at once work, Docker Hub's pull limit stops them, a mirror fixes it (2026-11-23, about $2.00 of sandbox time)
 
@@ -416,12 +451,14 @@ OBSERVED:
 
 - Muster trials run on Daytona with no change to tasks or to Harbor: the fork's `--env daytona` starts Docker
   inside a sandbox and builds the same compose project. 13 scripted trials equal the local reference values,
-  and a probe policy shows that seats cannot reach each other or the internet (21 checks for each seat).
-- With model seats, up to 20 trials (as many as 160 seats) ran at once. The 179 trials that started before
-  the pull limit (35.5 minutes) had 0 trial or seat exceptions. A trial with 8 seats fits in 2 vCPU and 4 GiB.
-  In 1 paired trial the agent phase took 115 s on Daytona and about 60 s on local Docker. Sandbox time: 11.8
-  hours for 353 trials, about $2.00 at list price, so $0.006 for a trial. That is as much as the model cost of
-  a small trial.
+  and a probe policy shows that seats cannot reach each other or the internet (21 checks for each seat with
+  the plain image; 20 of 20 in a later run with the mirror snapshot).
+- With model seats, up to 20 E5 trials (at most 96 seats) ran at once; with the E6 pilot, 24. The 179 trials
+  that started before the pull limit (35.5 minutes) had 0 trial or seat exceptions. A trial with 8 seats fits
+  in 2 vCPU and 4 GiB. In 1 paired trial the agent phase took 115 s on Daytona and 43 s on local Docker (the
+  whole trial 173 s and 62 s); the 2 trials made different model calls, so this is not a clean latency
+  measure. Sandbox time: 11.9 hours for 355 trials, about $2.00 at list price (not checked against a bill), so
+  $0.006 for a trial. That is as much as the model cost of a small trial.
 - From 20:38Z, 111 trials failed before any seat started: `docker compose build` got `429 Too Many Requests`
   from Docker Hub for `python:3.13-slim`. Every sandbox pulls the base image again, and the sandboxes share
   Daytona's addresses.

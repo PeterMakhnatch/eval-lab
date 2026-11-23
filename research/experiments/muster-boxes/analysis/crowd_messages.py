@@ -1315,7 +1315,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
     assert 0 < args.flags <= BOXES and args.turn_cap > 0 and 0 <= args.audit <= MAX_MESSAGES
-    arms = [parse_arm(text, args.total_budget) for text in args.arm]
+    arms = [parse_arm(text, args.total_budget, None) for text in args.arm]
     assert len({a["label"] for a in arms}) == len(arms), "arm labels repeat"
     assert all(a["seats"] > 1 for a in arms), "crowd_messages wants multi-seat arms"
     report, loaded = build(arms, args)

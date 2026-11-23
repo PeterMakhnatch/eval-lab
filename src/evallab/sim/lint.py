@@ -288,7 +288,7 @@ class LintSimulation:
         found = [
             task.relative_to(collection).as_posix()
             for task in discover_tasks(
-                [collection, collection / "beta" / "gamma", collection, collection / "alpha"]
+                [collection / "beta" / "gamma", collection, collection, collection / "alpha"]
             )
         ]
         expected = ["alpha", "beta/gamma"]

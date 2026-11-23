@@ -12,6 +12,19 @@ Times are New York time (ET). Newest entry first. Each entry says what is done a
 
 ## 2026-11-23
 
+**5:46 PM. Fork PRs #101 and #102 for the seat-count defects (drafts, base `mirror/olam-main-711ca65a`).**
+- #101: Daytona sets `COMPOSE_BAKE=false`, as the kernel Docker environment does (+1 line, 3 tests that fail
+  on head). Live at 120 seats on the 4 vCPU snapshot: the build passed in 2 of 2 trials on the branch and
+  failed in 1 control trial on upstream head (`NotFound ... no such job`). $0.07 of sandbox time.
+- #102: a test only. Upstream head already raises an error when a scripted seat exits non-zero (`f42969ac`);
+  the fork's `main` at `6aeb609e` does not. The test fails with the `6aeb609e` code.
+- OBSERVED in the proof run: 1 of the 2 branch trials at 120 seats lost 2 seats with `ConnectionResetError`
+  on 4 vCPU and scored 0.19. On head code the trial result names the seat. So the larger sandbox makes the
+  kit's listen-queue defect rare, not absent; F22 is corrected.
+- The fixed 120 s limit for `docker compose up` and the sessions that stay open are in the body of #101 with
+  their numbers, without a code change (they did not fail in a run).
+- No sandbox is left on Daytona. Snapshots: `muster-dind-mirror-v1` and `muster-dind-mirror-4c8g`.
+
 **5:43 PM. Seat-count probe (F22): 48 seats pass, 64 to 80 can give a wrong score with no error, 120 pass on a larger sandbox.**
 - A worker ran 37 scripted trials on Daytona with 8 to 120 seats (no model call, $0.37 of sandbox time at
   list price). The table is in F22. Report and run folders:

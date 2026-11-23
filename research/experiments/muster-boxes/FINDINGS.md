@@ -508,10 +508,13 @@ OBSERVED:
 - **A wrong score without an error.** In 4 of 11 trials at 64 to 80 seats on the small sandbox, 1 seat died
   with `ConnectionResetError`. `result.json` has no exception for the trial or for the seat. In 3 of the 4
   the dead seat was a scout, the other seats waited and stopped, and the reward was 0.26 to 0.30 in place of
-  1.0. The only trace is `seats/<seat>/agent/exit-code.txt`.
+  1.0. The only trace is `seats/<seat>/agent/exit-code.txt`. This is the fork at `6aeb609e`. Upstream head
+  `711ca65a` records the crash of a scripted seat in the trial result (upstream commit `f42969ac`).
 - The world server of the kit keeps the default listen queue of 5 connections. The kernel counted 0 dropped
   connections at 8 to 24 seats, 5 to 10 at 32 to 48 seats and 171 to 610 at 80 to 120 seats. On 4 vCPU, 0 of 8
-  trials at 80 to 120 seats had a seat crash. On 2 vCPU the CPU was throttled in 21% to 69% of the periods.
+  probe trials at 80 to 120 seats had a seat crash. In a later run of 2 trials at 120 seats on 4 vCPU (the
+  proof for fork PR #101), 1 trial lost 2 seats and scored 0.19. On 2 vCPU the CPU was throttled in 21% to
+  69% of the periods.
 - At 120 seats, `docker compose build` failed in 3 of 4 trials (`NotFound ... no such job`): the kit has 1
   build target for each seat. With `COMPOSE_BAKE=false`, 5 of 5 builds passed. The fork sets this value for
   its kernel Docker environment and not for Daytona.
@@ -524,10 +527,15 @@ OBSERVED:
 INFERRED:
 - E5 to E7 are not in the failing range: they have at most 8 seats, where the kernel counted 0 dropped
   connections.
-- The seat crash needs both the short listen queue and a starved CPU. No packet trace was taken.
+- The seat crash needs the short listen queue, and a starved CPU makes it frequent: 4 of 11 trials on 2
+  vCPU, 1 of 10 on 4 vCPU. No packet trace was taken.
 - A trial with model agents has a lower limit than these scripted trials, because a model seat uses more
   memory and more commands.
 - The wrong score without an error is the dangerous part: above 48 seats on a small sandbox, an
   infrastructure fault looks like a weak team. An experiment in that range needs the larger sandbox, a check
   of every seat's exit code before a reward counts, and a kit version with a longer listen queue
   (`muster/tasks/` is frozen, so that is a new kit version).
+- Fork PRs (drafts on upstream head): #101 sets `COMPOSE_BAKE=false` for Daytona (at 120 seats the build
+  passed in 2 of 2 trials on the branch and failed in 1 control trial on head); #102 adds a test that a crashed
+  scripted seat is recorded. After a sync of the fork's `main` to upstream head, the crash is an error in the
+  trial result. The score of such a trial is still wrong, so it must not count.

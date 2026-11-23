@@ -1,4 +1,5 @@
 import argparse
+import bisect
 import importlib.util
 import json
 import re
@@ -9,6 +10,7 @@ from pathlib import Path
 from statistics import fmean
 from types import ModuleType
 
+from crowd_messages import plan_of
 from crowd_scaling import (
     REWARD_TOLERANCE,
     bootstrap,
@@ -28,23 +30,66 @@ MAX_TEXT = 20_000
 MAX_RANGE = 10
 TASK_NAME = re.compile(r"(crowd|crowdrules)-i([0-9]{2})")
 LABEL = re.compile(r"[A-Za-z0-9_.:+-]+")
-SEAT_MARK = re.compile(r"(?<![A-Za-z0-9_])(?:(?:agent|seat)\s+#?\s*p?|p_?)([1-9])(?![0-9])", re.I)
+SEAT_MARK = re.compile(r"(?<![a-z0-9_])(?:(?:agent|seat)\s+#?\s*p?|p_?)([0-9]+)(?![0-9])")
 ROOM_REF = re.compile(
-    r"\brooms?\s*#?\s*[1-6](?![0-9])(?:\s*(?:,|&|/|and|or)\s*[1-6](?![0-9]))*", re.I
+    r"\b(?:rooms?|rm|r)\s*#?\s*([0-9]+(?:\s*(?:-|–|—|to|\.\.|,|/|&|and)\s*[0-9]+)*)"
 )
-COUNT_AFTER = re.compile(
-    r"(?<![0-9])[0-9]{1,2}\s*(?:opens?\b|boxes\b|left\b|x\b|times\b|flags?\b|seats?\b|agents?\b"
-    r"|%|sec\w*|s\b|mins?\b|minutes?\b)",
-    re.I,
+BOX_WORD = re.compile(r"\bbox(?:es)?(?![a-z])|\bb(?=[0-9])|#")
+DIGITS = re.compile(r"[0-9]+")
+RANGE = re.compile(r"([0-9]+)\s*(?:-|–|—|to|through|thru)\s*([0-9]+)")
+ADJACENT = re.compile(r"[a-z_][0-9]|[0-9][a-z_]|[0-9]\s*/\s*[0-9]")
+CLAUSE_END = re.compile(r"[;\n!?|]|\.(?=\s|$)")
+JOIN = re.compile(r"\s*(?:[/,&+]|and|-|–|—|\.{2,}|…|to|thru|through)?\s*")
+TABLE_ROW = re.compile(r"\|\s*(?:agent\s+)?p_?[1-9]\s*\|")
+LIST_WORD = re.compile(r"\b(?:lists?|assign\w*|allocat\w*|plan)\b")
+GLOBAL_REFUSE = re.compile(
+    r"\be\.?g\b|for example|such as|\.{3,}|…|\betc\b|respectively|similar\w*|pattern|\bmod\b"
+    r"|\bp_?[nik]\b|p\{|\bagent\s+p?[ik]\b|\bseat\s+[ik]\b|\b[ik]\s*\+\s*[0-9]"
 )
-COUNT_BEFORE = re.compile(
-    r"\b(?:budget|left|total|seq|id|step|turn|first|last|next)\s*[:=]?\s*[0-9]{1,2}", re.I
+REVERSED = re.compile(
+    r"(?:\bbox(?:es)?\s*#?\s*|\bb(?=[0-9])|#)[0-9]+(?:\s*(?:,|and|&)\s*[0-9]+)*"
+    r"\s*(?:->|→|=>|:|\bfor\b|\bto\b)\s*(?:agent\s+)?p_?[1-9]"
+    r"|(?<![a-z0-9])[0-9]+(?:\s*,\s*[0-9]+)+\s*(?:->|→|=>|\bfor\b|\bto\b)\s*(?:agent\s+)?p_?[1-9]"
+    r"|\b(?:rooms?|rm|r)\s*#?\s*[0-9]+\s*(?:->|→|=>|:|\bfor\b|\bto\b)\s*(?:agent\s+)?p_?[1-9]"
 )
-RANGE = re.compile(r"(?<![0-9])([0-9]{1,2})\s*(?:-|–|—|to|through|\.\.)\s*([0-9]{1,2})(?![0-9])")
-NUMBER = re.compile(r"(?<![0-9.])[0-9]{1,2}(?![0-9])(?!\.[0-9])")
-LIST_WORD = re.compile(r"\b(?:lists?|assign\w*|allocat\w*|plan)\b", re.I)
-RESULT_WORD = re.compile(r"\b(?:flags?|empty|found|treasure|results?|opened)\b", re.I)
-LINE_END = re.compile(r"\n|\.\s+(?=[A-Za-z])")
+HEDGE = re.compile(
+    r"\b(?:if|unless|else|otherwise|or|either|maybe|might|could|perhaps|probably|possibly"
+    r"|alternatively|instead|prefer\w*|ideally|try|suggest\w*|optional\w*)\b|\?"
+)
+COND = re.compile(
+    r"\b(?:if|unless|else|otherwise|or|either|maybe|might|could|perhaps|probably|possibly"
+    r"|alternatively)\b"
+)
+ATTRIBUTION = re.compile(r"\b(?:by|from|of|per|than|via|after|with|for)\s*$")
+BARE_ROOM = re.compile(r"\brooms?\b(?!\s*#?\s*[0-9])")
+PLAN_WORD = re.compile(r"\b(?:plan\w*|propos\w*|assign\w*|split|allocat\w*|suggest\w*|lists?)\b")
+LEAD_RESULT = re.compile(
+    r"\bflag\s*(?:=|:|is\b|was\b)|\b(?:true|false|empty|found|results?|confirm\w*|opened|got"
+    r"|reported|reports?)\b"
+)
+RESULT = re.compile(
+    r"\b(?:flag\w*|true|false|empty|found|results?|confirm\w*|opened|got|reported|reports?)\b"
+)
+REFUSE = re.compile(
+    r"\b(?:not|no|never|avoid\w*|skip\w*|except|excluding|exclude|minus|without|but|each|every"
+    r"|all|any|other|others|rest|remaining|more|both|same|again|already|claim\w*|conflict\w*"
+    r"|duplicat\w*|overlap\w*|yield\w*|swap\w*|keep\w*|continu\w*|switch\w*|current\w*|has"
+    r"|have|had|was|were|did|done|left|budget|total|need\w*|extra|spare|backup|reserv\w*"
+    r"|hold\w*|wait\w*|later|after|until|before|once|when|while|because|since|unclaimed"
+    r"|unopened|distinct|unique|missing|treasure|status|cover\w*|handled|is|are)\b|n't\b"
+)
+COUNT = re.compile(
+    r"[0-9]+\s*(?:opens?\b|boxes\b|box\b|x\b|times\b|each\b|left\b|total\b|flags?\b|seats?\b"
+    r"|agents?\b|rooms\b|more\b|remaining\b|%|steps?\b|turns?\b)"
+    r"|\b(?:first|last|next|budget|total|left|have|has|with|need|needs|only|exactly|up to|id"
+    r"|round|step|turn)\s*[:=#]?\s*[0-9]"
+)
+CUE = re.compile(
+    r"\s*(?:[:=,(]|->|→|=>|-)?\s*(?:(?:please|should|will|would|can|must|to|now|then|also|next"
+    r"|first|shall)\s+)*(?:opens?|opening|takes?|taking|gets?|probes?|probing|tests?|testing"
+    r"|checks?|checking|samples?|sampling|does|do|uses?|using|tries|box|boxes|b[0-9]|#|[0-9]"
+    r"|rooms?(?![a-z])|r[0-9]|rm|in\b|at\b|on\b)"
+)
 WRAPPERS = ("list", "lists", "assignments", "assignment", "assign", "plan", "boxes")
 SHARE_CLASSES = {"own box": True, "box of another seat": False}
 ZONES_CLASSES = {
@@ -109,71 +154,139 @@ def is_open(e: dict) -> bool:
     return e["kind"] == "open" and e["method"] == "POST"
 
 
-def box_numbers(segment: str) -> list[int]:
-    clean = COUNT_BEFORE.sub(" ", COUNT_AFTER.sub(" ", ROOM_REF.sub(" ", segment[:MAX_TEXT])))
+def room_numbers(group: str) -> set[int] | None:
+    rooms: set[int] = set()
+    for lo, hi in RANGE.findall(group):
+        rooms.update(range(int(lo), int(hi) + 1))
+    rooms.update(int(n) for n in DIGITS.findall(RANGE.sub(" ", group)))
+    return rooms if rooms and rooms <= set(ref.ALL_ROOMS) else None
+
+
+def box_list(rest: str) -> list[int] | None:
     found: list[int] = []
-    for lo, hi in RANGE.findall(clean):
+    for lo, hi in RANGE.findall(rest):
         a, b = int(lo), int(hi)
-        if 1 <= a < b <= BOXES and b - a < MAX_RANGE:
-            found.extend(range(a, b + 1))
-    found.extend(int(n) for n in NUMBER.findall(RANGE.sub(" ", clean)))
-    return list(dict.fromkeys(b for b in found if 1 <= b <= BOXES))
+        if not (1 <= a < b <= BOXES and b - a < MAX_RANGE):
+            return None
+        found.extend(range(a, b + 1))
+    for n in DIGITS.findall(RANGE.sub(" ", rest)):
+        if not 1 <= int(n) <= BOXES:
+            return None
+        found.append(int(n))
+    return list(dict.fromkeys(found))
 
 
-def seat_key(key: str, seats: list[str]) -> str | None:
-    match = SEAT_MARK.fullmatch(key.strip())
-    name = f"p{match.group(1)}" if match else None
-    return name if name in seats else None
+def read_part(text: str, shared: bool, lead: str, planned: bool) -> tuple[str, list[int]]:
+    groups = [room_numbers(m.group(1)) for m in ROOM_REF.finditer(text)]
+    if any(g is None for g in groups):
+        return "refuse", []
+    rooms: set[int] = set().union(*groups) if groups else set()
+    no_rooms = ROOM_REF.sub(" ", text)
+    rest = BOX_WORD.sub(" ", no_rooms)
+    if not DIGITS.search(rest):
+        return ("rooms" if rooms else "empty"), []
+    if HEDGE.search(text) or COND.search(lead):
+        return "refuse", []
+    if RESULT.search(text) or LEAD_RESULT.search(lead) or ATTRIBUTION.search(lead):
+        return "result", []
+    unsure = shared or REFUSE.search(text) or COUNT.search(no_rooms) or ADJACENT.search(rest)
+    bare = BOX_WORD.search(no_rooms) is None and BARE_ROOM.search(lead + text) is not None
+    weak = re.match(r"\s*[0-9]", text) is not None and not planned
+    if unsure or bare or weak or not CUE.match(text):
+        return "refuse", []
+    boxes = box_list(rest)
+    if boxes is None or any(rooms and room_of(b) not in rooms for b in boxes):
+        return "refuse", []
+    return "boxes", boxes
 
 
-def seat_boxes(mapping: dict, seats: list[str]) -> dict[str, list[int]] | None:
+def seat_parts(low: str, seats: list[str]) -> list[tuple[str, str, bool, str]] | None:
+    marks = list(SEAT_MARK.finditer(low))
+    if len(marks) > MAX_MARKS or any(f"p{m.group(1)}" not in seats for m in marks):
+        return None
+    ends = [0] + [m.end() for m in CLAUSE_END.finditer(low)]
+    stops = [m.start() for m in marks[1:]] + [len(low)] if marks else []
+    between = [low[m.end() : stop] for m, stop in zip(marks, stops, strict=True)]
+    texts = [CLAUSE_END.split(t, maxsplit=1)[0] for t in between]
+    shared = [False] * len(marks)
+    for i in range(len(marks) - 2, -1, -1):
+        if JOIN.fullmatch(between[i]):
+            texts[i] = texts[i + 1]
+            shared[i] = shared[i + 1] = True
+    out = []
+    for m, text, flag in zip(marks, texts, shared, strict=True):
+        start = ends[bisect.bisect_right(ends, m.start()) - 1]
+        out.append((f"p{m.group(1)}", text, flag, low[start : m.start()]))
+    return out
+
+
+def text_list(text: str, seats: list[str]) -> tuple[dict[str, list[int]] | None, str]:
+    low = text[:MAX_TEXT].lower()
+    parts = seat_parts(low, seats)
+    if parts is None or GLOBAL_REFUSE.search(low) or REVERSED.search(low):
+        return None, "not parsed"
+    planned = PLAN_WORD.search(low) is not None
+    boxes: dict[str, list[int]] = {}
+    other: set[str] = set()
+    kinds: set[str] = set()
+    for seat, item, shared, lead in parts:
+        kind, found = read_part(item, shared, lead, planned)
+        if kind == "refuse":
+            return None, "not parsed"
+        if kind == "boxes":
+            boxes[seat] = list(dict.fromkeys(boxes.get(seat, []) + found))
+        other |= {seat} if kind in ("rooms", "result") else set()
+        kinds.add(kind)
+    if boxes and other - set(boxes):
+        return None, "not parsed"
+    if boxes:
+        return boxes, "text"
+    return None, "room plan" if "rooms" in kinds else "not parsed"
+
+
+def json_item(item: object) -> tuple[str, list[int]]:
+    if type(item) is int:
+        return ("boxes", [item]) if 1 <= item <= BOXES else ("refuse", [])
+    if isinstance(item, str):
+        return read_part(f": {item.lower()}", False, "", True)
+    return "refuse", []
+
+
+def json_values(mapping: dict, seats: list[str]) -> tuple[dict[str, list[int]] | None, bool]:
     found: dict[str, list[int]] = {}
     for key, value in list(mapping.items())[:MAX_MARKS]:
-        seat = seat_key(str(key), seats)
-        if seat is None:
+        match = SEAT_MARK.fullmatch(str(key).strip().lower())
+        if match is None or f"p{match.group(1)}" not in seats:
             continue
-        items = value if isinstance(value, list) else [value]
-        boxes = []
-        for item in items[:BOXES]:
-            if type(item) is int and 1 <= item <= BOXES:
-                boxes.append(item)
-            elif isinstance(item, str):
-                boxes.extend(box_numbers(item))
-        found[seat] = list(dict.fromkeys(boxes))
-    return found if any(found.values()) else None
+        boxes: list[int] = []
+        for item in (value if isinstance(value, list) else [value])[:BOXES]:
+            kind, got = json_item(item)
+            if kind != "boxes":
+                return None, True
+            boxes.extend(got)
+        found[f"p{match.group(1)}"] = list(dict.fromkeys(boxes))
+    return (found or None), bool(found)
 
 
-def json_list(text: str, seats: list[str]) -> dict[str, list[int]] | None:
-    candidates = [text]
+def json_list(text: str, seats: list[str]) -> tuple[dict[str, list[int]] | None, str]:
     lo, hi = text.find("{"), text.rfind("}")
-    if 0 <= lo < hi:
-        candidates.append(text[lo : hi + 1])
+    candidates = [text] + ([text[lo : hi + 1]] if 0 <= lo < hi else [])
     for candidate in candidates:
         value = ref.text_json(candidate)
         if not isinstance(value, dict):
             continue
         inner = next((value[k] for k in WRAPPERS if isinstance(value.get(k), dict)), value)
-        found = seat_boxes(inner, seats)
-        if found is not None:
-            return found
-    return None
+        found, seated = json_values(inner, seats)
+        if seated:
+            return (found, "loose json") if found is not None else (None, "not parsed")
+    return None, ""
 
 
-def text_list(text: str, seats: list[str]) -> dict[str, list[int]] | None:
-    marks = [m for m in SEAT_MARK.finditer(text[:MAX_TEXT]) if f"p{m.group(1)}" in seats]
-    found: dict[str, list[int]] = {}
-    for index, mark in enumerate(marks[:MAX_MARKS]):
-        end = marks[index + 1].start() if index + 1 < len(marks) else len(text)
-        segment = text[mark.end() : end]
-        boxes = box_numbers(LINE_END.split(segment, maxsplit=1)[0]) or box_numbers(segment)
-        seat = f"p{mark.group(1)}"
-        found[seat] = list(dict.fromkeys(found.get(seat, []) + boxes))
-    found = {seat: boxes for seat, boxes in found.items() if boxes}
-    listed = LIST_WORD.search(text) is not None
-    plain = RESULT_WORD.search(text) is None
-    if len(found) >= 2 and (listed or plain):
-        return found
-    return found if len(found) == 1 and (listed or (plain and seats[0] not in found)) else None
+def plan_like(text: str, seats: list[str]) -> bool:
+    low = text[:MAX_TEXT].lower()
+    if REVERSED.search(low) or TABLE_ROW.search(low) or plan_of(text[:MAX_TEXT], seats):
+        return True
+    return LIST_WORD.search(low) is not None and SEAT_MARK.search(low) is not None
 
 
 def parse_list(text: str, seats: list[str]) -> tuple[dict[str, list[int]] | None, str]:
@@ -183,17 +296,10 @@ def parse_list(text: str, seats: list[str]) -> tuple[dict[str, list[int]] | None
         return {seat: list(boxes) for seat, boxes in exact.items()}, "json"
     if ref.report_of(text) is not None:
         return None, ""
-    loose = json_list(text, seats)
-    if loose is not None:
-        return loose, "loose json"
-    found = text_list(text, seats)
-    return (found, "text") if found is not None else (None, "")
-
-
-def looks_like_list(text: str) -> bool:
-    if ref.report_of(text) is not None:
-        return False
-    return '"list"' in text or (LIST_WORD.search(text) is not None and len(box_numbers(text)) >= 2)
+    found, how = json_list(text, seats)
+    if how:
+        return found, how
+    return text_list(text, seats) if plan_like(text, seats) else (None, "")
 
 
 def share_trial(events: list[dict], inst: dict) -> tuple[list, Counter, dict]:
@@ -282,12 +388,19 @@ def chief_class(seat: str, box: int, state: dict) -> str:
     return "in no list"
 
 
+def lenient_allowed(seat: str, box: int, state: dict) -> bool:
+    named = next((lst for lst in reversed(state["lists"]) if seat in lst), None)
+    return named is not None and box in named[seat]
+
+
 def note_list(e: dict, seats: list[str], state: dict, extra: Counter, info: dict) -> None:
-    text = e["request"]["text"]
-    lists, how = parse_list(text, seats)
+    lists, how = parse_list(e["request"]["text"], seats)
+    if how == "room plan":
+        extra["room plans posted by p1 (rooms, no exact boxes)"] += 1
+        return
     if lists is None:
-        if looks_like_list(text):
-            extra["p1 posts that look like a list but did not parse"] += 1
+        if how == "not parsed":
+            extra["p1 plan posts that did not parse"] += 1
             state["unparsed"] = True
             info["cross_check"] = False
         return
@@ -307,12 +420,17 @@ def chief_trial(events: list[dict], inst: dict) -> tuple[list, Counter, dict]:
     chief = seats[0]
     state: dict = {"lists": [], "unparsed": False}
     info: dict = {"cross_check": True, "first_list_sec": None, "start": events[0]["t"]}
+    info["lenient_allowed"] = 0
     out, extra = [], Counter()
     for e in events:
         if is_post(e) and e["seat"] == chief:
             note_list(e, seats, state, extra, info)
         if is_open(e):
-            out.append((e["seat"], chief_class(e["seat"], e["request"]["box"], state)))
+            seat, box = e["seat"], e["request"]["box"]
+            cls = chief_class(seat, box, state)
+            out.append((seat, cls))
+            measured = CHIEF_CLASSES[cls] is not None
+            info["lenient_allowed"] += measured and lenient_allowed(seat, box, state)
             extra["opens before p1's first parsed list"] += not state["lists"]
     info.pop("start")
     return out, extra, info
@@ -365,6 +483,7 @@ def classify(row: dict, events: list[dict], inst: dict, trial: Path) -> dict:
         "unclassified": sum(1 for _, cls in out if status[cls] is None),
         "cross_checked": info["cross_check"],
         "first_list_sec": info.get("first_list_sec"),
+        "lenient_allowed": info.get("lenient_allowed"),
         "classes": Counter(cls for _, cls in out),
         "seat_allowed": Counter(seat for seat, cls in out if status[cls] is True),
         "seat_classified": Counter(seat for seat, cls in out if status[cls] is not None),
@@ -401,11 +520,11 @@ def trial_row(trial: Path, as_rule: str | None) -> dict:
     return row | classify(row, events, inst, trial)
 
 
-def instance_obedience(rows: list[dict]) -> dict[str, float]:
+def instance_obedience(rows: list[dict], key: str) -> dict[str, float]:
     allowed: Counter = Counter()
     classified: Counter = Counter()
     for r in rows:
-        allowed[r["instance"]] += r["allowed"]
+        allowed[r["instance"]] += r[key]
         classified[r["instance"]] += r["allowed"] + r["outside"]
     return {name: allowed[name] / n for name, n in sorted(classified.items()) if n > 0}
 
@@ -419,8 +538,9 @@ def rule_summary(rule: str, rows: list[dict]) -> dict:
         seat_classified.update(r["seat_classified"])
     allowed = sum(r["allowed"] for r in rows)
     outside = sum(r["outside"] for r in rows)
-    per_instance = instance_obedience(rows)
+    per_instance = instance_obedience(rows, "allowed")
     values = list(per_instance.values())
+    lenient = instance_obedience(rows, "lenient_allowed") if rule == "chief" else {}
     lo, hi = (
         bootstrap(len(values), lambda idx: fmean(values[i] for i in idx))
         if values
@@ -433,7 +553,11 @@ def rule_summary(rule: str, rows: list[dict]) -> dict:
         "classified": allowed + outside,
         "unclassified": sum(r["unclassified"] for r in rows),
         "obedience": allowed / (allowed + outside) if allowed + outside else None,
+        "obedience_lenient": sum(r["lenient_allowed"] for r in rows) / (allowed + outside)
+        if lenient
+        else None,
         "instance_mean": fmean(values) if values else None,
+        "instance_mean_lenient": fmean(lenient.values()) if lenient else None,
         "ci_lo": lo,
         "ci_hi": hi,
         "per_instance": per_instance,
@@ -502,6 +626,7 @@ def main_rows(arms: list[dict]) -> list[list[str]]:
                 cell(a.get("allowed")),
                 cell(a.get("unclassified")),
                 cell(a["obedience"], 3),
+                cell(a.get("obedience_lenient"), 3),
                 cell(a.get("instance_mean"), 3),
                 cell(ci),
                 cell(None if by_trial is None else ",".join(map(str, by_trial.values()))),
@@ -525,6 +650,7 @@ def render(arms: list[dict], as_rule: str | None) -> str:
         "allowed",
         "unmeasured",
         "obedience",
+        "lenient",
         "inst mean",
         "95% CI (inst)",
         "outside by trial",
@@ -574,7 +700,7 @@ def obedient(arms: list[dict]) -> int:
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="crowd_rules.py")
     parser.add_argument("--arm", action="append", required=True, metavar="LABEL=RUN_DIR")
-    parser.add_argument("--as-rule", choices=("share", "zones"))
+    parser.add_argument("--as-rule", choices=("share", "zones", "chief"))
     parser.add_argument("--expect-obedient", action="store_true")
     parser.add_argument("--json", metavar="OUT")
     args = parser.parse_args(argv)

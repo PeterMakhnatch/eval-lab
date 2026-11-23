@@ -32,6 +32,8 @@ RULE_PAIRS = (("zones", "share"), ("zones", "chief"), ("share", "chief"))
 HOLM_FAMILY = len(RULE_KINDS)
 RULE_PRIMARY_K = 8
 PLANNED_INSTANCES = 10
+PLANNED_NUMBERS = tuple(f"i{n:02d}" for n in range(1, PLANNED_INSTANCES + 1))
+INSTANCE_NUMBER = re.compile(r".*-(i[0-9]{2})")
 LABEL = re.compile(r"(solo|indep|team|claim|scout|share|chief|zones)-([1-9][0-9]*)")
 NUMBER = re.compile(r"(?<![A-Za-z0-9_])[0-9]+(?![A-Za-z0-9_])")
 CHANNEL_KINDS = ("team", "claim", "scout", *RULE_KINDS)
@@ -670,15 +672,26 @@ def load_arms(arms: list[dict], cfg: dict) -> tuple[list[dict], dict, dict]:
     return summaries, rows_by, means
 
 
-def arm_status(label: str, rows: list[dict], planned: int) -> dict:
-    scored = [r for r in rows if r["reward"] is not None]
-    instances = len({r["instance"] for r in scored})
-    complete = len(scored) >= planned and instances >= PLANNED_INSTANCES
+def by_number(label: str, means: dict[str, float]) -> dict[str, float]:
+    out: dict[str, float] = {}
+    for name, value in means.items():
+        match = INSTANCE_NUMBER.fullmatch(name)
+        assert match, f"{label}: instance {name} has no number iNN"
+        assert match.group(1) not in out, f"{label}: 2 instances with number {match.group(1)}"
+        out[match.group(1)] = value
+    return out
+
+
+def arm_status(label: str, rows: list[dict], planned: int, numbered: dict) -> dict:
+    scored = sum(1 for r in rows if r["reward"] is not None)
+    missing = sorted(set(PLANNED_NUMBERS) - set(numbered))
     return {
         "label": label,
-        "scored": len(scored),
-        "instances": instances,
-        "status": "complete" if complete else "incomplete",
+        "with_reward": scored,
+        "planned": planned,
+        "unmeasured": len(rows) - scored,
+        "instances": len(numbered),
+        "missing_instances": missing,
     }
 
 
@@ -687,12 +700,12 @@ def unavailable(a: str, b: str, question: str) -> dict:
     return {"contrast": f"{a} - {b}", "question": question, **dict.fromkeys(keys)}
 
 
-def rule_contrast(a: str, b: str, question: str, means: dict, status: dict) -> dict | None:
-    if a not in means or b not in means:
+def rule_contrast(a: str, b: str, question: str, numbered: dict, status: dict) -> dict | None:
+    if a not in numbered or b not in numbered:
         return None
-    if status[a]["status"] != "complete" or status[b]["status"] != "complete":
+    if status[a]["missing_instances"] or status[b]["missing_instances"]:
         return unavailable(a, b, question) | {"verdict": "not available"}
-    return contrast(a, b, question, means)
+    return contrast(a, b, question, numbered)
 
 
 def holm(found: list[dict]) -> list[dict]:
@@ -737,22 +750,27 @@ def rule_pair(a: str, b: str, k: int, means: dict, status: dict) -> dict | None:
     )
 
 
-def rule_block(arms: list[dict], rows_by: dict, means: dict, cfg: dict) -> dict:
+def rule_block(arms: list[dict], rows_by: dict, numbered: dict, cfg: dict) -> dict:
     planned = cfg["planned_trials"]
-    status = {label: arm_status(label, rows, planned) for label, rows in rows_by.items()}
+    status = {
+        label: arm_status(label, rows, planned, numbered[label]) for label, rows in rows_by.items()
+    }
     versus, margins, pairs = [], [], []
     for k in sorted({a["n"] for a in arms if a["kind"] == "team"}):
         role = "primary" if k == RULE_PRIMARY_K else "secondary"
         found = [
-            rule_contrast(f"{r}-{k}", f"team-{k}", f"rule {r}", means, status) for r in RULE_KINDS
+            rule_contrast(f"{r}-{k}", f"team-{k}", f"rule {r}", numbered, status)
+            for r in RULE_KINDS
         ]
         versus += holm([c | {"k": k, "role": role} for c in found if c is not None])
-        margins += [rule_margin(r, k, means, status, cfg) for r in RULE_KINDS]
-        pairs += [rule_pair(a, b, k, means, status) for a, b in RULE_PAIRS]
+        margins += [rule_margin(r, k, numbered, status, cfg) for r in RULE_KINDS]
+        pairs += [rule_pair(a, b, k, numbered, status) for a, b in RULE_PAIRS]
     return {
         "settings": {
             "planned_trials": planned,
             "planned_instances": PLANNED_INSTANCES,
+            "pairing": "instance number iNN",
+            "missing_as_zero": cfg["missing_as_zero"],
             "holm_family_size": HOLM_FAMILY,
             "alpha": P_PASS,
             "primary_k": RULE_PRIMARY_K,
@@ -772,6 +790,7 @@ def analyze(arms: list[dict], cfg: dict) -> dict:
     summaries, rows_by, means = load_arms(arms, cfg)
     pooled = unions(arms, rows_by, cfg)
     means |= {f"union-{u['k']}": u["instance_rewards"] for u in pooled if u["instance_rewards"]}
+    means = {label: by_number(label, values) for label, values in means.items()}
     ks = sorted({a["n"] for a in arms if a["kind"] != "solo"})
     slopes = [slope_test(kind, role, means) for kind, role in SLOPE_KINDS]
     margins = [margin_test(k, role, means, total, cfg["margin"], "claim") for k, role in MARGIN_KS]
@@ -1056,9 +1075,18 @@ def render(report: dict) -> str:
 
 def render_rules(block: dict) -> list[str]:
     s = block["settings"]
-    planned, inst = s["planned_trials"], s["planned_instances"]
+    inst = s["planned_instances"]
     alpha, family = s["alpha"], s["holm_family_size"]
-    arm_cols = (("scored", "scored", 0), ("inst", "instances", 0), ("status", "status", 0))
+    arms = [
+        a
+        | {
+            "rewarded": f"{a['with_reward']}/{a['planned']}",
+            "missing_text": ",".join(a["missing_instances"]) or None,
+        }
+        for a in block["arms"]
+    ]
+    arm_cols = (("rewarded/planned", "rewarded", 0), ("unmeasured", "unmeasured", 0))
+    arm_cols += (("inst", "instances", 0), ("missingInst", "missing_text", 0))
     lead = (("k", "k", 0), ("role", "role", 0), ("inst", "instances", 0))
     lead += (("diffPts", "diff_pts", 1), ("lo95", "lo", 1), ("hi95", "hi", 1))
     lead += (("pSignFlip", "p_sign_flip", 4),)
@@ -1066,11 +1094,12 @@ def render_rules(block: dict) -> list[str]:
     versus_cols += (("verdict", "verdict", 0),)
     margin_cols = lead + (("marginPts", "margin_pts", 1), ("verdict", "verdict", 0))
     pair_cols = lead + (("correction", "correction", 0), ("verdict", "verdict", 0))
+    unmeasured = "counted as reward 0" if s["missing_as_zero"] else "left out"
     return [
         spec_table(
-            f"RULES: arms (complete: >= {planned} trials with a reward and >= {inst} instances;"
-            " contrasts of an incomplete arm are not available)",
-            block["arms"],
+            f"RULES: arms (paired by instance number iNN; a contrast is available only when each"
+            f" of the {inst} instances has a value in both arms; unmeasured trials {unmeasured})",
+            arms,
             "label",
             arm_cols,
         ),

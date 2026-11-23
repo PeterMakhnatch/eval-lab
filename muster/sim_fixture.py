@@ -169,8 +169,8 @@ def _oracle(generator: ModuleType, case: Scenario, rng: Random) -> Rewards:
         tokens = reference.tokens(reference.family(), case.instance)
         if case.family == "boxes":
             return reference.simulate(case.instance, tokens)
-        order = Random(rng.getrandbits(64))
-        return reference.simulate(case.instance, tokens, "oracle", lambda seats, _turn: order.choice(seats))
+        turns = Random(rng.getrandbits(64))
+        return reference.simulate(case.instance, tokens, "oracle", lambda seats, _turn: turns.choice(seats))
     generator.worldkit.time.ticks = 0
     if case.family == "ledger":
         instance = int(case.instance["instance"][1:])

@@ -71,11 +71,27 @@ EMPTY = re.compile(
 )
 HEDGE = re.compile(
     r"\bif\b|\bunless\b|\bwhether\b|\bmaybe\b|\bmight\b|\bprobabl|\bpossibl|\bnot empty\b|\bexpect"
-    r"|\bassum|\bwould\b|\bcould\b|\?|\btrue\b"
+    r"|\bassum|\bwould\b|\bcould\b|\?|\btrue\b|\bplease\b|\breport\b|\bprobe\b"
+    r"|flag\s*/\s*empty|empty\s*/\s*(?:flag|true|false)"
 )
-INTENT = re.compile(
-    r"\bwill open\b|\bopening\b|\bclaim|\btak(?:e|ing)\b|\breserv|\bnext\b|\bi'?ll open\b"
-    r"|\bgoing to open\b|\bopens? (?:box|#)"
+CLAIM_VERB = re.compile(
+    r"\bwill (?:now |then |also )?(?:open|test|probe|take|use|try|check)\b"
+    r"|\bi'?ll (?:open|take|test|probe)\b|\bopening\b|\bclaim(?:s|ing)?\b|\btak(?:e|es|ing)\b"
+    r"|\breserv(?:e|es|ing)\b|\b(?:final|next|last) open\b|\bplan\w* (?:to open|box)|\bintend\w*\b"
+    r"|\bgoing to open\b|\bopens? (?:box|#)|\bpropos\w* (?:box|open\w*)|\bswitch\w* (?:\w+ ){0,4}?to\b"
+    r"|\bnow (?:opens?|probes?|tests?)\b|\bprobes? (?:room ?[1-6] )?(?:with )?box|\busing\b|\bwill be box"
+)
+NEG_CUT = re.compile(r"\bnot\b|n't\b|\bavoid|\bwithdraw|\byield|\bcancel|\binstead of\b|\bexcept\b")
+CLAIM_CUT = re.compile(
+    NEG_CUT.pattern + r"|\bsince\b|\bbecause\b|\balready\b|\bwas\b|\bwere\b|\bunless\b|\bif\b"
+)
+SEAT_ATTRIBUTION = re.compile(
+    r"\b(?:after|by|from|per|than|for|with|to) p_?[1-9](?:\s*(?:/|,|and)\s*p_?[1-9])*\b"
+)
+PURPOSE = re.compile(
+    r"\([^)]*\b(?:was|were|by|already|claimed|opened|reported|flag)\b[^)]*\)"
+    r"|\bto avoid [^,.;:]*|\bwill avoid duplicates?\b"
+    r"|\bavoid(?:s|ing)? (?:duplicates?|conflicts?|collisions?)\b"
 )
 WAIT_TEXT = re.compile(r"\bwait(?:ing)?\b|\buntil (?:others|other agents|more)\b|\bpending\b")
 CLAIM_TEXT = re.compile(
@@ -206,6 +222,27 @@ def empty_rooms(text: str) -> set[int]:
     return out
 
 
+def claim_head(clause: str, seat: str) -> str:
+    verb = CLAIM_VERB.search(clause)
+    if verb is None:
+        return ""
+    before = list(CLAIM_CUT.finditer(clause, 0, verb.start()))
+    if before and NEG_CUT.fullmatch(before[-1].group()):
+        return ""
+    stop = CLAIM_CUT.search(clause, verb.end())
+    head = clause[before[-1].end() if before else 0 : stop.start() if stop else len(clause)]
+    if not set(SEAT.findall(SEAT_ATTRIBUTION.sub(" ", head))) <= {seat[1:]}:
+        return ""
+    return head
+
+
+def claim_boxes(low: str, seat: str) -> set[int]:
+    out: set[int] = set()
+    for clause in CLAUSE_END.split(PURPOSE.sub(" ", low)):
+        out |= boxes_in(claim_head(clause, seat))
+    return out
+
+
 def seat_segments(low: str, seats: list[str]) -> dict[str, list[tuple[str, str]]]:
     hits = [m for m in SEAT.finditer(low) if f"p{m.group(1)}" in seats]
     assert len(hits) <= MAX_TOKENS
@@ -317,7 +354,7 @@ def note_post(tr: dict, e: dict, base: dict) -> None:
             "text": text,
             "boxes": frozenset(boxes_in(low)),
             "empty": frozenset(empty_rooms(text)),
-            "intent": bool(INTENT.search(low)),
+            "claim": frozenset(claim_boxes(low, base["seat"])),
             "plan": plan_of(text, tr["seats"]),
         }
     )
@@ -598,7 +635,7 @@ def claim_stats(tr: dict) -> dict:
     claimants: dict[int, list[str]] = {}
     posts = claims(tr, None)
     for p in posts:
-        for box in sorted(p["boxes"]):
+        for box in sorted(p["claim"]):
             names = claimants.setdefault(box, [])
             names.extend([] if p["seat"] in names else [p["seat"]])
     opened: dict[int, set[str]] = {}
@@ -688,20 +725,20 @@ def reason(meta: dict) -> str:
     return "other"
 
 
+def is_claim(tr: dict, p: dict) -> bool:
+    return 0 < len(p["claim"]) <= tr["budget"]
+
+
 def claims(tr: dict, seat: str | None) -> list[dict]:
-    return [
-        p
-        for p in tr["posts"]
-        if p["intent"] and 0 < len(p["boxes"]) <= tr["budget"] and seat in (None, p["seat"])
-    ]
+    return [p for p in tr["posts"] if is_claim(tr, p) and seat in (None, p["seat"])]
 
 
 def lost_claim(tr: dict, seat: str) -> bool:
     opened = {o["box"] for o in tr["opens"] if o["seat"] == seat}
     rivals = [q for q in claims(tr, None) if q["seat"] != seat]
     for p in claims(tr, seat):
-        for box in p["boxes"] - opened:
-            if any(q["seq"] < p["seq"] and box in q["boxes"] for q in rivals):
+        for box in p["claim"] - opened:
+            if any(q["seq"] < p["seq"] and box in q["claim"] for q in rivals):
                 return True
     return False
 
@@ -743,7 +780,7 @@ def ending(tr: dict) -> dict:
     used = Counter(o["seat"] for o in tr["opens"])
     claimant: dict[int, str] = {}
     for p in claims(tr, None):
-        for box in p["boxes"]:
+        for box in p["claim"]:
             claimant.setdefault(box, p["seat"])
     held = [claimant[b] for b in missing if b in claimant]
     return {
@@ -1147,7 +1184,7 @@ Q_TABLES = (
         ),
     ),
     (
-        "Q5c. Claim traffic (claim = post with an intent word naming at most the seat budget of boxes)",
+        "Q5c. Claim traffic (claim = clause with a claim verb, not negated, one seat, 1..budget boxes)",
         "q5c",
         (
             ("claim_posts", 2),
@@ -1208,6 +1245,11 @@ def audit(loaded: dict[str, list[dict]], n: int) -> str:
             "empty word, no room found",
             [x for x in posts if not x[2]["empty"] and EMPTY.search(norm(x[2]["text"]))],
         ),
+        ("claim", [x for x in posts if is_claim(x[1], x[2])]),
+        (
+            "boxes named, not a claim",
+            [x for x in posts if x[2]["boxes"] and not is_claim(x[1], x[2])],
+        ),
     )
     lines = []
     for name, pool in pools:
@@ -1218,6 +1260,7 @@ def audit(loaded: dict[str, list[dict]], n: int) -> str:
             lines.append(f"{label} {tr['trial']} seq {p['seq']} {p['seat']}: {p['text']}")
             lines.append(f"   plan={targets} formula={bool(plan and plan['formula'])}")
             lines.append(f"   empty={sorted(p['empty'])} boxes={sorted(p['boxes'])}")
+            lines.append(f"   claim={sorted(p['claim'])}")
     return "\n".join(lines)
 
 

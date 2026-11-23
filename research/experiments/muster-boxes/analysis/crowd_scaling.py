@@ -4,6 +4,7 @@ import math
 import random
 import re
 import sys
+import tomllib
 from collections import Counter
 from datetime import datetime
 from itertools import combinations
@@ -26,9 +27,21 @@ SLOPE_KS = (2, 3, 4, 8)
 MIN_SLOPE_KS = 3
 SLOPE_KINDS = (("team", "primary"), ("claim", "secondary"), ("indep", "secondary"))
 MARGIN_KS = ((8, "primary"), (2, "secondary"), (3, "secondary"), (4, "secondary"))
-LABEL = re.compile(r"(solo|indep|team|claim)-([1-9][0-9]*)")
+LABEL = re.compile(r"(solo|indep|team|claim|scout)-([1-9][0-9]*)")
 NUMBER = re.compile(r"(?<![A-Za-z0-9_])[0-9]+(?![A-Za-z0-9_])")
-CHANNEL_KINDS = ("team", "claim")
+CHANNEL_KINDS = ("team", "claim", "scout")
+E6_SETS = (("team", "primary"), ("scout", "secondary"))
+FIELD_KEYS = (
+    "flags_per_open",
+    "shared_rooms",
+    "treasure_rooms_found",
+    "empty_rooms_reprobed",
+    "called_empty_opens",
+    "called_empty_opens_read",
+    "called_treasure_opens",
+    "called_treasure_opens_read",
+    "first_room1_share",
+)
 SPLIT_KEYS = ("repeat_unsent", "repeat_unread", "repeat_read", "repeat_own")
 BOX_SPLIT_KEYS = ("repeat_unposted_box", "repeat_unread_box", "repeat_read_box")
 EVENT_KEYS = (
@@ -58,40 +71,60 @@ COST_FIELDS = (
 RUN_SUMS = ("trial_exception", "seat_exceptions", "zero_calls", "zero_calls_unknown")
 
 
-def parse_arm(text: str, total: int) -> dict:
+def parse_arm(text: str, total: int | None, per_seat: int | None) -> dict:
     label, sep, path = text.partition("=")
     match = LABEL.fullmatch(label)
     assert sep and match and path, (
-        f"--arm wants LABEL=JOB_DIR, LABEL solo|indep|team|claim-N: {text}"
+        f"--arm wants LABEL=JOB_DIR, LABEL solo|indep|team|claim|scout-N: {text}"
     )
     kind, n = match.group(1), int(match.group(2))
+    assert (total is None) != (per_seat is None)
     assert kind == "solo" or n >= 2, f"{label}: a multi-seat arm needs at least 2 seats"
-    assert kind == "solo" or total % n == 0, f"{label}: total budget {total} does not divide by {n}"
+    if per_seat is None:
+        assert kind == "solo" or total % n == 0, (
+            f"{label}: total budget {total} does not divide by {n}"
+        )
     job = Path(path)
     assert job.is_dir(), f"{label}: {job} is not a directory"
+    shared = per_seat if per_seat is not None else total // n
     return {
         "label": label,
         "kind": kind,
         "n": n,
         "seats": 1 if kind == "solo" else n,
-        "budget": n if kind == "solo" else total // n,
+        "budget": n if kind == "solo" else shared,
         "job": job,
     }
+
+
+def number(value) -> bool:
+    return isinstance(value, int | float) and not isinstance(value, bool)
+
+
+def toml_reference(path: str) -> dict:
+    tables = tomllib.loads(Path(path).read_text()).get("reference")
+    assert isinstance(tables, dict), f"{path}: no [reference] tables"
+    out: dict = {}
+    for condition, policies in tables.items():
+        assert isinstance(policies, dict), (path, condition)
+        for policy, value in policies.items():
+            value = value.get("mean") if isinstance(value, dict) else value
+            assert number(value), (path, condition, policy)
+            out.setdefault(condition, {})[policy] = value
+    return out
 
 
 def load_reference(path: str | None) -> dict:
     if path is None:
         return {}
+    if path.endswith(".toml"):
+        return toml_reference(path)
     data = json.loads(Path(path).read_text())
     assert isinstance(data, dict), f"{path}: want {{condition: {{policy: value}}}}"
     for condition, values in data.items():
         assert isinstance(values, dict), (path, condition)
         for policy, value in values.items():
-            assert isinstance(value, int | float) and not isinstance(value, bool), (
-                path,
-                condition,
-                policy,
-            )
+            assert number(value), (path, condition, policy)
     return data
 
 
@@ -290,6 +323,68 @@ def check_seats(events: list[dict], seats: list[str], channel: bool) -> None:
             assert e["response"]["seats"] == seats, (e["seq"], seats)
 
 
+def room_size(result: dict, arm: dict, seats: list[str], cfg: dict) -> int:
+    task = ((result.get("config") or {}).get("task") or {}).get("path")
+    path = Path(task) / "environment" / "world" / "instance.json" if task else None
+    if path is None or not path.is_file():
+        return cfg["room_size"]
+    inst = json.loads(path.read_text())
+    size = inst["room_size"]
+    assert size == cfg["room_size"], (path, "--room-size", cfg["room_size"])
+    treasure = inst["treasure_rooms"]
+    treasure_count = len(treasure) if isinstance(treasure, list) else treasure
+    assert inst["rooms"] * size == cfg["boxes"], (path, "--boxes", cfg["boxes"])
+    assert treasure_count * size == cfg["flags"], (path, "--flags", cfg["flags"])
+    assert inst["budget"] == arm["budget"] and inst["seats"] == seats, (path, arm["label"])
+    assert inst["channel"] is (arm["kind"] in CHANNEL_KINDS), (path, arm["label"])
+    return size
+
+
+def called_rooms(text: str, visited: set[int], size: int) -> set[int]:
+    tokens = mentioned(text)
+    rooms = {t for t in tokens if t in visited}
+    rooms |= {(t - 1) // size + 1 for t in tokens if t > 0 and (t - 1) // size + 1 in visited}
+    return rooms
+
+
+def field_measures(events: list[dict], seats: list[str], size: int) -> dict:
+    openers: dict[int, set[str]] = {}
+    room_opens: Counter = Counter()
+    found: dict[bool, set[int]] = {True: set(), False: set()}
+    visited: dict[str, set[int]] = {seat: set() for seat in seats}
+    calls: dict[int, list[tuple[str, int]]] = {}
+    last_read: dict[str, int] = {}
+    first_room: dict[str, int] = {}
+    c: Counter = Counter()
+    for e in events:
+        seat, kind = e["seat"], e["kind"]
+        if kind == "msg" and e["method"] == "POST":
+            for room in called_rooms(e["response"]["text"], visited[seat], size):
+                calls.setdefault(room, []).append((seat, e["seq"]))
+        elif kind == "msgs" and e["method"] == "GET":
+            last_read[seat] = e["seq"]
+        elif kind == "open" and e["method"] == "POST":
+            box, room, flag = e["response"]["box"], e["response"]["room"], e["response"]["flag"]
+            assert room == (box - 1) // size + 1, (e["seq"], box, room, size)
+            first_room.setdefault(seat, room)
+            openers.setdefault(room, set()).add(seat)
+            room_opens[room] += 1
+            found[bool(flag)].add(room)
+            visited[seat].add(room)
+            prior = [seq for sender, seq in calls.get(room, []) if sender != seat]
+            name = "treasure" if flag else "empty"
+            c[f"called_{name}_opens"] += bool(prior)
+            c[f"called_{name}_opens_read"] += bool(prior) and last_read.get(seat, 0) > min(prior)
+    assert not found[True] & found[False]
+    return {
+        "shared_rooms": sum(len(s) > 1 for s in openers.values()),
+        "treasure_rooms_found": len(found[True]),
+        "empty_rooms_reprobed": sum(room_opens[r] > 1 for r in found[False]),
+        **{key: c[key] for key in FIELD_KEYS if key.startswith("called_")},
+        "first_room1_share": sum(r == 1 for r in first_room.values()) / len(seats),
+    }
+
+
 def trial_row(trial: Path, arm: dict, cfg: dict) -> dict:
     result = json.loads((trial / "result.json").read_text())
     assert isinstance(result, dict) and isinstance(result.get("seat_results"), list), trial
@@ -305,6 +400,7 @@ def trial_row(trial: Path, arm: dict, cfg: dict) -> dict:
     events = played(trial)
     channel = arm["kind"] in CHANNEL_KINDS
     check_seats(events, seats, channel)
+    size = room_size(result, arm, seats, cfg)
     c, first_box, flag_boxes, distinct, chan = walk(events, arm["budget"])
     assert abs(row["reward"] - c["flags"] / cfg["flags"]) < REWARD_TOLERANCE, (trial, c["flags"])
     unused = row["budget"] - c["opens"]
@@ -326,6 +422,9 @@ def trial_row(trial: Path, arm: dict, cfg: dict) -> dict:
         flag_boxes=frozenset(flag_boxes),
     )
     assert row["flags"] + row["empty"] + row["repeats"] + row["unused"] == row["budget"], trial
+    if cfg["per_seat"] is not None:
+        row |= field_measures(events, seats, size)
+        row["flags_per_open"] = c["flags"] / c["opens"] if c["opens"] else None
     return row
 
 
@@ -402,6 +501,10 @@ def summarize(arm: dict, rows: list[dict], cfg: dict) -> dict:
     out["first_box_by_seat"] = first_boxes(scored)
     out["first_poster"] = first_posters(scored)
     out["reference"] = cfg["reference"].get(arm["label"])
+    if cfg["per_seat"] is not None:
+        out |= {key: mean_of(scored, key) for key in FIELD_KEYS}
+        oracle = (out["reference"] or {}).get("oracle")
+        out["reward_over_ref"] = out["reward"] / oracle if oracle else None
     out["instance_rewards"] = by_instance
     return out
 
@@ -551,13 +654,20 @@ def baselines(ks: list[int], total: int, boxes: int) -> list[dict]:
     return out
 
 
-def analyze(arms: list[dict], cfg: dict) -> dict:
-    total = cfg["total"]
+def load_arms(arms: list[dict], cfg: dict) -> tuple[list[dict], dict, dict]:
     summaries, rows_by = [], {}
     for arm in arms:
         rows_by[arm["label"]] = [trial_row(t, arm, cfg) for t in trial_dirs(arm["job"])]
         summaries.append(summarize(arm, rows_by[arm["label"]], cfg))
     means = {s["label"]: s["instance_rewards"] for s in summaries}
+    return summaries, rows_by, means
+
+
+def analyze(arms: list[dict], cfg: dict) -> dict:
+    if cfg["per_seat"] is not None:
+        return analyze_per_seat(arms, cfg)
+    total = cfg["total"]
+    summaries, rows_by, means = load_arms(arms, cfg)
     pooled = unions(arms, rows_by, cfg)
     means |= {f"union-{u['k']}": u["instance_rewards"] for u in pooled if u["instance_rewards"]}
     ks = sorted({a["n"] for a in arms if a["kind"] != "solo"})
@@ -573,6 +683,110 @@ def analyze(arms: list[dict], cfg: dict) -> dict:
         "unions": pooled,
         "contrasts": contrasts(means, ks, total),
         "baselines": baselines(base_ks, total, cfg["boxes"]),
+    }
+
+
+def resolved(found: dict, above: str, below: str, neither: str) -> str:
+    if found["lo"] > 0:
+        return above
+    return below if found["hi"] < 0 else neither
+
+
+def gap_change(kind: str, m: int, lo: int, hi: int, means: dict) -> dict:
+    labels = (f"solo-{m * hi}", f"{kind}-{hi}", f"solo-{m * lo}", f"{kind}-{lo}")
+    shared = sorted(set.intersection(*(set(means[label]) for label in labels)))
+    assert 0 < len(shared) <= MAX_INSTANCES, (labels, len(shared))
+    a, b, c, d = (means[label] for label in labels)
+    diffs = [100.0 * ((a[i] - b[i]) - (c[i] - d[i])) for i in shared]
+    lo95, hi95 = bootstrap(len(diffs), lambda sample: fmean(diffs[i] for i in sample))
+    mean, p = fmean(diffs), sign_flip(diffs)
+    return {
+        "contrast": f"({labels[0]} - {labels[1]}) - ({labels[2]} - {labels[3]})",
+        "question": "P3 gap grows with k",
+        "instances": len(shared),
+        "diff_pts": mean,
+        "lo": lo95,
+        "hi": hi95,
+        "p_sign_flip": p,
+        "verdict": "pass" if mean > 0 and p < P_PASS else "fail",
+    }
+
+
+def e6_set(kind: str, role: str, means: dict, ks: list[int], m: int) -> list[dict]:
+    out = []
+    talk = [k for k in ks if f"{kind}-{k}" in means and f"indep-{k}" in means]
+    for k in reversed(talk):
+        found = contrast(f"{kind}-{k}", f"indep-{k}", "P1 communication", means)
+        verdict = resolved(found, "resolved", "resolved", "not resolved")
+        out.append(found | {"test": "P1", "set": kind, "k": k, "verdict": verdict})
+    split = [k for k in ks if f"{kind}-{k}" in means and f"solo-{m * k}" in means]
+    for k in reversed(split):
+        found = contrast(f"solo-{m * k}", f"{kind}-{k}", "P2 one agent vs team", means)
+        verdict = resolved(found, "1 agent is better", "the team is better", "not resolved")
+        out.append(found | {"test": "P2", "set": kind, "k": k, "verdict": verdict})
+    if len(split) >= 2:
+        found = gap_change(kind, m, split[0], split[-1], means)
+        out.append(found | {"test": "P3", "set": kind, "k": split[-1]})
+    for row in out:
+        largest = row["test"] == "P3" or row["k"] == (talk if row["test"] == "P1" else split)[-1]
+        row["role"] = role if largest else f"{role}, other k"
+    return out
+
+
+def gaps(means: dict, ks: list[int], m: int) -> list[dict]:
+    out = []
+    for k in ks:
+        plan = (
+            (f"indep-{k}", f"solo-{m}", "parallelism"),
+            (f"team-{k}", f"indep-{k}", "communication"),
+            (f"scout-{k}", f"team-{k}", "rule (scout)"),
+            (f"claim-{k}", f"team-{k}", "rule (claim)"),
+            (f"team-{k}", f"solo-{m * k}", "equal budget"),
+            (f"indep-{k}", f"union-{k}", "interference"),
+        )
+        out += [
+            contrast(a, b, q, means) | {"k": k} for a, b, q in plan if a in means and b in means
+        ]
+    return out
+
+
+def baselines_per_seat(ks: list[int], m: int, boxes: int, flags: int) -> list[dict]:
+    assert 0 < m < boxes and 0 < flags <= boxes
+    out = []
+    for k in ks:
+        distinct = boxes * (1.0 - (1.0 - m / boxes) ** k)
+        out.append(
+            {
+                "k": k,
+                "budget_per_seat": m,
+                "total_budget": m * k,
+                "random_distinct": distinct,
+                "random_repeats": k * m - distinct,
+                "random_flags": distinct * flags / boxes,
+                "identical_distinct": m,
+                "identical_repeats": k * m - m,
+                "identical_flags_random_pick": m * flags / boxes,
+            }
+        )
+    return out
+
+
+def analyze_per_seat(arms: list[dict], cfg: dict) -> dict:
+    m = cfg["per_seat"]
+    summaries, rows_by, means = load_arms(arms, cfg)
+    ks = sorted({a["n"] for a in arms if a["kind"] != "solo"})
+    pool = rows_by.get(f"solo-{m}")
+    pooled = [union_pool(pool, k, cfg) | {"pool": f"solo-{m}"} for k in ks] if pool else []
+    means |= {f"union-{u['k']}": u["instance_rewards"] for u in pooled if u["instance_rewards"]}
+    tests = [row for kind, role in E6_SETS for row in e6_set(kind, role, means, ks, m)]
+    keys = ("per_seat", "boxes", "flags", "room_size", "cap", "missing_as_zero")
+    return {
+        "settings": {key: cfg[key] for key in keys},
+        "arms": summaries,
+        "e6_tests": tests,
+        "gaps": gaps(means, ks, m),
+        "unions": pooled,
+        "baselines": baselines_per_seat(sorted({1, *ks}), m, cfg["boxes"], cfg["flags"]),
     }
 
 
@@ -705,13 +919,17 @@ def render_tests(report: dict) -> list[str]:
     ]
 
 
+def missing_mode(settings: dict) -> str:
+    if settings["missing_as_zero"]:
+        return "counted as reward 0 in reward means and contrasts"
+    return "left out of the means (unmeasured)"
+
+
 def render(report: dict) -> str:
     s = report["settings"]
-    mode = (
-        "counted as reward 0 in reward means and contrasts"
-        if s["missing_as_zero"]
-        else "left out of the means (unmeasured)"
-    )
+    if "per_seat" in s:
+        return render_per_seat(report)
+    mode = missing_mode(s)
     header = f"total budget {s['total']}, boxes {s['boxes']}, flags {s['flags']}, turn cap {s['cap']}, margin {s['margin']}"
     parts = [f"{header}\nmode: trials without a reward are {mode}"]
     parts += render_arms(report["arms"])
@@ -729,27 +947,94 @@ def render(report: dict) -> str:
     return "\n\n".join(parts)
 
 
+def render_field(arms: list[dict]) -> str:
+    shown = list(arms)
+    cols = (("flagsPerOpen", "flags_per_open", 3), ("rewardOverRef", "reward_over_ref", 3))
+    cols += (("sharedRooms", "shared_rooms", 2), ("treasureRooms", "treasure_rooms_found", 2))
+    cols += (("emptyReprobed", "empty_rooms_reprobed", 2),)
+    cols += (("calledEmpty", "called_empty_opens", 2), ("read", "called_empty_opens_read", 2))
+    cols += (("calledTreasure", "called_treasure_opens", 2),)
+    cols += (("read", "called_treasure_opens_read", 2), ("firstRoom1", "first_room1_share", 2))
+    title = "ARMS: field mechanism (per-trial means; called = room named in a teammate's post)"
+    return spec_table(title, shown, "label", cols)
+
+
+def render_e6(report: dict) -> list[str]:
+    cols = (("set", "set", 0), ("role", "role", 0), ("k", "k", 0), ("contrast", "contrast", 0))
+    cols += (("inst", "instances", 0), ("diffPts", "diff_pts", 1), ("lo95", "lo", 1))
+    cols += (("hi95", "hi", 1), ("pSignFlip", "p_sign_flip", 4), ("verdict", "verdict", 0))
+    gap_cols = (("gap", "question", 0), ("contrast", "contrast", 0), ("inst", "instances", 0))
+    gap_cols += (("diffPts", "diff_pts", 1), ("lo95", "lo", 1), ("hi95", "hi", 1))
+    gap_cols += (("pSignFlip", "p_sign_flip", 4),)
+    union_cols = (("pool", "pool", 0), ("groups", "groups", 0), ("inst", "instances", 0))
+    union_cols += (("reward%", "reward_pct", 1), ("missing", "missing_text", 0))
+    pooled = [
+        u
+        | {
+            "reward_pct": None if u["reward"] is None else 100.0 * u["reward"],
+            "missing_text": ",".join(u["missing_instances"]) or None,
+        }
+        for u in report["unions"]
+    ]
+    title = "E6 TESTS (P1 resolved: 95% interval excludes 0; P2 by interval sign; P3 pass: mean > 0, p < 0.05)"
+    return [
+        spec_table(title, report["e6_tests"], "test", cols),
+        spec_table(
+            "GAPS per k, paired by instance (MAC Bench style)", report["gaps"], "k", gap_cols
+        ),
+        spec_table(
+            "UNION-k: disjoint groups of k solo-M trials of 1 instance", pooled, "k", union_cols
+        ),
+    ]
+
+
+def render_per_seat(report: dict) -> str:
+    s = report["settings"]
+    header = f"per-seat budget {s['per_seat']} (k-seat arm total {s['per_seat']}k; solo-N total N), boxes {s['boxes']}, flags {s['flags']}, room size {s['room_size']}, turn cap {s['cap']}"
+    parts = [f"{header}\nmode: trials without a reward are {missing_mode(s)}"]
+    parts += render_arms(report["arms"])
+    parts.append(render_field(report["arms"]))
+    parts += render_e6(report)
+    base_cols = (("m", "budget_per_seat", 0), ("total", "total_budget", 0))
+    base_cols += (("randDistinct", "random_distinct", 2), ("randRepeats", "random_repeats", 2))
+    base_cols += (("randFlags", "random_flags", 2), ("identDistinct", "identical_distinct", 0))
+    base_cols += (("identRepeats", "identical_repeats", 0),)
+    base_cols += (("identFlags", "identical_flags_random_pick", 2),)
+    title = f"BASELINES (n={s['boxes']} boxes, {s['flags']} flags, random distinct picks per seat)"
+    parts.append(spec_table(title, report["baselines"], "k", base_cols))
+    return "\n\n".join(parts)
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="crowd_scaling.py")
     parser.add_argument("--arm", action="append", required=True, metavar="LABEL=JOB_DIR")
-    parser.add_argument("--total-budget", type=int, default=24)
+    budget = parser.add_mutually_exclusive_group()
+    budget.add_argument("--total-budget", type=int)
+    budget.add_argument("--per-seat-budget", type=int)
     parser.add_argument("--boxes", type=int, default=60)
     parser.add_argument("--flags", type=int, default=20)
+    parser.add_argument("--room-size", type=int, default=10)
     parser.add_argument("--turn-cap", type=int, default=30)
     parser.add_argument("--margin", type=float, default=0.05)
     parser.add_argument("--missing-as-zero", action="store_true")
-    parser.add_argument("--reference", metavar="JSON_FILE")
+    parser.add_argument("--reference", metavar="JSON_OR_FAMILY_TOML")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
-    assert 0 < args.total_budget < args.boxes and 0 < args.flags <= args.boxes
+    per_seat = args.per_seat_budget
+    total = None if per_seat is not None else (args.total_budget or 24)
+    assert 0 < (per_seat or total) < args.boxes and 0 < args.flags <= args.boxes
+    assert args.boxes % args.room_size == 0 and args.flags % args.room_size == 0
     assert args.turn_cap > 0 and 0.0 <= args.margin < 1.0
     assert 0 < len(args.arm) <= MAX_ARMS
-    arms = [parse_arm(text, args.total_budget) for text in args.arm]
+    arms = [parse_arm(text, total, per_seat) for text in args.arm]
     assert len({a["label"] for a in arms}) == len(arms), "arm labels repeat"
+    assert all(a["budget"] < args.boxes for a in arms), "a seat budget must stay below --boxes"
     cfg = {
-        "total": args.total_budget,
+        "total": total,
+        "per_seat": per_seat,
         "boxes": args.boxes,
         "flags": args.flags,
+        "room_size": args.room_size,
         "cap": args.turn_cap,
         "margin": args.margin,
         "missing_as_zero": args.missing_as_zero,

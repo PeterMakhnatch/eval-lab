@@ -147,6 +147,7 @@ class RunResult:
 
 
 def run(seed: int) -> RunResult:
+    from evallab.sim.anatomy import AnatomySimulation
     from evallab.sim.execution import ExecutionSimulation
     from evallab.sim.hack import HackSimulation
     from evallab.sim.jobs import ProcessJobSimulation
@@ -179,6 +180,8 @@ def run(seed: int) -> RunResult:
             ProtectedPathSimulation(sim).run()
             sim.subsystem = "separate-verifier"
             VerifierSimulation(sim, root / "verifier").run()
+            sim.subsystem = "package-anatomy"
+            AnatomySimulation(sim, root / "anatomy").run()
         except InvariantViolation as exc:
             failure = exc
         except (Exception, ProcessCrash) as exc:

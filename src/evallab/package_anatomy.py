@@ -361,7 +361,9 @@ def baked_files(instructions: Sequence[DockerInstruction], env_paths: Iterable[s
         dest_abs = dest if dest.startswith("/") else str(PurePosixPath(workdir) / dest)
         multiple = len(sources) > 1 or dest.endswith("/")
         for source in sources:
-            source = source.lstrip("./") if source not in {".", "./"} else "."
+            while source.startswith("./"):
+                source = source[2:]
+            source = source or "."
             matched: list[tuple[str, str]] = []
             for path in context:
                 if path in {"Dockerfile", ".dockerignore"} and source in {"."}:

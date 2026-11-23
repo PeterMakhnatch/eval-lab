@@ -210,6 +210,13 @@ deviations and the audit: F19, F20 and `LOG.md`.
   that has the whole budget as control) is pre-registered as Amendment 8. Its family, its analysis and its
   pilot exist. 1 of 13 scored arms is complete: 1 agent with 72 opens scores 70.5%, which is 93.5% of best
   scripted play. The pilot (1 trial each, not scored) gave 8 talking agents 53.8% and 8 silent agents 16.2%.
+- E7 `crowdrules` (rule paragraphs that give each box 1 owner: a share by seat number, 1 coordinator, a fixed
+  plan by seat number; 8 and 4 seats) is pre-registered as Amendment 10 after an independent review. Its
+  family, its scripted checks and its analysis exist. 0 model trials.
+- Seat count of the runner (F22, scripted trials, no model): 48 seats in 1 trial pass on the small Daytona
+  sandbox, also 3 trials at once. At 64 to 80 seats, 4 of 11 trials lost 1 seat and 3 of them gave a reward
+  of 0.26 to 0.30 in place of 1.0 with no error in `result.json`. 120 seats pass on a sandbox with 4 vCPU and
+  8 GiB when the build does not use Compose Bake.
 
 ## How this fits other work
 
@@ -281,4 +288,5 @@ deviations and the audit: F19, F20 and `LOG.md`.
 
 Real cost until E4 is computed from tokens at DeepSeek's price for the hour of the run; Harbor records the
 peak price. From E5 the route is OpenRouter, and the recorded cost is the billed cost. E5 and E6 also used
-11.9 hours of Daytona sandbox time, about $2.00 at list price (not checked against a bill).
+11.9 hours of Daytona sandbox time, about $2.00 at list price (not checked against a bill). The scripted
+checks for E7 and the seat-count probe of F22 used about $0.45 more.

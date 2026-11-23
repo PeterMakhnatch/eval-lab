@@ -323,6 +323,9 @@ and `claim-k` arm, 0.70 in `indep-8` and 0.50 in `solo-12`.
 - **Primary test 1 passes.** For each instance, the least-squares slope of the `team-k` score on log2 k over
   k = 2, 3, 4, 8. Mean slope -15.5 points for each doubling, 95% interval [-20.1, -10.7], exact sign-flip
   p 0.002.
+  Not pre-registered, a check after the result: without the 8-seat arm (k = 2, 3, 4 only) the slope is -14.3
+  points [-25.5, -3.0], p 0.047. So the fall is not made by the 8-seat arm alone, where the game has more
+  seats than rooms.
 - **Primary test 2 fails.** `solo-24 - claim-8` = 26.5 points [20.8, 32.3]. The lower end is above the
   5-point margin, so the claim rule does not make 8 agents match 1 agent.
 - `solo-24 - team-k`: 16.0 [7.3, 24.8], 20.8 [14.0, 28.0], 30.8 [22.5, 38.0] and 45.8 [43.2, 48.5] points at
@@ -474,3 +477,57 @@ INFERRED. A cloud backend removes the 2-trial limit of the laptop: E5's first 17
 pull limit is a property of "Docker inside a fresh sandbox" on any provider, so a registry mirror
 (or a prebuilt image) belongs in the default setup. A fork PR adds a `registry_mirrors` option and a warning
 for the resources trap (see `LOG.md`).
+
+## F22. Seats in 1 trial: 48 pass on the small sandbox, 64 to 80 can give a wrong score without an error, 120 pass on a larger sandbox (2026-11-23, $0.37 of sandbox time)
+
+A probe with the scripted `oracle` policy, no model call. 37 trials on Daytona (Docker inside 1 sandbox, 1
+container for each seat plus the world). The tasks are scratch copies outside the repo: the `field` world,
+`team-k` for k = 8 to 120, 3 opens for each seat (2 at 120 seats). Runner: `muster run` at `e2a07d8fd` with the
+fork at `6aeb609e`. Report, scripts and run folders: `muster-runs/infra-evidence-2026-11-23/seat-scale/`.
+
+OBSERVED:
+
+| Seats | Sandbox | Trials at once | Trials with the reference reward | Trial time | Peak memory | First failure |
+|---|---|---|---|---|---|---|
+| 8 | 2 vCPU, 4 GiB | 1 | 3 of 3 | 71 s | 0.7 GiB | none |
+| 16 | 2 vCPU, 4 GiB | 1 | 2 of 2 | 76 s | 1.0 GiB | none |
+| 24 | 2 vCPU, 4 GiB | 1 | 2 of 2 | 90 s | 1.4 GiB | none |
+| 32 | 2 vCPU, 4 GiB | 1 | 2 of 2 | 112 s | 1.7 GiB | none |
+| 48 | 2 vCPU, 4 GiB | 1 | 2 of 2 | 129 s | 2.2 GiB | none |
+| 48 | 2 vCPU, 4 GiB | 3 | 3 of 3 | 174 s | 2.3 GiB | none |
+| 64 | 2 vCPU, 4 GiB | 1 | 1 of 1 | 234 s | 3.0 GiB | none |
+| 64 | 2 vCPU, 4 GiB | 3 | 2 of 3 | 208 s | 2.9 GiB | 1 seat crashed; reward 0.26; no error in `result.json` |
+| 80 | 2 vCPU, 4 GiB | 1 | 1 of 1 | 212 s | 3.7 GiB | none |
+| 80 | 2 vCPU, 4 GiB | 3 | 3 of 6 | 236 s | 3.7 GiB | 1 seat crashed in each; rewards 0.99, 0.30, 0.28 |
+| 120 | 2 vCPU, 4 GiB | 1 | 0 of 2 | - | 4.0 GiB | image build failure; out of memory |
+| 80 | 4 vCPU, 8 GiB | 3 | 3 of 3 | 152 s | 3.5 GiB | none |
+| 120 | 4 vCPU, 8 GiB | 1 | 0 of 2 | - | - | image build failure (`no such job`) |
+| 120, `COMPOSE_BAKE=false` | 4 vCPU, 8 GiB | 2, then 3 | 5 of 5 | 197 s | 5.2 GiB | none |
+
+- No code refuses more than 8 seats. `muster run` and the roster took 8 to 120 seats.
+- **A wrong score without an error.** In 4 of 11 trials at 64 to 80 seats on the small sandbox, 1 seat died
+  with `ConnectionResetError`. `result.json` has no exception for the trial or for the seat. In 3 of the 4
+  the dead seat was a scout, the other seats waited and stopped, and the reward was 0.26 to 0.30 in place of
+  1.0. The only trace is `seats/<seat>/agent/exit-code.txt`.
+- The world server of the kit keeps the default listen queue of 5 connections. The kernel counted 0 dropped
+  connections at 8 to 24 seats, 5 to 10 at 32 to 48 seats and 171 to 610 at 80 to 120 seats. On 4 vCPU, 0 of 8
+  trials at 80 to 120 seats had a seat crash. On 2 vCPU the CPU was throttled in 21% to 69% of the periods.
+- At 120 seats, `docker compose build` failed in 3 of 4 trials (`NotFound ... no such job`): the kit has 1
+  build target for each seat. With `COMPOSE_BAKE=false`, 5 of 5 builds passed. The fork sets this value for
+  its kernel Docker environment and not for Daytona.
+- Memory grows by about 40 MiB for each seat. The fork opens 1 session for each command and never closes it:
+  the sandbox holds exactly 15 x seats + 34 `sh` processes (1834 at 120 seats).
+- `docker compose up` takes 11 s at 8 seats and 103 s at 120 seats on 2 vCPU. The fork's limit for this step
+  is a fixed 120 s.
+- A second snapshot exists for large trials: `muster-dind-mirror-4c8g` (4 vCPU, 8 GiB, the same mirror).
+
+INFERRED:
+- E5 to E7 are not in the failing range: they have at most 8 seats, where the kernel counted 0 dropped
+  connections.
+- The seat crash needs both the short listen queue and a starved CPU. No packet trace was taken.
+- A trial with model agents has a lower limit than these scripted trials, because a model seat uses more
+  memory and more commands.
+- The wrong score without an error is the dangerous part: above 48 seats on a small sandbox, an
+  infrastructure fault looks like a weak team. An experiment in that range needs the larger sandbox, a check
+  of every seat's exit code before a reward counts, and a kit version with a longer listen queue
+  (`muster/tasks/` is frozen, so that is a new kit version).

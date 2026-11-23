@@ -12,6 +12,24 @@ Times are New York time (ET). Newest entry first. Each entry says what is done a
 
 ## 2026-11-23
 
+**5:43 PM. Seat-count probe (F22): 48 seats pass, 64 to 80 can give a wrong score with no error, 120 pass on a larger sandbox.**
+- A worker ran 37 scripted trials on Daytona with 8 to 120 seats (no model call, $0.37 of sandbox time at
+  list price). The table is in F22. Report and run folders:
+  `muster-runs/infra-evidence-2026-11-23/seat-scale/` (`REPORT.md`).
+- I checked its run folders: 37 trials; the trial of `k64-x3` with reward 0.2625 and the 3 trials of `k80-x3`
+  with rewards 0.9875, 0.3 and 0.275 have no exception in `result.json` and 1 seat with a non-zero
+  `exit-code.txt`; the 5 trials at 120 seats with `COMPOSE_BAKE=false` on 4 vCPU and 8 GiB have reward 1.0.
+- 6 defects are in the report with file, line and patch text. 4 are in the fork: Daytona does not set
+  `COMPOSE_BAKE=false`; `docker compose up` has a fixed limit of 120 s; 1 session for each command stays open;
+  the scripted agent does not report a non-zero exit. 2 are in the frozen task kit: the world server's listen
+  queue of 5, and a policy that retries only refused connections. A worker prepares draft pull requests on the
+  fork for the first and the fourth. The kit defects need a new kit version; they do not touch trials with 8
+  seats or fewer (0 dropped connections at 8 to 24 seats).
+- New snapshot for large trials: `muster-dind-mirror-4c8g` (4 vCPU, 8 GiB, the same registry mirror).
+- F19 has 1 more check, not pre-registered: without the 8-seat arm the slope is -14.3 points for each
+  doubling [-25.5, -3.0], p 0.047 (`muster-runs/e5/analysis/e5-slope-without-k8.txt`).
+- The account is still empty at 5:42 PM. No model trial ran since 4:05 PM.
+
 **5:14 PM. E7 `crowdrules` is ready and pre-registered (Amendment 10). 0 model trials: the account is empty.**
 - Family `muster/tasks/crowdrules` (landed at `e356b421a`): `team-k`, `share-k`, `chief-k`, `zones-k` at k = 4
   and 8, 10 instances each, 24 opens in total. Best play under each rule: 1.0, but 0.98 for `share-8` and 0.995

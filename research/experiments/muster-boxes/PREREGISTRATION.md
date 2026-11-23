@@ -345,3 +345,124 @@ world and adds the missing control. Design evidence:
   seats is done; E6 has no result yet. Group (1) and group (2) run at the same time, because the account may
   be empty in minutes.
 - A trial whose seats fail because the account is empty is unmeasured. It is rerun once if credits return.
+
+## Amendment 10 (5:14 PM ET, 2026-11-23, before any E7 trial): E7 `crowdrules`, rule paragraphs that give each box 1 owner
+
+Written after E5 (F19, F20) and its audit. No `crowdrules` trial with a model exists. E7 waits for credits: the
+OpenRouter account is empty at this time. An independent review of this text, of the family and of the run
+scripts came before this commit. It found 4 blockers and 13 smaller points; all are closed here (`LOG.md`).
+
+**Question.** F20: 8 talking agents lose 45.8 points to 1 agent, mostly by repeats before a report of the box
+could be read; their plans do not bind; the claim rule of `claim-8` (a message for each box) blocks boxes and
+still loses 26.5 points. Does a written rule paragraph that gives each box exactly 1 owner, without a message
+for each box, recover part of the loss? How well does this model obey each kind of rule?
+
+**Design**
+- Family `muster/tasks/crowdrules` (landed at `e356b421a`): the `crowd` world, the same 10 layouts, 24 opens in
+  total, k = 8 and k = 4. The channel is on in every arm.
+- Task copy: `muster-runs/e7/tasks/crowdrules`, taken with `git archive` at `e1deddb19` (the same `crowdrules`
+  tree as `e356b421a`; hash in `crowdrules.pin.json`). If the copy differs from the landed build by 1 byte, the
+  trials are void. Runner: worktree `fable-e5-run` at `e2a07d8fd`; Harbor checkout as in F19.
+- Arms at each k. Each rule is 1 paragraph at the end of the `crowd` `team-k` text:
+  - `team-k`: the `crowd` `team-k` seat texts, byte-identical (120 of 120 files). Only the task name, the seat
+    tokens and the world class name differ. It is the anchor on the day of E7. All E7 contrasts use E7
+    `team-k` only. If E7 `team-8` differs from E5 `team-8` (54.2%) by more than 10 points, the report says so.
+  - `share-k`: "Each box belongs to exactly 1 agent. Box n belongs to the agent whose number is ((n - 1) mod K)
+    + 1 [...] Open only your own boxes. Post each result [...] and read GET /msgs before each open [...]".
+  - `chief-k`: p1 is the coordinator and posts a list that gives each agent its exact boxes; the others open
+    only what p1's latest list gives them.
+  - `zones-k`: a fixed plan by seat number. At k = 8: p1 to p6 each open the first box of their own room and
+    then 1 fixed position in each treasure room; p7 and p8 wait for the reports and then open positions 8 to
+    10 of the lower-numbered and of the higher-numbered treasure room.
+  - Plus `solo-24` from `crowd` on the same day.
+- Best score when every seat obeys the rule (mean of the 10 layouts; best play that does not know which 10 of
+  the 15 layouts are in use): `team` 1.0, `chief` 1.0, `zones` 1.0, `share-8` 0.98, `share-4` 0.995. In
+  layouts 1-5 and 2-6, 2 seats of `share-8` own 4 flag boxes each and have 3 opens. Over all 15 layouts, no
+  fixed ownership by box reaches 1.0 at 8 seats.
+- Scripted check (done, $0): the `oracle` policy scores its reference value on Daytona through the mirror
+  snapshot in all 8 conditions, 1 trial each. `chief-8` needed a second trial: in the first, the image build
+  in the sandbox failed (`rpc error: code = Unavailable`).
+- 10 instances x 2 attempts for each arm. Roster and turn cap (30) as in Amendment 7. Backend: Daytona through
+  the mirror snapshot (Amendment 9); the E7 runner cannot use another image.
+- Pilot (not scored): i01, 1 trial each of `zones-8`, `share-8`, `chief-8`. Pilot trials go to
+  `muster-runs/e7/pilot` and are in no score. The pilot can stop E7 for a plumbing fault. It cannot change the
+  texts, the arms, the order or the analysis.
+- Lanes: 2 lanes run at once with 4 trials each, so at most 8 trials at once. Lane A runs `solo-24`,
+  `zones-8`, `chief-8`, `zones-4`, `chief-4`. Lane B runs `team-8`, `share-8`, `team-4`, `share-4`. Each lane
+  starts an arm only when its last arm ends. Commands:
+  `E5_FLOOR=1.00 ~/Developer/muster-runs/e7/e7_lane.sh 4 solo-24 zones-8 chief-8 zones-4 chief-4` and
+  `E5_FLOOR=1.00 ~/Developer/muster-runs/e7/e7_lane.sh 4 team-8 share-8 team-4 share-4`.
+  No other muster lane runs at the same time. An arm that money or time stops is reported as incomplete.
+- Order against the waiting arms: E6 first (Amendment 8; it has begun), then E7, then the E5 arms of
+  Amendment 9.
+- Stop rule (the lesson of F21): when 3 E7 trials in a row (by end time, over both lanes) end without a
+  reward, E7 stops. The running arms stop at once, and no new arm starts. A trial that writes no `result.json`
+  is not counted.
+- Counting and reruns as in Amendments 7 and 9. A trial without a reward is unmeasured, never 0. A trial that
+  failed before a model call (sandbox, build, provider error, empty account) runs again once, in a new arm
+  folder `<arm>.r1`, after the lanes end. The report gives the reruns for each arm.
+- Money: expected model cost $3 to $6, plus about $1 of Daytona time. An arm starts only when the account holds
+  at least $1 plus the reserve of the arm ($1.10 for 8 seats, $0.50 for 4 seats, $0.05 for `solo-24`). When the
+  balance cannot be read, no arm starts. E5, E6 and E7 together stay under $12 of recorded model cost ($2.99
+  before E7); the runner stops an arm at that cap.
+
+**Analysis** (code landed at `d02fae0e9`, before the pilot: `analysis/crowd_scaling.py` with its RULES
+block, and `analysis/crowd_rules.py` for obedience)
+- Unit, interval and test as in Amendment 7. Instances pair by their number, so `crowd-i01` of `solo-24` pairs
+  with `crowdrules-i01`.
+- A contrast needs a reward in at least 1 trial of each of the 10 instances in both arms. Otherwise it is "not
+  available", not "failed". Every contrast is also reported with unmeasured trials counted as 0.
+- **3 primary contrasts at 8 seats:** `zones-8 - team-8`, `share-8 - team-8`, `chief-8 - team-8`, each with the
+  exact two-sided sign-flip p over the 10 instance differences. Holm's rule runs on the 3 p values alone, with
+  a fixed family of 3 even when a contrast is not available: 0.05 / 3 for the smallest p, then 0.05 / 2, then
+  0.05, and it stops at the first failure. A rule "helps" if (a) Holm's rule rejects its test and (b) the lower
+  end of its 95% interval is strictly above 0. It "hurts" if (a) holds and the upper end is strictly below 0.
+  Otherwise it is not resolved.
+- **Secondary, without a correction:** `solo-24 - rule-8` against the 5-point margin of Amendment 7 for each
+  rule; the same 3 contrasts at 4 seats; each rule against the others; cost and wall time for each trial;
+  seats at the 30-turn cap. `claim-8` of E5 is quoted for context only (another day).
+- **Obedience** (from the event log; `analysis/crowd_rules.py`). The unit is 1 successful open by a seat. Every
+  open counts, also a repeat of a box. Each open is "allowed" or "outside" under the rule of the arm:
+  - `share`: allowed when (box - 1) mod k = seat number - 1.
+  - `zones`: allowed when the box is the seat's scout box or is in the seat's plan for the true treasure rooms.
+  - `chief`: a message by p1 is a list when it gives seats exact box numbers. The parser returns "not parsed"
+    when it is not sure. A post that gives rooms only is a "room plan" and gives no boxes. Strict (the
+    headline): the box is in the seat's boxes in p1's newest list before the open. Lenient: the box is in the
+    newest list that names the seat. An open made while p1's newest list-like post is not parsed is
+    unmeasured and leaves the ratio.
+  - For each instance, obedience is the allowed opens divided by the classified opens over its trials with a
+    reward. The arm value is the mean of the 10 instance values, with a bootstrap interval over instances.
+  - Reference values for a team that never saw the rule (E5 `team-k` trials scored as if the rule applied):
+    `share-8` 14%, `zones-8` 28%, `share-4` 26%, `zones-4` 27%, `chief-8` 9% and `chief-4` 9% of the
+    classified opens.
+  - On 40 hand-labelled plan posts of E5 the parser gave 20 exact lists, 17 "not parsed" and 0 wrong lists.
+    If more than 20% of the opens of a `chief` arm are unmeasured, or if a hand check of 40 p1 posts of E7 by
+    a worker that does not see the scores finds a wrong list, `chief` obedience is reported as "not
+    measured", and only the counts are given.
+  - Also: repeats, unused opens, messages, room plans, and for `chief-k` the time to p1's first list and the
+    opens before it.
+- An independent audit recomputes the primary numbers before the results are written.
+
+**Directional expectations (written before any trial)**
+- `zones-8` is the best rule, near 85%. Its errors are position counts (position 2 read as box 2).
+- `share-8` near 70%: few repeats, but unused opens and opens in empty rooms, because the rule gives no
+  scouting order.
+- `chief-8` near 65%: p1 is slow or posts a list that changes, and the others wait or act without a list.
+- All 3 rules beat `team-8` (near 54%). No rule passes the 5-point margin against `solo-24`.
+- Obedience: `zones` above 90%, `chief` near 80% (strict), `share` near 85%.
+
+**What E7 cannot show**
+- These are prompt rules for 1 model and 1 harness on 1 task. A rule that wins is evidence about how this
+  model reads a rule, not about teams in general.
+- Each rule paragraph also tells the seats to post each result at once and to read GET /msgs. The `team-k` text
+  has no such sentence. So `rule-8 - team-8` measures the whole paragraph, not ownership alone.
+- The rules are compared with each other only in secondary contrasts without a correction. E7 does not show
+  which rule is best.
+- `zones` puts the solution of the coordination problem into the prompt. It shows what a team can reach when
+  the plan is given, not that a team can find the plan.
+- No rule here is enforced by the world. A claim that the world enforces and that expires is another lane's
+  study.
+- Power: in E5, the paired instance difference between 2 arms with 8 seats has an SD of 8.8 to 11.3 points.
+  With 10 instances, a difference of about 10 to 13 points has 80% power at 0.05 / 3. The expected gain of
+  `chief-8` (11 points) is near that size, so "not resolved" is a likely result for it.
+- The 30-turn cap counts reads. A rule that makes seats wait (`chief`, `zones`) can end a seat with opens left.

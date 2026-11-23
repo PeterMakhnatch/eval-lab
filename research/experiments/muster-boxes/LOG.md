@@ -12,6 +12,48 @@ Times are New York time (ET). Newest entry first. Each entry says what is done a
 
 ## 2026-11-23
 
+**5:14 PM. E7 `crowdrules` is ready and pre-registered (Amendment 10). 0 model trials: the account is empty.**
+- Family `muster/tasks/crowdrules` (landed at `e356b421a`): `team-k`, `share-k`, `chief-k`, `zones-k` at k = 4
+  and 8, 10 instances each, 24 opens in total. Best play under each rule: 1.0, but 0.98 for `share-8` and 0.995
+  for `share-4` (exact, by a dynamic program). The simulation has 2 new checks (the oracle never repeats a box;
+  the oracle never opens a box outside its rule); a planted fault fails 3 seeds. 14 scripted trials on local
+  Docker and 8 on Daytona (1 for each condition) equal their reference values.
+- Analysis (landed at `d02fae0e9`): `crowd_rules.py` measures obedience (the share of opens that the rule
+  allows); `crowd_scaling.py` reads the rule arms and prints the 3 primary contrasts with Holm's rule. Checked
+  on copies of E5 arms: `claim-8` under the label `zones-8` gives again 19.2 [14.0, 24.5] against `team-8`. E5
+  and E6 output is byte-equal before and after the change.
+- OBSERVED, a new reference value: E5 teams scored as if a rule applied obey it in 14% (`share-8`), 28%
+  (`zones-8`), 26% (`share-4`), 27% (`zones-4`) and 9% (`chief-8`) of their opens. A team that ignores the
+  `share` rule would be at 1 / k.
+- An independent review came before the commit of Amendment 10. It found 4 blockers and 13 smaller points:
+  - The E7 lane would have used the plain Daytona image, the one that hit the pull limit (F21).
+  - The floor check started an arm when the balance could not be read. The E5 and E6 lane scripts had the same
+    fault. All 3 now stop.
+  - The named analysis could not read the E7 arm labels and could not pair `solo-24` with the rule arms.
+  - `chief` obedience had no definition for free text. In E5, p1 wrote 0 lists as JSON. The parser now returns
+    "not parsed" when it is not sure: 20 exact lists, 17 "not parsed" and 0 wrong lists on 40 hand-labelled
+    plan posts of E5.
+  - The smaller points are in the amendment: the contrast is the whole rule paragraph and not ownership alone,
+    reruns and missing data, the stop rule over both lanes, the money range and the reserve, the exact decision
+    rule, the lanes and their commands, the pins, the power.
+- A fault of mine: I edited `run_arm.sh` while 5 scripted checks ran it. All 5 broke before a result ($0, no
+  model call; the ledger has a `void` line). The E7 runner is a new file, `e7_arm.sh`.
+- OBSERVED: 1 of 9 scripted Daytona trials for E7 failed in the image build inside the sandbox
+  (`failed to receive status: rpc error: code = Unavailable desc = error reading from server: EOF`). The
+  second trial passed. E7 stops when 3 trials in a row end without a reward.
+- To run when credits exist, in this order:
+  - E6, 1 lane in the registered order with 8 trials at once: `E5_FLOOR=1.00 ~/Developer/muster-runs/e6/e6_lane.sh
+    8 team-8 indep-8 scout-8 solo-9 solo-18 team-2 indep-2 solo-36 team-4 indep-4 scout-4 scout-2`.
+  - E7 pilot: `~/Developer/muster-runs/e7/e7_arm.sh ~/Developer/muster-runs/e7/tasks/crowdrules/zones-8/crowdrules-i01
+    zones-8 1 1 0.05 ~/Developer/muster-runs/e7/pilot` (the same for `share-8` and `chief-8`).
+  - E7: the 2 lane commands of Amendment 10.
+  - E5 extra arms: `E5_FLOOR=1.00 ~/Developer/muster-runs/e5/e5_fill_lane.sh 4 solo-8 solo-6 solo-3 indep-3
+    indep-4 claim-4 claim-2 claim-3 team-3-e1`.
+  - E7 analysis, from `analysis/`: `python3 crowd_scaling.py --total-budget 24 --planned-trials 20 --arm
+    solo-24=$R/solo-24 --arm team-8=$R/team-8 --arm zones-8=$R/zones-8 --arm share-8=$R/share-8 --arm
+    chief-8=$R/chief-8 --arm team-4=$R/team-4 --arm zones-4=$R/zones-4 --arm share-4=$R/share-4 --arm
+    chief-4=$R/chief-4` and `python3 crowd_rules.py` with the same 8 team and rule arms.
+
 **4:31 PM. Independent audit of F19 to F21, and the corrections. Fork sync table.**
 - A worker that did not run E5 recomputed the results with its own code (no import of `crowd_scaling.py`,
   other bootstrap seeds): every arm mean, the budget split, messages, costs, both primary tests, the

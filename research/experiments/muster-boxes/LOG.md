@@ -10,6 +10,39 @@ Times are New York time (ET). Newest entry first. Each entry says what is done a
 3. Start the first scored experiment (E1, `boxes`, 5 arms x 10 instances x 3 attempts, DeepSeek Flash
    with thinking off, about $1.50) and report it with `tidegauge`.
 
+## 2026-11-23
+
+**2:50 PM. Plan for today, after research and an independent review ($0.008 spent so far).** Peter asked for
+research, a plan, a double check and then work on multi-agent infrastructure, with up to $50 of credits.
+- Research: 9 subagents wrote 6 evidence files and 28 source files in `research-context/multi-agent/`
+  (commit `a42f6d2a`): executed-work map, agent-count scaling designs, coordination primitives, MAC Bench run and
+  port plan, Olam upstream delta, new-threads intake. The synthesis with 12 corrections to older shelf text is
+  `multi-agent/2026-11-23-evidence-wave-synthesis-and-muster-plan.md`.
+- Another lane pre-registered at 2:05 PM ET (`eval-lab-results/multiagent-campaign-2026-11-23/`): server claim
+  locks and unread guards at 3 seats (`boxes_v2`), `scarce` with real models, a `relay_v1` family and MAC Bench
+  runs. It uses the muster kit. I do not repeat it. My part: the number of seats at a fixed total budget (E5).
+- OBSERVED: the OpenRouter key shows $46.27 under its own limit, but the account holds $23.19 of credits. The
+  account figure limits all lanes together. DeepSeek's own API has $2.54, which the other campaign reserved.
+- Infrastructure results today (all $0 of model cost):
+  - The kit runs unchanged on upstream `olamlabs/harbor-multiagent` `711ca65a`: 16 scripted trials on each
+    runner over the 4 families give the same rewards, and `muster regrade` matches 16 of 16. The new runner is
+    in `/tmp/fable-infra/HarborHeadCompat/`.
+  - Muster trials run on Daytona with no code change (Docker inside the sandbox). 13 scripted trials, 0
+    failures, rewards equal to the local reference, seat isolation holds (a probe policy: 21 checks pass for
+    each seat), 8 trials at once in 69 s, about $0.001 of sandbox time for each trial. Spend: $0.015. The
+    wrapper `muster-runs/e5/harbor-daytona.sh` adds `--env daytona` to `harbor run`.
+  - Fork PRs against upstream head: #33 is superseded by upstream `a9c661c0` (closed). #34 is still needed.
+    #13 is partly superseded. #35 needs a redesign on top of upstream's kill. Each PR has a comment with the
+    details. The fork's `main` is still at `6aeb609e`; a sync changes the base of 83 open PRs of 4 lanes, so
+    Peter decides it.
+  - `analysis/crowd_scaling.py` (landed `e282e7e8e`) reproduces E1 and F14 from the event logs: rewards
+    98.5 / 85.7 / 51.5 / 30.8, the F13 split 69% / 27% / 4%, and F14's +15.1 points (exact sign-flip p 8/1024).
+  - Route pilot (not scored, `muster-runs/e5/route-pilot`): E1 `team-3` i01 and `solo-x3` i01 on the E5 roster
+    through local Docker: reward 1.0 and 1.0, thinking off (0 of 28 agent steps have reasoning text), cost
+    $0.0078 and $0.0009, 62 s and 31 s.
+- E5 is pre-registered as Amendment 7. The review (`go with changes`) replaced both primary tests, added the
+  k = 3 arms, the E1 route anchor and the union control, fixed the turn cap, and moved the cheap arms first.
+
 ## 2026-11-21
 
 **12:12 PM. E4 `ledger` done (Peter: "run e4"). Real cost $0.72 (63 trials, pilot included). F18.**

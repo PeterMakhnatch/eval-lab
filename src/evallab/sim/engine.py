@@ -146,6 +146,7 @@ class RunResult:
 def run(seed: int) -> RunResult:
     from evallab.sim.execution import ExecutionSimulation
     from evallab.sim.leases import LeaseSimulation
+    from evallab.sim.lint import LintSimulation
 
     sim = Simulation(seed)
     failure = None
@@ -155,6 +156,8 @@ def run(seed: int) -> RunResult:
             LeaseSimulation(sim, root / "leases").run()
             sim.subsystem = "queue-execution"
             ExecutionSimulation(sim, root).run()
+            sim.subsystem = "task-lint"
+            LintSimulation(sim, root / "packages").run()
         except InvariantViolation as exc:
             failure = exc
         except (Exception, ProcessCrash) as exc:

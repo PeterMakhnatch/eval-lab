@@ -251,7 +251,7 @@ Design evidence: `multi-agent/2026-11-23-agent-count-scaling-designs-and-evidenc
   the trials are void.
 - Nothing else changes.
 
-## Amendment 8 (3:40 PM ET, 2026-11-23, before any E6 trial): E6 `field`, agents added to a fixed large world
+## Amendment 8 (3:33 PM ET, 2026-11-23, before any E6 trial): E6 `field`, agents added to a fixed large world
 
 Written while E5 runs. E5 results seen so far (not final): `solo-24` 100%, `team-2` 84%, `team-4` 69%,
 `team-8` 54%, `claim-8` near 75%, `indep-8` near 26%. No `field` trial with a model exists.

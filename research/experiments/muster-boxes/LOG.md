@@ -12,6 +12,31 @@ Times are New York time (ET). Newest entry first. Each entry says what is done a
 
 ## 2026-11-23
 
+**3:10 PM. E5 pilot done, scored runs started.** Amendment 7a (`4fc68d35c`, committed 2:58 PM, landed as
+`94fc1b90d`) moved the arms of the primary tests first and set the floor to $2, because other lanes drained the
+shared OpenRouter account ($23.19 at 2:25 PM, $11.77 at 3:03 PM; E5 had spent $0.14).
+- The `crowd` family (17 conditions x 10 instances, commit `bef4f0d08`) passed `generate.py --check`, the
+  gate, and 17 scripted Docker trials at their reference values. The runs use a pinned copy
+  (`muster-runs/e5/tasks/crowd`, hash in `crowd.pin.json`).
+- Scripted checks on Daytona with each task's own solution: `solo-24` 1.0, `team-3` 1.0, `team-8` 1.0,
+  `claim-8` 1.0, `indep-4` 1.0, `indep-8` 0.8, `solo-3` 0.15. Each equals `metadata.oracle_reward`.
+  My first check of `solo-24` and `indep-8` used the family's template script, which still has unfilled
+  placeholders, and scored 0. That was my error, not a task fault.
+- Pilot with model seats (i01, 1 trial each, not scored, $0.114): `solo-24` 100%, `claim-2` 100%, `team-8` 45%
+  (12 of 24 opens were repeats; p1, p2, p3 and p7 all opened box 1 first), `indep-8` 25%, `claim-8` 65% (1
+  repeat, but 8 opens were never used; 109 messages). Thinking was off, no seat reached 30 turns, and a trial
+  took 104 s to 277 s on Daytona.
+- Deviation from Amendment 7a: 3 lanes of 4 trials run at once (12 trials, not 8), to end the primary arms
+  before the account is empty. Decided at 3:04 PM. It changes no analysis rule.
+- Pin check after the family landed (`1cec139f2`, 3:17 PM): every tracked file of the landed
+  `muster/tasks/crowd/build` is byte-equal with the copy that the trials use. The copy also has 340
+  `__pycache__` folders (Python 3.12 bytecode that the simulation wrote in the worktree; git ignores them), so
+  its tree hash differs from a clean checkout. The task images use Python 3.13, which never loads 3.12
+  bytecode. The copy stays unchanged for all E5 arms. `muster regrade` against the clean landed tree is the
+  check that the rewards do not depend on it.
+- 3:18 PM: a 4th lane started (16 trials at once), for the same reason as the 3rd. No trial or seat
+  exception in the first 62 results.
+
 **2:50 PM. Plan for today, after research and an independent review ($0.008 spent so far).** Peter asked for
 research, a plan, a double check and then work on multi-agent infrastructure, with up to $50 of credits.
 - Research: 9 subagents wrote 6 evidence files and 28 source files in `research-context/multi-agent/`

@@ -250,3 +250,63 @@ Design evidence: `multi-agent/2026-11-23-agent-count-scaling-designs-and-evidenc
   with its hash in `muster-runs/e5/tasks/crowd.pin.json`. If the landed build differs from that copy by 1 byte,
   the trials are void.
 - Nothing else changes.
+
+## Amendment 8 (3:40 PM ET, 2026-11-23, before any E6 trial): E6 `field`, agents added to a fixed large world
+
+Written while E5 runs. E5 results seen so far (not final): `solo-24` 100%, `team-2` 84%, `team-4` 69%,
+`team-8` 54%, `claim-8` near 75%, `indep-8` near 26%. No `field` trial with a model exists.
+
+**Question.** Published sweeps over the number of agents (Bespoke MAC Bench, Replit) keep the task fixed and
+give every agent its own budget, so the total budget grows with k. They report 1 agent, k silent agents and k
+talking agents. They do not report 1 agent with the whole budget of the team. E6 runs that sweep on a muster
+world and adds the missing control. Design evidence:
+`research-context/multi-agent/2026-11-23-agent-count-scaling-designs-and-evidence.md`.
+
+**Design**
+- Family `muster/tasks/field` (branch `fable/field`, commit `dfbec6c05`): 240 boxes in 24 rooms of 10, 8
+  treasure rooms, reward = distinct flag boxes opened / 80, 10 layouts. Every seat has 9 opens. k = 1, 2, 4, 8.
+- Arms: `solo-9` (1 agent); `indep-k` (k silent agents); `team-k` (k agents with the channel); `scout-k`
+  (`team-k` plus "When you learn what a room holds, post the room number and what it holds with POST /msg at
+  once. Read GET /msgs before you choose a room."); `solo-18`, `solo-36`, `solo-72` (1 agent with the budget
+  of 2, 4 and 8 agents). The family also has `claim-k`; E6 does not run it (cost; E5 covers the claim rule).
+- Reference values (best scripted play, mean over the 10 layouts): `solo-9` 0.0875, `solo-18` 0.174, `solo-36`
+  0.379, `solo-72` 0.754; `indep-2/4/8` 0.186 / 0.348 / 0.615; `team-2/4/8` 0.181 / 0.361 / 0.7475. The world
+  never runs out of flags. Best play of 8 agents equals best play of 1 agent with 72 opens, so the task gives a
+  team no advantage in opens. Identical agents that all scan from room 1 score 0.0875 at every k.
+- Trials: 10 instances x 2 attempts for each arm; `solo-9` has 8 attempts (80 trials) for the union control.
+- Roster, turn cap (30 for each seat), backend (Daytona, 2 vCPU, 4 GiB) and counting rules as in E5
+  (Amendment 7). The cap does not change after the pilot. A seat that reaches the cap or the 600 s time limit
+  with opens left is counted and reported for each arm.
+- Pilot (not scored): i01, 1 trial each of `solo-72`, `team-8`, `scout-8`, `indep-8`.
+- Run order: `solo-72`, `team-8`, `indep-8`, `scout-8`, `solo-9`, `solo-18`, `team-2`, `indep-2`, `solo-36`,
+  `team-4`, `indep-4`, `scout-4`, `scout-2`. An arm that money or time stops is reported as incomplete.
+- Money: E6 starts only when the E5 arms are done or stopped. No arm starts when the OpenRouter account holds
+  less than $2. E5 and E6 together stay under the E5 cap of $12 of model cost. Expected E6 cost: about $3.
+
+**Analysis** (`analysis/crowd_scaling.py --per-seat-budget 9 --boxes 240 --flags 80`)
+- Unit, interval and test as in Amendment 7.
+- **Primary 1 (does talk help at k = 8?):** `team-8 - indep-8`. Resolved if the 95% interval excludes 0.
+- **Primary 2 (the missing control at k = 8):** `solo-72 - team-8`. "1 agent is better" if the interval is
+  above 0. "The team is better" if it is below 0. Otherwise not resolved.
+- **Primary 3 (does the team fall behind 1 agent as it grows?):** for each instance,
+  (`solo-72 - team-8`) - (`solo-18 - team-2`). Pass if the mean is above 0 and the sign-flip p < 0.05.
+- Secondary, without a correction: the same contrasts at k = 2 and 4 and with `scout-k`; `scout-k - team-k`;
+  MAC Bench's parallelism gap `indep-k - solo-9` and communication gap `team-k - indep-k` at each k;
+  `indep-k - union-k` (`union-k` = distinct flag boxes over k separate `solo-9` runs of 1 instance); flags for
+  each open; each arm's reward divided by its reference value.
+- Mechanism: the E5 measures, plus rooms opened by more than 1 seat, treasure rooms found, empty rooms probed
+  more than once, and the share of seats whose first open is in room 1.
+
+**Directional expectations (written before any trial)**
+- `solo-9` near its reference (0.09). `solo-72` at 0.55 to 0.70: 1 agent scans in order and loses little.
+- `indep-8` far below its reference of 0.615, near 0.15 to 0.25: most seats start in room 1.
+- `team-8` between them, near 0.35 to 0.45. So I expect "1 agent is better" in primary 2, a positive primary
+  1, and a pass in primary 3.
+- `scout-8` above `team-8` by 5 to 10 points.
+
+**What E6 cannot show**
+- 1 model, 1 harness, 1 synthetic world, 20 trials for each arm.
+- Opens are the only budget that E6 equalizes. A team of 8 has 8 times the turns and the wall time of 1 agent,
+  and it uses more tokens. Tokens, cost and time are reported for each arm.
+- The world rewards search only. It has no subtask that needs a specialist, so E6 says nothing about teams
+  whose members differ.

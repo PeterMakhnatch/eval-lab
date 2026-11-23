@@ -21,12 +21,12 @@ from typing import Any
 from muster.roster import Task, read_task
 
 _TASKS = Path(__file__).with_name("tasks")
-_FAMILIES = ("boxes", "commons", "crowd", "ledger", "scarce")
-_BOX_FAMILIES = ("boxes", "crowd")
+_FAMILIES = ("boxes", "commons", "crowd", "field", "ledger", "scarce")
+_BOX_FAMILIES = ("boxes", "crowd", "field")
 _MAX_SEATS = 8
 _MAX_BUILDS = 256
 _MAX_FILES = 64
-_MAX_BUDGET = 64
+_MAX_BUDGET = 72
 _MAX_EVENT_BYTES = 64 * 1024
 _MAX_FAILURES = 32
 _REMOTE = "192.0.2.1"
@@ -200,6 +200,9 @@ def check_supply(run: Run, case: Scenario, rng: Random) -> None:
                 f"{key}: replayed {reward}, recorded {case.task.oracle_reward}")
     if case.family == "crowd":
         run.require(step, "crowd-oracle-never-repeats-a-box", rewards.get("duplicate_opens") == 0,
+                    f"{key}: {rewards.get('duplicate_opens')} repeated opens")
+    if case.family == "field" and case.instance["channel"]:
+        run.require(step, "field-team-oracle-never-repeats-a-box", rewards.get("duplicate_opens") == 0,
                     f"{key}: {rewards.get('duplicate_opens')} repeated opens")
 
 
@@ -398,6 +401,20 @@ class Evidence:
     truncate_at: int
 
 
+def _flag_share(events: list[Event], instance: dict[str, Any]) -> float:
+    size, treasure = instance["room_size"], set(instance["treasure_rooms"])
+    assert size > 0 and treasure
+    found: set[int] = set()
+    for event in events:
+        if event["kind"] == "admin.close" and event["ok"]:
+            break
+        if event["kind"] == "open" and event["ok"] and event["seat"] is not None:
+            box = event["request"]["box"]
+            if (box - 1) // size + 1 in treasure:
+                found.add(box)
+    return len(found) / (len(treasure) * size)
+
+
 def play_world(run: Run, case: Scenario, rng: Random, path: Path) -> Evidence:
     clock = Clock()
     folder = case.task.path / "environment/world"
@@ -412,6 +429,10 @@ def play_world(run: Run, case: Scenario, rng: Random, path: Path) -> Evidence:
     collected_at = len(play.events)
     _exercise(play, rng, good)
     before_close = play.grades("world/before-close")
+    if case.family in _BOX_FAMILIES:
+        share = _flag_share(play.events, case.instance)
+        run.require("world/before-close", "reward-is-distinct-flag-boxes-over-all-flags",
+                    before_close.get("reward") == share, f"reward {before_close.get('reward')}, expected {share}")
     play.send("close", _post("admin/close", {}), None, client=rng.choice(["::1", "127.0.0.1"]))
     for seat in case.task.seats:
         play.send("late-write", good, seat)

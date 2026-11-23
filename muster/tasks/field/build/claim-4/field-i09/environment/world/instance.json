@@ -1,0 +1,25 @@
+{
+  "family": "field",
+  "condition": "claim-4",
+  "instance": 9,
+  "seats": [
+    "p1",
+    "p2",
+    "p3",
+    "p4"
+  ],
+  "budget": 9,
+  "channel": true,
+  "rooms": 24,
+  "room_size": 10,
+  "treasure_rooms": [
+    1,
+    5,
+    6,
+    8,
+    10,
+    19,
+    22,
+    23
+  ]
+}

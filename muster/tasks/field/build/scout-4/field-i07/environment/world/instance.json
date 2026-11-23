@@ -1,0 +1,25 @@
+{
+  "family": "field",
+  "condition": "scout-4",
+  "instance": 7,
+  "seats": [
+    "p1",
+    "p2",
+    "p3",
+    "p4"
+  ],
+  "budget": 9,
+  "channel": true,
+  "rooms": 24,
+  "room_size": 10,
+  "treasure_rooms": [
+    1,
+    9,
+    10,
+    14,
+    18,
+    19,
+    21,
+    23
+  ]
+}

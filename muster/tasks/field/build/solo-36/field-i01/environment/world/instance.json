@@ -1,0 +1,22 @@
+{
+  "family": "field",
+  "condition": "solo-36",
+  "instance": 1,
+  "seats": [
+    "p1"
+  ],
+  "budget": 36,
+  "channel": false,
+  "rooms": 24,
+  "room_size": 10,
+  "treasure_rooms": [
+    2,
+    6,
+    7,
+    9,
+    13,
+    14,
+    21,
+    23
+  ]
+}

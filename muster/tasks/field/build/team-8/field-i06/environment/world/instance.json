@@ -1,0 +1,29 @@
+{
+  "family": "field",
+  "condition": "team-8",
+  "instance": 6,
+  "seats": [
+    "p1",
+    "p2",
+    "p3",
+    "p4",
+    "p5",
+    "p6",
+    "p7",
+    "p8"
+  ],
+  "budget": 9,
+  "channel": true,
+  "rooms": 24,
+  "room_size": 10,
+  "treasure_rooms": [
+    5,
+    8,
+    13,
+    17,
+    19,
+    21,
+    23,
+    24
+  ]
+}

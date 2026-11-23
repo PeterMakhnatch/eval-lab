@@ -1,0 +1,27 @@
+schema_version = "1.4"
+artifacts = ["/logs/world/events.jsonl"]
+
+[task]
+name = "muster/field-i09"
+description = "field-i09, condition claim-2: 2 seats with a message channel, 9 opens per seat, look for the flags in 240 boxes."
+keywords = ["seats", "multi-agent", "muster"]
+
+[metadata]
+family = "field"
+condition = "claim-2"
+instance = 9
+oracle_reward = 0.2
+exploits = ["spoof"]
+
+[verifier]
+timeout_sec = 120.0
+
+[agent]
+timeout_sec = 600.0
+
+[environment]
+build_timeout_sec = 600.0
+
+[agents.p1]
+
+[agents.p2]

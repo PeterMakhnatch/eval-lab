@@ -19,9 +19,33 @@ _EXTRA_CODES = (
     "artifacts-declared",
     "solution-present",
 )
+_SAFETY_CODES = (
+    "artifacts-instructed",
+    "artifacts-verified",
+    "verifier-reads-undeclared",
+    "artifact-overwrites-verifier",
+    "verifier-executes-artifact",
+    "verifier-installs-agent-dependencies",
+    "verifier-runtime-install",
+    "dropped-uid-reward-write",
+)
+_SAFETY_PER_SEED = 3
 _TASK = 'artifacts = ["/app/out.txt"]\n\n[verifier]\nenvironment_mode = "separate"\n'
 _SOLUTION = "#!/bin/sh\nset -eu\nprintf '%s\\n' ok > /app/out.txt\n"
 _TESTS = "#!/bin/sh\nset -eu\ncat /app/out.txt\n"
+_REWARD_TASK = (
+    'artifacts = ["/app/out.txt", "/logs/verifier/reward.txt"]\n'
+    '\n[verifier]\nenvironment_mode = "separate"\n'
+)
+_REWARD_INSTRUCTION = (
+    "Write the final answer to /app/out.txt and the reward to /logs/verifier/reward.txt\n"
+)
+_DROPPED_UID_TESTS = (
+    "#!/bin/sh\nset -eu\ncat /app/out.txt\n"
+    "chmod 700 /logs/verifier\n"
+    "setpriv --reuid nobody --regid nogroup --clear-groups /tests/run.sh\n"
+    "printf '%s\\n' 1 > /logs/verifier/reward.txt\n"
+)
 
 
 def _image(digest: str) -> str:
@@ -67,6 +91,30 @@ def _defects(digest: str) -> dict[str, tuple[dict[str, str], tuple[str, ...]]]:
         ),
         "artifacts-declared": ({"task.toml": '[verifier]\nenvironment_mode = "separate"\n'}, ()),
         "solution-present": ({}, ("solution/solve.sh",)),
+        "artifacts-instructed": ({"instruction.md": "Write the final answer.\n"}, ()),
+        "artifacts-verified": (
+            {"tests/test.sh": "#!/bin/sh\nset -eu\nprintf '%s\\n' ok\n"},
+            (),
+        ),
+        "verifier-reads-undeclared": ({"tests/test.sh": _TESTS + "cat /app/other.txt\n"}, ()),
+        "artifact-overwrites-verifier": (
+            {
+                "task.toml": _REWARD_TASK,
+                "instruction.md": _REWARD_INSTRUCTION,
+                "tests/test.sh": _TESTS + "cat /logs/verifier/reward.txt\n",
+            },
+            (),
+        ),
+        "verifier-executes-artifact": (
+            {"tests/test.sh": "#!/bin/sh\nset -eu\nsh /app/out.txt\n"},
+            (),
+        ),
+        "verifier-installs-agent-dependencies": (
+            {"tests/test.sh": _TESTS + "xargs -a /app/out.txt pip install\n"},
+            (),
+        ),
+        "verifier-runtime-install": ({"tests/test.sh": _TESTS + "apt-get update\n"}, ()),
+        "dropped-uid-reward-write": ({"tests/test.sh": _DROPPED_UID_TESTS}, ()),
     }
 
 
@@ -95,12 +143,20 @@ class LintSimulation:
         self.sim = sim
         self.root = root
 
+    def safety_codes(self) -> list[str]:
+        start = self.sim.seed % len(_SAFETY_CODES)
+        return [
+            _SAFETY_CODES[(start + offset) % len(_SAFETY_CODES)]
+            for offset in range(_SAFETY_PER_SEED)
+        ]
+
     def run(self) -> None:
         rng = self.sim.rng
         digest = "".join(rng.choice(_HEX) for _ in range(64))
-        codes = [*_FIXED_CODES, *rng.sample(_EXTRA_CODES, 2)]
+        codes = [*_FIXED_CODES, *rng.sample(_EXTRA_CODES, 2), *self.safety_codes()]
         rng.shuffle(codes)
         defects = _defects(digest)
+        assert set(codes) <= defects.keys()
         base = _package_files(digest)
         for index, code in enumerate(codes):
             changes, dropped = defects[code]

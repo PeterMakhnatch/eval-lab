@@ -149,6 +149,7 @@ def run(seed: int) -> RunResult:
     from evallab.sim.jobs import ProcessJobSimulation
     from evallab.sim.leases import LeaseSimulation
     from evallab.sim.lint import LintSimulation
+    from evallab.sim.mutation import MutationSimulation
     from evallab.sim.rewards import RewardSimulation
 
     sim = Simulation(seed)
@@ -167,6 +168,8 @@ def run(seed: int) -> RunResult:
             HackSimulation(sim, root / "hack").run()
             sim.subsystem = "process-job"
             ProcessJobSimulation(sim, root / "jobs").run()
+            sim.subsystem = "verifier-mutation"
+            MutationSimulation(sim).run()
         except InvariantViolation as exc:
             failure = exc
         except (Exception, ProcessCrash) as exc:

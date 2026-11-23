@@ -311,7 +311,7 @@ world and adds the missing control. Design evidence:
 - The world rewards search only. It has no subtask that needs a specialist, so E6 says nothing about teams
   whose members differ.
 
-## Amendment 8a (3:38 PM ET, 2026-11-23, before any E6 trial): the E6 pilot may run while E5 ends
+## Amendment 8a (3:36 PM ET, 2026-11-23, before any E6 trial): the E6 pilot may run while E5 ends
 
 - The 4 pilot trials of E6 (not scored, about $0.10) run while the last E5 arms run. The scored E6 arms still
   wait until every E5 arm is done or stopped. Reason: the shared account still falls, and a plumbing fault

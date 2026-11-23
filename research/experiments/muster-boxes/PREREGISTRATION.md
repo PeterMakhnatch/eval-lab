@@ -323,9 +323,11 @@ world and adds the missing control. Design evidence:
 
 ## Amendment 9 (3:50 PM ET, 2026-11-23): Docker Hub pull limit, reruns, and the order for the last credits
 
-- OBSERVED: from 20:34Z, new Daytona trials failed before any seat started: `docker compose build` got
-  `429 Too Many Requests` from Docker Hub for `python:3.13-slim`. 131 E5 trials failed that way (no model call,
+- OBSERVED: from 20:38Z, new Daytona trials failed before any seat started: `docker compose build` got
+  `429 Too Many Requests` from Docker Hub for `python:3.13-slim`. 111 E5 trials failed that way (no model call,
   no reward): `claim-2` 20, `solo-8` 30, `claim-4` 16, `indep-2` 16, `indep-3` 13, `indep-4` 9, `solo-12` 7.
+  (Corrected at 4:15 PM ET: the first text said 131 and 20:34Z. 131 was an addition error; 20:38Z is the start
+  time of the first failed trial. The counts for each arm did not change.)
   The arms of both primary tests were complete before that (`solo-24`, `team-2/3/4/8`, `claim-8`, 20 trials
   each), and so was `indep-8`.
 - **Fix.** A Daytona snapshot `muster-dind-mirror-v1`: the same `docker:28.3.3-dind` image, 2 vCPU, 4 GiB, plus

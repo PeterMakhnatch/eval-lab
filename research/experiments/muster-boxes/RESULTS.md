@@ -1,9 +1,9 @@
-# muster results: more agents, talking, and the budget of 3
+# muster results: more agents, talking, and the budget of the team
 
-Written 2026-11-21 for Peter. OBSERVED means a run or a file shows it. INFERRED means our reasoning.
-Each number comes from `FINDINGS.md` (F11 to F18) and the dated entries in `LOG.md`, both in this folder.
-Run outputs stay outside Git, in `muster-runs/`. Paths written before 2026-11-21 refer to the old muster
-repository: `docs/` and `experiments/` are now this folder, `tasks/` is `muster/tasks/`.
+Written 2026-11-21 for Peter, updated 2026-11-23 with E5. OBSERVED means a run or a file shows it. INFERRED
+means our reasoning. Each number comes from `FINDINGS.md` (F11 to F21) and the dated entries in `LOG.md`, both
+in this folder. Run outputs stay outside Git, in `muster-runs/`. Paths written before 2026-11-21 refer to the
+old muster repository: `docs/` and `experiments/` are now this folder, `tasks/` is `muster/tasks/`.
 
 ## Summary
 
@@ -15,6 +15,9 @@ repository: `docs/` and `experiments/` are now this folder, `tasks/` is `muster/
 - When the facts are split and no agent can act alone (`ledger`, E4), the talking team scores 100%, like 1
   agent that holds all facts. Every team waited for both reports before it answered. So the team's losses in
   `boxes` come from acting on a shared resource at the same time, not from passing information.
+- More agents make it worse (E5, 2026-11-23). With 24 opens in total, 1 agent scores 100%, a talking team of 2
+  84%, of 3 79%, of 4 69% and of 8 54%: 15 points lost for each doubling. The post-first rule that closed the
+  gap at 3 agents leaves 8 agents at 74%, because their claims block boxes that nobody opens.
 - Limits: 1 harness, 1 main model, 2 synthetic tasks, 10 instances each.
 
 ## The task and the setup
@@ -155,6 +158,52 @@ is final. Score: the share of the 5 totals that are exactly right. Pre-registere
   or a deadline) is needed to find where pooling starts to fail. The team still costs 5 times as much as 1
   agent that holds all facts, so when 1 agent can hold the facts, it is the cheaper choice.
 
+## E5: more seats at the same total budget (2026-11-23)
+
+`crowd`: the `boxes` world and layouts with 24 opens in total, split equally over k seats (24, 12, 8, 6 or 3
+each). Pre-registered in `PREREGISTRATION.md` (Amendments 7, 7a, 9) after an independent review of the plan.
+Seats: terminus-2 with DeepSeek V4.1 Flash through OpenRouter, thinking off. Runner: Daytona sandboxes, up to
+20 trials at once. 20 trials for each arm. Details: F19 and F20.
+
+| Arm | Seats x opens | Score | Repeats (of 24 opens) | Unused opens | Messages | Cost per trial |
+|---|---|---|---|---|---|---|
+| `solo-24` | 1 x 24 | 100.0% | 0.00 | 0.65 | 0 | $0.0017 |
+| `team-2` | 2 x 12 | 84.0% | 2.35 | 0.45 | 6.5 | $0.0059 |
+| `team-3` | 3 x 8 | 79.2% | 3.45 | 0.40 | 12.4 | $0.0084 |
+| `team-4` | 4 x 6 | 69.2% | 5.45 | 0.65 | 18.8 | $0.0123 |
+| `team-8` | 8 x 3 | 54.2% | 8.40 | 0.15 | 31.2 | $0.0178 |
+| `claim-8` | 8 x 3, post-first rule | 73.5% | 1.25 | 2.60 | 78.4 | $0.0502 |
+| `indep-8` | 8 x 3, no channel | 25.8% | 13.85 | 0.00 | 0 | $0.0123 |
+
+- OBSERVED: the first primary test passes. The `team-k` score falls by 15.5 points for each doubling of k
+  (95% interval [-20.1, -10.7], exact sign-flip p 0.002, slopes for each of the 10 layouts).
+- OBSERVED: the second primary test fails. `solo-24` minus `claim-8` is 26.5 points [20.8, 32.3], far above
+  the 5-point margin. The rule still adds 19.2 points [14.0, 24.5] to the plain team of 8.
+- OBSERVED: the team of 8 repeats 8.4 of its 24 opens. 8 agents that choose boxes at random would repeat 3.8.
+  The repeats at the start of a trial do not grow with k (0.8 to 1.65). The growth is later: when a treasure
+  room is known, the agents take the lowest closed box in it, inside the 7 s before a report exists. 82% of
+  the repeats of `team-8` happen when no report of that box had reached the agent; 0 happen after it read one.
+- OBSERVED: every team of 3 or more writes a plan, mostly before the first open. A team of 8 writes 5.75
+  plans from 4.4 authors in a trial. An agent's first open obeys the plan it read in 84% of cases at 4 seats
+  and in 59% at 8. Plans for 6 rooms leave seats 7 and 8 without a room.
+- OBSERVED: under the post-first rule, 31 of 160 agents stop with opens left. 28 of them say that every
+  remaining treasure box is claimed, while 7.8 flag boxes are still closed. Only 31% of claims end in an open
+  by the claimant.
+- INFERRED: the loss of F11 is not a fixed tax on teams. It grows with the number of agents that race for the
+  same next step. A written claim turns the race into a queue that blocks. To make 8 agents work, each box
+  needs 1 owner without a message for each box (a fixed share by seat name, 1 agent that assigns, or a claim
+  that the world enforces and that expires).
+- OBSERVED, 2 seats: `team-2` 84.0%, 2 silent agents (`indep-2`) 67.5%, 1 agent with 12 opens (`solo-12`)
+  45.2%, and the distinct flags of 2 separate `solo-12` runs 52.0%. The channel adds 16.5 points [5.3, 29.2]
+  even at 2 seats, where best silent play can score 1.0.
+- Not done: the arms without a channel at 3 and 4 seats have 7 and 11 of 20 trials. The claim rule at 2, 3 and
+  4 seats, the single-agent arms with 3, 6 and 8 opens (for the union control) and the route anchor did not
+  run. Docker Hub's pull limit stopped them (F21), and then the shared OpenRouter account was empty.
+- E6 `field` (agents added to a fixed large world of 240 boxes, 9 opens for each agent, with the single agent
+  that has the whole budget as control) is pre-registered as Amendment 8. Its family, its analysis and its
+  pilot exist. 1 of 13 scored arms is complete: 1 agent with 72 opens scores 70.5%, which is 93.5% of best
+  scripted play. The pilot (1 trial each, not scored) gave 8 talking agents 53.8% and 8 silent agents 16.2%.
+
 ## How this fits other work
 
 - Anthropic Fellows, "Worse Together" (2026-11): messages reach the committing agent in 94% to 99% of episodes,
@@ -168,6 +217,10 @@ is final. Score: the share of the 5 totals that are exactly right. Pre-registere
   `solo-x3` costs $0.002 per trial, `team-3` $0.012.
   https://benchmarks.bespokelabs.ai/multi-agent-coordination-bench/ (local copy:
   `research-context/multi-agent/sources/posts/2026-11-18-multi-agent-coordination-bench.md`)
+  E5 adds the control that the benchmark lacks, a fixed total budget: there the team of 8 scores 54% against
+  100% for 1 agent, and talking adds 28.5 points over 8 silent agents. On MAC Bench at 8 agents, talking
+  teams beat silent teams by +0.046 and lose to the best of 8 single runs by 0.039 (recomputed from the page
+  data in `research-context/multi-agent/2026-11-23-agent-count-scaling-designs-and-evidence.md`).
 - "Test-Time Compute Scales Better with Parallel Agent Teams" (Duke, Modal, Princeton, NYU, 2026-11) reports
   the other direction on long tasks. At equal cost, 1 agent that works 12 hours scores 52.7 and a team of 2
   that works 6 hours each scores about 5.4 points above 1 agent at 6 hours (Graph Node Classification).
@@ -187,11 +240,15 @@ is final. Score: the share of the 5 totals that are exactly right. Pre-registere
   (`scarce`) exist in muster but have no scored model results yet.
 - **Small samples:** 10 instances; 20 or 30 trials per arm. The design detects differences of about 12 to 16
   pts, so smaller real effects can show as "not resolved".
-- **Time:** E1 and E2 ran on 11-19, F14 on 11-20, F14c to F17 on 11-21. F14c checks for drift for the
-  plain team only.
+- **Time:** E1 and E2 ran on 11-19, F14 on 11-20, F14c to F17 on 11-21, E5 on 11-23. F14c checks for drift
+  for the plain team only. E5 used another route to the model (OpenRouter to DeepInfra) and another backend
+  (Daytona) and has no anchor arm, so its levels must not be compared with the earlier levels.
 - **Prompt protocols:** report-first and the F15 to F17 changes are written rules. They measure the value of
   that rule, not what agents find without it.
-- **1 runner:** the fork of Harbor at `6aeb609e`, local Docker on 1 Mac.
+- **2 runners:** the fork of Harbor at `6aeb609e`, on local Docker on 1 Mac (E1 to E4) and on Daytona
+  sandboxes (E5, E6).
+- **E5 is at 1 total budget (24 opens).** At 8 seats each agent has 3 opens and there are more seats than
+  rooms, so the game differs in kind from 2 to 4 seats. E5 equalizes opens, not tokens or time.
 
 ## Cost
 
@@ -205,6 +262,11 @@ is final. Score: the share of the 5 totals that are exactly right. Pre-registere
 | F16 (11-21) | 20 | $0.25 |
 | F17 (11-21) | 20 | $0.27 |
 | E4 `ledger` (11-21, pilot included) | 63 | $0.72 |
-| **Total** | **431** | **$4.37** |
+| E5 `crowd` (11-23; 313 started, 200 with a reward) | 200 | $2.68 |
+| E5 pilots (11-23, not scored) | 8 | $0.13 |
+| E6 `field` (11-23; 1 arm and the pilot) | 24 | $0.18 |
+| **Total** | **663** | **$7.36** |
 
-Real cost is computed from tokens at DeepSeek's price for the hour of the run. Harbor records the peak price.
+Real cost until E4 is computed from tokens at DeepSeek's price for the hour of the run; Harbor records the
+peak price. From E5 the route is OpenRouter, and the recorded cost is the billed cost. E5 and E6 also used
+11.8 hours of Daytona sandbox time, about $2.00 at list price.

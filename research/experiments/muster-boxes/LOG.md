@@ -12,6 +12,73 @@ Times are New York time (ET). Newest entry first. Each entry says what is done a
 
 ## 2026-11-23
 
+**4:15 PM. The OpenRouter account is empty. E5 and E6 stop here until credits are added. F19, F20, F21.**
+- OBSERVED: the account held $0.16 at 4:04 PM. The last 2 `indep-2` reruns failed with "This request would
+  exceed your available credits". My lane spent $2.99 of the $23.19 that the account held at 2:25 PM.
+- E5 final count: 313 trials started, 200 with a reward, 111 failed at the pull limit, 2 at the empty account.
+  23 failed trials were run again through the mirror (21 with a reward). Complete: `solo-24`, `solo-12`,
+  `team-2`, `team-3`, `team-4`, `team-8`, `claim-8`, `indep-8` (20 each) and `indep-2` (18). Incomplete:
+  `indep-3` 7, `indep-4` 11, `claim-4` 4. Not run: `claim-2`, `claim-3`, `team-3-e1`, `solo-8`, `solo-6`,
+  `solo-3`. Regrade matches for every checked arm (`solo-12` 20 of 20, `indep-2` 18 of 18).
+- New numbers since 3:52 PM: `solo-12` 45.2%, `indep-2` 67.5%, `union-2` 52.0%. `team-2 - indep-2` = 16.5
+  points [5.3, 29.2]; `indep-2 - union-2` = 15.5 points [4.2, 25.0]. Output:
+  `muster-runs/e5/analysis/e5-all-arms.txt` and `.json`. Check with the 2 unmeasured `indep-2` trials counted
+  as 0 (the only counted arm that has any): `indep-2` 60.5%, `team-2 - indep-2` 23.5 [12.0, 35.2],
+  `indep-2 - solo-12` 15.2 [4.5, 25.8], `indep-2 - union-2` 8.5 [-5.5, 21.8]. So the last contrast is not
+  robust; the other 2 keep their sign.
+- E6: 1 scored arm is complete, `solo-72` = 70.5% (se 3.0, 20 trials, $0.096; 93.5% of best scripted play;
+  no seat reached 30 turns; regrade 20 of 20). The other 12 arms wait for credits.
+- F20 comes from `analysis/crowd_messages.py` (a worker; landed `8a3108e79`). `crowd_scaling.py` has a
+  per-seat-budget mode with the E6 tests (landed `ec0a8afd3`).
+- New in the kit: `muster/probes/isocheck.sh`, the seat isolation probe (a seat serves a port, posts its
+  addresses on the channel, and tries to reach every other seat and the internet). Run it as a scripted seat
+  on a task with a channel: roster `{"each": {"import_path": "muster.agents.script:ScriptAgent", "kwargs":
+  {"script": "muster/probes/isocheck.sh"}}}`, then read `seats/*/agent/script.txt` for PASS and FAIL lines.
+- Spend today: OpenRouter $2.99 (ledger `muster-runs/e5/spend-ledger.jsonl`, 44 settled entries: E5 scored
+  $2.68, E5 pilots $0.13, E6 scored $0.10, E6 pilot $0.08). Daytona: 11.8 sandbox hours, about $2.00 at list
+  price (2 vCPU, 4 GiB), plus $0.05 for the probes.
+- To continue when credits exist (no other change needed):
+  `E5_HARBOR=~/Developer/muster-runs/e5/harbor-daytona-mirror.sh E5_FLOOR=1.00
+  ~/Developer/muster-runs/e6/e6_lane.sh 4 team-8 indep-8 scout-8 solo-9 solo-18 team-2 indep-2 solo-36 team-4
+  indep-4 scout-4 scout-2`, and for E5
+  `~/Developer/muster-runs/e5/e5_fill_lane.sh 4 solo-8 solo-6 solo-3 indep-3 indep-4 claim-4 claim-2 claim-3
+  team-3-e1` with the same 2 variables. Expected cost: E6 about $2.90, E5 about $2.00.
+- Next experiment after E6 (E7, not registered): rules that give each box 1 owner at 8 seats without a
+  message for each box: a fixed share by seat name, 1 agent that assigns, and a claim that the world enforces
+  and that expires (the last one belongs to the lane that builds server-side claims).
+
+**3:52 PM. E5 primary arms done ($2.54, 286 trials started). Docker Hub pull limit on Daytona, fixed.**
+- Result of the complete arms (20 trials each, 0 exceptions, 140 of 140 rewards replay with `muster regrade`
+  against the clean landed `crowd` tree): `solo-24` 100.0%, `team-2` 84.0%, `team-3` 79.2%, `team-4` 69.2%,
+  `team-8` 54.2%, `claim-8` 73.5%, `indep-8` 25.8%.
+  - Primary test 1 passes: the slope of `team-k` is -15.5 points for each doubling of k, 95% interval
+    [-20.1, -10.7], exact sign-flip p 0.002.
+  - Primary test 2 fails: `solo-24 - claim-8` is 26.5 points [20.8, 32.3], above the 5-point margin. The claim
+    rule adds 19.2 points [14.0, 24.5] at 8 seats. It removes the repeats (8.4 to 1.25 of 24 opens) but 2.6
+    opens stay unused, and a trial costs $0.050 against $0.018 for `team-8` and $0.0017 for `solo-24`.
+  - Output: `muster-runs/e5/analysis/primary-arms.txt` and `.json`.
+- Incident, 20:38Z to 20:43Z: `docker compose build` inside new Daytona sandboxes got `429 Too Many Requests`
+  from Docker Hub for `python:3.13-slim`. Every sandbox pulls the base image again, and Daytona's addresses
+  share one anonymous limit. 111 E5 trials failed before any seat started (Amendment 9 has the counts). The 5
+  lanes ran on and marked 2 arms as started with 0 rewards. I stopped the lanes at 3:41 PM.
+- Fix (a worker, 15 minutes, $0.03 of Daytona): a Daytona snapshot `muster-dind-mirror-v1` = the same
+  `docker:28.3.3-dind` image plus `/etc/docker/daemon.json` with `registry-mirrors: https://mirror.gcr.io`, at
+  2 vCPU and 4 GiB. Harbor takes it with `--ek dind_snapshot=muster-dind-mirror-v1`
+  (`muster-runs/e5/harbor-daytona-mirror.sh`). A control sandbox on the plain image still got 429 at the same
+  time. 3 scripted trials equal their reference values, regrade matches, and the isolation probe passes
+  (20 of 20 checks for each seat). Trap: with a snapshot, Harbor passes no resources, so `--override-cpus` and
+  `--override-memory-mb` are recorded in `result.json` but have no effect; the snapshot's size applies.
+- New tools in the run folder: `e5_fill.py` (plans the reruns of trials without a reward, merges the arm
+  folders) and `e5_fill_lane.sh`. A failed trial stays on disk; it is never counted as 0.
+- Money at 3:48 PM: $2.38 in the account, still falling while E5 was stopped. Amendment 9 sets the order for
+  the last credits. E6 `field` is pre-registered (Amendments 8 and 8a); its pilot (not scored, $0.08) gave
+  `solo-72` 75.0% (the best scripted play), `team-8` 53.8%, `scout-8` 58.8%, `indep-8` 16.2%.
+- Fork: a worker brought the 3 open muster PRs to upstream head `711ca65a` as drafts against a new mirror
+  branch `mirror/olam-main-711ca65a` (the fork's `main` is untouched): #96 wrapped secrets (replaces #34), #97
+  preflight on the server path and a roster check for the job (replaces #13), #98 end-of-play kill for every
+  seat and for detached children, with the result in `result.json` (replaces #35). A Docker test shows that
+  upstream head pays for 2 late posts of detached children and that #98 pays for none.
+
 **3:10 PM. E5 pilot done, scored runs started.** Amendment 7a (`4fc68d35c`, committed 2:58 PM, landed as
 `94fc1b90d`) moved the arms of the primary tests first and set the floor to $2, because other lanes drained the
 shared OpenRouter account ($23.19 at 2:25 PM, $11.77 at 3:03 PM; E5 had spent $0.14).

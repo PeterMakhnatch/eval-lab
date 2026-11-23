@@ -1,0 +1,19 @@
+{
+  "family": "crowd",
+  "condition": "team-3",
+  "instance": 5,
+  "seats": [
+    "p1",
+    "p2",
+    "p3"
+  ],
+  "budget": 8,
+  "channel": true,
+  "claim": false,
+  "rooms": 6,
+  "room_size": 10,
+  "treasure_rooms": [
+    3,
+    6
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "family": "crowd",
+  "condition": "solo-8",
+  "instance": 1,
+  "seats": [
+    "p1"
+  ],
+  "budget": 8,
+  "channel": false,
+  "claim": false,
+  "rooms": 6,
+  "room_size": 10,
+  "treasure_rooms": [
+    1,
+    5
+  ]
+}

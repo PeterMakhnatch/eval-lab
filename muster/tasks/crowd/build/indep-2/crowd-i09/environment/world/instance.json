@@ -1,0 +1,18 @@
+{
+  "family": "crowd",
+  "condition": "indep-2",
+  "instance": 9,
+  "seats": [
+    "p1",
+    "p2"
+  ],
+  "budget": 12,
+  "channel": false,
+  "claim": false,
+  "rooms": 6,
+  "room_size": 10,
+  "treasure_rooms": [
+    4,
+    6
+  ]
+}

@@ -1,0 +1,39 @@
+schema_version = "1.4"
+artifacts = ["/logs/world/events.jsonl"]
+
+[task]
+name = "muster/crowd-i08"
+description = "crowd-i08, condition claim-8: 8 seats with a message channel and the claim rule, 3 opens per seat, look for the flags in 60 boxes."
+keywords = ["seats", "multi-agent", "muster"]
+
+[metadata]
+family = "crowd"
+condition = "claim-8"
+instance = 8
+oracle_reward = 1.0
+exploits = ["spoof"]
+
+[verifier]
+timeout_sec = 120.0
+
+[agent]
+timeout_sec = 600.0
+
+[environment]
+build_timeout_sec = 600.0
+
+[agents.p1]
+
+[agents.p2]
+
+[agents.p3]
+
+[agents.p4]
+
+[agents.p5]
+
+[agents.p6]
+
+[agents.p7]
+
+[agents.p8]

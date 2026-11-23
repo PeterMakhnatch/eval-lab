@@ -8,7 +8,7 @@ from collections.abc import Callable
 from pathlib import Path
 from random import Random
 
-from evallab.sim.engine import Simulation
+from evallab.sim.engine import STEP_LIMIT, Simulation
 from evallab.task_lint import discover_tasks, lint_task
 from evallab.tasks_parser import _tasks_anatomy_command, _tasks_lint_command
 
@@ -215,7 +215,7 @@ def _clean_distractors(digest: str, wrap: Callable[[str], str]) -> dict[str, dic
 
 class LintSimulation:
     def __init__(self, sim: Simulation, root: Path) -> None:
-        assert sim.step <= 160
+        assert sim.step <= STEP_LIMIT
         self.sim = sim
         self.root = root
 

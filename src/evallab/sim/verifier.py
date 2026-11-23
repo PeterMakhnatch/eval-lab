@@ -20,11 +20,10 @@ from evallab.separate_verifier import (
     resolve_command_text,
     v3_tamper_hit_for_file,
 )
-from evallab.sim.engine import Simulation
+from evallab.sim.engine import STEP_LIMIT, Simulation
 from evallab.task_variants import VariantInvalid
 
 _STEP_BUDGET = 20
-_STEP_CEILING = 140
 _HEX = "0123456789abcdef"
 _WORKDIRS = ("/app", "/workspace", "/src/project", "/home/agent/task")
 _TEST_SH = b"#!/bin/sh\nset -eu\npython -m unittest discover -s tests\n"
@@ -108,7 +107,7 @@ def _replace(root: Path, relative: str, old: str, new: str) -> Path:
 
 class VerifierSimulation:
     def __init__(self, sim: Simulation, root: Path) -> None:
-        assert sim.step + _STEP_BUDGET <= _STEP_CEILING
+        assert sim.step + _STEP_BUDGET <= STEP_LIMIT
         self.sim = sim
         self.root = root
         self.rng = sim.rng

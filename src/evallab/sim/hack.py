@@ -13,7 +13,7 @@ from evallab.results import JobRecord, load_job
 from evallab.reward_hack import ControlScript, HackRunResult, classify_results, stage_controls
 from evallab.runner import matrix_run_outcome
 from evallab.schemas import ExperimentMatrix, MatrixRun
-from evallab.sim.engine import Simulation
+from evallab.sim.engine import STEP_LIMIT, Simulation
 
 _ABSENT = object()
 _NAN = float("nan")
@@ -163,7 +163,7 @@ def _matrix(seed: int, exploits: int) -> ExperimentMatrix:
 
 class HackSimulation:
     def __init__(self, sim: Simulation, root: Path) -> None:
-        assert sim.step <= 160
+        assert sim.step <= STEP_LIMIT
         self.sim = sim
         self.root = root
 

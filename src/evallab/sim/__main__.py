@@ -13,11 +13,10 @@ from random import Random
 from tempfile import NamedTemporaryFile
 from typing import TypedDict
 
-from evallab.sim.engine import InvariantViolation, run
+from evallab.sim.engine import STEP_LIMIT, InvariantViolation, run
 
 REGRESSIONS = Path(__file__).with_name("regressions.json")
 _FIXED_SEEDS = range(64)
-_STEP_BUDGET = 160
 
 
 class FailureKey(TypedDict):
@@ -93,7 +92,7 @@ def merge_steps(total: dict[str, int], seed: dict[str, int]) -> None:
 def steps_line(steps: dict[str, int]) -> str:
     overall = max(steps.values(), default=0)
     listed = ", ".join(f"{subsystem}={step}" for subsystem, step in steps.items())
-    return f"Steps: {listed}. Overall: {overall}/{_STEP_BUDGET}."
+    return f"Steps: {listed}. Overall: {overall}/{STEP_LIMIT}."
 
 
 def check() -> int:

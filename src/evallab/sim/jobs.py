@@ -9,7 +9,7 @@ from typing import Any
 
 from evallab.process_job import process_job
 from evallab.results_home import _reward_summary
-from evallab.sim.engine import Simulation
+from evallab.sim.engine import STEP_LIMIT, Simulation
 
 _REQUIRED = (
     "clean-pass",
@@ -221,7 +221,7 @@ def _summary_text(n_pass: int, n_fail: int, n_unscored: int, forged: int) -> str
 
 class ProcessJobSimulation:
     def __init__(self, sim: Simulation, root: Path) -> None:
-        assert sim.step <= 160
+        assert sim.step <= STEP_LIMIT
         self.sim = sim
         self.root = root
 

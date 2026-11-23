@@ -5,7 +5,7 @@ import json
 from dataclasses import dataclass
 from random import Random
 
-from evallab.sim.engine import Simulation
+from evallab.sim.engine import STEP_LIMIT, Simulation
 from evallab.verifier_mutation import (
     MAX_FILE_BYTES,
     Mutant,
@@ -15,7 +15,6 @@ from evallab.verifier_mutation import (
 )
 
 _FILE_COUNT = 6
-_STEP_LIMIT = 160
 _LANGUAGES = ("python", "c-family", "json")
 _PY_NAMES = ("values", "items", "scores", "marks", "numbers", "readings")
 _JS_NAMES = ("items", "values", "rows", "entries", "samples", "records")
@@ -148,7 +147,7 @@ def _oversize_oracle() -> bytes:
 
 class MutationSimulation:
     def __init__(self, sim: Simulation) -> None:
-        assert sim.step <= _STEP_LIMIT
+        assert sim.step <= STEP_LIMIT
         self.sim = sim
 
     def run(self) -> None:

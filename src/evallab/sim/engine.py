@@ -95,6 +95,9 @@ def spec_for(name: str) -> ExperimentSpec:
     )
 
 
+STEP_LIMIT = 240
+
+
 class Simulation:
     def __init__(self, seed: int) -> None:
         assert 0 <= seed < 2**64
@@ -117,7 +120,7 @@ class Simulation:
 
     def begin(self, action: str, **fields: object) -> None:
         self.step += 1
-        assert self.step <= 160
+        assert self.step <= STEP_LIMIT
         self.note(
             step=self.step,
             subsystem=self.subsystem,

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from random import Random
 from typing import Any, Literal
 
-from evallab.sim.engine import Simulation
+from evallab.sim.engine import STEP_LIMIT, Simulation
 from evallab.task_protected import manifest_paths, task_protected_read_hits
 
 _STEP_BUDGET = 20
@@ -74,7 +74,7 @@ def _read_command(rng: Random, path: str) -> str:
 
 class ProtectedPathSimulation:
     def __init__(self, sim: Simulation) -> None:
-        assert sim.step + _STEP_BUDGET <= 160
+        assert sim.step + _STEP_BUDGET <= STEP_LIMIT
         self.sim = sim
 
     def run(self) -> None:

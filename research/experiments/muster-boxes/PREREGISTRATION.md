@@ -320,3 +320,26 @@ world and adds the missing control. Design evidence:
   (tracked files only), stored in `muster-runs/e6/tasks/field` with its hash in `field.pin.json`.
 - Scripted checks on Daytona before the pilot, each equal to `metadata.oracle_reward`: `solo-72` 0.75,
   `team-8` 0.7125, `scout-8` 0.7125, `indep-8` 0.65, `solo-9` 0.1 (i01).
+
+## Amendment 9 (3:50 PM ET, 2026-11-23): Docker Hub pull limit, reruns, and the order for the last credits
+
+- OBSERVED: from 20:34Z, new Daytona trials failed before any seat started: `docker compose build` got
+  `429 Too Many Requests` from Docker Hub for `python:3.13-slim`. 131 E5 trials failed that way (no model call,
+  no reward): `claim-2` 20, `solo-8` 30, `claim-4` 16, `indep-2` 16, `indep-3` 13, `indep-4` 9, `solo-12` 7.
+  The arms of both primary tests were complete before that (`solo-24`, `team-2/3/4/8`, `claim-8`, 20 trials
+  each), and so was `indep-8`.
+- **Fix.** A Daytona snapshot `muster-dind-mirror-v1`: the same `docker:28.3.3-dind` image, 2 vCPU, 4 GiB, plus
+  a Docker registry mirror (`mirror.gcr.io`). Wrapper: `muster-runs/e5/harbor-daytona-mirror.sh`. Scripted
+  trials through it equal their reference values, `muster regrade` matches, and the seat isolation probe
+  passes. Task bytes and the Harbor checkout are unchanged. The base image now comes from the mirror, which can
+  serve another patch build of `python:3.13-slim`. All later E5 and E6 trials use this wrapper.
+- **Reruns.** A trial that failed with the pull limit made no model call. It is run again once, under the rule
+  of Amendment 7. The analysis uses every trial with a reward. The report gives the rerun counts for each arm.
+- **Money.** OBSERVED at 3:48 PM ET: the account holds $2.38 and still falls by about $0.20 each minute while
+  E5 is stopped. The floor is now $1. The remaining order is: (1) E5 `solo-12`, `solo-8`, `solo-6`, `solo-3`,
+  then the reruns of `indep-2`, `indep-3`, `indep-4`; (2) E6 in its registered order (Amendment 8); (3) E5
+  `claim-4`, `claim-2`, `claim-3`, `team-3-e1`; these 4 arms are stopped for lack of money and run only if
+  credits are added. Reason for (2) before (3): the claim rule at 3 seats is known (F14), and its test at 8
+  seats is done; E6 has no result yet. Group (1) and group (2) run at the same time, because the account may
+  be empty in minutes.
+- A trial whose seats fail because the account is empty is unmeasured. It is rerun once if credits return.

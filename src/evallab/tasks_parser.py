@@ -32,10 +32,15 @@ def _tasks_lint_command(
 def _tasks_anatomy_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
-    from evallab.package_anatomy import analyze_package, discover_packages, dumps_card, render_text
+    from evallab.package_anatomy import analyze_package, dumps_card, render_text
+    from evallab.task_lint import discover_tasks
 
     try:
-        packages = discover_packages([_resolve(root, path) for path in args.paths])
+        resolved_paths = [_resolve(root, path) for path in args.paths]
+        for path in resolved_paths:
+            if not path.is_dir():
+                raise FileNotFoundError(f"not a task package or collection: {path}")
+        packages = discover_tasks(resolved_paths)
         if args.reference_patch is not None and len(packages) != 1:
             raise ValueError("--reference-patch applies to exactly one task package")
         patch = None if args.reference_patch is None else _resolve(root, args.reference_patch)
@@ -77,7 +82,10 @@ def register_parser(commands: argparse._SubParsersAction) -> None:
         help="Deterministic grading/container attack-surface card for task packages ($0, static)",
     )
     tasks_anatomy.add_argument(
-        "paths", nargs="+", type=Path, help="Task directories or collections of task directories"
+        "paths",
+        nargs="+",
+        type=Path,
+        help="Task directories or task collections; nested task packages are discovered",
     )
     tasks_anatomy.add_argument(
         "--reference-patch",

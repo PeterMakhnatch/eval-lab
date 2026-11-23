@@ -1504,20 +1504,6 @@ def analyze_package(root: str | Path, *, reference_patch: str | Path | None = No
     }
 
 
-def discover_packages(paths: Sequence[Path]) -> list[Path]:
-    found: dict[Path, None] = {}
-    for path in paths:
-        if (path / "task.toml").is_file() or (path / "instruction.md").is_file():
-            found[path] = None
-        elif path.is_dir():
-            for child in sorted(path.iterdir()):
-                if child.is_dir() and ((child / "task.toml").is_file() or (child / "instruction.md").is_file()):
-                    found[child] = None
-        else:
-            raise FileNotFoundError(f"not a task package or collection: {path}")
-    return list(found)
-
-
 def render_text(card: Mapping[str, Any]) -> str:
     boundary, grader = card["container_and_boundary"], card["grader_script_mechanics"]
     rigor = card["test_suite_rigor"]["counts"]

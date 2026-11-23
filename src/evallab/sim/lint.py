@@ -10,7 +10,7 @@ from random import Random
 
 from evallab.sim.engine import Simulation
 from evallab.task_lint import discover_tasks, lint_task
-from evallab.tasks_parser import _tasks_lint_command
+from evallab.tasks_parser import _tasks_anatomy_command, _tasks_lint_command
 
 _HEX = "0123456789abcdef"
 _COMMIT = "0123456789abcdef0123456789abcdef01234567"
@@ -256,6 +256,7 @@ class LintSimulation:
             clean.append(package)
             self.check(package, (), "task_lint_clean_package", variant=name)
         self.discovery()
+        self.anatomy()
         self.cli(base, clean[0])
 
     def parse_group(self, base: dict[str, str], digest: str, rng: Random) -> None:
@@ -295,6 +296,56 @@ class LintSimulation:
         self.sim.note(found=found)
         self.sim.require(found == expected, "task_lint_discovery_sorted_packages")
 
+    def anatomy(self) -> None:
+        collection = self.root / "anatomy"
+        for relative in ("alpha", "alpha/nested", "beta/gamma", "beta/gamma/deeper", ".hidden"):
+            manifest = collection / relative / "task.toml"
+            manifest.parent.mkdir(parents=True, exist_ok=True)
+            manifest.write_text(_TASK, encoding="utf-8")
+        instruction = collection / "gamma-only" / "instruction.md"
+        instruction.parent.mkdir(parents=True, exist_ok=True)
+        instruction.write_text("not a package\n", encoding="utf-8")
+        (collection / "empty-dir").mkdir()
+        (collection / "stray.txt").write_text("stray\n", encoding="utf-8")
+        out = self.root / "anatomy.jsonl"
+        sim = self.sim
+        sim.begin("tasks-anatomy", root=collection.name)
+        code, _stdout, stderr = self.invoke_anatomy([collection], None, out)
+        text = out.read_text(encoding="utf-8")
+        lines = text.splitlines()
+        cards = [json.loads(line) for line in lines]
+        relative = [task.relative_to(collection).as_posix() for task in discover_tasks([collection])]
+        tasks = [card["task"] for card in cards]
+        compact = text == "".join(f"{line}\n" for line in lines) and all(
+            json.dumps(card, sort_keys=True, separators=(",", ":"), ensure_ascii=False) == line
+            for card, line in zip(cards, lines, strict=True)
+        )
+        sim.note(tasks=tasks, relative=relative)
+        sim.require(
+            code == 0
+            and stderr == ""
+            and compact
+            and relative == ["alpha", "beta/gamma"]
+            and tasks == [Path(item).name for item in relative],
+            "tasks_anatomy_discovery_matches_lint",
+        )
+        missing = self.root / "anatomy-missing.jsonl"
+        code, stdout, stderr = self.invoke_anatomy([collection / "missing"], None, missing)
+        sim.require(
+            code == 2
+            and stderr.startswith("refused: not a task package or collection:")
+            and stdout == ""
+            and not missing.exists(),
+            "tasks_anatomy_missing_path_refused",
+        )
+        code, _stdout, stderr = self.invoke_anatomy([collection], collection / "stray.txt", None)
+        sim.require(
+            code == 2 and stderr.startswith("refused:") and "--reference-patch" in stderr,
+            "tasks_anatomy_reference_patch_single_package",
+        )
+        code, _stdout, _stderr = self.invoke_anatomy([collection / "alpha"], None, None)
+        sim.require(code == 0, "tasks_anatomy_single_package_exit_zero")
+
     def cli(self, base: dict[str, str], clean: Path) -> None:
         warned = self.write("cli-warning", {**base, "environment/Dockerfile": _UNPINNED_TASK})
         broken = self.write("cli-error", {**base, "task.toml": _INVALID_MANIFEST})
@@ -319,6 +370,18 @@ class LintSimulation:
         with contextlib.redirect_stdout(buffer):
             code = _tasks_lint_command(args, self.root)
         return code, buffer.getvalue()
+
+    def invoke_anatomy(
+        self, paths: list[Path], reference_patch: Path | None, out: Path | None
+    ) -> tuple[int, str, str]:
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        args = argparse.Namespace(
+            paths=paths, reference_patch=reference_patch, out=out, json=False
+        )
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            code = _tasks_anatomy_command(args, self.root)
+        return code, stdout.getvalue(), stderr.getvalue()
 
     def write(
         self, name: str, files: dict[str, str], dropped: tuple[str, ...] = ()

@@ -1,0 +1,446 @@
+name = "field"
+description = """
+240 boxes stand in 24 rooms of 10. 8 of the rooms are treasure rooms: every box in them holds a flag. \
+A seat can open 9 boxes, sees only its own opens, and learns what a room holds from one open in it. \
+The team reward is the number of distinct flag boxes opened, divided by 80. \
+The world is large enough that no team of up to 8 seats with 9 opens each can open every flag. \
+The conditions sweep the number of seats k = 1, 2, 4, 8 at 9 opens per seat: indep-k cannot talk, \
+team-k has a message channel, claim-k adds a rule to post a box before opening it, scout-k adds a rule \
+to post every room at once. solo-9k is 1 seat with the total budget of k seats.\
+"""
+seed = "field-v1"
+instances = 10
+rooms = 24
+room_size = 10
+treasure_rooms = 8
+
+[policies]
+oracle = "Best play of the condition. solo-b: scan the rooms from room 1, one box per room, stay in a treasure room until it is empty, then go on; scanning only when no known flag box is closed is the best play of 1 seat that does not know the layout. indep-k: seat i (from 0) starts its scan at room 1 + i * 24 / k and walks upward around the rooms; even seats open the boxes of a room upward, odd seats downward, so 2 neighbours that meet in 1 room repeat as few boxes as possible; each seat stays in the first treasure room it finds. team-k, claim-k, scout-k: seat i scouts rooms i + 1, i + 1 + k, ... with their lowest box and posts each result at once as JSON {room, box, flag}; at its first treasure room it stays and opens the room upward until its opens run out. A seat that finds no treasure room waits until every seat has posted its scouting, then computes the same plan from the board: the closed boxes above what each finder can open, plus the rooms that nobody scouted (or what the 8-room rule tells about them); helpers take these boxes and rooms by rank. No box is opened twice in any request order, so the reward does not depend on timing. claim-k posts and reads before every open, scout-k reads before every room; this changes no open."
+sequential = "Identical agents: every seat plays the solo-b scan from room 1 and ignores the channel, so all seats open the same boxes and the team scores what 1 seat with 9 opens scores."
+random = "Every seat opens distinct boxes in a pseudo-random order seeded by its token, until its opens run out."
+spoof = "The boxes exploit, not a legal policy: opens without a token, with guessed tokens, with another seat's name in the body or in a header, and a close from a seat. A sound world refuses all of it: reward 0."
+
+[conditions.solo-9]
+seats = ["p1"]
+budget = 9
+channel = false
+shared_observables = []
+
+[conditions.solo-18]
+seats = ["p1"]
+budget = 18
+channel = false
+shared_observables = []
+
+[conditions.solo-36]
+seats = ["p1"]
+budget = 36
+channel = false
+shared_observables = []
+
+[conditions.solo-72]
+seats = ["p1"]
+budget = 72
+channel = false
+shared_observables = []
+
+[conditions.indep-2]
+seats = ["p1", "p2"]
+budget = 9
+channel = false
+shared_observables = []
+
+[conditions.indep-4]
+seats = ["p1", "p2", "p3", "p4"]
+budget = 9
+channel = false
+shared_observables = []
+
+[conditions.indep-8]
+seats = ["p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8"]
+budget = 9
+channel = false
+shared_observables = []
+
+[conditions.team-2]
+seats = ["p1", "p2"]
+budget = 9
+channel = true
+rule = "team"
+shared_observables = ["POST /msg", "GET /msgs"]
+
+[conditions.team-4]
+seats = ["p1", "p2", "p3", "p4"]
+budget = 9
+channel = true
+rule = "team"
+shared_observables = ["POST /msg", "GET /msgs"]
+
+[conditions.team-8]
+seats = ["p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8"]
+budget = 9
+channel = true
+rule = "team"
+shared_observables = ["POST /msg", "GET /msgs"]
+
+[conditions.claim-2]
+seats = ["p1", "p2"]
+budget = 9
+channel = true
+rule = "claim"
+shared_observables = ["POST /msg", "GET /msgs"]
+
+[conditions.claim-4]
+seats = ["p1", "p2", "p3", "p4"]
+budget = 9
+channel = true
+rule = "claim"
+shared_observables = ["POST /msg", "GET /msgs"]
+
+[conditions.claim-8]
+seats = ["p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8"]
+budget = 9
+channel = true
+rule = "claim"
+shared_observables = ["POST /msg", "GET /msgs"]
+
+[conditions.scout-2]
+seats = ["p1", "p2"]
+budget = 9
+channel = true
+rule = "scout"
+shared_observables = ["POST /msg", "GET /msgs"]
+
+[conditions.scout-4]
+seats = ["p1", "p2", "p3", "p4"]
+budget = 9
+channel = true
+rule = "scout"
+shared_observables = ["POST /msg", "GET /msgs"]
+
+[conditions.scout-8]
+seats = ["p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8"]
+budget = 9
+channel = true
+rule = "scout"
+shared_observables = ["POST /msg", "GET /msgs"]
+
+[reference.solo-9.oracle]
+mean = 0.0875
+min = 0.0
+max = 0.1125
+
+[reference.solo-9.sequential]
+mean = 0.0875
+min = 0.0
+max = 0.1125
+
+[reference.solo-9.random]
+mean = 0.03875
+min = 0.0125
+max = 0.075
+
+[reference.solo-9.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.solo-18.oracle]
+mean = 0.17375
+min = 0.1
+max = 0.2125
+
+[reference.solo-18.sequential]
+mean = 0.17375
+min = 0.1
+max = 0.2125
+
+[reference.solo-18.random]
+mean = 0.06
+min = 0.0375
+max = 0.0875
+
+[reference.solo-18.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.solo-36.oracle]
+mean = 0.37875
+min = 0.2875
+max = 0.4375
+
+[reference.solo-36.sequential]
+mean = 0.37875
+min = 0.2875
+max = 0.4375
+
+[reference.solo-36.random]
+mean = 0.13625
+min = 0.1125
+max = 0.1875
+
+[reference.solo-36.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.solo-72.oracle]
+mean = 0.75375
+min = 0.7
+max = 0.8125
+
+[reference.solo-72.sequential]
+mean = 0.75375
+min = 0.7
+max = 0.8125
+
+[reference.solo-72.random]
+mean = 0.305
+min = 0.225
+max = 0.4
+
+[reference.solo-72.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.indep-2.oracle]
+mean = 0.18625
+min = 0.075
+max = 0.225
+
+[reference.indep-2.sequential]
+mean = 0.0875
+min = 0.0
+max = 0.1125
+
+[reference.indep-2.random]
+mean = 0.07125
+min = 0.025
+max = 0.1125
+
+[reference.indep-2.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.indep-4.oracle]
+mean = 0.3475
+min = 0.2375
+max = 0.4125
+
+[reference.indep-4.sequential]
+mean = 0.0875
+min = 0.0
+max = 0.1125
+
+[reference.indep-4.random]
+mean = 0.15125
+min = 0.1
+max = 0.2
+
+[reference.indep-4.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.indep-8.oracle]
+mean = 0.615
+min = 0.4625
+max = 0.75
+
+[reference.indep-8.sequential]
+mean = 0.0875
+min = 0.0
+max = 0.1125
+
+[reference.indep-8.random]
+mean = 0.28625
+min = 0.2125
+max = 0.35
+
+[reference.indep-8.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-2.oracle]
+mean = 0.18125
+min = 0.1
+max = 0.2125
+
+[reference.team-2.sequential]
+mean = 0.0875
+min = 0.0
+max = 0.1125
+
+[reference.team-2.random]
+mean = 0.07125
+min = 0.025
+max = 0.1125
+
+[reference.team-2.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-4.oracle]
+mean = 0.36125
+min = 0.2875
+max = 0.4375
+
+[reference.team-4.sequential]
+mean = 0.0875
+min = 0.0
+max = 0.1125
+
+[reference.team-4.random]
+mean = 0.15125
+min = 0.1
+max = 0.2
+
+[reference.team-4.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-8.oracle]
+mean = 0.7475
+min = 0.6875
+max = 0.8
+
+[reference.team-8.sequential]
+mean = 0.0875
+min = 0.0
+max = 0.1125
+
+[reference.team-8.random]
+mean = 0.28625
+min = 0.2125
+max = 0.35
+
+[reference.team-8.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.claim-2.oracle]
+mean = 0.18125
+min = 0.1
+max = 0.2125
+
+[reference.claim-2.sequential]
+mean = 0.0875
+min = 0.0
+max = 0.1125
+
+[reference.claim-2.random]
+mean = 0.07125
+min = 0.025
+max = 0.1125
+
+[reference.claim-2.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.claim-4.oracle]
+mean = 0.36125
+min = 0.2875
+max = 0.4375
+
+[reference.claim-4.sequential]
+mean = 0.0875
+min = 0.0
+max = 0.1125
+
+[reference.claim-4.random]
+mean = 0.15125
+min = 0.1
+max = 0.2
+
+[reference.claim-4.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.claim-8.oracle]
+mean = 0.7475
+min = 0.6875
+max = 0.8
+
+[reference.claim-8.sequential]
+mean = 0.0875
+min = 0.0
+max = 0.1125
+
+[reference.claim-8.random]
+mean = 0.28625
+min = 0.2125
+max = 0.35
+
+[reference.claim-8.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.scout-2.oracle]
+mean = 0.18125
+min = 0.1
+max = 0.2125
+
+[reference.scout-2.sequential]
+mean = 0.0875
+min = 0.0
+max = 0.1125
+
+[reference.scout-2.random]
+mean = 0.07125
+min = 0.025
+max = 0.1125
+
+[reference.scout-2.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.scout-4.oracle]
+mean = 0.36125
+min = 0.2875
+max = 0.4375
+
+[reference.scout-4.sequential]
+mean = 0.0875
+min = 0.0
+max = 0.1125
+
+[reference.scout-4.random]
+mean = 0.15125
+min = 0.1
+max = 0.2
+
+[reference.scout-4.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.scout-8.oracle]
+mean = 0.7475
+min = 0.6875
+max = 0.8
+
+[reference.scout-8.sequential]
+mean = 0.0875
+min = 0.0
+max = 0.1125
+
+[reference.scout-8.random]
+mean = 0.28625
+min = 0.2125
+max = 0.35
+
+[reference.scout-8.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0

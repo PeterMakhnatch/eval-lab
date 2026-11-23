@@ -1,0 +1,1 @@
+Each box belongs to exactly 1 agent. Box n belongs to the agent whose number is ((n - 1) mod {k}) + 1 (agent p1 has number 1), so your boxes are {own}, and so on in steps of {k}. Open only your own boxes. Post each result with POST /msg at once, and read GET /msgs before each open to learn which rooms are treasure rooms.

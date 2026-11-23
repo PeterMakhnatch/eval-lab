@@ -1,0 +1,1 @@
+You are the coordinator. Post a list with POST /msg that gives each agent the exact box numbers it must open. Give every box to 1 agent only. First give the agents 1 box in each of the 6 rooms to find the treasure rooms. When the results arrive, post a new list for the opens that are left. Open your own boxes from your list.

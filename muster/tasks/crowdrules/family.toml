@@ -1,0 +1,242 @@
+# The crowdrules family (E7). tasks/crowdrules/generate.py builds the tasks from this file and from template/.
+# tasks/crowdrules/reference.py writes the [reference] tables; generate.py --check refuses other numbers.
+
+name = "crowdrules"
+description = """
+The crowd world (60 boxes in 6 rooms of 10, 2 treasure rooms, 24 opens in total, message channel on) with a \
+written rule that gives each box 1 owner without a message for each box. team-k: the crowd team-k text \
+(the anchor). share-k: box n belongs to agent ((n - 1) mod k) + 1. chief-k: agent p1 assigns the boxes in \
+posted lists. zones-k: a fixed plan of scouting rooms and box positions for each agent. \
+The instances i01 to i10 have the treasure rooms of boxes-i01 to boxes-i10 and crowd-i01 to crowd-i10.\
+"""
+seed = "crowdrules-v1"
+layout_seed = "boxes-v1"
+instances = 10
+total_budget = 24
+
+[policies]
+oracle = "The best play that obeys the condition's rule. team-k: the crowd team oracle (scout, report, cut the closed treasure boxes into blocks). share-k: one scout at a time, chosen by the dynamic program of reference.py (the plan is a pure function of the reports on the board, so only the named seat opens), then every seat opens its own boxes in the treasure rooms. chief-k: p1 posts a list with 1 box in each room, then a list that cuts the closed treasure boxes into blocks by opens left; the others open what p1's latest list gives them. zones-k: the [zones] plan."
+sequential = "Every seat opens box 1, 2, 3, ... until its budget is used. It ignores the rule."
+random = "Every seat opens distinct boxes in a pseudo-random order seeded by its token. It ignores the rule."
+spoof = "Exploit attempt, not a legal policy: opens without a token, with guessed tokens, with another seat's name, and a remote close. It must gain nothing."
+
+# share-k ceilings: the dynamic program of reference.py over all 15 layouts finds the best adaptive play
+# of a team in which every seat opens only its own boxes and every result is shared at once. It is
+# exact for this rule (scouting order and scout choice included). The table position_variant under the
+# share-8 reference is the same dynamic program for ownership by position inside the room (seats 1 to 6
+# own positions 1 to 6, seat 7 owns 7 and 8, seat 8 owns 9 and 10). Its ceiling is lower, so share-8
+# keeps ownership by box number.
+
+# The zones plan. For each seat: `scout` rooms whose first box it opens and reports; `both` positions it
+# opens in each treasure room; `lower` and `higher` positions it opens only in the treasure room with the
+# lower or the higher number. Position p of room r is box 10 * (r - 1) + p. generate.py proves for every
+# layout that each flag box has exactly 1 owner and that each seat's opens equal its budget.
+
+[zones.4]
+p1 = { scout = [1, 5], both = [2, 3], lower = [], higher = [] }
+p2 = { scout = [2, 6], both = [4, 5], lower = [], higher = [] }
+p3 = { scout = [3], both = [6, 7], lower = [10], higher = [] }
+p4 = { scout = [4], both = [8, 9], lower = [], higher = [10] }
+
+[zones.8]
+p1 = { scout = [1], both = [2], lower = [], higher = [] }
+p2 = { scout = [2], both = [3], lower = [], higher = [] }
+p3 = { scout = [3], both = [4], lower = [], higher = [] }
+p4 = { scout = [4], both = [5], lower = [], higher = [] }
+p5 = { scout = [5], both = [6], lower = [], higher = [] }
+p6 = { scout = [6], both = [7], lower = [], higher = [] }
+p7 = { scout = [], both = [], lower = [8, 9, 10], higher = [] }
+p8 = { scout = [], both = [], lower = [], higher = [8, 9, 10] }
+
+[conditions.team-4]
+seats = ["p1", "p2", "p3", "p4"]
+budget = 6
+rule = "team"
+
+[conditions.share-4]
+seats = ["p1", "p2", "p3", "p4"]
+budget = 6
+rule = "share"
+
+[conditions.chief-4]
+seats = ["p1", "p2", "p3", "p4"]
+budget = 6
+rule = "chief"
+
+[conditions.zones-4]
+seats = ["p1", "p2", "p3", "p4"]
+budget = 6
+rule = "zones"
+
+[conditions.team-8]
+seats = ["p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8"]
+budget = 3
+rule = "team"
+
+[conditions.share-8]
+seats = ["p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8"]
+budget = 3
+rule = "share"
+
+[conditions.chief-8]
+seats = ["p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8"]
+budget = 3
+rule = "chief"
+
+[conditions.zones-8]
+seats = ["p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8"]
+budget = 3
+rule = "zones"
+
+# Reference scores: the team reward when every seat plays the policy, as mean, min and max over the
+# 10 instances and as the mean over all 15 layouts. Computed by reference.py --write; never typed.
+
+[reference.team-4.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+all_layouts = 1.0
+
+[reference.team-4.sequential]
+mean = 0.09
+min = 0.0
+max = 0.3
+all_layouts = 0.1
+
+[reference.team-4.random]
+mean = 0.33
+min = 0.25
+max = 0.4
+all_layouts = 0.34
+
+[reference.share-4.oracle]
+mean = 0.995
+min = 0.95
+max = 1.0
+all_layouts = 0.996667
+
+[reference.share-4.sequential]
+mean = 0.09
+min = 0.0
+max = 0.3
+all_layouts = 0.1
+
+[reference.share-4.random]
+mean = 0.33
+min = 0.25
+max = 0.4
+all_layouts = 0.34
+
+[reference.chief-4.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+all_layouts = 1.0
+
+[reference.chief-4.sequential]
+mean = 0.09
+min = 0.0
+max = 0.3
+all_layouts = 0.1
+
+[reference.chief-4.random]
+mean = 0.33
+min = 0.25
+max = 0.4
+all_layouts = 0.34
+
+[reference.zones-4.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+all_layouts = 1.0
+
+[reference.zones-4.sequential]
+mean = 0.09
+min = 0.0
+max = 0.3
+all_layouts = 0.1
+
+[reference.zones-4.random]
+mean = 0.33
+min = 0.25
+max = 0.4
+all_layouts = 0.34
+
+[reference.team-8.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+all_layouts = 1.0
+
+[reference.team-8.sequential]
+mean = 0.045
+min = 0.0
+max = 0.15
+all_layouts = 0.05
+
+[reference.team-8.random]
+mean = 0.33
+min = 0.2
+max = 0.45
+all_layouts = 0.34
+
+[reference.share-8.oracle]
+mean = 0.98
+min = 0.9
+max = 1.0
+all_layouts = 0.986667
+
+[reference.share-8.sequential]
+mean = 0.045
+min = 0.0
+max = 0.15
+all_layouts = 0.05
+
+[reference.share-8.random]
+mean = 0.33
+min = 0.2
+max = 0.45
+all_layouts = 0.34
+
+[reference.share-8.position_variant]
+mean = 0.9
+min = 0.9
+max = 0.9
+all_layouts = 0.9
+
+[reference.chief-8.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+all_layouts = 1.0
+
+[reference.chief-8.sequential]
+mean = 0.045
+min = 0.0
+max = 0.15
+all_layouts = 0.05
+
+[reference.chief-8.random]
+mean = 0.33
+min = 0.2
+max = 0.45
+all_layouts = 0.34
+
+[reference.zones-8.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+all_layouts = 1.0
+
+[reference.zones-8.sequential]
+mean = 0.045
+min = 0.0
+max = 0.15
+all_layouts = 0.05
+
+[reference.zones-8.random]
+mean = 0.33
+min = 0.2
+max = 0.45
+all_layouts = 0.34

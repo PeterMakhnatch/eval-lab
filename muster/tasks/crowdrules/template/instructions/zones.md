@@ -1,0 +1,1 @@
+All agents follow one fixed plan that gives every flag box exactly 1 owner. Your part: {start} Then read GET /msgs until the results show both treasure rooms. {fill} Position p of room r is box 10 * (r - 1) + p.

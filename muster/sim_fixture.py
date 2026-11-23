@@ -21,7 +21,9 @@ from typing import Any
 from muster.roster import Task, read_task
 
 _TASKS = Path(__file__).with_name("tasks")
-_FAMILIES = ("boxes", "commons", "ledger", "scarce")
+_FAMILIES = ("boxes", "commons", "crowd", "ledger", "scarce")
+_BOX_FAMILIES = ("boxes", "crowd")
+_MAX_SEATS = 8
 _MAX_BUILDS = 256
 _MAX_FILES = 64
 _MAX_BUDGET = 64
@@ -130,7 +132,7 @@ class Scenario:
 def select(rng: Random) -> Scenario:
     family = rng.choice(_FAMILIES)
     task = read_task(rng.choice(rng.choice(_builds(family))))
-    assert 1 <= len(task.seats) <= 3
+    assert 1 <= len(task.seats) <= _MAX_SEATS
     assert task.oracle_reward is not None
     instance_path = task.path / "environment/world/instance.json"
     instance = json.loads(instance_path.read_bytes())
@@ -161,10 +163,14 @@ def _generator(family: str) -> tuple[ModuleType, dict[str, dict[str, str]], bool
 
 
 def _oracle(generator: ModuleType, case: Scenario, rng: Random) -> Rewards:
-    if case.family == "boxes":
+    if case.family in _BOX_FAMILIES:
         reference = generator.reference
         reference.worldkit.time.ticks = 0
-        return reference.simulate(case.instance, reference.tokens(reference.family(), case.instance))
+        tokens = reference.tokens(reference.family(), case.instance)
+        if case.family == "boxes":
+            return reference.simulate(case.instance, tokens)
+        order = Random(rng.getrandbits(64))
+        return reference.simulate(case.instance, tokens, "oracle", lambda seats, _turn: order.choice(seats))
     generator.worldkit.time.ticks = 0
     if case.family == "ledger":
         instance = int(case.instance["instance"][1:])
@@ -188,9 +194,13 @@ def check_supply(run: Run, case: Scenario, rng: Random) -> None:
     bad = sorted(name for name in expected.keys() | observed.keys()
                  if name not in expected or observed.get(name) != expected[name].encode())
     run.require(step, "sample-matches-built-bytes", bool(expected) and not bad, ", ".join(bad))
-    reward = _oracle(generator, case, rng)["reward"]
+    rewards = _oracle(generator, case, rng)
+    reward = rewards["reward"]
     run.require(step, "oracle-matches-task-metadata", round(reward, 6) == case.task.oracle_reward,
                 f"{key}: replayed {reward}, recorded {case.task.oracle_reward}")
+    if case.family == "crowd":
+        run.require(step, "crowd-oracle-never-repeats-a-box", rewards.get("duplicate_opens") == 0,
+                    f"{key}: {rewards.get('duplicate_opens')} repeated opens")
 
 
 @dataclass(frozen=True)
@@ -218,7 +228,7 @@ def _state(world: Any) -> dict[str, Any]:
 
 
 def _budget(case: Scenario) -> dict[str, int]:
-    if case.family == "boxes":
+    if case.family in _BOX_FAMILIES:
         return {"open": case.instance["budget"]}
     return {"take": 1} if case.family in ("commons", "scarce") else {}
 
@@ -308,7 +318,7 @@ class Play:
 
 def _primary(case: Scenario, rng: Random) -> tuple[Request, Request]:
     instance = case.instance
-    if case.family == "boxes":
+    if case.family in _BOX_FAMILIES:
         size = instance["room_size"]
         box = (rng.choice(instance["treasure_rooms"]) - 1) * size + rng.randint(1, size)
         return _post("open", {"box": box}), _post("open", {"box": instance["rooms"] * size + 1}, 400)
@@ -329,7 +339,7 @@ def _choices(case: Scenario, rng: Random) -> list[Request]:
     channel = 200 if case.instance["channel"] else 404
     common = [_get("rules"), _get("health"), _get("msgs", channel),
               _post("msg", {"text": f"note-{rng.randrange(1024)}"}, channel), _get("unknown", 404)]
-    if case.family == "boxes":
+    if case.family in _BOX_FAMILIES:
         high = case.instance["rooms"] * case.instance["room_size"]
         return [*common, _get("mine"), _post("open", {"box": rng.randint(1, high)})]
     if case.family == "ledger":

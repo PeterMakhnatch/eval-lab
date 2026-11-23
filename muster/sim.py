@@ -28,7 +28,7 @@ from muster.sim_fixture import (
 )
 
 _REGRESSIONS = Path(__file__).with_name("sim_regressions.json")
-_FIXED_SEEDS = range(48)
+_FIXED_SEEDS = range(144)
 _MAX_REGRESSIONS = 512
 _MAX_SEED = 2**64 - 1
 _DEFAULT_HUNT_SEED = 261121

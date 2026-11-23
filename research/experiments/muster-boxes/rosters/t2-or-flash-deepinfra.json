@@ -1,0 +1,33 @@
+{
+  "about": "terminus-2 with DeepSeek V4.1 Flash through OpenRouter, pinned to the DeepInfra endpoint (fp8), thinking off in every seat",
+  "each": {
+    "kwargs": {
+      "llm_call_kwargs": {
+        "extra_body": {
+          "provider": {
+            "allow_fallbacks": false,
+            "only": ["deepinfra"]
+          },
+          "reasoning": {
+            "enabled": false
+          }
+        }
+      },
+      "max_turns": 30,
+      "model_info": {
+        "cache_read_input_token_cost": 3.36e-09,
+        "input_cost_per_token": 1.12e-07,
+        "litellm_provider": "openrouter",
+        "max_input_tokens": 1048576,
+        "max_output_tokens": 65536,
+        "mode": "chat",
+        "output_cost_per_token": 3.36e-07
+      },
+      "record_terminal_session": false,
+      "suppress_max_turns_warning": true
+    },
+    "model_api_key_name": "OPENROUTER_API_KEY",
+    "model_name": "openrouter/deepseek/deepseek-v4.1-flash",
+    "name": "terminus-2"
+  }
+}

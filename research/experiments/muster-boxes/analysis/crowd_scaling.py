@@ -22,7 +22,8 @@ SIGN_TOLERANCE = 1e-9
 LABEL = re.compile(r"(solo|indep|team|claim)-([1-9][0-9]*)")
 NUMBER = re.compile(r"(?<![A-Za-z0-9_])[0-9]+(?![A-Za-z0-9_])")
 CHANNEL_KINDS = ("team", "claim")
-SPLIT_KEYS = ("repeat_unposted", "repeat_unread", "repeat_read", "repeat_own")
+SPLIT_KEYS = ("repeat_unsent", "repeat_unread", "repeat_read", "repeat_own")
+BOX_SPLIT_KEYS = ("repeat_unposted_box", "repeat_unread_box", "repeat_read_box")
 EVENT_KEYS = (
     "opens",
     "distinct",
@@ -30,9 +31,12 @@ EVENT_KEYS = (
     "empty",
     "repeats",
     *SPLIT_KEYS,
+    *BOX_SPLIT_KEYS,
     "unused",
     "stranded",
     "messages",
+    "msgs_per_seat",
+    "p1_msg_share",
     "reads",
     "post_read_share",
     "k_eff",
@@ -119,20 +123,39 @@ def mentioned(text: str) -> set[int]:
     return {int(token) for token in NUMBER.findall(text)}
 
 
-def repeat_kind(first: tuple[str, int], box: int, e: dict, posts: list, last_read: dict) -> str:
-    first_seat, _ = first
-    if first_seat == e["seat"]:
-        return "own"
-    times = [seq for seq, seat, boxes in posts if seat == first_seat and box in boxes]
+def repeat_kinds(first: tuple[str, int], box: int, e: dict, chan: dict) -> tuple[str, str]:
+    first_seat, first_seq = first
+    seat = e["seat"]
+    if first_seat == seat:
+        return "own", "own"
+    reports = [p[2] for p in chan["posts"] if p[1] == first_seat and p[0] > first_seq]
+    known = chan["seen"].get(seat, {})
+    informed = any(i in known and known[i] <= e["t"] for i in reports)
+    f13 = "read" if informed else ("unread" if reports else "unsent")
+    times = [p[0] for p in chan["posts"] if p[1] == first_seat and box in p[3]]
     if not times:
-        return "unposted"
-    return "read" if last_read.get(e["seat"], 0) > times[0] else "unread"
+        return f13, "unposted_box"
+    return f13, "read_box" if chan["last_read"].get(seat, 0) > times[0] else "unread_box"
+
+
+def note_message(e: dict, chan: dict, c: Counter) -> None:
+    seat = e["seat"]
+    if e["method"] == "POST":
+        c["messages"] += 1
+        c["messages_p1"] += seat == "p1"
+        text = e["response"]["text"]
+        chan["posts"].append((e["seq"], seat, e["response"]["id"], mentioned(text)))
+        return
+    c["reads"] += 1
+    chan["last_read"][seat] = e["seq"]
+    seen = chan["seen"].setdefault(seat, {})
+    for m in e["response"].get("messages", []):
+        seen.setdefault(m["id"], e["t"])
 
 
 def walk(events: list[dict], budget: int) -> tuple[Counter, dict[str, int], int]:
     first: dict[int, tuple[str, int]] = {}
-    posts: list[tuple[int, str, set[int]]] = []
-    last_read: dict[str, int] = {}
+    chan: dict = {"posts": [], "seen": {}, "last_read": {}}
     state: dict[str, tuple[bool, bool]] = {}
     first_box: dict[str, int] = {}
     used: Counter = Counter()
@@ -140,14 +163,9 @@ def walk(events: list[dict], budget: int) -> tuple[Counter, dict[str, int], int]
     for e in events:
         seat, kind, method = e["seat"], e["kind"], e["method"]
         posted, read = state.get(seat, (False, False))
-        if kind == "msg" and method == "POST":
-            c["messages"] += 1
-            posts.append((e["seq"], seat, mentioned(e["response"]["text"])))
-            state[seat] = (True, read)
-        elif kind == "msgs" and method == "GET":
-            c["reads"] += 1
-            last_read[seat] = e["seq"]
-            state[seat] = (posted, True)
+        if (kind, method) in (("msg", "POST"), ("msgs", "GET")):
+            note_message(e, chan, c)
+            state[seat] = (posted or method == "POST", read or method == "GET")
         elif kind == "open" and method == "POST":
             box = e["request"]["box"]
             assert isinstance(box, int) and e["response"]["box"] == box, e["seq"]
@@ -158,13 +176,16 @@ def walk(events: list[dict], budget: int) -> tuple[Counter, dict[str, int], int]
             c["post_read"] += posted and read
             state[seat] = (False, False)
             if box in first:
+                f13, by_box = repeat_kinds(first[box], box, e, chan)
                 c["repeats"] += 1
-                c["repeat_" + repeat_kind(first[box], box, e, posts, last_read)] += 1
+                c["repeat_" + f13] += 1
+                c["repeat_" + by_box] += by_box != "own"
             else:
                 first[box] = (seat, e["seq"])
                 c["flags" if e["response"]["flag"] else "empty"] += 1
     assert c["opens"] == c["flags"] + c["empty"] + c["repeats"]
     assert c["repeats"] == sum(c[key] for key in SPLIT_KEYS)
+    assert c["repeats"] == c["repeat_own"] + sum(c[key] for key in BOX_SPLIT_KEYS)
     return c, first_box, len(first)
 
 
@@ -215,7 +236,10 @@ def trial_row(trial: Path, arm: dict, boxes: int, flags_total: int) -> dict:
     unused = arm["seats"] * arm["budget"] - c["opens"]
     assert unused >= 0, trial
     row.update({key: c[key] for key in ("opens", "flags", "empty", "repeats", "messages", "reads")})
-    row.update({key: c[key] if channel else None for key in SPLIT_KEYS})
+    row.update({key: c[key] if channel else None for key in (*SPLIT_KEYS, *BOX_SPLIT_KEYS)})
+    row["msgs_per_seat"] = c["messages"] / len(seats)
+    has_msgs = channel and c["messages"] > 0
+    row["p1_msg_share"] = c["messages_p1"] / c["messages"] if has_msgs else None
     row.update(
         distinct=distinct,
         unused=unused,
@@ -413,40 +437,40 @@ def table(title: str, headers: list[str], rows: list[list[str]]) -> str:
     return "\n".join(lines)
 
 
+def arm_table(title: str, arms: list[dict], columns: tuple) -> str:
+    headers = ["arm", *(header for header, _, _ in columns)]
+    rows = [[a["label"], *(cell(a[key], digits) for _, key, digits in columns)] for a in arms]
+    return table(title, headers, rows)
+
+
 def render_arms(arms: list[dict]) -> list[str]:
-    outcome = ["arm", "trials", "noRwd", "reward%", "se", "opens", "distinct", "flags", "empty"]
-    outcome += ["repeats", "unused", "strand"]
-    coord = ["arm", "rpUnpost", "rpUnread", "rpRead", "rpOwn", "msgs", "reads", "postRead"]
-    coord += ["k_eff", "collide"]
-    cost = ["arm", "usd", "tokIn", "tokOut", "tokCache", "seatsNoCost"]
-    rows_a, rows_b, rows_c = [], [], []
-    for a in arms:
-        se = None if a["reward_se"] is None else 100.0 * a["reward_se"]
-        rows_a.append(
-            [
-                a["label"],
-                cell(a["trials"]),
-                cell(a["no_reward"]),
-                cell(100.0 * a["reward"], 1),
-                cell(se, 1),
-            ]
-        )
-        rows_a[-1] += [
-            cell(a[k])
-            for k in ("opens", "distinct", "flags", "empty", "repeats", "unused", "stranded")
-        ]
-        rows_b.append(
-            [a["label"], *(cell(a[k]) for k in SPLIT_KEYS), cell(a["messages"]), cell(a["reads"])]
-        )
-        rows_b[-1] += [cell(a["post_read_share"]), cell(a["k_eff"]), cell(a["first_collision"])]
-        rows_c.append(
-            [a["label"], cell(a["cost_usd"], 4), cell(a["tokens_in"], 0), cell(a["tokens_out"], 0)]
-        )
-        rows_c[-1] += [cell(a["tokens_cache"], 0), cell(a["no_cost_seats"])]
+    shown = [a | {"reward_pct": 100.0 * a["reward"]} for a in arms]
+    shown = [
+        a | {"se_pct": None if a["reward_se"] is None else 100.0 * a["reward_se"]} for a in shown
+    ]
+    outcome = (("trials", "trials", 0), ("noRwd", "no_reward", 0), ("reward%", "reward_pct", 1))
+    outcome += (("se", "se_pct", 1), ("opens", "opens", 2), ("distinct", "distinct", 2))
+    outcome += (("flags", "flags", 2), ("empty", "empty", 2), ("repeats", "repeats", 2))
+    outcome += (("unused", "unused", 2), ("strand", "stranded", 2))
+    repeats = (("rpUnsent", "repeat_unsent", 2), ("rpUnread", "repeat_unread", 2))
+    repeats += (("rpRead", "repeat_read", 2), ("rpOwn", "repeat_own", 2))
+    repeats += (("rpUnposted_box", "repeat_unposted_box", 2),)
+    repeats += (("rpUnread_box", "repeat_unread_box", 2), ("rpRead_box", "repeat_read_box", 2))
+    channel = (("msgs", "messages", 2), ("msgsPerSeat", "msgs_per_seat", 2))
+    channel += (("p1MsgShare", "p1_msg_share", 2), ("reads", "reads", 2))
+    channel += (("postRead", "post_read_share", 2), ("k_eff", "k_eff", 2))
+    channel += (("collide", "first_collision", 2),)
+    cost = (("usd", "cost_usd", 4), ("tokIn", "tokens_in", 0), ("tokOut", "tokens_out", 0))
+    cost += (("tokCache", "tokens_cache", 0), ("seatsNoCost", "no_cost_seats", 0))
     return [
-        table("ARMS: outcome (per-trial means; reward = mean of instance means)", outcome, rows_a),
-        table("ARMS: coordination (repeat split for channel arms)", coord, rows_b),
-        table("ARMS: recorded cost per trial", cost, rows_c),
+        arm_table(
+            "ARMS: outcome (per-trial means; reward = mean of instance means)", shown, outcome
+        ),
+        arm_table(
+            "ARMS: repeat split, channel arms (F13 primary; _box = box number)", shown, repeats
+        ),
+        arm_table("ARMS: channel and spread", shown, channel),
+        arm_table("ARMS: recorded cost per trial", shown, cost),
     ]
 
 

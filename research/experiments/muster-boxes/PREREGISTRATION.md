@@ -310,3 +310,13 @@ world and adds the missing control. Design evidence:
   and it uses more tokens. Tokens, cost and time are reported for each arm.
 - The world rewards search only. It has no subtask that needs a specialist, so E6 says nothing about teams
   whose members differ.
+
+## Amendment 8a (3:38 PM ET, 2026-11-23, before any E6 trial): the E6 pilot may run while E5 ends
+
+- The 4 pilot trials of E6 (not scored, about $0.10) run while the last E5 arms run. The scored E6 arms still
+  wait until every E5 arm is done or stopped. Reason: the shared account still falls, and a plumbing fault
+  found now costs no E5 money.
+- The E6 trials use a copy of `muster/tasks/field/build` taken with `git archive` at commit `dfbec6c05`
+  (tracked files only), stored in `muster-runs/e6/tasks/field` with its hash in `field.pin.json`.
+- Scripted checks on Daytona before the pilot, each equal to `metadata.oracle_reward`: `solo-72` 0.75,
+  `team-8` 0.7125, `scout-8` 0.7125, `indep-8` 0.65, `solo-9` 0.1 (i01).

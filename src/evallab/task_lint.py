@@ -12,6 +12,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Literal
 
 from evallab.control_expect import declared_expectation
+from evallab.shell_lint import heredoc_body, split_shell
 from evallab.task_artifact_lint import lint_artifact_overwrites
 from evallab.task_exec_lint import lint_executes
 from evallab.task_install_lint import lint_installs
@@ -247,8 +248,16 @@ def _lint_dockerfile(dockerfile: Path) -> list[Finding]:
     pending = ""
     start = 1
     stages: set[str] = set()
+    heredoc: str | None = None
+    heredoc_start = 1
     for number, raw in enumerate(text.splitlines(), 1):
         line = raw.strip()
+        if heredoc is not None:
+            if line == heredoc:
+                heredoc = None
+            elif line:
+                findings.extend(_run_findings(dockerfile, heredoc_start, line))
+            continue
         if line.startswith("#"):
             if re.match(r"#\s*escape\s*=", line, re.IGNORECASE) and not line.endswith("\\"):
                 syntax_error(number, "only backslash continuation escapes are supported")
@@ -273,6 +282,8 @@ def _lint_dockerfile(dockerfile: Path) -> list[Finding]:
             continue
         if keyword == "RUN":
             findings.extend(_run_findings(dockerfile, start, arguments))
+            heredoc = heredoc_body(split_shell(arguments))
+            heredoc_start = start
             continue
         try:
             sources = _docker_sources(arguments)

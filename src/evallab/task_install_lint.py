@@ -6,7 +6,14 @@ from collections.abc import Iterator, Sequence
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
 
-from evallab.shell_lint import command_head, logical_lines, shell_commands, split_shell
+from evallab.shell_lint import (
+    HEREDOC_LIMIT,
+    command_head,
+    heredoc_body,
+    logical_lines,
+    shell_commands,
+    split_shell,
+)
 
 if TYPE_CHECKING:
     from evallab.task_lint import Finding
@@ -152,16 +159,24 @@ def _unpinned_spec(spec: str) -> bool:
     return "/" not in spec
 
 
+def _run_body(line: str) -> str | None:
+    instruction = re.match(r"(?i)^RUN\s+(.*)$", line)
+    if instruction is None:
+        return None
+    line = instruction[1].strip()
+    parts = line.split(None, 1)
+    while parts and parts[0].startswith("--"):
+        line = parts[1] if len(parts) > 1 else ""
+        parts = line.split(None, 1)
+    return line
+
+
 def _install_tokens(line: str, *, dockerfile: bool) -> list[str]:
     if dockerfile:
-        instruction = re.match(r"(?i)^RUN\s+(.*)$", line)
-        if instruction is None:
+        body = _run_body(line)
+        if body is None:
             return []
-        line = instruction[1].strip()
-        parts = line.split(None, 1)
-        while parts and parts[0].startswith("--"):
-            line = parts[1] if len(parts) > 1 else ""
-            parts = line.split(None, 1)
+        line = body
         if line.startswith("["):
             try:
                 payload = json.loads(line)
@@ -171,6 +186,27 @@ def _install_tokens(line: str, *, dockerfile: bool) -> list[str]:
                 isinstance(token, str) for token in payload
             ) else []
     return split_shell(line)
+
+
+def _units(text: str, *, dockerfile: bool) -> Iterator[tuple[int, str, list[str]]]:
+    delimiter: str | None = None
+    number = 0
+    heredocs = 0
+    for offset, line in logical_lines(text):
+        if delimiter is not None:
+            if line == delimiter:
+                delimiter = None
+                continue
+            yield number, line, split_shell(line)
+            continue
+        tokens = _install_tokens(line, dockerfile=dockerfile)
+        opened = heredoc_body(tokens) if heredocs < HEREDOC_LIMIT else None
+        if opened is not None:
+            heredocs += 1
+            delimiter = opened
+            number = offset
+        yield offset, line, tokens
+    assert heredocs <= HEREDOC_LIMIT
 
 
 def _is_dockerfile(path: Path) -> bool:
@@ -303,10 +339,10 @@ def lint_installs(task_dir: Path, artifacts: Sequence[str] = ()) -> list[Finding
         runtime_reported = False
         network_download_line: int | None = None
         script_checksum = False
-        for number, line in logical_lines(
-            path.read_text(encoding="utf-8", errors="replace")
+        for number, line, tokens in _units(
+            path.read_text(encoding="utf-8", errors="replace"), dockerfile=dockerfile
         ):
-            commands = list(shell_commands(_install_tokens(line, dockerfile=dockerfile)))
+            commands = list(shell_commands(tokens))
             unpinned: list[str] = []
             installers: list[str] = []
             runtime_install = False

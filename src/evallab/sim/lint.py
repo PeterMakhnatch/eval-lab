@@ -54,6 +54,13 @@ _WRAPPERS = (
     'bash -c "{}"',
     'sh -c "{}"',
     "`{}`",
+    'bash -ec "{}"',
+    'bash -lc "{}"',
+    'sh -xc "{}"',
+    'eval "{}"',
+    "setsid {}",
+    'su -c "{}"',
+    "<<EOF\n{}\nEOF",
 )
 
 
@@ -85,7 +92,9 @@ def _defects(
         "unpinned-clone": (
             {
                 "environment/Dockerfile": image
-                + "RUN git clone https://example.invalid/tools.git\n"
+                + "RUN "
+                + wrap("git clone https://example.invalid/tools.git")
+                + "\n"
             },
             (),
         ),

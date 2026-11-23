@@ -11,13 +11,13 @@ COMMAND_SEPARATORS = frozenset({"&&", "||", ";", "|", "|&", "&", ";;", "(", ")"}
 SHELL_KEYWORDS = frozenset(
     {
         "if", "then", "else", "elif", "fi", "do", "done", "while", "until",
-        "for", "in", "case", "esac", "!", "{", "}", "time", "builtin", "eval",
+        "for", "in", "case", "esac", "!", "{", "}", "time", "builtin",
     }
 )
 EXEC_WRAPPERS = frozenset(
     {
         "sudo", "env", "command", "exec", "nohup",
-        "timeout", "nice", "stdbuf",
+        "timeout", "nice", "stdbuf", "setsid",
     }
 )
 WRAPPER_VALUE_OPTIONS = {
@@ -28,10 +28,15 @@ WRAPPER_VALUE_OPTIONS = {
     "stdbuf": frozenset({"-i", "--input", "-o", "--output", "-e", "--error"}),
 }
 WRAPPER_OPERANDS = {"timeout": 1}
-INLINE_SHELL_HEADS = frozenset({"bash", "sh", "dash", "zsh", "ksh"})
+INLINE_SHELL_HEADS = frozenset({"bash", "sh", "dash", "zsh", "ksh", "su"})
 INLINE_COMMAND_LIMIT = 64
+HEREDOC_LIMIT = 32
 _BACKTICK = re.compile(r"`([^`\n]+)`")
 _INLINE_FLAGS = frozenset({"-c", "--command"})
+_INLINE_CLUSTER = re.compile(r"^-[A-Za-z]*c[A-Za-z]*$")
+_HEREDOC = re.compile(
+    r"^(?P<operator><<-?)(?P<quote>['\"]?)(?P<delimiter>[A-Za-z0-9_.-]+)(?P=quote)$"
+)
 
 
 def logical_lines(text: str) -> Iterator[tuple[int, str]]:
@@ -107,8 +112,40 @@ def _direct_commands(tokens: list[str]) -> Iterator[tuple[list[str], str]]:
 
 def _flag_value(command: list[str]) -> str | None:
     for index, token in enumerate(command[1:], 1):
-        if token in _INLINE_FLAGS and index + 1 < len(command):
+        if token.startswith("--command="):
+            return token.partition("=")[2]
+        if (
+            token in _INLINE_FLAGS or _INLINE_CLUSTER.match(token)
+        ) and index + 1 < len(command):
             return command[index + 1]
+    return None
+
+
+def _heredoc(tokens: list[str], index: int) -> str | None:
+    token = tokens[index]
+    if token in {"<<", "<<-"}:
+        return tokens[index + 1] if index + 1 < len(tokens) else None
+    match = _HEREDOC.match(token)
+    return match["delimiter"] if match is not None else None
+
+
+def heredoc_body(tokens: list[str]) -> str | None:
+    assert isinstance(tokens, list)
+    index = 0
+    while index < len(tokens) and tokens[index].startswith("--"):
+        index += 1
+    if index >= len(tokens):
+        return None
+    delimiter = _heredoc(tokens, index)
+    if delimiter is not None:
+        return delimiter
+    if PurePosixPath(tokens[index]).name not in INLINE_SHELL_HEADS:
+        return None
+    limit = min(len(tokens), index + INLINE_COMMAND_LIMIT)
+    for position in range(index + 1, limit):
+        delimiter = _heredoc(tokens, position)
+        if delimiter is not None:
+            return delimiter
     return None
 
 
@@ -126,12 +163,20 @@ def _inline_bodies(command: list[str]) -> Iterator[str]:
     assert isinstance(command, list)
     seen: set[str] = set()
     yielded = 0
-    if command and PurePosixPath(command[0]).name in INLINE_SHELL_HEADS:
-        body = _flag_value(command)
-        if body is not None and body not in seen:
-            seen.add(body)
-            yielded += 1
-            yield body
+    head = PurePosixPath(command[0]).name if command else ""
+    bodies: list[str] = []
+    if head in INLINE_SHELL_HEADS:
+        value = _flag_value(command)
+        if value is not None:
+            bodies.append(value)
+    elif head == "eval" and len(command) > 1:
+        bodies.append(" ".join(command[1:]))
+    for body in bodies:
+        if body in seen:
+            continue
+        seen.add(body)
+        yielded += 1
+        yield body
     for body in _backtick_bodies(" ".join(command)):
         if yielded >= INLINE_COMMAND_LIMIT:
             break

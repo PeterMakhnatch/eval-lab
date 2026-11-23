@@ -150,6 +150,7 @@ def run(seed: int) -> RunResult:
     from evallab.sim.leases import LeaseSimulation
     from evallab.sim.lint import LintSimulation
     from evallab.sim.mutation import MutationSimulation
+    from evallab.sim.protected import ProtectedPathSimulation
     from evallab.sim.rewards import RewardSimulation
 
     sim = Simulation(seed)
@@ -170,6 +171,8 @@ def run(seed: int) -> RunResult:
             ProcessJobSimulation(sim, root / "jobs").run()
             sim.subsystem = "verifier-mutation"
             MutationSimulation(sim).run()
+            sim.subsystem = "protected-path-read"
+            ProtectedPathSimulation(sim).run()
         except InvariantViolation as exc:
             failure = exc
         except (Exception, ProcessCrash) as exc:

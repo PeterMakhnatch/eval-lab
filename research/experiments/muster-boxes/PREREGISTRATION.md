@@ -235,3 +235,18 @@ Design evidence: `multi-agent/2026-11-23-agent-count-scaling-designs-and-evidenc
   (`eval-lab-results/multiagent-campaign-2026-11-23/PREREGISTRATION.md`, written 2:05 PM ET the same day).
 - Daytona adds latency to each seat command. All arms share it, but timing-dependent numbers (repeats before
   a post) may differ from local Docker runs.
+
+## Amendment 7a (3:00 PM ET, 2026-11-23, before any scored E5 trial): run order, floor and task copy
+
+- OBSERVED at 2:56 PM ET: the OpenRouter account fell from $23.19 to $13.95 in 31 minutes. E5 had spent $0.03
+  of that; other lanes use the same account. At that rate the account is empty before E5 ends.
+- **Run order.** The arms of the 2 primary tests go first: `solo-24`, `team-8`, `claim-8`, `team-2`, `team-4`,
+  `team-3`. Then `indep-8`, `indep-4`, `indep-2`, `indep-3`, `claim-4`, `claim-2`, `claim-3`, `team-3-e1`,
+  `solo-3`, `solo-6`, `solo-8`, `solo-12`. 2 lanes run at once with 4 trials each, so at most 8 trials at once.
+- **Floor.** No arm starts when the account holds less than $2 (was $6). The $6 floor was meant to leave
+  credits for other lanes; they now spend much faster than E5.
+- **Task copy.** The family is still in the gate. The trials use a copy of `muster/tasks/crowd/build` at commit
+  `bef4f0d08` of branch `fable/crowd` (`generate.py --check` passes there), stored in `muster-runs/e5/tasks/crowd`
+  with its hash in `muster-runs/e5/tasks/crowd.pin.json`. If the landed build differs from that copy by 1 byte,
+  the trials are void.
+- Nothing else changes.

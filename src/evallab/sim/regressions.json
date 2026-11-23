@@ -19,5 +19,12 @@
     "seed": 8660425413623680026,
     "step": 48,
     "subsystem": "queue-execution"
+  },
+  {
+    "found_at_utc": "2026-11-23T17:33:34.397950+00:00",
+    "invariant": "anatomy_baked_dotenv",
+    "seed": 6318,
+    "step": 144,
+    "subsystem": "package-anatomy"
   }
 ]

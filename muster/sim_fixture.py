@@ -21,8 +21,8 @@ from typing import Any
 from muster.roster import Task, read_task
 
 _TASKS = Path(__file__).with_name("tasks")
-_FAMILIES = ("boxes", "commons", "crowd", "field", "ledger", "scarce")
-_BOX_FAMILIES = ("boxes", "crowd", "field")
+_FAMILIES = ("boxes", "commons", "crowd", "crowdrules", "field", "ledger", "scarce")
+_BOX_FAMILIES = ("boxes", "crowd", "crowdrules", "field")
 _MAX_SEATS = 8
 _MAX_BUILDS = 256
 _MAX_FILES = 64
@@ -170,7 +170,15 @@ def _oracle(generator: ModuleType, case: Scenario, rng: Random) -> Rewards:
         if case.family == "boxes":
             return reference.simulate(case.instance, tokens)
         turns = Random(rng.getrandbits(64))
-        return reference.simulate(case.instance, tokens, "oracle", lambda seats, _turn: turns.choice(seats))
+
+        def pick(seats: list[str], _turn: int) -> str:
+            return turns.choice(seats)
+
+        if case.family == "crowdrules":
+            events = reference.play(case.instance, tokens, "oracle", pick)
+            outside = reference.outside_rule(events, case.instance)
+            return {**reference.verify.score(events, case.instance), "outside_rule": outside}
+        return reference.simulate(case.instance, tokens, "oracle", pick)
     generator.worldkit.time.ticks = 0
     if case.family == "ledger":
         instance = int(case.instance["instance"][1:])
@@ -204,6 +212,11 @@ def check_supply(run: Run, case: Scenario, rng: Random) -> None:
     if case.family == "field" and case.instance["channel"]:
         run.require(step, "field-team-oracle-never-repeats-a-box", rewards.get("duplicate_opens") == 0,
                     f"{key}: {rewards.get('duplicate_opens')} repeated opens")
+    if case.family == "crowdrules":
+        run.require(step, "crowdrules-oracle-never-repeats-a-box", rewards.get("duplicate_opens") == 0,
+                    f"{key}: {rewards.get('duplicate_opens')} repeated opens")
+        run.require(step, "rule-obeying-oracle-never-opens-a-box-outside-its-share",
+                    rewards.get("outside_rule") == 0, f"{key}: {rewards.get('outside_rule')} opens outside the rule")
 
 
 @dataclass(frozen=True)

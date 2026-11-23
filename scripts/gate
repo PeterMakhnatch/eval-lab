@@ -17,6 +17,6 @@ uv run --no-sync python -m evallab.smoke --docker-free
 uv run --no-sync python -m evallab.sim check
 uv run --no-sync python -m tidegauge.sim check
 uv run --no-sync python -m muster.sim check
-for family in boxes ledger commons scarce crowd field; do
+for family in boxes ledger commons scarce crowd field crowdrules; do
   uv run --no-sync python "muster/tasks/$family/generate.py" --check
 done

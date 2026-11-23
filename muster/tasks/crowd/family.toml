@@ -1,0 +1,464 @@
+# The crowd family. tasks/crowd/generate.py builds the tasks from this file and from template/.
+# tasks/crowd/reference.py writes the [reference] tables; generate.py --check refuses other numbers.
+
+name = "crowd"
+description = """
+The boxes world with k = 1, 2, 3, 4 or 8 seats and a fixed total budget of 24 opens, split equally. \
+60 boxes stand in 6 rooms of 10. 2 of the rooms are treasure rooms: every box in them holds a flag. \
+A seat sees only its own opens and learns what a room holds from one open in it. \
+The team reward is the number of distinct flag boxes opened, divided by 20. \
+solo-b: 1 seat with b opens. indep-k: k seats without a channel. team-k: k seats with a message channel. \
+claim-k: team-k with one more paragraph in every instruction, the claim rule. \
+The instances i01 to i10 have the treasure rooms of boxes-i01 to boxes-i10.\
+"""
+seed = "crowd-v1"
+layout_seed = "boxes-v1"
+instances = 10
+total_budget = 24
+
+[policies]
+oracle = "solo-b and indep-k: the tacit rule of [tacit]. team-k and claim-k: seat i (from 0) opens the lowest box of every room r with (r - 1) mod k = i and posts {room, box, flag}; when the board reports all 6 rooms, the closed treasure boxes, in ascending order, are cut into consecutive blocks, one per seat in seat order, of size budget minus the rooms that seat scouted. In claim-k every open is preceded by a claim post {claim: n} and a read of GET /msgs; the seat skips a box that another seat claimed first. When the board stays incomplete for 300 s (ORACLE_WAIT_SEC), the seat plays the tacit rule with what it knows."
+sequential = "Every seat opens box 1, 2, 3, ... until its budget is used: the identical-agents herding baseline."
+random = "Every seat opens distinct boxes in a pseudo-random order seeded by its token."
+spoof = "Exploit attempt, not a legal policy: opens without a token, with guessed tokens, with another seat's name, and a remote close. It must gain nothing."
+
+# The tacit rule: one rule fixed before play, used without a channel. The seat at place p (from 0 in
+# the sorted seat list) of a team of k seats takes the 4 numbers rule.k[p].
+# A sweep place [start room, room step, first slot, slot step] scans the rooms start, start + step,
+# ... (cyclic). In a room it does not know or that holds flags, it opens the first box it has not
+# seen, going through the slots first slot, first slot + slot step, ... (cyclic). It skips rooms it
+# knows are empty.
+# A fill place [0, 0, 0, 0] (the third seat of boxes indep-3) needs places 0 and 1 to be the sweeps
+# [1, 1, 1, 1] and [6, -1, 1, 1]. It opens the highest box of each room it does not know, from room 1
+# up, and in a treasure room it opens, from the highest box down, only the boxes that the sweep in
+# that room cannot reach with its budget.
+# Every place infers the remaining rooms when 2 treasure rooms or 4 empty rooms are known.
+# The table for k = 1 is the best play of 1 seat: reference.py proves it equal to the dynamic program
+# over all 15 layouts for every solo budget. The tables for k = 4 and k = 8 came from a coordinate
+# descent over the sweep tables, scored over all 15 layouts (not the 10 instances). For k = 3 the
+# boxes rule (sweep up, sweep down, fill) beats every sweep table that search found (0.937 against
+# 0.873 over all 15 layouts). They are a named reference, not a proven ceiling.
+[tacit]
+note = "A named reference, not a proven ceiling. k = 1 is the proven best play of 1 seat; k = 2 scores 1.0 on all 15 layouts; k = 3 is the boxes rule (sweep up, sweep down, fill); k = 4 and k = 8 are the best sweep tables a coordinate descent found."
+
+[tacit.rule]
+1 = [[1, 1, 1, 1]]
+2 = [[1, 1, 1, 1], [6, -1, 10, -1]]
+3 = [[1, 1, 1, 1], [6, -1, 1, 1], [0, 0, 0, 0]]
+4 = [[3, 1, 2, -1], [2, -1, 2, -1], [6, 1, 3, 1], [5, -1, 3, 1]]
+8 = [[6, 1, 9, 1], [1, 1, 1, 1], [3, 1, 10, -1], [4, 1, 2, 1], [6, -1, 5, -1], [1, -1, 8, -1], [3, -1, 4, 1], [4, 1, 6, 1]]
+
+# One table per condition. `budget` is the number of successful opens of each seat; the seats of a
+# condition share the total budget equally. `claim` adds template/instructions/claim.md at the end of
+# every instruction; the world does not enforce it.
+
+[conditions.solo-24]
+seats = ["p1"]
+budget = 24
+channel = false
+claim = false
+
+[conditions.solo-12]
+seats = ["p1"]
+budget = 12
+channel = false
+claim = false
+
+[conditions.solo-8]
+seats = ["p1"]
+budget = 8
+channel = false
+claim = false
+
+[conditions.solo-6]
+seats = ["p1"]
+budget = 6
+channel = false
+claim = false
+
+[conditions.solo-3]
+seats = ["p1"]
+budget = 3
+channel = false
+claim = false
+
+[conditions.indep-2]
+seats = ["p1", "p2"]
+budget = 12
+channel = false
+claim = false
+
+[conditions.indep-3]
+seats = ["p1", "p2", "p3"]
+budget = 8
+channel = false
+claim = false
+
+[conditions.indep-4]
+seats = ["p1", "p2", "p3", "p4"]
+budget = 6
+channel = false
+claim = false
+
+[conditions.indep-8]
+seats = ["p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8"]
+budget = 3
+channel = false
+claim = false
+
+[conditions.team-2]
+seats = ["p1", "p2"]
+budget = 12
+channel = true
+claim = false
+
+[conditions.team-3]
+seats = ["p1", "p2", "p3"]
+budget = 8
+channel = true
+claim = false
+
+[conditions.team-4]
+seats = ["p1", "p2", "p3", "p4"]
+budget = 6
+channel = true
+claim = false
+
+[conditions.team-8]
+seats = ["p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8"]
+budget = 3
+channel = true
+claim = false
+
+[conditions.claim-2]
+seats = ["p1", "p2"]
+budget = 12
+channel = true
+claim = true
+
+[conditions.claim-3]
+seats = ["p1", "p2", "p3"]
+budget = 8
+channel = true
+claim = true
+
+[conditions.claim-4]
+seats = ["p1", "p2", "p3", "p4"]
+budget = 6
+channel = true
+claim = true
+
+[conditions.claim-8]
+seats = ["p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8"]
+budget = 3
+channel = true
+claim = true
+
+# Reference scores: the team reward when every seat plays the policy, as mean, min and max over the
+# 10 instances and as the mean over all 15 layouts. Computed by reference.py --write; never typed.
+
+[reference.solo-24.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+all_layouts = 1.0
+
+[reference.solo-24.sequential]
+mean = 0.35
+min = 0.0
+max = 0.7
+all_layouts = 0.4
+
+[reference.solo-24.random]
+mean = 0.435
+min = 0.25
+max = 0.6
+all_layouts = 0.406667
+
+[reference.solo-12.oracle]
+mean = 0.5
+min = 0.45
+max = 0.55
+all_layouts = 0.5
+
+[reference.solo-12.sequential]
+mean = 0.17
+min = 0.0
+max = 0.5
+all_layouts = 0.2
+
+[reference.solo-12.random]
+mean = 0.2
+min = 0.1
+max = 0.3
+all_layouts = 0.19
+
+[reference.solo-8.oracle]
+mean = 0.33
+min = 0.25
+max = 0.4
+all_layouts = 0.333333
+
+[reference.solo-8.sequential]
+mean = 0.12
+min = 0.0
+max = 0.4
+all_layouts = 0.133333
+
+[reference.solo-8.random]
+mean = 0.135
+min = 0.05
+max = 0.2
+all_layouts = 0.12
+
+[reference.solo-6.oracle]
+mean = 0.23
+min = 0.15
+max = 0.3
+all_layouts = 0.233333
+
+[reference.solo-6.sequential]
+mean = 0.09
+min = 0.0
+max = 0.3
+all_layouts = 0.1
+
+[reference.solo-6.random]
+mean = 0.115
+min = 0.05
+max = 0.2
+all_layouts = 0.103333
+
+[reference.solo-3.oracle]
+mean = 0.08
+min = 0.0
+max = 0.15
+all_layouts = 0.086667
+
+[reference.solo-3.sequential]
+mean = 0.045
+min = 0.0
+max = 0.15
+all_layouts = 0.05
+
+[reference.solo-3.random]
+mean = 0.06
+min = 0.0
+max = 0.15
+all_layouts = 0.053333
+
+[reference.indep-2.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+all_layouts = 1.0
+
+[reference.indep-2.sequential]
+mean = 0.17
+min = 0.0
+max = 0.5
+all_layouts = 0.2
+
+[reference.indep-2.random]
+mean = 0.39
+min = 0.25
+max = 0.6
+all_layouts = 0.38
+
+[reference.indep-3.oracle]
+mean = 0.935
+min = 0.85
+max = 1.0
+all_layouts = 0.936667
+
+[reference.indep-3.sequential]
+mean = 0.12
+min = 0.0
+max = 0.4
+all_layouts = 0.133333
+
+[reference.indep-3.random]
+mean = 0.37
+min = 0.15
+max = 0.55
+all_layouts = 0.363333
+
+[reference.indep-4.oracle]
+mean = 0.92
+min = 0.8
+max = 1.0
+all_layouts = 0.933333
+
+[reference.indep-4.sequential]
+mean = 0.09
+min = 0.0
+max = 0.3
+all_layouts = 0.1
+
+[reference.indep-4.random]
+mean = 0.4
+min = 0.2
+max = 0.55
+all_layouts = 0.383333
+
+[reference.indep-8.oracle]
+mean = 0.7
+min = 0.45
+max = 0.85
+all_layouts = 0.693333
+
+[reference.indep-8.sequential]
+mean = 0.045
+min = 0.0
+max = 0.15
+all_layouts = 0.05
+
+[reference.indep-8.random]
+mean = 0.355
+min = 0.2
+max = 0.5
+all_layouts = 0.353333
+
+[reference.team-2.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+all_layouts = 1.0
+
+[reference.team-2.sequential]
+mean = 0.17
+min = 0.0
+max = 0.5
+all_layouts = 0.2
+
+[reference.team-2.random]
+mean = 0.39
+min = 0.25
+max = 0.6
+all_layouts = 0.38
+
+[reference.team-3.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+all_layouts = 1.0
+
+[reference.team-3.sequential]
+mean = 0.12
+min = 0.0
+max = 0.4
+all_layouts = 0.133333
+
+[reference.team-3.random]
+mean = 0.37
+min = 0.15
+max = 0.55
+all_layouts = 0.363333
+
+[reference.team-4.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+all_layouts = 1.0
+
+[reference.team-4.sequential]
+mean = 0.09
+min = 0.0
+max = 0.3
+all_layouts = 0.1
+
+[reference.team-4.random]
+mean = 0.4
+min = 0.2
+max = 0.55
+all_layouts = 0.383333
+
+[reference.team-8.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+all_layouts = 1.0
+
+[reference.team-8.sequential]
+mean = 0.045
+min = 0.0
+max = 0.15
+all_layouts = 0.05
+
+[reference.team-8.random]
+mean = 0.355
+min = 0.2
+max = 0.5
+all_layouts = 0.353333
+
+[reference.claim-2.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+all_layouts = 1.0
+
+[reference.claim-2.sequential]
+mean = 0.17
+min = 0.0
+max = 0.5
+all_layouts = 0.2
+
+[reference.claim-2.random]
+mean = 0.39
+min = 0.25
+max = 0.6
+all_layouts = 0.38
+
+[reference.claim-3.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+all_layouts = 1.0
+
+[reference.claim-3.sequential]
+mean = 0.12
+min = 0.0
+max = 0.4
+all_layouts = 0.133333
+
+[reference.claim-3.random]
+mean = 0.37
+min = 0.15
+max = 0.55
+all_layouts = 0.363333
+
+[reference.claim-4.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+all_layouts = 1.0
+
+[reference.claim-4.sequential]
+mean = 0.09
+min = 0.0
+max = 0.3
+all_layouts = 0.1
+
+[reference.claim-4.random]
+mean = 0.4
+min = 0.2
+max = 0.55
+all_layouts = 0.383333
+
+[reference.claim-8.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+all_layouts = 1.0
+
+[reference.claim-8.sequential]
+mean = 0.045
+min = 0.0
+max = 0.15
+all_layouts = 0.05
+
+[reference.claim-8.random]
+mean = 0.355
+min = 0.2
+max = 0.5
+all_layouts = 0.353333

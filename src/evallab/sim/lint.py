@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 from evallab.sim.engine import Simulation
@@ -46,6 +47,14 @@ _DROPPED_UID_TESTS = (
     "setpriv --reuid nobody --regid nogroup --clear-groups /tests/run.sh\n"
     "printf '%s\\n' 1 > /logs/verifier/reward.txt\n"
 )
+_WRAPPERS = (
+    "timeout 60 {}",
+    "nice -n 5 {}",
+    "stdbuf -oL {}",
+    'bash -c "{}"',
+    'sh -c "{}"',
+    "`{}`",
+)
 
 
 def _image(digest: str) -> str:
@@ -62,8 +71,15 @@ def _package_files(digest: str) -> dict[str, str]:
     }
 
 
-def _defects(digest: str) -> dict[str, tuple[dict[str, str], tuple[str, ...]]]:
+def _wrapper(seed: int) -> Callable[[str], str]:
+    return _WRAPPERS[seed % len(_WRAPPERS)].format
+
+
+def _defects(
+    digest: str, wrap: Callable[[str], str]
+) -> dict[str, tuple[dict[str, str], tuple[str, ...]]]:
     image = _image(digest)
+    setpriv = "setpriv --reuid nobody --regid nogroup --clear-groups /tests/run.sh"
     return {
         "unpinned-image": ({"environment/Dockerfile": "FROM python:3.12-slim\n"}, ()),
         "unpinned-clone": (
@@ -74,13 +90,14 @@ def _defects(digest: str) -> dict[str, tuple[dict[str, str], tuple[str, ...]]]:
             (),
         ),
         "unpinned-python-dependency": (
-            {"environment/Dockerfile": image + "RUN pip install httpx\n"},
+            {"environment/Dockerfile": image + "RUN " + wrap("pip install httpx") + "\n"},
             (),
         ),
         "verifier-network-download": (
             {
                 "tests/test.sh": _TESTS
-                + "curl -fsSL -o /tmp/payload https://example.invalid/payload\n"
+                + wrap("curl -fsSL -o /tmp/payload https://example.invalid/payload")
+                + "\n"
             },
             (),
         ),
@@ -106,25 +123,35 @@ def _defects(digest: str) -> dict[str, tuple[dict[str, str], tuple[str, ...]]]:
             (),
         ),
         "verifier-executes-artifact": (
-            {"tests/test.sh": "#!/bin/sh\nset -eu\nsh /app/out.txt\n"},
+            {"tests/test.sh": "#!/bin/sh\nset -eu\n" + wrap("sh /app/out.txt") + "\n"},
             (),
         ),
         "verifier-installs-agent-dependencies": (
-            {"tests/test.sh": _TESTS + "xargs -a /app/out.txt pip install\n"},
+            {"tests/test.sh": _TESTS + wrap("xargs -a /app/out.txt pip install") + "\n"},
             (),
         ),
-        "verifier-runtime-install": ({"tests/test.sh": _TESTS + "apt-get update\n"}, ()),
-        "dropped-uid-reward-write": ({"tests/test.sh": _DROPPED_UID_TESTS}, ()),
+        "verifier-runtime-install": (
+            {"tests/test.sh": _TESTS + wrap("apt-get update") + "\n"},
+            (),
+        ),
+        "dropped-uid-reward-write": (
+            {"tests/test.sh": _DROPPED_UID_TESTS.replace(setpriv, wrap(setpriv))},
+            (),
+        ),
     }
 
 
-def _clean_distractors(digest: str) -> dict[str, dict[str, str]]:
+def _clean_distractors(digest: str, wrap: Callable[[str], str]) -> dict[str, dict[str, str]]:
     image = _image(digest)
     return {
         "pinned-installs": {
             "environment/Dockerfile": image
-            + "RUN pip install requests==2.32.3\n"
-            + f"RUN git clone https://example.invalid/tools.git {_COMMIT}\n"
+            + "RUN "
+            + wrap("pip install requests==2.32.3")
+            + "\n"
+            + "RUN "
+            + wrap(f"git clone https://example.invalid/tools.git {_COMMIT}")
+            + "\n"
         },
         "checksummed-download": {
             "tests/test.sh": _TESTS
@@ -155,14 +182,15 @@ class LintSimulation:
         digest = "".join(rng.choice(_HEX) for _ in range(64))
         codes = [*_FIXED_CODES, *rng.sample(_EXTRA_CODES, 2), *self.safety_codes()]
         rng.shuffle(codes)
-        defects = _defects(digest)
+        wrap = _wrapper(self.sim.seed)
+        defects = _defects(digest, wrap)
         assert set(codes) <= defects.keys()
         base = _package_files(digest)
         for index, code in enumerate(codes):
             changes, dropped = defects[code]
             package = self.write(f"defect-{index}", {**base, **changes}, dropped)
             self.check(package, (code,), "task_lint_reports_injected_code", code=code)
-        distractors = _clean_distractors(digest)
+        distractors = _clean_distractors(digest, wrap)
         chosen = rng.sample(sorted(distractors), 2)
         variants = {
             "plain": {},

@@ -146,6 +146,7 @@ class RunResult:
 def run(seed: int) -> RunResult:
     from evallab.sim.execution import ExecutionSimulation
     from evallab.sim.hack import HackSimulation
+    from evallab.sim.jobs import ProcessJobSimulation
     from evallab.sim.leases import LeaseSimulation
     from evallab.sim.lint import LintSimulation
     from evallab.sim.rewards import RewardSimulation
@@ -164,6 +165,8 @@ def run(seed: int) -> RunResult:
             RewardSimulation(sim, root / "rewards").run()
             sim.subsystem = "reward-hack"
             HackSimulation(sim, root / "hack").run()
+            sim.subsystem = "process-job"
+            ProcessJobSimulation(sim, root / "jobs").run()
         except InvariantViolation as exc:
             failure = exc
         except (Exception, ProcessCrash) as exc:

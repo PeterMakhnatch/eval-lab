@@ -10,6 +10,7 @@ uvx ty@0.0.71 check src/ tidegauge/ muster/ --exclude 'muster/tasks/**' --output
 uv run --no-sync python scripts/gates/sealed-search.py
 uv run --no-sync python -m compileall -q src scripts tools tidegauge muster
 uv run --no-sync evallab registry audit --json
+uv run --no-sync evallab tasks lint library/tasks
 uv run --no-sync python -m evallab.smoke --docker-free
 uv run --no-sync python -m evallab.sim check
 uv run --no-sync python -m tidegauge.sim check

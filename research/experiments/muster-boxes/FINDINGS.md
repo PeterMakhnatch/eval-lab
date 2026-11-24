@@ -539,3 +539,92 @@ INFERRED:
   passed in 2 of 2 trials on the branch and failed in 1 control trial on head); #102 adds a test that a crashed
   scripted seat is recorded. After a sync of the fork's `main` to upstream head, the crash is an error in the
   trial result. The score of such a trial is still wrong, so it must not count.
+
+## F23. E6: with its own budget for each agent, 8 talking agents beat 8 silent agents by 14 points and lose to 1 agent with the whole budget by 24 points (2026-11-23, $3.36)
+
+Pre-registered in `PREREGISTRATION.md` (Amendments 8 and 8a; the route and the floor of Amendment 9) before
+the first scored trial. Family `field`: 240 boxes in 24 rooms of 10, 8 treasure rooms, reward = distinct flag
+boxes / 80, 10 layouts. Every seat has 9 opens, so the total budget grows with the number of seats, as in the
+published sweeps. The added control is 1 agent with the whole budget of the team. Roster, turn cap and
+backend as in E5. 10 instances x 2 attempts for each arm (`solo-9`: 8 attempts). Analysis:
+`analysis/crowd_scaling.py --per-seat-budget 9`. An independent audit recomputed the numbers before this text
+(`LOG.md`).
+
+OBSERVED (13 arms, 320 trials, every trial has a reward, 0 reruns):
+
+| Arm | Seats x opens | Score | Share of best scripted play | New flags | Repeats | Unused | Messages | Cost per trial |
+|---|---|---|---|---|---|---|---|---|
+| `solo-9` | 1 x 9 | 7.7% | 0.88 | 6.15 | 0.01 | 0.00 | 0 | $0.0024 |
+| `solo-18` | 1 x 18 | 15.4% | 0.89 | 12.35 | 0.10 | 0.00 | 0 | $0.0033 |
+| `solo-36` | 1 x 36 | 27.9% | 0.74 | 22.35 | 0.00 | 2.25 | 0 | $0.0035 |
+| `solo-72` | 1 x 72 | 70.5% | 0.94 | 56.40 | 2.45 | 0.00 | 0 | $0.0048 |
+| `indep-2` | 2 x 9, no channel | 13.1% | 0.70 | 10.45 | 2.45 | 0.00 | 0 | $0.0069 |
+| `indep-4` | 4 x 9, no channel | 21.1% | 0.61 | 16.85 | 9.90 | 0.00 | 0 | $0.0139 |
+| `indep-8` | 8 x 9, no channel | 32.0% | 0.52 | 25.60 | 31.10 | 0.00 | 0 | $0.0248 |
+| `team-2` | 2 x 9 | 12.9% | 0.71 | 10.35 | 1.30 | 0.00 | 9.0 | $0.0066 |
+| `team-4` | 4 x 9 | 23.5% | 0.65 | 18.80 | 2.65 | 0.15 | 17.3 | $0.0125 |
+| `team-8` | 8 x 9 | 46.4% | 0.62 | 37.10 | 13.60 | 6.45 | 30.7 | $0.0243 |
+| `scout-2` | 2 x 9, scout rule | 11.4% | 0.63 | 9.15 | 0.70 | 0.00 | 16.9 | $0.0083 |
+| `scout-4` | 4 x 9, scout rule | 14.8% | 0.41 | 11.85 | 7.05 | 2.55 | 40.9 | $0.0157 |
+| `scout-8` | 8 x 9, scout rule | 40.8% | 0.55 | 32.65 | 17.70 | 5.50 | 64.6 | $0.0339 |
+
+- **Primary 1 is resolved: talk helps at 8 seats.** `team-8 - indep-8` = 14.4 points [8.9, 20.8], sign-flip
+  p 0.002.
+- **Primary 2: 1 agent is better.** `solo-72 - team-8` = 24.1 points [16.6, 31.8], p 0.004. The single agent
+  is ahead on 9 of the 10 layouts.
+- **Primary 3 passes: the team falls behind 1 agent as it grows.** (`solo-72 - team-8`) - (`solo-18 -
+  team-2`) = 21.6 points [13.6, 28.8], p 0.004.
+- The gaps of the published sweeps, at k = 2, 4, 8:
+  - More silent agents score more (`indep-k - solo-9`): 5.4, 13.4 and 24.3 points. This gap mixes 2 things:
+    more agents, and a text that tells each seat that other agents exist.
+  - Talk adds nothing at 2 seats and much at 8 (`team-k - indep-k`): -0.1 [-2.4, 2.5], 2.4 [-0.4, 5.1],
+    14.4 [8.9, 20.8].
+  - The control that the sweeps lack (`team-k - solo-9k`): -2.5 [-4.9, 0.3], -4.4 [-8.4, -0.6] with test
+    p 0.08, and -24.1 [-31.8, -16.6]. Only the gap at 8 seats is resolved by the interval and by the test.
+- The scout rule does not help: `scout-k - team-k` = -1.5 [-3.9, 1.2], -8.7 [-11.2, -5.7] and
+  -5.6 [-12.8, 0.9]. At 4 seats it is worse than no channel (`scout-4 - indep-4` = -6.2 [-8.4, -3.9]).
+  50 scout seats stop with opens left (24 in `scout-4` with 51 opens, 26 in `scout-8` with 110 opens). In all
+  50, the last message says that all treasure rooms are known and that the score cannot rise. That belief is
+  false: the score counts boxes, not rooms. It explains at most 3.2 points at 4 seats and 6.9 points at 8.
+- Silent agents that know of the other agents spread over the rooms. `indep-k - union-k` = 3.4 [1.7, 5.3],
+  10.3 [8.1, 12.8], 20.5 [15.5, 25.9], where `union-k` (9.6%, 10.8%, 11.5%) is the distinct flags of k
+  separate `solo-9` runs. A single agent starts in room 1 in 95% to 100% of trials; a silent seat in 59% to
+  64%. The silent text says that other agents exist; the solo text says "You work alone".
+- Teams split the world by seat number without a rule. In `team-4` the first box of p2, p3 and p4 is box 61,
+  121 and 181 in 70% of trials each. In `team-8`, 23% of the seats that opened a box start in room 1.
+- `team-8` has 272 repeats in 20 trials. 90% come less than 30 s after the first open of the box. The
+  repeater had read a post that names the box in 25% of them. The first opener had reported the box or its
+  room before the repeat in 26%.
+- Single agents with a large budget open by script: 95% of the opens of `solo-72` come less than 1 s after
+  the open before (`team-8`: 9%). 1 `solo-72` trial scored 0.20 because its script repeated 47 boxes.
+- Cost: `team-8` costs 5 times as much as `solo-72` for a trial and scores 24 points less.
+- **A fault of the model route in `team-8`.** The first 8 trials of the arm started together. 14 of their 64
+  seats made 1 to 3 model calls and 0 opens, got no model response after 7:09 PM ET, and ended at the 600 s
+  limit. 6 trials have such a seat. 126 of the 129 unused opens of the arm belong to these seats. No other
+  arm has a seat at the 600 s limit. Amendment 8 counts these trials, so the table does. A check after the
+  result, without the 6 trials (14 trials, all 10 instances): `team-8` 49.0%; primary 1 = 17.0 [12.9, 22.6];
+  primary 2 = 21.5 [14.2, 27.8]; primary 3 = 19.0 [11.2, 25.4]; `scout-8 - team-8` = -8.2 [-15.4, -0.9],
+  p 0.07. No primary verdict changes.
+- Seats at the 30-turn cap with opens left: 2, both in `solo-36` (32 opens). Seats with 0 model calls: 0.
+- Process and deviations:
+  - `solo-72` ran from 3:50 PM to 4:04 PM ET with 4 trials at once, at the same time as 2 E5 rerun lanes: 12
+    trials at once at the peak, not 8. 1 of its trials logged an error for exhausted credits after its 72
+    opens were done. Its median model call took 2.6 s (the later solo arms: 1.6 s to 1.9 s); every seat used
+    all 72 opens.
+  - The other 12 arms ran from 7:08 PM to 9:23 PM ET in 1 lane with 8 trials at once, in the registered
+    order. All 320 trials used the mirror snapshot and the same Harbor checkout.
+  - The E6 pilot ran on the route without the mirror snapshot, so it did not test the scored route.
+  - The floor was $1 (Amendment 9). The cost is $3.36 against an expected $3; it is computed from tokens at
+    the list price and is not checked against the bill.
+- The pre-registered expectations: `solo-9` near 9% (7.7%), `solo-72` 55% to 70% (70.5%), `indep-8` 15% to
+  25% (32.0%), `team-8` 35% to 45% (46.4%), `scout-8` 5 to 10 points above `team-8` (5.6 points below). The 3
+  primary verdicts are as expected. I was wrong about the scout rule and too low for the silent team.
+
+INFERRED. The published design (every agent has its own budget; compare the team with silent agents and with
+1 agent that has 1 budget) makes a team look good: 46% against 8%, and talk adds 14 points. The same team
+loses 24 points to 1 agent that has the same number of opens and costs a fifth. So a sweep over the number of
+agents needs the control "1 agent with the whole budget" before it says that agents help. Limits of this
+reading: E6 equalizes opens only, and a team of 8 has 8 times the turns of 1 agent. Part of the 24 points
+comes from the 14 stalled seats (about 2.6 points) and part from the single agent's use of scripts. E6 has 1
+model, 1 harness and 1 synthetic search world; it says nothing about the results of MAC Bench itself. E6
+does not test why the scout rule fails.

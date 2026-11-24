@@ -19,7 +19,10 @@ old muster repository: `docs/` and `experiments/` are now this folder, `tasks/` 
   84%, of 3 79%, of 4 69% and of 8 54%: 15 points lost for each doubling. Under the post-first rule, 8 agents
   score 73.5%, 26.5 points below 1 agent: their claims block boxes that nobody opens. E5 did not run the rule
   at 2 or 3 agents; at 3 agents it closed the gap in F14, on another route and backend.
-- Limits: 1 harness, 1 main model, 2 synthetic tasks, 10 instances each.
+- When each agent has its own budget (E6, 2026-11-23, 240 boxes, 9 opens for each agent), more agents score
+  more and talk helps at 8 agents (46% against 32% without a channel). But 1 agent with the same 72 opens
+  scores 70.5%, 24 points more, at a fifth of the cost. A sweep over the number of agents needs that control.
+- Limits: 1 harness, 1 main model, 3 synthetic tasks, 10 instances each.
 
 ## The task and the setup
 
@@ -206,10 +209,7 @@ deviations and the audit: F19, F20 and `LOG.md`.
   4 seats, the single-agent arms with 3, 6 and 8 opens (for the union control) and the route anchor have no
   result. Docker Hub's pull limit failed 111 trials (F21). After the fix, the last credits of the shared
   OpenRouter account went to the reruns of `solo-12` and `indep-2`, and then the account was empty.
-- E6 `field` (agents added to a fixed large world of 240 boxes, 9 opens for each agent, with the single agent
-  that has the whole budget as control) is pre-registered as Amendment 8. Its family, its analysis and its
-  pilot exist. 1 of 13 scored arms is complete: 1 agent with 72 opens scores 70.5%, which is 93.5% of best
-  scripted play. The pilot (1 trial each, not scored) gave 8 talking agents 53.8% and 8 silent agents 16.2%.
+- E6 `field` is complete; see the next section.
 - E7 `crowdrules` (rule paragraphs that give each box 1 owner: a share by seat number, 1 coordinator, a fixed
   plan by seat number; 8 and 4 seats) is pre-registered as Amendment 10 after an independent review. Its
   family, its scripted checks and its analysis exist. 0 model trials.
@@ -217,6 +217,40 @@ deviations and the audit: F19, F20 and `LOG.md`.
   sandbox, also 3 trials at once. At 64 to 80 seats, 4 of 11 trials lost 1 seat and 3 of them gave a reward
   of 0.26 to 0.30 in place of 1.0 with no error in `result.json`. 120 seats pass on a sandbox with 4 vCPU and
   8 GiB when the build does not use Compose Bake.
+
+## E6: agents added to a large world, each with its own budget (2026-11-23)
+
+`field`: 240 boxes in 24 rooms, 8 treasure rooms, reward = distinct flag boxes / 80. Every agent has 9 opens,
+so the total grows with the number of agents, as in the published sweeps. The added control is 1 agent with
+the whole budget of the team. Pre-registered in Amendments 8 and 8a. 13 arms, 320 trials, every trial has a
+reward. An independent audit recomputed the numbers before this text. Details and deviations: F23.
+
+| Agents | Total opens | 1 agent with the whole budget | Agents with a channel | With the scout rule | Agents without a channel |
+|---|---|---|---|---|---|
+| 1 | 9 | 7.7% | - | - | - |
+| 2 | 18 | 15.4% | 12.9% | 11.4% | 13.1% |
+| 4 | 36 | 27.9% | 23.5% | 14.8% | 21.1% |
+| 8 | 72 | 70.5% | 46.4% | 40.8% | 32.0% |
+
+- OBSERVED, primary 1: talk helps at 8 agents. `team-8 - indep-8` = 14.4 points [8.9, 20.8], p 0.002. At 2
+  and 4 agents the effect is not resolved (-0.1 and 2.4 points).
+- OBSERVED, primary 2: 1 agent is better. `solo-72 - team-8` = 24.1 points [16.6, 31.8], p 0.004. The single
+  agent is ahead on 9 of 10 layouts and costs $0.0048 for a trial against $0.0243.
+- OBSERVED, primary 3: the team falls behind 1 agent as it grows. The gap is 2.5 points at 2 agents and 24.1
+  at 8; the difference is 21.6 points [13.6, 28.8], p 0.004.
+- OBSERVED: the scout rule ("post what a room holds at once, read before you choose a room") does not help at
+  any size. At 4 agents it loses 8.7 points [5.7, 11.2] against the plain team. 50 scout seats stop with opens
+  left and say that all treasure rooms are known; the score counts boxes, not rooms.
+- OBSERVED: silent agents that know of the others spread over the rooms. A single agent starts in room 1 in
+  95% to 100% of trials, a silent seat in 59% to 64%, a seat of the talking team of 8 in 23%.
+- OBSERVED, a fault of the model route: in the first 8 trials of `team-8`, 14 of 64 seats got no model
+  response and ended at the 600 s limit with 0 opens. The pre-registration counts these trials. Without the 6
+  trials that have such a seat, `team-8` scores 49.0% and the 3 primary tests give 17.0, 21.5 and 19.0 points
+  with the same verdicts.
+- INFERRED: the design of the published sweeps makes this team look good (46% against 8% for 1 agent with 1
+  budget, and talk adds 14 points). The control with the whole budget turns the reading around. Limits: E6
+  equalizes opens only; the single agent opens by script and the team seats open by hand; 1 model, 1 harness,
+  1 synthetic search world.
 
 ## How this fits other work
 
@@ -236,6 +270,9 @@ deviations and the audit: F19, F20 and `LOG.md`.
   tasks that have a silent team (9 task and model cells), talking teams beat silent teams by +0.046; on the
   27 cells with a best-of-8 control they lose by 0.039 (recomputed from the page data in
   `research-context/multi-agent/2026-11-23-agent-count-scaling-designs-and-evidence.md`).
+  E6 runs the design of the benchmark (each agent has its own budget) on a muster world and adds 1 agent with
+  the whole budget: talk adds 14.4 points at 8 agents, and that single agent is 24.1 points ahead of the team.
+  E6 says nothing about the benchmark's own tasks.
 - "Test-Time Compute Scales Better with Parallel Agent Teams" (Duke, Modal, Princeton, NYU, 2026-11) reports
   the other direction on long tasks. At equal cost, 1 agent that works 12 hours scores 52.7 and a team of 2
   that works 6 hours each scores about 5.4 points above 1 agent at 6 hours (Graph Node Classification).
@@ -249,10 +286,11 @@ deviations and the audit: F19, F20 and `LOG.md`.
 - **1 harness:** terminus-2 in every seat. Other harnesses may read the channel or plan differently.
 - **1 main model:** DeepSeek Flash with thinking off. The only other models are 2 seats of 1 E2 arm and
   2 single pilot trials. A stronger model or thinking on can change the size of every gap.
-- **2 synthetic tasks:** `boxes` has 1 obvious split of the work (rooms), free messages, and a reward that
+- **3 synthetic tasks:** `boxes` has 1 obvious split of the work (rooms), free messages, and a reward that
   only counts distinct flags. It rewards a team for not repeating work, and for nothing else. `ledger` has 5
-  items and free messages, and is at its ceiling for the team. Shared pools (`commons`) and honest claims
-  (`scarce`) exist in muster but have no scored model results yet.
+  items and free messages, and is at its ceiling for the team. `field` is a larger search world of the same
+  kind as `boxes`. Shared pools (`commons`) and honest claims (`scarce`) exist in muster but have no scored
+  model results yet.
 - **Small samples:** 10 instances; 20 or 30 trials per arm. The design detects differences of about 12 to 16
   pts, so smaller real effects can show as "not resolved".
 - **Time:** E1 and E2 ran on 11-19, F14 on 11-20, F14c to F17 on 11-21, E5 on 11-23. F14c checks for drift
@@ -283,10 +321,11 @@ deviations and the audit: F19, F20 and `LOG.md`.
 | E4 `ledger` (11-21, pilot included) | 63 | $0.72 |
 | E5 `crowd` (11-23; 313 started, 200 with a reward) | 200 | $2.68 |
 | E5 pilots (11-23, not scored) | 8 | $0.13 |
-| E6 `field` (11-23; 1 arm and the pilot) | 24 | $0.18 |
-| **Total** | **663** | **$7.36** |
+| E6 `field` (11-23; 320 scored trials and 4 pilot trials) | 324 | $3.44 |
+| **Total** | **963** | **$10.62** |
 
 Real cost until E4 is computed from tokens at DeepSeek's price for the hour of the run; Harbor records the
-peak price. From E5 the route is OpenRouter, and the recorded cost is the billed cost. E5 and E6 also used
+peak price. From E5 the route is OpenRouter; the cost is computed from tokens at the list price of the route
+and is not checked against the bill. E5 and E6 also used
 11.9 hours of Daytona sandbox time, about $2.00 at list price (not checked against a bill). The scripted
 checks for E7 and the seat-count probe of F22 used about $0.45 more.

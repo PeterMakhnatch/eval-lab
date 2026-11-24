@@ -12,6 +12,30 @@ Times are New York time (ET). Newest entry first. Each entry says what is done a
 
 ## 2026-11-23
 
+**9:38 PM. E6 done and audited (F23). A model route fault in `team-8`. Amendment 10a. E7 runs.**
+- Peter added credits at 7:06 PM ET (the account then held $29.96). The E6 lane ran from 7:08 PM to 9:23 PM:
+  12 arms in the registered order, 8 trials at once, 300 trials, every trial with a reward, $3.27. With
+  `solo-72` of the afternoon, E6 has 13 arms, 320 trials and $3.36.
+- Result: `solo-72` 70.5%, `team-8` 46.4%, `scout-8` 40.8%, `indep-8` 32.0%, `solo-9` 7.7%. Primary 1
+  (`team-8 - indep-8`) = 14.4 points [8.9, 20.8], resolved. Primary 2 (`solo-72 - team-8`) = 24.1
+  [16.6, 31.8], 1 agent is better. Primary 3 = 21.6 [13.6, 28.8], pass. Output:
+  `muster-runs/e6/analysis/e6-all-arms.txt` and `.json`.
+- OBSERVED, a fault: the first 8 trials of `team-8` started at 7:08:02 PM. 14 of their 64 seats got no model
+  response after 7:08:55 to 7:09:00 PM and ended at the 600 s limit with 0 opens (6 trials). No other arm of
+  E5 or E6 has such a seat. I found it in the exception counts; the audit found it on its own. The trials
+  count (Amendment 8). The check without them is in F23 (`e6-team8-without-stalled.txt`).
+- Amendment 10a (committed at 9:26:11 PM, before the E7 pilot ended and before any scored E7 trial): in E7,
+  a trial with such a stalled seat is unmeasured and runs again once. Detector: `muster-runs/stalled.py`.
+- An independent audit ran before the E6 text. Every number matched (largest difference at an interval end:
+  0.29 points, from the bootstrap seed). The reward equals distinct flag boxes / 80 in 320 of 320 trials; no
+  seat opened more than its budget; all 980 seats have thinking off and the provider pin; the task copy equals
+  the landed build. Its findings are in F23: the stalled seats; 12 trials at once at 3:50 PM when `solo-72`
+  started next to 2 E5 rerun lanes; "interference" was the wrong name for `indep-k - union-k`;
+  `solo-36 - team-4` has an interval above 0 but a test p of 0.08; 50 scout seats stop early with a false
+  belief; the recorded cost is a list price, not a bill.
+- E7 pilot (not scored, 9:23 PM to 9:26 PM): `zones-8` 1.0, `chief-8` 0.9, `share-8` 0.55; 0 exceptions; the
+  analysis scripts ran on it. No plumbing fault. The 2 E7 lanes of Amendment 10 started at 9:28 PM.
+
 **5:46 PM. Fork PRs #101 and #102 for the seat-count defects (drafts, base `mirror/olam-main-711ca65a`).**
 - #101: Daytona sets `COMPOSE_BAKE=false`, as the kernel Docker environment does (+1 line, 3 tests that fail
   on head). Live at 120 seats on the 4 vCPU snapshot: the build passed in 2 of 2 trials on the branch and

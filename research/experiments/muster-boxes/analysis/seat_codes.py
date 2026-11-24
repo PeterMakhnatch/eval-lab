@@ -5,7 +5,7 @@ import re
 import sys
 from collections import Counter
 from pathlib import Path
-from statistics import fmean
+from statistics import fmean, median
 
 ROOM_SIZE = 10
 RANGE_SPAN_MAX = ROOM_SIZE - 2
@@ -55,10 +55,17 @@ EMPTY_WORDS = re.compile(
 )
 RESULT_WORDS = re.compile(r"empty|false|true|flag|treasure|\byes\b|\bno\b", re.I)
 CLAUSE = re.compile(r"[.;!\n]+")
+READ_KINDS = ("msgs", "new")
+GAP_EDGES = (5, 15, 60)
+GAP_BINS = ("<5s", "5-15s", "15-60s", ">=60s")
+REPEAT_CLASSES = ("DUP_SEEN", "DUP_UNSEEN", "OWN", "NO_POST")
 RULES = f"""
 Codes for each seat from the world event log (TRIAL/verifier/events.jsonl) alone. The rules are
 frozen from forensics-2026-11-24/detect.py. An open is an event of kind "open" with ok true. A post
-is an event of kind "msg" with ok true. A read is an event of kind "msgs" with ok true (GET /msgs).
+is an event of kind "msg" with ok true. A read is a GET event of kind "msgs" or "new" with ok true.
+GET /msgs returns the whole board; GET /new (family horde) returns only the posts that the seat's
+earlier GET /new calls did not return. A read "returned" a post when the post is in the
+"messages" of the read's response; a read that returns no post is still a read.
 B is the number of boxes (rooms x {ROOM_SIZE}, from the task's instance.json). A text names box b
 when BOX_LIST matches a list that holds b and 1 <= b <= B. In a list, "low-high" and "low to high"
 mean every box from low to high when low < high and high - low <= {RANGE_SPAN_MAX}; other ranges
@@ -67,9 +74,9 @@ every room from a to b). A clause is a part of a text between ".", ";", "!" or a
 
 REPEAT_ANY       each open by the seat of a box that any seat (the seat too) opened before.
 DUP_SEEN         each repeat open of box b by the seat where an earlier post by another seat names
-                 b and the seat has a read after 1 such post and before the open.
+                 b and a read by the seat after 1 such post and before the open returned that post.
 DUP_UNSEEN       each repeat open of box b by the seat where an earlier post by another seat names
-                 b and the seat has no read between any such post and the open.
+                 b and no read by the seat between any such post and the open returned it.
 EMPTY_ROOM_OPEN  each open by the seat in a room that it knew to be empty before the open: it
                  opened an empty box of that room before, or an earlier read returned a message
                  from another seat with a clause that matches EMPTY_WORDS and names the room or a
@@ -99,6 +106,16 @@ READ_BEFORE_OPEN share of the seat's opens with a read by the seat after its pre
 
 A seat has a code when its count is above 0. Share = seats with the code / seats. Mean = the mean
 count for each seat. Repeats for each trial = REPEAT_ANY summed over the seats / trials.
+
+--timing adds for each arm: the seats whose first open comes before any read; the seats with 2 or
+more opens and no read between their first and last open; the median seconds from the seat's last
+read to an open (repeats and first opens apart; opens without an earlier read are counted apart);
+for each repeat, the seconds since the first open of the box (bins: below {GAP_EDGES[0]}, below
+{GAP_EDGES[1]}, below {GAP_EDGES[2]}, from {GAP_EDGES[2]}), its class (DUP_SEEN, DUP_UNSEEN, OWN =
+the seat opened the box first, NO_POST = no earlier post by another seat names the box), whether
+the first opener posted a report of the box (the SLOW_REPORT report rule) after its open and before
+the repeat, and whether a read by the repeating seat after that report returned it. With --trials,
+every repeat is listed.
 
 BOX_LIST     = {BOX_LIST.pattern}
 ROOM_LIST    = {ROOM_LIST.pattern}
@@ -189,23 +206,42 @@ def load_world(trial: Path) -> dict:
     }
 
 
+def is_read(e: dict) -> bool:
+    return e["kind"] in READ_KINDS and e["method"] == "GET" and e["ok"]
+
+
+def seat_reads(w: dict, seat: str) -> list[tuple[int, float, set[int]]]:
+    return [
+        (e["seq"], e["t"], {m["id"] for m in e["response"]["messages"]})
+        for e in w["events"]
+        if e.get("seat") == seat and is_read(e)
+    ]
+
+
+def dup_post(w: dict, seat: str, e: dict, reads: list) -> tuple[str, tuple] | None:
+    box = e["request"]["box"]
+    naming = [
+        p
+        for p in w["posts"]
+        if p[0] < e["seq"] and p[2] != seat and box in boxes_named(p[3], w["limit"])
+    ]
+    if not naming:
+        return None
+    seen = [p for p in naming if any(p[0] < r[0] < e["seq"] and p[1] in r[2] for r in reads)]
+    return ("DUP_SEEN" if seen else "DUP_UNSEEN"), (seen or naming)[0]
+
+
 def detect_dups(w: dict, seat: str) -> dict[str, list[str]]:
     found: dict[str, list[str]] = {"DUP_SEEN": [], "DUP_UNSEEN": [], "REPEAT_ANY": []}
     opened: set[int] = set()
-    reads = [e["seq"] for e in w["events"] if e["kind"] == "msgs" and e["ok"] and e["seat"] == seat]
+    reads = seat_reads(w, seat)
     for e in w["opens"]:
         box = e["request"]["box"]
         if e["seat"] == seat and box in opened:
             found["REPEAT_ANY"].append(f"box {box} at seq {e['seq']}")
-            naming = [
-                p
-                for p in w["posts"]
-                if p[0] < e["seq"] and p[2] != seat and box in boxes_named(p[3], w["limit"])
-            ]
-            if naming:
-                seen = [p for p in naming if any(p[0] < r < e["seq"] for r in reads)]
-                code = "DUP_SEEN" if seen else "DUP_UNSEEN"
-                post = (seen or naming)[0]
+            dup = dup_post(w, seat, e, reads)
+            if dup is not None:
+                code, post = dup
                 found[code].append(
                     f"box {box} at seq {e['seq']}; named in #{post[1]} by {post[2]} at seq {post[0]}"
                 )
@@ -219,7 +255,7 @@ def detect_empty_room(w: dict, seat: str) -> list[str]:
     for e in w["events"]:
         if e.get("seat") != seat or not e["ok"]:
             continue
-        if e["kind"] == "msgs":
+        if is_read(e):
             for m in e["response"]["messages"]:
                 for room in rooms_said_empty(m["text"], w["limit"]) & w["empty_rooms"]:
                     if m["from"] != seat:
@@ -343,13 +379,79 @@ def read_before_open(w: dict) -> dict[str, tuple[int, int]]:
         seat = e.get("seat")
         if seat not in read or not e["ok"]:
             continue
-        if e["kind"] == "msgs" and e["method"] == "GET":
+        if is_read(e):
             read[seat] = True
         elif e["kind"] == "open":
             counts[seat][0] += read[seat]
             counts[seat][1] += 1
             read[seat] = False
     return {seat: (c[0], c[1]) for seat, c in counts.items()}
+
+
+def repeat_detail(w: dict, e: dict, first: dict, reads: list) -> dict:
+    seat, box = e["seat"], e["request"]["box"]
+    dup = dup_post(w, seat, e, reads)
+    own = first["seat"] == seat
+    report = next(
+        (
+            p
+            for p in w["posts"]
+            if p[2] == first["seat"] and first["seq"] < p[0] < e["seq"] and reports_open(p[3], box)
+        ),
+        None,
+    )
+    read_report = report is not None and any(
+        report[0] < r[0] < e["seq"] and report[1] in r[2] for r in reads
+    )
+    gap = e["t"] - first["t"]
+    assert gap >= 0, (w["trial"], e["seq"])
+    return {
+        "first_seat": first["seat"],
+        "first_seq": first["seq"],
+        "gap_s": gap,
+        "class": "OWN" if own else (dup[0] if dup else "NO_POST"),
+        "named_in": dup[1][1] if dup else None,
+        "report": None if own or report is None else report[1],
+        "report_read": None if own or report is None else read_report,
+    }
+
+
+def seat_timing(w: dict, reads: dict) -> dict[str, dict]:
+    out = {}
+    for seat in w["seats"]:
+        seqs = [e["seq"] for e in w["opens"] if e["seat"] == seat]
+        if not seqs:
+            continue
+        between = [r for r in reads[seat] if seqs[0] < r[0] < seqs[-1]]
+        out[seat] = {
+            "opens": len(seqs),
+            "first_open_before_read": not any(r[0] < seqs[0] for r in reads[seat]),
+            "no_read_between": not between if len(seqs) >= 2 else None,
+        }
+    return out
+
+
+def trial_timing(w: dict) -> dict:
+    reads = {seat: seat_reads(w, seat) for seat in w["seats"]}
+    first: dict[int, dict] = {}
+    opens = []
+    for e in w["opens"]:
+        seat, box = e["seat"], e["request"]["box"]
+        before = [r for r in reads[seat] if r[0] < e["seq"]]
+        row = {
+            "seat": seat,
+            "box": box,
+            "seq": e["seq"],
+            "flag": e["response"]["flag"],
+            "repeat": box in first,
+            "since_read_s": e["t"] - before[-1][1] if before else None,
+        }
+        if box in first:
+            row |= repeat_detail(w, e, first[box], reads[seat])
+        else:
+            first[box] = e
+        opens.append(row)
+    return {"opens": opens, "seats": seat_timing(w, reads)}
 
 
 def detect_seat(w: dict, seat: str, claim: bool) -> dict[str, list[str]]:
@@ -362,8 +464,8 @@ def detect_seat(w: dict, seat: str, claim: bool) -> dict[str, list[str]]:
     return found
 
 
-def trial_seats(trial: Path, claim: bool) -> list[dict]:
-    w = load_world(trial)
+def trial_seats(w: dict, claim: bool) -> list[dict]:
+    trial = w["trial"]
     roles = repeat_roles(w)
     reads = read_before_open(w)
     rows = []
@@ -401,7 +503,7 @@ def arm_kind(label: str) -> str:
     return match.group(1)
 
 
-def load_arm(text: str) -> dict:
+def load_arm(text: str, timing: bool) -> dict:
     label, sep, path = text.partition("=")
     assert sep and label and path, f"--arm wants LABEL=DIR: {text}"
     job = Path(path).expanduser()
@@ -410,17 +512,14 @@ def load_arm(text: str) -> dict:
     trials = sorted(p for p in job.iterdir() if "__" in p.name and (p / "result.json").is_file())
     assert 0 < len(trials) <= MAX_TRIALS, f"{job}: {len(trials)} trial folders"
     unscored = [t.name for t in trials if not (t / "verifier" / "reward.json").is_file()]
-    scored = [t for t in trials if t.name not in unscored]
-    per_trial = [trial_seats(t, kind == "claim") for t in scored]
-    return {
-        "label": label,
-        "dir": str(job),
-        "kind": kind,
-        "unscored": unscored,
-        "trials": [
-            {"trial": t.name, "seats": rows} for t, rows in zip(scored, per_trial, strict=True)
-        ],
-    }
+    rows = []
+    for t in trials:
+        if t.name in unscored:
+            continue
+        w = load_world(t)
+        row = {"trial": t.name, "seats": trial_seats(w, kind == "claim")}
+        rows.append(row | {"timing": trial_timing(w)} if timing else row)
+    return {"label": label, "dir": str(job), "kind": kind, "unscored": unscored, "trials": rows}
 
 
 def summarize(label: str, seats: list[dict], trials: int) -> dict:
@@ -538,6 +637,97 @@ def render_trials(arm: dict) -> list[str]:
     return [*lines, ""]
 
 
+def gap_bin(gap: float) -> str:
+    return GAP_BINS[sum(gap >= edge for edge in GAP_EDGES)]
+
+
+def share(part: int, whole: int) -> str:
+    return f"{part}/{whole} = {part / whole:.3f}" if whole else f"{part}/0"
+
+
+def timing_summary(arm: dict) -> dict:
+    opens = [o for t in arm["trials"] for o in t["timing"]["opens"]]
+    seats = [s for t in arm["trials"] for s in t["timing"]["seats"].values()]
+    repeats = [o for o in opens if o["repeat"]]
+    others = [o for o in repeats if o["class"] != "OWN"]
+    multi = [s for s in seats if s["no_read_between"] is not None]
+    since = {
+        kind: [
+            o["since_read_s"]
+            for o in opens
+            if o["repeat"] is kind and o["since_read_s"] is not None
+        ]
+        for kind in (True, False)
+    }
+    by_bin = {
+        b: {
+            "repeats": sum(gap_bin(o["gap_s"]) == b for o in others),
+            "reported": sum(gap_bin(o["gap_s"]) == b and o["report"] is not None for o in others),
+            "not_read": sum(gap_bin(o["gap_s"]) == b and o["report_read"] is False for o in others),
+        }
+        for b in GAP_BINS
+    }
+    found = {
+        "trials": len(arm["trials"]),
+        "opens": len(opens),
+        "first_opens": len(opens) - len(repeats),
+        "seats_with_opens": len(seats),
+        "first_open_before_read": sum(s["first_open_before_read"] for s in seats),
+        "seats_two_opens": len(multi),
+        "no_read_between": sum(s["no_read_between"] for s in multi),
+        "median_since_read_repeat": median(since[True]) if since[True] else None,
+        "median_since_read_first": median(since[False]) if since[False] else None,
+        "repeats_with_read": len(since[True]),
+        "first_opens_with_read": len(since[False]),
+        "repeats": len(repeats),
+        "classes": {c: sum(o["class"] == c for o in repeats) for c in REPEAT_CLASSES},
+        "gap_bins": {b: sum(gap_bin(o["gap_s"]) == b for o in repeats) for b in GAP_BINS},
+        "other_seat_repeats": len(others),
+        "reported_before": sum(o["report"] is not None for o in others),
+        "report_not_read": sum(o["report_read"] is False for o in others),
+        "other_by_gap_bin": by_bin,
+    }
+    assert sum(found["classes"].values()) == len(repeats), arm["label"]
+    assert found["classes"]["OWN"] == len(repeats) - len(others), arm["label"]
+    return found
+
+
+def render_timing(arm: dict, listed: bool) -> list[str]:
+    s = arm["timing"]
+    rep, first = s["repeats"], s["first_opens"]
+    lines = [
+        f"-- timing of {arm['label']}: {s['trials']} trials, {s['opens']} opens, {rep} repeats",
+        f"seats whose first open comes before any read: "
+        f"{share(s['first_open_before_read'], s['seats_with_opens'])}",
+        f"seats with 2 or more opens and no read between the first and last open: "
+        f"{share(s['no_read_between'], s['seats_two_opens'])}",
+        f"median s from the seat's last read to the open: repeats "
+        f"{cell(s['median_since_read_repeat'], 1)} ({s['repeats_with_read']}/{rep} with a read), "
+        f"first opens {cell(s['median_since_read_first'], 1)} ({s['first_opens_with_read']}/{first})",
+        "repeat classes: " + ", ".join(f"{c} {n}" for c, n in s["classes"].items()),
+        "s since the first open of the box: "
+        + ", ".join(f"{b} {n}" for b, n in s["gap_bins"].items()),
+        f"repeats of a box that another seat opened first: {s['other_seat_repeats']}; "
+        f"first opener reported it before {share(s['reported_before'], s['other_seat_repeats'])}; "
+        f"reported but the repeater read no report {share(s['report_not_read'], s['other_seat_repeats'])}",
+        "by s since the first open (repeats / reported / reported, not read): "
+        + ", ".join(
+            f"{b} {v['repeats']}/{v['reported']}/{v['not_read']}"
+            for b, v in s["other_by_gap_bin"].items()
+        ),
+    ]
+    if listed and rep:
+        lines.append("trial seq seat box first_seat gap_s class named_in report report_read")
+        lines += [
+            f"{t['trial']} {o['seq']} {o['seat']} {o['box']} {o['first_seat']} {o['gap_s']:.1f} "
+            f"{o['class']} {o['named_in']} {o['report']} {o['report_read']}"
+            for t in arm["trials"]
+            for o in t["timing"]["opens"]
+            if o["repeat"]
+        ]
+    return [*lines, ""]
+
+
 def kappa(pairs: list[tuple[bool, bool]]) -> float:
     n = len(pairs)
     observed = sum(a == b for a, b in pairs) / n
@@ -617,6 +807,7 @@ def parse(argv: list[str]) -> argparse.Namespace:
     )
     parser.add_argument("--arm", action="append", default=[], metavar="LABEL=DIR")
     parser.add_argument("--trials", action="store_true", help="also print a table for each trial")
+    parser.add_argument("--timing", action="store_true", help="also print read and repeat timing")
     parser.add_argument("--json", type=Path, metavar="FILE")
     parser.add_argument("--check-raters", type=Path, metavar="STUDY_DIR")
     args = parser.parse_args(argv)
@@ -629,14 +820,17 @@ def parse(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str]) -> int:
     args = parse(argv)
-    arms = [load_arm(text) for text in args.arm]
+    arms = [load_arm(text, args.timing) for text in args.arm]
     lines: list[str] = []
     for arm in arms:
         arm["summaries"] = summaries(arm)
+        if args.timing:
+            arm["timing"] = timing_summary(arm)
     if arms:
         lines += render_matrix(arms)
     for arm in arms:
         lines += render_arm(arm) + (render_trials(arm) if args.trials else [])
+        lines += render_timing(arm, args.trials) if args.timing else []
     raters = None
     if args.check_raters is not None:
         found, raters = check_raters(args.check_raters.expanduser())

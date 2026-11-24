@@ -135,6 +135,48 @@ Both Flash calls flag 2/75 TR-A controls. Each flags 2 more alone. Both clear 69
 7. **OBSERVED.** At an exact match of 0 control alarms, tuned Mini hits 14/39 and the tuned Flash union hits 0/39. At a cap of 10, Mini hits 22/39 and Flash hits 20/39. These are in-sample fits.
 8. **INFERRED.** Test union screening as a review queue, not as an automatic rejection rule. Stored cascades intersect blind verdicts. They do not measure a reviewer who sees the cheap model's claims.
 
+## QA attempts that execution judged (second pass, audited)
+
+A second worker mapped the stored QA attempts whose outcome a grader run decided: an agent proposes a wrong submission, the original grader gives reward 1 and the repaired or hardened grader gives 0. An independent auditor recounted the numbers below from the stored files with its own code. All match. The auditor replaced 5 of 6 summary sentences and found 1 cohort the worker missed (TS-2). Files: `~/Developer/muster-runs/day-2026-11-24/exec-qa/{report.md,analyze.py,analysis.json,tables.md,audit/auditor-report.md,audit/recount.py}`. The scripts are not in this repository.
+
+A hit is a task with at least 1 credited grader differential: numeric `original_reward=1` and `repaired_reward=0`, the route attested, the stored response hash matching. It is a stored result, not a new native replay.
+
+| TS-3 panel (`~/Developer/eval-lab-results/2026-10-25/ts3-hide-tests-two-turn/`) | 1 route: mean [range] | 2 routes | 3 routes | All routes |
+|---|---:|---:|---:|---:|
+| 30 historical tasks, 6 routes, tests hidden, turn 1 | 3.67 [1–6] | 5.40 [2–9] | 6.45 [4–9] | 9 |
+| 30 historical tasks, 6 routes, tests visible, turn 1 | 7.00 [5–9] | 10.00 [8–13] | 11.65 [9–14] | 14 |
+| 13 DEV tasks, 3 routes, tests hidden, turn 1 | 4 [4–4] | 5.33 [4–6] | 6 | 6 |
+| 13 DEV tasks, 3 routes, tests visible, turn 1 | 9.67 [9–10] | 11 | 11 | 11 |
+| 13 DEV tasks, 3 routes, runner feedback and retrieval, turn 2 | 9.67 [9–10] | 11.33 [11–12] | 12 | 12 |
+
+Single routes on the 30 hidden tasks: DeepSeek V4.1 Flash 6, Spark 1.3 5, Spark Open 4, Muse Wonder 4, Kimi K3.1 Pro 2, Sonnet 5.5 1. The denominator includes 29 unattested cells, which get no credit.
+
+| Priced rows (model telemetry in USD, not a bill; graders not priced) | Sonnet 5.5 | DeepSeek V4.1 Flash | DeepSeek + 1 more cheap route |
+|---|---|---|---|
+| TS-3 hidden, 13 tasks scorable on all 4 priced routes | 0/13, $0.52 | 4/13, $0.13 | 4/13, $0.29 (+ Spark Open) |
+| TS-3 visible, 7 tasks | 2/7, $0.51 | 7/7, $0.10 | 7/7, $0.11 (+ Spark 1.3) |
+| TS-2 bare prompt, 14 tasks (`…/2026-10-25/ts2-muse-spark-comparison/`) | 3/14, $0.97 | 7/14, $0.19 | 8/14, $0.22 (+ Spark 1.3) |
+| TS-2 retrieval, 14 tasks of the 28-task roster | 7/14, $1.09 | 7/14, $0.14 | 10/14, $0.17 (+ Spark 1.3) |
+
+| Adaptive queues: cumulative tasks with a hit after attempt 1, 2, 3 | Hits | Proposals at each attempt |
+|---|---|---|
+| Muse wave 5, 39 task versions | 21 → 36 → 36 | 39 → 16 → 1 |
+| Muse round 2, 10 | 4 → 10 | 10 → 6 |
+| TS-1 Kimi plain, 20 | 4 → 7 | 20 → 16 |
+| TS-1 Kimi retrieval, 20 | 5 → 7 | 20 → 15 |
+| Hardening loop round 2, 33 (2 passes on the attacked grader, a different endpoint) | 5 → 7 → 7 | 32 → 24 → 22 |
+
+The auditor's sentences:
+
+1. **OBSERVED.** "On the 30 historical TS tasks with tests hidden at turn 1, the 6 single routes averaged 3.67 tasks with a credited grader differential. The 15 route pairs averaged 5.40 tasks, and the union of all 6 covered 9."
+2. **OBSERVED.** "In that hidden panel, the mean added coverage is 1.73 tasks for the second route and 1.05 for the third. The next gains are 0.88, 0.83 and 0.83 tasks." The best stored pair already covers all 9.
+3. **OBSERVED, descriptive.** "On the 30 historical TS tasks, the visible turn-1 condition averages 7.00 credited hits per route, versus 3.67 with tests hidden." On 123 matched task-route cells: 37 visible against 18 hidden hits.
+4. **OBSERVED.** "The Muse wave-5 queue rises from 21/39 to 36/39 cumulative verified differentials after 16 tasks receive a second attempt with grader feedback." There is no matched control: this is a policy prefix, not an isolated effect of feedback.
+5. **OBSERVED.** "On 13 scorable hidden TS tasks, DeepSeek records 4 hits and $0.13 in model telemetry. Sonnet records 0 hits and $0.52. Adding Spark Open to DeepSeek adds no hits on those tasks." In TS-2 the second cheap route does add coverage (10 against 7 of 14 with retrieval).
+6. **OBSERVED.** "In the stored evidence I checked, I found no execution-scored comparison of several cheap attempts against 1 stronger attempt under the same enforced dollar cap on tasks with verified absence of prior exposure."
+
+**INFERRED.** In these stored attempts 3 things go with more verified grader defects: a retry after the grader's feedback, tests that the agent can see, and a second route of a different kind. A higher price does not. None of this is a comparison at equal dollars: the arms differ in tool use and turns, the tasks are selected, and the costs are telemetry. The worker's planning estimate for the missing comparison (2 one-shot DeepSeek Flash draws against 1 Sonnet draw on fresh private tasks, a $0.15 ceiling for each arm and task): 42 paired tasks for a 20-point margin, about $2.72 at stored medians and $12.60 at the ceiling, before fixtures and review. It needs the sealed tasks of `DESIGN.md` Section 0 first. No paid run is approved.
+
 ## Limits and provenance
 
 **INFERRED.** Three label risks block a production decision:

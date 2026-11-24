@@ -13,7 +13,6 @@ from decimal import Decimal
 from pathlib import Path
 from random import Random
 from typing import Any, Protocol
-from unittest import mock
 from zoneinfo import ZoneInfo
 
 from campaign import cli, spend, spend_cli, spend_harbor
@@ -583,6 +582,17 @@ def _mutated(name: str, trial: Trial, distractors: dict[str, tuple[Decimal, ...]
 
 
 @contextlib.contextmanager
+def _swapped(owner: Any, name: str, value: Any) -> Iterator[None]:
+    original = getattr(owner, name)
+    setattr(owner, name, value)
+    try:
+        yield
+    finally:
+        setattr(owner, name, original)
+        assert getattr(owner, name) is original, name
+
+
+@contextlib.contextmanager
 def inject(name: str | None, distractors: dict[str, tuple[Decimal, ...]]) -> Iterator[None]:
     assert name is None or name in MUTATIONS
     if name is None:
@@ -594,7 +604,7 @@ def inject(name: str | None, distractors: dict[str, tuple[Decimal, ...]]) -> Ite
         def counted(self: spend.Summary, label: str, trial: Trial, *, duplicate: bool) -> None:
             add_trial(self, label, trial, duplicate=False)
 
-        with mock.patch.object(spend.Summary, "add_trial", counted):
+        with _swapped(spend.Summary, "add_trial", counted):
             yield
         return
     reader: Callable[[Root, list[str]], Iterator[Trial]] = spend_harbor.trials
@@ -603,7 +613,7 @@ def inject(name: str | None, distractors: dict[str, tuple[Decimal, ...]]) -> Ite
         for trial in reader(root, problems):
             yield _mutated(name, trial, distractors)
 
-    with mock.patch.object(spend_harbor, "trials", trials):
+    with _swapped(spend_harbor, "trials", trials):
         yield
 
 

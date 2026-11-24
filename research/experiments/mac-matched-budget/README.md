@@ -14,14 +14,39 @@ budget, does a talking team score higher than a silent team of the same size on 
 |---|---|
 | `DESIGN.md` | The arms, the cap, the marks, the hazards, the launch commands (not run) and the open checks. |
 | `POWER.md` | The sample size, the cost and the budget below which the test cannot decide. |
+| `PUBLIC-DATA.md` | Bespoke's published runs at equal agent-hours and by final score for each model dollar. |
 | `analysis/matched_budget.py` | A reader of Bespoke-harness trial folders: scores and spend at equal time, equal dollars, equal tokens. |
 | `analysis/power_plan.py` | A seeded planner for a paired sign-flip test with attrition and up to 3 looks. |
 | `analysis/holdout_reads.py` | A reader of the Holdout pilot's traces: message delivery, reads between actions, repeated orders. |
+| `analysis/public_equal_compute.py` | A reader of the captured public chart data: equal agent-hours, parity brackets, score for each dollar. |
 
 The stored data is another lane's pilot of the task Holdout (claude-haiku-5-5, 30 minutes, 2 trials for each of
 4 arms): `~/Developer/eval-lab-results/multiagent-campaign-2026-11-23/bespoke/study4-holdout/`. The outputs of
-the readers are in `~/Developer/muster-runs/day-2026-11-24/{mac-matched,mac-power,mac-reads}/`, with the audit
-reports.
+the readers are in `~/Developer/muster-runs/day-2026-11-24/{mac-matched,mac-power,mac-reads,mac-public}/`, with
+the audit reports. The public data is the library capture
+`~/Developer/research-context/multi-agent/sources/posts/2026-11-18-mac-bench-public-result-data.md`.
+
+## What Bespoke's published runs show at equal compute
+
+517 published runs, 12 tasks, 3 models, 36 task-and-model cells. A team of k agents has used the 4 agent-hours
+of 1 agent's full run after 4/k hours. The lane lead recomputed the 3 headline rows and the split by control
+with separate code before reading the worker's output; they agree. The other tables have 4 of 10 listed
+numbers checked by hand.
+
+| Team | Against 1 agent at the same time (4 h) | Against 1 agent at the same agent-hours | Cells where the team leads |
+|---|---:|---:|---:|
+| 2 agents (at 2 h) | +0.023 | −0.048 | 13 of 36 |
+| 4 agents (at 1 h) | +0.039 | −0.107 | 8 of 36 |
+| 8 agents (at 30 min) | +0.070 | −0.157 | 8 of 36 |
+
+- OBSERVED. On the 3 tasks whose control is a silent team (Holdout, Dubai ATC, Mindustry) the team of 8 at
+  30 minutes is +0.046 against 1 agent at 4 hours (6 of 9 cells). On the 9 other tasks it is −0.224 (2 of 27).
+- OBSERVED. Final score for each $100 of model spend, mean over 36 cells: 1 agent 1.549, team of 2 0.804, team
+  of 4 0.404, team of 8 0.211. The single agent has the higher ratio in 36 of 36 cells.
+- INFERRED. In the published data a team buys wall-clock time and bodies in a live world, not score for each
+  dollar. The data cannot show 1 agent with 2 times the budget, and it has no spend at the marks. Several
+  tasks run in real time (Seed to Profit earns nothing in its first hour), so equal agent-hours is not a fair
+  cut for them. `PUBLIC-DATA.md` section 5 lists the limit for each task family.
 
 ## What the stored pilot shows (audited, 2 trials for each arm)
 

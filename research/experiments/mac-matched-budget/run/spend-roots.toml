@@ -1,0 +1,11 @@
+[[roots]]
+label = "mac-matched-pilot"
+path = "~/Developer/muster-runs/mac-matched-pilot/jobs"
+kind = "call-log"
+include = "**/proxy-usage.jsonl"
+time_field = "ts"
+model_field = "model"
+usd_field = "usd"
+provider_override = "openrouter"
+model_prefix = "anthropic/"
+cost_source = "token-list-price"

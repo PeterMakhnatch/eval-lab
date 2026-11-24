@@ -1,0 +1,317 @@
+schema = "campaign-plan/v1"
+id = "mac-matched-pilot"
+output_root = "~/Developer/muster-runs/mac-matched-pilot/jobs"
+state_root = "~/Developer/muster-runs/mac-matched-pilot/campaign-state"
+max_trials_at_once = 2
+
+[command]
+argv = [
+  "keys", "run", "--", "~/Developer/bespoke-macbench-lab/.venv/bin/python",
+  "research/experiments/mac-matched-budget/run/pilot_support.py", "wave",
+  "--plan", "campaign/plans/mac-matched-pilot.toml",
+  "--tasks", "{tasks}", "--out", "{out}", "--harbor", "{harbor}",
+  "--attempts", "{attempts}", "--concurrency", "{concurrency}",
+  "--waves", "~/Developer/muster-runs/mac-matched-pilot/waves",
+  "--ledger", "~/Developer/muster-runs/mac-matched-pilot/trial-ledger.jsonl",
+  "--launcher", "research/experiments/mac-matched-budget/run/matched_trial.py",
+  "--barrier-seconds", "3600",
+  "--backend", "daytona", "--n-agents", "2", "--budget-usd", "0.10",
+  "--timeout-sec", "1800", "--grade-at", "15m,30m",
+  "--model", "claude-haiku-5-5", "--harness", "claude-code", "--effort", "medium",
+]
+cwd = "~/Developer/eval-lab/.worktrees/fable-mac-run"
+env = { PYTHONDONTWRITEBYTECODE = "1", MAC_MATCHED_APPROVAL = "not approved" }
+
+[harbor]
+program = "~/Developer/bespoke-macbench-lab/.venv/bin/harbor"
+run_args = []
+
+[money]
+provider = "openrouter"
+probe = [
+  "sh", "-c",
+  '''test "$MAC_MATCHED_PAID" = 1 || exit 3; keys run -- sh -c 'curl -s -m 30 https://openrouter.ai/api/v1/credits -H "Authorization: Bearer $OPENROUTER_API_KEY"' | python3 -c 'import json,sys; d=json.load(sys.stdin)["data"]; print(round(d["total_credits"]-d["total_usage"],2))' ''',
+]
+key_limit_probe = [
+  "sh", "-c",
+  '''test "$MAC_MATCHED_PAID" = 1 || exit 3; keys run -- sh -c 'curl -s -m 30 https://openrouter.ai/api/v1/key -H "Authorization: Bearer $OPENROUTER_API_KEY"' | python3 -c 'import json,sys; d=json.load(sys.stdin)["data"]; lim=d["limit"]; eff=(d.get("effective_budget") or {}).get("remaining_usd"); vals=([d["limit_remaining"]] if lim is not None else [])+([eff] if eff is not None else []); ok=all(type(v) in (int,float) and v==v for v in vals); ok or sys.exit(1); print(max(0.0, round(min(vals), 4)) if vals else "none")' ''',
+]
+probe_timeout_seconds = 60
+floor_usd = 0.95
+cap_usd = 4.80
+cap_roots = ["~/Developer/muster-runs/mac-matched-pilot/jobs"]
+unknown_seat_usd = 0.075
+ledger = "~/Developer/muster-runs/mac-matched-pilot/spend-ledger.jsonl"
+
+[watch]
+poll_seconds = 20
+max_arm_minutes = 150
+stop_grace_seconds = 300
+stop_file = "~/Developer/muster-runs/mac-matched-pilot/STOP"
+no_reward_streak = 4
+
+[[arms]]
+name = "w01-team-2"
+tasks = "~/Developer/muster-runs/day-2026-11-24/mac-run/build/holdout-team/task"
+attempts = 1
+reserve_usd = 0.475
+rerun_reserve_usd = 0.475
+expected_usd = 0.36
+
+[[arms]]
+name = "w02-team-2"
+tasks = "~/Developer/muster-runs/day-2026-11-24/mac-run/build/holdout-team/task"
+attempts = 1
+reserve_usd = 0.475
+rerun_reserve_usd = 0.475
+expected_usd = 0.36
+
+[[arms]]
+name = "w03-team-2"
+tasks = "~/Developer/muster-runs/day-2026-11-24/mac-run/build/holdout-team/task"
+attempts = 1
+reserve_usd = 0.475
+rerun_reserve_usd = 0.475
+expected_usd = 0.36
+
+[[arms]]
+name = "w04-team-2"
+tasks = "~/Developer/muster-runs/day-2026-11-24/mac-run/build/holdout-team/task"
+attempts = 1
+reserve_usd = 0.475
+rerun_reserve_usd = 0.475
+expected_usd = 0.36
+
+[[arms]]
+name = "w05-team-2"
+tasks = "~/Developer/muster-runs/day-2026-11-24/mac-run/build/holdout-team/task"
+attempts = 1
+reserve_usd = 0.475
+rerun_reserve_usd = 0.475
+expected_usd = 0.36
+
+[[arms]]
+name = "w06-team-2"
+tasks = "~/Developer/muster-runs/day-2026-11-24/mac-run/build/holdout-team/task"
+attempts = 1
+reserve_usd = 0.475
+rerun_reserve_usd = 0.475
+expected_usd = 0.36
+
+[[arms]]
+name = "w07-team-2"
+tasks = "~/Developer/muster-runs/day-2026-11-24/mac-run/build/holdout-team/task"
+attempts = 1
+reserve_usd = 0.475
+rerun_reserve_usd = 0.475
+expected_usd = 0.36
+
+[[arms]]
+name = "w08-team-2"
+tasks = "~/Developer/muster-runs/day-2026-11-24/mac-run/build/holdout-team/task"
+attempts = 1
+reserve_usd = 0.475
+rerun_reserve_usd = 0.475
+expected_usd = 0.36
+
+[[arms]]
+name = "w09-team-2"
+tasks = "~/Developer/muster-runs/day-2026-11-24/mac-run/build/holdout-team/task"
+attempts = 1
+reserve_usd = 0.475
+rerun_reserve_usd = 0.475
+expected_usd = 0.36
+
+[[arms]]
+name = "w10-team-2"
+tasks = "~/Developer/muster-runs/day-2026-11-24/mac-run/build/holdout-team/task"
+attempts = 1
+reserve_usd = 0.475
+rerun_reserve_usd = 0.475
+expected_usd = 0.36
+
+[[arms]]
+name = "w11-team-2"
+tasks = "~/Developer/muster-runs/day-2026-11-24/mac-run/build/holdout-team/task"
+attempts = 1
+reserve_usd = 0.475
+rerun_reserve_usd = 0.475
+expected_usd = 0.36
+
+[[arms]]
+name = "w12-team-2"
+tasks = "~/Developer/muster-runs/day-2026-11-24/mac-run/build/holdout-team/task"
+attempts = 1
+reserve_usd = 0.475
+rerun_reserve_usd = 0.475
+expected_usd = 0.36
+
+[[arms]]
+name = "w13-team-2"
+tasks = "~/Developer/muster-runs/day-2026-11-24/mac-run/build/holdout-team/task"
+attempts = 1
+reserve_usd = 0.475
+rerun_reserve_usd = 0.475
+expected_usd = 0.36
+
+[[arms]]
+name = "w14-team-2"
+tasks = "~/Developer/muster-runs/day-2026-11-24/mac-run/build/holdout-team/task"
+attempts = 1
+reserve_usd = 0.475
+rerun_reserve_usd = 0.475
+expected_usd = 0.36
+
+[[arms]]
+name = "w15-team-2"
+tasks = "~/Developer/muster-runs/day-2026-11-24/mac-run/build/holdout-team/task"
+attempts = 1
+reserve_usd = 0.475
+rerun_reserve_usd = 0.475
+expected_usd = 0.36
+
+[[arms]]
+name = "w16-team-2"
+tasks = "~/Developer/muster-runs/day-2026-11-24/mac-run/build/holdout-team/task"
+attempts = 1
+reserve_usd = 0.475
+rerun_reserve_usd = 0.475
+expected_usd = 0.36
+
+[[arms]]
+name = "w01-silent-2"
+tasks = "~/Developer/muster-runs/day-2026-11-24/mac-run/build/holdout-silent/task"
+attempts = 1
+reserve_usd = 0.475
+rerun_reserve_usd = 0.475
+expected_usd = 0.36
+
+[[arms]]
+name = "w02-silent-2"
+tasks = "~/Developer/muster-runs/day-2026-11-24/mac-run/build/holdout-silent/task"
+attempts = 1
+reserve_usd = 0.475
+rerun_reserve_usd = 0.475
+expected_usd = 0.36
+
+[[arms]]
+name = "w03-silent-2"
+tasks = "~/Developer/muster-runs/day-2026-11-24/mac-run/build/holdout-silent/task"
+attempts = 1
+reserve_usd = 0.475
+rerun_reserve_usd = 0.475
+expected_usd = 0.36
+
+[[arms]]
+name = "w04-silent-2"
+tasks = "~/Developer/muster-runs/day-2026-11-24/mac-run/build/holdout-silent/task"
+attempts = 1
+reserve_usd = 0.475
+rerun_reserve_usd = 0.475
+expected_usd = 0.36
+
+[[arms]]
+name = "w05-silent-2"
+tasks = "~/Developer/muster-runs/day-2026-11-24/mac-run/build/holdout-silent/task"
+attempts = 1
+reserve_usd = 0.475
+rerun_reserve_usd = 0.475
+expected_usd = 0.36
+
+[[arms]]
+name = "w06-silent-2"
+tasks = "~/Developer/muster-runs/day-2026-11-24/mac-run/build/holdout-silent/task"
+attempts = 1
+reserve_usd = 0.475
+rerun_reserve_usd = 0.475
+expected_usd = 0.36
+
+[[arms]]
+name = "w07-silent-2"
+tasks = "~/Developer/muster-runs/day-2026-11-24/mac-run/build/holdout-silent/task"
+attempts = 1
+reserve_usd = 0.475
+rerun_reserve_usd = 0.475
+expected_usd = 0.36
+
+[[arms]]
+name = "w08-silent-2"
+tasks = "~/Developer/muster-runs/day-2026-11-24/mac-run/build/holdout-silent/task"
+attempts = 1
+reserve_usd = 0.475
+rerun_reserve_usd = 0.475
+expected_usd = 0.36
+
+[[arms]]
+name = "w09-silent-2"
+tasks = "~/Developer/muster-runs/day-2026-11-24/mac-run/build/holdout-silent/task"
+attempts = 1
+reserve_usd = 0.475
+rerun_reserve_usd = 0.475
+expected_usd = 0.36
+
+[[arms]]
+name = "w10-silent-2"
+tasks = "~/Developer/muster-runs/day-2026-11-24/mac-run/build/holdout-silent/task"
+attempts = 1
+reserve_usd = 0.475
+rerun_reserve_usd = 0.475
+expected_usd = 0.36
+
+[[arms]]
+name = "w11-silent-2"
+tasks = "~/Developer/muster-runs/day-2026-11-24/mac-run/build/holdout-silent/task"
+attempts = 1
+reserve_usd = 0.475
+rerun_reserve_usd = 0.475
+expected_usd = 0.36
+
+[[arms]]
+name = "w12-silent-2"
+tasks = "~/Developer/muster-runs/day-2026-11-24/mac-run/build/holdout-silent/task"
+attempts = 1
+reserve_usd = 0.475
+rerun_reserve_usd = 0.475
+expected_usd = 0.36
+
+[[arms]]
+name = "w13-silent-2"
+tasks = "~/Developer/muster-runs/day-2026-11-24/mac-run/build/holdout-silent/task"
+attempts = 1
+reserve_usd = 0.475
+rerun_reserve_usd = 0.475
+expected_usd = 0.36
+
+[[arms]]
+name = "w14-silent-2"
+tasks = "~/Developer/muster-runs/day-2026-11-24/mac-run/build/holdout-silent/task"
+attempts = 1
+reserve_usd = 0.475
+rerun_reserve_usd = 0.475
+expected_usd = 0.36
+
+[[arms]]
+name = "w15-silent-2"
+tasks = "~/Developer/muster-runs/day-2026-11-24/mac-run/build/holdout-silent/task"
+attempts = 1
+reserve_usd = 0.475
+rerun_reserve_usd = 0.475
+expected_usd = 0.36
+
+[[arms]]
+name = "w16-silent-2"
+tasks = "~/Developer/muster-runs/day-2026-11-24/mac-run/build/holdout-silent/task"
+attempts = 1
+reserve_usd = 0.475
+rerun_reserve_usd = 0.475
+expected_usd = 0.36
+
+[[lanes]]
+name = "team"
+concurrency = 1
+arms = ["w01-team-2", "w02-team-2", "w03-team-2", "w04-team-2", "w05-team-2", "w06-team-2", "w07-team-2", "w08-team-2", "w09-team-2", "w10-team-2", "w11-team-2", "w12-team-2", "w13-team-2", "w14-team-2", "w15-team-2", "w16-team-2"]
+
+[[lanes]]
+name = "silent"
+concurrency = 1
+arms = ["w01-silent-2", "w02-silent-2", "w03-silent-2", "w04-silent-2", "w05-silent-2", "w06-silent-2", "w07-silent-2", "w08-silent-2", "w09-silent-2", "w10-silent-2", "w11-silent-2", "w12-silent-2", "w13-silent-2", "w14-silent-2", "w15-silent-2", "w16-silent-2"]

@@ -12,7 +12,27 @@ Times are New York time (ET). Newest entry first. Each entry says what is done a
 
 ## 2026-11-23
 
-**9:38 PM. E6 done and audited (F23). A model route fault in `team-8`. Amendment 10a. E7 runs.**
+**10:52 PM. E7 done and audited (F24). The E5 extra arms run.**
+- The 2 E7 lanes ran from 9:28 PM to 10:36 PM ET: 9 arms, 180 trials, every trial with a reward, 0 stalled
+  seats (Amendment 10a did not apply), 0 reruns, $2.03. E5 + E6 + E7 are at $8.33 of the $12 cap.
+- Result at 8 seats: `team-8` 58.2%, `zones-8` 97.0%, `chief-8` 94.3%, `share-8` 45.0%, `solo-24` 100.0%.
+  Primary: `zones-8 - team-8` = 38.8 [34.2, 43.8], helps; `chief-8 - team-8` = 36.0 [31.2, 40.8], helps;
+  `share-8 - team-8` = -13.2 [-25.2, -1.3], p 0.074, not resolved. Outputs:
+  `muster-runs/e7/analysis/e7-all-arms.txt`, `.json`, `e7-rules.txt`, `.json`, `e7-baseline-*.txt`.
+- An independent audit ran before the text. Every number matched; 2 interval ends differ by 0.5 points from
+  the bootstrap seed. The reward equals distinct flag boxes / 20 in 180 of 180 trials. Lanes, order, peak of
+  8 trials, settings, task copy, money rules and the stop rule agree with Amendments 10 and 10a. Its findings
+  are in F24: `chief` obedience is not measured at both sizes; the `chief-4` loss comes from 1 reading of the
+  rule text in 7 of 20 trials; `solo-24 - zones-8` lies on the 5-point margin; 2 of the 3 pilot trials had
+  ended when Amendment 10a was committed; I looked at 8 complete arms 5 minutes before the last arm ended.
+- The pre-registered blind hand check of 40 coordinator posts (a second agent that saw no score): 0 wrong
+  lists, 23 exact, 11 refused by the parser, 6 without a list. File:
+  `muster-runs/e7/analysis/chief-hand-check.json`. Sampler: `muster-runs/e7/analysis/chief_posts.py`.
+- The lane for the E5 extra arms (Amendment 10, last in the order) started at 10:45 PM ET: 1 lane, 4 trials
+  at once, `solo-8 solo-6 solo-3 indep-3 indep-4 claim-4 claim-2 claim-3 team-3-e1`.
+- Audit scripts: `muster-runs/infra-evidence-2026-11-23/e6-audit/` and `e7-audit/`.
+
+**9:36 PM. E6 done and audited (F23). A model route fault in `team-8`. Amendment 10a. E7 runs.**
 - Peter added credits at 7:06 PM ET (the account then held $29.96). The E6 lane ran from 7:08 PM to 9:23 PM:
   12 arms in the registered order, 8 trials at once, 300 trials, every trial with a reward, $3.27. With
   `solo-72` of the afternoon, E6 has 13 arms, 320 trials and $3.36.

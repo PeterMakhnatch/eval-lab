@@ -22,6 +22,10 @@ old muster repository: `docs/` and `experiments/` are now this folder, `tasks/` 
 - When each agent has its own budget (E6, 2026-11-23, 240 boxes, 9 opens for each agent), more agents score
   more and talk helps at 8 agents (46% against 32% without a channel). But 1 agent with the same 72 opens
   scores 70.5%, 24 points more, at a fifth of the cost. A sweep over the number of agents needs that control.
+- The loss at 8 agents goes away with a rule that fixes who opens what and in which order (E7, 2026-11-23,
+  24 opens in total). No rule: 58%. A fixed plan by seat number: 97%. 1 coordinator that gives each agent its
+  boxes: 94%. 1 agent with all 24 opens: 100%. A rule that only gives each box an owner removes every repeat
+  and scores 45%.
 - Limits: 1 harness, 1 main model, 3 synthetic tasks, 10 instances each.
 
 ## The task and the setup
@@ -210,9 +214,7 @@ deviations and the audit: F19, F20 and `LOG.md`.
   result. Docker Hub's pull limit failed 111 trials (F21). After the fix, the last credits of the shared
   OpenRouter account went to the reruns of `solo-12` and `indep-2`, and then the account was empty.
 - E6 `field` is complete; see the next section.
-- E7 `crowdrules` (rule paragraphs that give each box 1 owner: a share by seat number, 1 coordinator, a fixed
-  plan by seat number; 8 and 4 seats) is pre-registered as Amendment 10 after an independent review. Its
-  family, its scripted checks and its analysis exist. 0 model trials.
+- E7 `crowdrules` is complete; see the section after E6.
 - Seat count of the runner (F22, scripted trials, no model): 48 seats in 1 trial pass on the small Daytona
   sandbox, also 3 trials at once. At 64 to 80 seats, 4 of 11 trials lost 1 seat and 3 of them gave a reward
   of 0.26 to 0.30 in place of 1.0 with no error in `result.json`. 120 seats pass on a sandbox with 4 vCPU and
@@ -251,6 +253,43 @@ reward. An independent audit recomputed the numbers before this text. Details an
   budget, and talk adds 14 points). The control with the whole budget turns the reading around. Limits: E6
   equalizes opens only; the single agent opens by script and the team seats open by hand; 1 model, 1 harness,
   1 synthetic search world.
+
+## E7: rules that give each box 1 owner, at 8 and 4 agents (2026-11-23)
+
+`crowdrules`: the world of E5 (60 boxes, 20 flags, 24 opens in total) and the same 10 layouts. Each rule is 1
+paragraph at the end of the team text. Pre-registered in Amendments 10 and 10a after an independent review.
+9 arms, 180 trials, every trial has a reward, 0 stalled seats, 0 reruns. An independent audit recomputed the
+numbers before this text. Details: F24.
+
+| Rule | 8 agents | 4 agents |
+|---|---|---|
+| None (the E5 team text) | 58.2% | 71.2% |
+| `zones`: a fixed plan by seat number (who scouts which room, who opens which position) | 97.0% | 95.5% |
+| `chief`: agent p1 posts the exact boxes for each agent | 94.3% | 74.8% |
+| `share`: box n belongs to agent ((n - 1) mod k) + 1 | 45.0% | 63.0% |
+| 1 agent with all 24 opens | 100.0% | 100.0% |
+
+- OBSERVED, primary (8 agents, Holm's rule over 3 tests): `zones-8 - team-8` = 38.8 points [34.2, 43.8],
+  p 0.002, helps. `chief-8 - team-8` = 36.0 points [31.2, 40.8], p 0.002, helps. `share-8 - team-8` = -13.2
+  points [-25.2, -1.3], p 0.074, not resolved.
+- OBSERVED: 1 agent is still higher: by 3.0 points [1.0, 5.3] against `zones-8` and by 5.7 points [2.3, 10.2]
+  against `chief-8`. Neither rule passes the 5-point margin, and neither fails it.
+- OBSERVED: at 4 agents only `zones` helps (24.2 points [16.8, 32.2]). `chief-4 - team-4` = 3.5 [-7.2, 13.8].
+  In 7 of the 20 `chief-4` trials the coordinator gave every agent 1 box in each of the 6 rooms, which uses
+  all 24 opens; each of these trials scores 0.40. The other 13 average 93.5%. The rule text allows that
+  reading at 4 agents and not at 8.
+- OBSERVED: all 3 rules remove the repeats (0.0 to 0.1 for each trial, against 7.5 without a rule at 8
+  agents). Under `share`, every open is on the agent's own box (472 of 472), but 14.6 of 24 opens are in
+  rooms without treasure.
+- OBSERVED: agents obey `zones` in 97.5% of their opens at 8 agents. The obedience of `chief` is not
+  measured: the parser could not read the coordinator's list for 35% of the opens. A blind hand check of 40
+  coordinator posts found 0 wrong lists and 11 lists that the parser refused.
+- OBSERVED: `zones-8` costs $0.0074 for a trial, a third of the team without a rule ($0.0204) and 5 times 1
+  agent ($0.0015).
+- INFERRED: a single owner for each box is not enough; the team also needs the order of the search. The plan
+  can come from the prompt (`zones`) or from 1 agent (`chief`). Limits: each rule paragraph also tells the
+  agents to post results and to read the board; `zones` puts the solution into the prompt; no primary test
+  ranks the rules; 1 model, 1 harness, 1 task.
 
 ## How this fits other work
 
@@ -322,10 +361,11 @@ reward. An independent audit recomputed the numbers before this text. Details an
 | E5 `crowd` (11-23; 313 started, 200 with a reward) | 200 | $2.68 |
 | E5 pilots (11-23, not scored) | 8 | $0.13 |
 | E6 `field` (11-23; 320 scored trials and 4 pilot trials) | 324 | $3.44 |
-| **Total** | **963** | **$10.62** |
+| E7 `crowdrules` (11-23; 180 scored trials and 3 pilot trials) | 183 | $2.07 |
+| **Total** | **1146** | **$12.69** |
 
 Real cost until E4 is computed from tokens at DeepSeek's price for the hour of the run; Harbor records the
 peak price. From E5 the route is OpenRouter; the cost is computed from tokens at the list price of the route
-and is not checked against the bill. E5 and E6 also used
-11.9 hours of Daytona sandbox time, about $2.00 at list price (not checked against a bill). The scripted
-checks for E7 and the seat-count probe of F22 used about $0.45 more.
+and is not checked against the bill. E5, E6 and E7 also used about 34.5 hours of Daytona sandbox time, about
+$5.80 at list price (not checked against a bill). The scripted checks for E7, the seat-count probe of F22 and
+the proof for fork PR #101 used about $0.55 more.

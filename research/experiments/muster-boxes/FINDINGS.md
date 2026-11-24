@@ -628,3 +628,95 @@ reading: E6 equalizes opens only, and a team of 8 has 8 times the turns of 1 age
 comes from the 14 stalled seats (about 2.6 points) and part from the single agent's use of scripts. E6 has 1
 model, 1 harness and 1 synthetic search world; it says nothing about the results of MAC Bench itself. E6
 does not test why the scout rule fails.
+
+## F24. E7: a fixed plan by seat number, or 1 coordinator, brings 8 agents from 58% to 94% to 97%; a share of the boxes by seat number without a plan does not help (2026-11-23, $2.03)
+
+Pre-registered in `PREREGISTRATION.md` (Amendment 10 after an independent review, and Amendment 10a) before
+the first scored trial. Family `crowdrules`: the `crowd` world of E5, the same 10 layouts, 24 opens in total.
+Each rule is 1 paragraph at the end of the `team-k` text. Roster, turn cap and backend as in E5. 2 lanes of 4
+trials. 10 instances x 2 attempts for each arm. Analysis: `analysis/crowd_scaling.py` (RULES block) and
+`analysis/crowd_rules.py`, both landed before the pilot. An independent audit recomputed the numbers before
+this text (`LOG.md`).
+
+OBSERVED (9 arms, 180 trials, every trial has a reward, 0 stalled seats, 0 reruns):
+
+| Arm | Rule | Score | New flags | New empty | Repeats | Unused | Messages | Cost per trial |
+|---|---|---|---|---|---|---|---|---|
+| `solo-24` | 1 agent with 24 opens | 100.0% | 20.00 | 3.65 | 0.00 | 0.35 | 0 | $0.0015 |
+| `team-8` | none (the E5 text) | 58.2% | 11.65 | 4.85 | 7.50 | 0.00 | 30.6 | $0.0204 |
+| `zones-8` | a fixed plan by seat number | 97.0% | 19.40 | 4.60 | 0.00 | 0.00 | 13.0 | $0.0074 |
+| `chief-8` | p1 gives each agent its boxes | 94.3% | 18.85 | 4.45 | 0.10 | 0.60 | 26.0 | $0.0168 |
+| `share-8` | box n belongs to agent ((n - 1) mod 8) + 1 | 45.0% | 9.00 | 14.60 | 0.00 | 0.40 | 32.1 | $0.0172 |
+| `team-4` | none | 71.2% | 14.25 | 4.25 | 5.05 | 0.45 | 17.0 | $0.0105 |
+| `zones-4` | a fixed plan by seat number | 95.5% | 19.10 | 4.90 | 0.00 | 0.00 | 15.9 | $0.0053 |
+| `chief-4` | p1 gives each agent its boxes | 74.8% | 14.95 | 8.70 | 0.10 | 0.25 | 19.9 | $0.0099 |
+| `share-4` | box n belongs to agent ((n - 1) mod 4) + 1 | 63.0% | 12.60 | 10.20 | 0.00 | 1.20 | 30.5 | $0.0123 |
+
+- **Primary, 8 seats, Holm's rule over 3 tests:**
+  - `zones-8 - team-8` = 38.8 points [34.2, 43.8], p 0.002: the rule helps.
+  - `chief-8 - team-8` = 36.0 points [31.2, 40.8], p 0.002: the rule helps.
+  - `share-8 - team-8` = -13.2 points [-25.2, -1.3], p 0.074: not resolved. The interval is below 0, but the
+    test does not pass Holm's rule.
+- Against 1 agent (5-point margin, secondary): `solo-24 - zones-8` = 3.0 [1.0, 5.3] and `solo-24 - chief-8` =
+  5.7 [2.3, 10.2]. Both are inconclusive: 1 agent is higher, no rule passes the margin, and neither of the 2
+  fails it. `solo-24 - share-8` = 55.0 [43.3, 66.0] fails.
+- 4 seats (secondary): `zones-4 - team-4` = 24.2 [16.8, 32.2], p 0.002. `chief-4 - team-4` = 3.5
+  [-7.2, 13.8] and `share-4 - team-4` = -8.2 [-17.0, 1.0] are not resolved.
+- Between rules (secondary, no correction): `zones-8 - chief-8` = 2.7 [-1.2, 8.0], not resolved. `zones-4 -
+  chief-4` = 20.8 [9.0, 34.0].
+- All 3 rules remove the repeats: 0.00 to 0.10 for each trial, against 7.50 (`team-8`) and 5.05 (`team-4`).
+- **The share rule is obeyed and does not help.** 472 of 472 opens in `share-8` and 456 of 456 in `share-4`
+  are on the seat's own boxes. But 14.6 and 10.2 opens for each trial are own boxes in rooms without
+  treasure. 92% and 85% of those come before the team's opens could show which 2 rooms hold treasure. 11.0
+  and 7.4 flag boxes for each trial stay closed; for 216 of 220 and 130 of 148 of them the owner has no open
+  left. The rule gives each box 1 owner and gives nobody the order of the search.
+- Obedience of `zones`: 97.5% [96, 99] at 8 seats and 96.3% [93, 99] at 4 seats. The opens outside the rule
+  (12 and 18) are in a wrong room, and 25 of the 30 are 1 error of arithmetic: the seat used box = 10 x room
+  + position, not 10 x (room - 1) + position. A team that never saw the rule would be at 25% and 34%
+  (`team-8` and `team-4` of E7, scored as if the rule applied).
+- Obedience of `chief` is **not measured** (the pre-registered rule): the parser could not read p1's newest
+  list for 165 of 468 opens at 8 seats (35%) and 129 of 475 at 4 seats (27%), above the 20% limit. Counts
+  only: of the opens that could be classed, 303 of 303 (8 seats) and 336 of 346 (4 seats) are in p1's newest
+  list. The blind hand check of 40 p1 posts found 0 wrong lists, 23 exact lists, 11 lists that a person can
+  read and the parser refused, and 6 posts without a list. It also found that the parser does not see an
+  order to 1 seat ("p4: open box 16, then box 17") as a list: 5 of 10 control posts.
+- In all 40 `chief` trials p1 posted boxes for 2 or more seats before the first open of the trial. The first
+  list of `chief-8` came after 19 s (median).
+- **Why `chief-4` is weak: 1 reading of the rule text.** In 7 of 20 trials, p1's first list gave each of the 4
+  seats 1 box in each of the 6 rooms: 24 boxes, all the opens. Each of these trials scores 0.40. The other 13
+  trials average 93.5%, like `chief-8`. The sentence "First give the agents 1 box in each of the 6 rooms" can
+  mean that each agent gets 1 box in every room. At 8 seats that reading is not possible (6 boxes, 3 opens).
+- Seats that stop with opens left: 15 in `share-4` (24 opens), 8 in `chief-8` (12), 7 in `share-8` (8), 3 in
+  `team-4` (9), 2 in `chief-4` (5). In `chief-8` most say that p1 gave them no further box. In the 4-seat
+  arms several say that both treasure rooms are found, as if that completed the task.
+- Cost and time: `zones-8` costs $0.0074 for a trial, about a third of `team-8` and 5 times `solo-24`. It
+  uses 13 messages for each trial against 31. A `zones-8` trial takes 118 s, a `team-8` trial 164 s.
+- The anchor: E7 `team-8` scores 58.2%; E5 `team-8` scored 54.2% (paired difference 4.0 [-1.7, 9.5]). The
+  difference is below the 10 points of Amendment 10. E5 `team-8` ran before the mirror snapshot existed.
+- The pre-registered expectations: `zones-8` near 85% (97.0%); `share-8` near 70% (45.0%); `chief-8` near
+  65% (94.3%) and likely not resolved (it is resolved); all 3 rules beat `team-8` (2 of 3); no rule passes
+  the 5-point margin against `solo-24` (true); the errors under `zones` are position counts (no: room
+  numbers); obedience of `zones` above 90% (97.5%), of `share` near 85% (100%), of `chief` near 80% (not
+  measured). I was wrong about `share` and about `chief`.
+- Process and deviations:
+  - Lane A ran `solo-24`, `zones-8`, `chief-8`, `zones-4`, `chief-4`; lane B ran `team-8`, `share-8`,
+    `team-4`, `share-4`; 9:28 PM to 10:36 PM ET; at most 8 trials at once; no other muster trial ran in that
+    time. Every seat has the provider pin, thinking off and the 30-turn cap; no seat reached the cap. The
+    task copy equals the landed build. The stop rule did not fire.
+  - Amendment 10a says that the 3 pilot trials were running at its commit. 2 of the 3 had ended, 79 s and
+    21 s before; I had not read their results. The first scored trial started 12 s after the push.
+  - I ran the analysis on the 8 complete arms at 10:30 PM ET, 5 minutes before `chief-4` ended. No arm, order
+    or rule could change at that point.
+  - The rerun script `e7_fill_lane.sh` was written after the lanes started and has smaller reserves than
+    Amendment 10. It did not run: there were 0 reruns.
+
+INFERRED. At 8 seats the loss of F19 is not a property of the team size. It goes away under a rule
+paragraph that gives each open 1 owner AND fixes the order of the search, by a plan in the prompt (`zones`)
+or by 1 agent that hands out boxes (`chief`). Ownership alone (`share`) removes every repeat and does not
+raise the score, because nobody is told who explores. Limits: each rule paragraph also tells the seats to
+post results and to read the board, so the gain belongs to the whole paragraph, not to ownership alone.
+`zones` puts the solution into the prompt: it shows what the team can reach when the plan is given, not that
+a team can find the plan. `chief` needs no knowledge of the layout in the prompt and works at 8 seats; at 4
+seats its text has 2 readings, so `chief-4` does not show that a coordinator is worse for a small team. E7
+has no primary test that ranks the rules; "share hurts" and "zones is the best rule" are not supported. No
+rule is shown to reach the score of 1 agent. 1 model, 1 harness, 1 synthetic task, 10 layouts.

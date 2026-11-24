@@ -32,7 +32,7 @@ RANK = {"top-death": 0, "harbor": 1, "trial": 2}
 FOREIGN_WINDOW_SECONDS = 6 * 3600
 FOREIGN_YOUNG_AGE = 3601
 FOREIGN_YOUNG_MICRO = 300_000
-FOREIGN_ODD_MICRO = 450_000
+FOREIGN_ODD_MICRO = 1_050_000
 FOREIGN_SLOW_MICRO = 2_000_000
 FOREIGN_SWAP_MICRO = 400_000
 TWIN_SUFFIX = "-twin"
@@ -311,6 +311,14 @@ def _odd_foreign_lines(young: str) -> list[dict[str, Any]]:
          "reserved_usd": 0.15},
         {"ts_utc": young, "event": "reserve", "experiment": "night", "arm": "str-1", "provider": "sim",
          "reserved_usd": "1.5"},
+        {"ts_utc": young, "event": "reserve", "experiment": "night", "arm": "reborn-1", "provider": "sim",
+         "reserved_usd": 4.0},
+        {"ts_utc": young, "event": "void", "experiment": "night", "arms": ["reborn-1"], "reason": "reset"},
+        {"ts_utc": young, "event": "reserve", "experiment": "night", "arm": "reborn-1", "provider": "sim",
+         "reserved_usd": 0.25},
+        {"ts_utc": young, "event": "settle", "experiment": "night", "arm": "orphan-1", "status": "ended"},
+        {"ts_utc": young, "event": "reserve", "experiment": "night", "arm": "orphan-1", "provider": "sim",
+         "reserved_usd": 0.35},
     ]
 
 

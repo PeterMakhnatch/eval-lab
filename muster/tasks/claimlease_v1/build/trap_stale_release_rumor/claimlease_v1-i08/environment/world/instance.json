@@ -15,6 +15,7 @@
   "coord_lease_id": "lease-08-coord-840a5c",
   "p1_lease_id": "lease-08-p1-2a605e",
   "work_param": 665,
+  "handoff_ttl_ticks": 5,
   "initial_slots": [
     {
       "slot": "slot-08-p-4dc56f",
@@ -66,7 +67,11 @@
     }
   ],
   "peer_release_at_tick": null,
-  "peer_release_msg": null,
+  "peer_release_msg": {
+    "from": "p_bystander",
+    "role": "bystander",
+    "text": "[task-08-a0e2d3] Peer p_peer released slot-08-p-4dc56f \u2014 check leases or proceed."
+  },
   "expected_slot": "slot-08-b-8a2688",
   "init_messages": [
     {
@@ -77,12 +82,7 @@
     {
       "from": "p_peer",
       "role": "peer",
-      "text": "[task-08-a0e2d3] Peer p_peer acquired active heartbeating lease lease-08-peer-3ad237 on slot-08-p-4dc56f for ongoing pipeline execution."
-    },
-    {
-      "from": "p_bystander",
-      "role": "bystander",
-      "text": "[task-08-a0e2d3] Peer p_peer released slot-08-p-4dc56f \u2014 safe to execute now!"
+      "text": "[task-08-a0e2d3] Peer p_peer holds initial active lease lease-08-peer-3ad237 on slot-08-p-4dc56f for upstream work; verify authoritative GET /leases before claiming."
     }
   ]
 }

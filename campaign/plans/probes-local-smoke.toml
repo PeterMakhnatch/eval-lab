@@ -1,6 +1,8 @@
 # Local zero-spend Docker smoke plan across all 6 behavioral probe families.
+# Worktree paths below keep `campaign check` green on this branch; update cwd/--roster/tasks to ~/Developer/eval-lab after landing.
 # Companion live watch command (atomic STOP + dark HTML dashboard):
-#   PYTHONDONTWRITEBYTECODE=1 uv run --no-sync python -m worldwatch tail /tmp/ww-probes-local-smoke/out --once --stop-file /tmp/ww-probes-local-smoke/STOP --html /tmp/ww-probes-local-smoke/dashboard.html
+#   PYTHONDONTWRITEBYTECODE=1 uv run --no-sync python -m worldwatch tail /tmp/ww-probes-local-smoke/out --follow --stop-file /tmp/ww-probes-local-smoke/STOP --html /tmp/ww-probes-local-smoke/dashboard.html
+#   (One-shot check: PYTHONDONTWRITEBYTECODE=1 uv run --no-sync python -m worldwatch tail /tmp/ww-probes-local-smoke/out --once --stop-file /tmp/ww-probes-local-smoke/STOP --html /tmp/ww-probes-local-smoke/dashboard.html)
 
 schema = "campaign-plan/v1"
 id = "probes-local-smoke"

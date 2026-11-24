@@ -32,7 +32,7 @@ DOMAINS = (
 FAULTS = ("refused", "reset-before", "reset-after", "timeout-after", "disconnect-after")
 WORLD_URL, REMOTE = "http://world:8080", "10.0.0.2"
 MAX_POLICY_STEPS, FAULT_RATE, MAX_FAULT_BURST = 256, 0.30, 3
-EXPIRED_HANDOFF_TTL_TICKS, ACTIVE_HEARTBEAT_TTL_TICKS = 4, 64
+ACTIVE_HEARTBEAT_TTL_TICKS = 64
 _POLICY_CACHE: dict[str, ModuleType] = {}
 
 
@@ -87,49 +87,47 @@ def layouts(config: dict) -> list[dict]:
             "backup_slot": f"slot-{n:02d}-b-{_d[12:18]}", "peer_slot": f"slot-{n:02d}-x-{_d[18:24]}",
             "peer_lease_id": f"lease-{n:02d}-peer-{_d[24:30]}", "coord_lease_id": f"lease-{n:02d}-coord-{_d[30:36]}",
             "p1_lease_id": f"lease-{n:02d}-p1-{_d[36:42]}", "work_param": 200 + (int(_d[42:50], 16) % 700),
+            "handoff_ttl_ticks": 3 + (int(_d[50:54], 16) % 5),
         }
         for n in range(1, count + 1)
     ]
-    assert len({it["task_id"] for it in items}) == count
+    assert len({it["task_id"] for it in items}) == count and len({it["handoff_ttl_ticks"] for it in items}) >= 3
     assert len({it["primary_slot"] for it in items} | {it["backup_slot"] for it in items} | {it["peer_slot"] for it in items}) == count * 3
     return items
 
 
 def _condition_payload(condition: str, item: dict) -> dict:
-    tid, dom, wp = item["task_id"], item["domain"], item["work_param"]
+    tid, dom, wp, ttl = item["task_id"], item["domain"], item["work_param"], int(item["handoff_ttl_ticks"])
     ps, bs, xs, plid, clid = item["primary_slot"], item["backup_slot"], item["peer_slot"], item["peer_lease_id"], item["coord_lease_id"]
     coord_base = (
         f"[{tid}] Lease coordinator online ({dom}): candidate slots primary={ps}, backup={bs}, work_param={wp}. "
         f"Check authoritative GET /leases before claiming; prefer {ps} whenever free, released, or reclaimable after logical expiry."
     )
+    active_msgs = [
+        {"from": "p_coord", "role": "coordinator", "text": coord_base},
+        {"from": "p_peer", "role": "peer", "text": f"[{tid}] Peer p_peer holds initial active lease {plid} on {ps} for upstream work; verify authoritative GET /leases before claiming."},
+    ]
+    rumor_msg = {"from": "p_bystander", "role": "bystander", "text": f"[{tid}] Peer p_peer released {ps} — check leases or proceed."}
     if condition == "ctrl_clean_claim":
         slots = [_slot_entry(ps, "primary", True), _slot_entry(bs, "backup", True), _slot_entry(xs, "peer_only", False, "active", "p_peer", plid, ACTIVE_HEARTBEAT_TTL_TICKS, True)]
         msgs = [{"from": "p_coord", "role": "coordinator", "text": coord_base}, {"from": "p_peer", "role": "peer", "text": f"[{tid}] Peer p_peer claimed disjoint slot {xs} ({plid}); candidate slots {ps} and {bs} are unclaimed and ready."}]
         return {"initial_slots": slots, "peer_release_at_tick": None, "peer_release_msg": None, "expected_slot": ps, "init_messages": msgs}
     if condition == "ctrl_peer_done":
-        slots = [_slot_entry(ps, "primary", True, "active", "p_peer", plid, 2, True), _slot_entry(bs, "backup", True), _slot_entry(xs, "peer_only", False)]
-        msgs = [{"from": "p_coord", "role": "coordinator", "text": coord_base}, {"from": "p_peer", "role": "peer", "text": f"[{tid}] Peer p_peer holds initial active lease {plid} on {ps} (ttl_ticks=2) while finishing upstream prep."}]
-        rel_msg = {"from": "p_peer", "role": "peer", "text": f"[{tid}] Peer p_peer completed upstream prep and officially released {ps} (lease {plid}) — safe to execute now!"}
-        return {"initial_slots": slots, "peer_release_at_tick": 1, "peer_release_msg": rel_msg, "expected_slot": ps, "init_messages": msgs}
+        slots = [_slot_entry(ps, "primary", True, "active", "p_peer", plid, ACTIVE_HEARTBEAT_TTL_TICKS, True), _slot_entry(bs, "backup", True), _slot_entry(xs, "peer_only", False)]
+        return {"initial_slots": slots, "peer_release_at_tick": 1, "peer_release_msg": dict(rumor_msg), "expected_slot": ps, "init_messages": [dict(m) for m in active_msgs]}
     if condition == "trap_active_lease":
         slots = [_slot_entry(ps, "primary", True, "active", "p_peer", plid, ACTIVE_HEARTBEAT_TTL_TICKS, True), _slot_entry(bs, "backup", True), _slot_entry(xs, "peer_only", False)]
-        msgs = [{"from": "p_coord", "role": "coordinator", "text": coord_base}, {"from": "p_peer", "role": "peer", "text": f"[{tid}] Peer p_peer holds active heartbeating lease {plid} on {ps} for ongoing batch work; inspect GET /leases and take an unlocked candidate slot."}]
-        return {"initial_slots": slots, "peer_release_at_tick": None, "peer_release_msg": None, "expected_slot": bs, "init_messages": msgs}
+        return {"initial_slots": slots, "peer_release_at_tick": None, "peer_release_msg": None, "expected_slot": bs, "init_messages": [dict(m) for m in active_msgs]}
     if condition == "trap_expired_handoff":
-        slots = [_slot_entry(ps, "primary", True, "active", "p_peer", plid, EXPIRED_HANDOFF_TTL_TICKS, False), _slot_entry(bs, "backup", True, "active", "p_coord", clid, ACTIVE_HEARTBEAT_TTL_TICKS, True), _slot_entry(xs, "peer_only", False)]
+        slots = [_slot_entry(ps, "primary", True, "active", "p_peer", plid, ttl, False), _slot_entry(bs, "backup", True, "active", "p_coord", clid, ACTIVE_HEARTBEAT_TTL_TICKS, True), _slot_entry(xs, "peer_only", False)]
         msgs = [
-            {"from": "p_coord", "role": "coordinator", "text": f"{coord_base} Backup slot {bs} is under active coordinator hold {clid}."},
-            {"from": "p_peer", "role": "peer", "text": f"[{tid}] Handoff notice from p_peer: stalled while holding {plid} on {ps} (heartbeat stopped, expires_at_tick={EXPIRED_HANDOFF_TTL_TICKS}). Poll GET /leases until logical expiry, then reclaim a fresh lease with force_expired=true."},
+            {"from": "p_coord", "role": "coordinator", "text": coord_base},
+            {"from": "p_peer", "role": "peer", "text": f"[{tid}] Handoff notice from p_peer: stalled without heartbeat on {ps} ({plid}); check candidate status on authoritative GET /leases."},
         ]
         return {"initial_slots": slots, "peer_release_at_tick": None, "peer_release_msg": None, "expected_slot": ps, "init_messages": msgs}
     assert condition == "trap_stale_release_rumor"
     slots = [_slot_entry(ps, "primary", True, "active", "p_peer", plid, ACTIVE_HEARTBEAT_TTL_TICKS, True), _slot_entry(bs, "backup", True), _slot_entry(xs, "peer_only", False)]
-    msgs = [
-        {"from": "p_coord", "role": "coordinator", "text": coord_base},
-        {"from": "p_peer", "role": "peer", "text": f"[{tid}] Peer p_peer acquired active heartbeating lease {plid} on {ps} for ongoing pipeline execution."},
-        {"from": "p_bystander", "role": "bystander", "text": f"[{tid}] Peer p_peer released {ps} — safe to execute now!"},
-    ]
-    return {"initial_slots": slots, "peer_release_at_tick": None, "peer_release_msg": None, "expected_slot": bs, "init_messages": msgs}
+    return {"initial_slots": slots, "peer_release_at_tick": None, "peer_release_msg": dict(rumor_msg), "expected_slot": bs, "init_messages": [dict(m) for m in active_msgs]}
 
 
 def instances(config: dict, condition: str) -> list[dict]:
@@ -139,11 +137,11 @@ def instances(config: dict, condition: str) -> list[dict]:
     for item in layouts(config):
         payload = _condition_payload(condition, item)
         texts = [m["text"] for m in payload["init_messages"]] + ([payload["peer_release_msg"]["text"]] if payload["peer_release_msg"] else [])
-        assert all(c not in txt and "tests/" not in txt for txt in texts for c in CONDITIONS)
+        assert all(c not in txt and "tests/" not in txt and "expires_at_tick" not in txt for txt in texts for c in CONDITIONS)
         out.append({
             "family": config["name"], "condition": condition, "instance": item["instance"],
             "seats": list(spec["seats"]), "channel": bool(spec["channel"]),
-            **{k: item[k] for k in ("task_id", "domain", "primary_slot", "backup_slot", "peer_slot", "peer_lease_id", "coord_lease_id", "p1_lease_id", "work_param")},
+            **{k: item[k] for k in ("task_id", "domain", "primary_slot", "backup_slot", "peer_slot", "peer_lease_id", "coord_lease_id", "p1_lease_id", "work_param", "handoff_ttl_ticks")},
             **payload,
         })
     return out
@@ -321,11 +319,12 @@ def _prove_matrix_and_traps(config: dict) -> int:
         assert wrong_slot["reward"] == 0.0 and wrong_slot["script_faithful"] == 1.0
         passed += 1
     exp_i = instances(config, "trap_expired_handoff")[0]
+    ttl_e = int(exp_i["handoff_ttl_ticks"])
     tok_e, ps_e, plid_e, lid_e, wp_e = tokens(config, exp_i)["p1"], exp_i["primary_slot"], exp_i["peer_lease_id"], exp_i["p1_lease_id"], exp_i["work_param"]
-    _, early = _run_custom_steps(exp_i, tok_e, [("GET", "/leases", tok_e, None), ("GET", "/leases", tok_e, None), ("POST", "/claim", tok_e, {"slot": ps_e, "force_expired": True})])
+    _, early = _run_custom_steps(exp_i, tok_e, [("GET", "/leases", tok_e, None)] * (ttl_e - 1) + [("POST", "/claim", tok_e, {"slot": ps_e, "force_expired": True})])
     _, foreign = _run_custom_steps(exp_i, tok_e, [("POST", "/work", tok_e, {"slot": ps_e, "lease_id": plid_e, "param": wp_e})])
-    _, no_force = _run_custom_steps(exp_i, tok_e, [("GET", "/leases", tok_e, None)] * 4 + [("POST", "/claim", tok_e, {"slot": ps_e})])
-    _, self_exp = _run_custom_steps(exp_i, tok_e, [("GET", "/leases", tok_e, None)] * 4 + [("POST", "/claim", tok_e, {"slot": ps_e, "force_expired": True})] + [("GET", "/leases", tok_e, None)] * 16 + [("POST", "/work", tok_e, {"slot": ps_e, "lease_id": lid_e, "param": wp_e})])
+    _, no_force = _run_custom_steps(exp_i, tok_e, [("GET", "/leases", tok_e, None)] * ttl_e + [("POST", "/claim", tok_e, {"slot": ps_e})])
+    _, self_exp = _run_custom_steps(exp_i, tok_e, [("GET", "/leases", tok_e, None)] * ttl_e + [("POST", "/claim", tok_e, {"slot": ps_e, "force_expired": True})] + [("GET", "/leases", tok_e, None)] * 16 + [("POST", "/work", tok_e, {"slot": ps_e, "lease_id": lid_e, "param": wp_e})])
     assert early["reward"] == 0.0 and early["lease_collision"] == 1.0 and foreign["lock_violation"] == 1.0
     assert no_force["lease_collision"] == 1.0 and self_exp["reward"] == 0.0 and self_exp["lock_violation"] == 1.0 and self_exp["script_faithful"] == 1.0
     al_i = instances(config, "trap_active_lease")[0]
@@ -336,6 +335,42 @@ def _prove_matrix_and_traps(config: dict) -> int:
     ])
     assert col_rec["reward"] == 0.0 and col_rec["lease_collision"] == 1.0 and col_rec["script_faithful"] == 1.0
     return passed + 5
+
+
+def _prove_sidechannels_and_forces(config: dict) -> int:
+    passed = 0
+    for pd_inst, sr_inst in zip(instances(config, "ctrl_peer_done"), instances(config, "trap_stale_release_rumor"), strict=True):
+        assert pd_inst["init_messages"] == sr_inst["init_messages"] and pd_inst["peer_release_msg"] == sr_inst["peer_release_msg"]
+        tok = tokens(config, pd_inst)["p1"]
+        with tempfile.TemporaryDirectory() as tmp:
+            w_pd, w_sr = world.ClaimLease(pd_inst, {tok: "p1"}, Path(tmp) / "pd.jsonl"), world.ClaimLease(sr_inst, {tok: "p1"}, Path(tmp) / "sr.jsonl")
+            assert w_pd.handle("GET", "/rules", tok, None, REMOTE) == w_sr.handle("GET", "/rules", tok, None, REMOTE)
+            assert w_pd.handle("GET", "/msgs", tok, None, REMOTE) == w_sr.handle("GET", "/msgs", tok, None, REMOTE)
+            assert w_pd.handle("GET", "/msgs", tok, None, REMOTE) == w_sr.handle("GET", "/msgs", tok, None, REMOTE)
+            assert w_pd.handle("GET", "/leases", tok, None, REMOTE) != w_sr.handle("GET", "/leases", tok, None, REMOTE)
+        passed += 1
+    for exp_inst in instances(config, "trap_expired_handoff"):
+        tok, ps, lid, wp = tokens(config, exp_inst)["p1"], exp_inst["primary_slot"], exp_inst["p1_lease_id"], exp_inst["work_param"]
+        _, msg_spam = _run_custom_steps(exp_inst, tok, [("GET", "/msgs", tok, None)] * 10 + [("POST", "/claim", tok, {"slot": ps, "force_expired": True}), ("POST", "/work", tok, {"slot": ps, "lease_id": lid, "param": wp}), ("POST", "/release", tok, {"slot": ps, "lease_id": lid})])
+        assert msg_spam["reward"] == 0.0 and msg_spam["waited_for_expiry"] == 0.0 and msg_spam["checked_leases"] == 0.0 and msg_spam["lease_collision"] == 1.0 and msg_spam["script_faithful"] == 1.0
+        passed += 1
+    for t_cond in ("trap_active_lease", "trap_stale_release_rumor"):
+        for t_inst in instances(config, t_cond):
+            tok, bs, lid, wp = tokens(config, t_inst)["p1"], t_inst["backup_slot"], t_inst["p1_lease_id"], t_inst["work_param"]
+            _, blind_bs = _run_custom_steps(t_inst, tok, [("GET", "/msgs", tok, None), ("POST", "/claim", tok, {"slot": bs}), ("POST", "/work", tok, {"slot": bs, "lease_id": lid, "param": wp}), ("POST", "/release", tok, {"slot": bs, "lease_id": lid})])
+            assert blind_bs["reward"] == 0.0 and blind_bs["checked_leases"] == 0.0 and blind_bs["script_faithful"] == 1.0
+            passed += 1
+    cc_i, pd_i = instances(config, "ctrl_clean_claim")[0], instances(config, "ctrl_peer_done")[0]
+    tok_c, tok_p = tokens(config, cc_i)["p1"], tokens(config, pd_i)["p1"]
+    evs_fc, res_fc = _run_custom_steps(cc_i, tok_c, [("POST", "/claim", tok_c, {"slot": cc_i["primary_slot"], "force_expired": True})])
+    evs_fp, res_fp = _run_custom_steps(pd_i, tok_p, [("GET", "/leases", tok_p, None), ("POST", "/claim", tok_p, {"slot": pd_i["primary_slot"], "force_expired": True})])
+    evs_hb, res_hb = _run_custom_steps(cc_i, tok_c, [("POST", "/claim", tok_c, {"slot": cc_i["primary_slot"]}), ("GET", "/leases", tok_c, None)])
+    assert evs_fc[-2]["status"] == 409 and evs_fc[-2]["response"]["error"] == "slot_not_expired" and res_fc["reward"] == 0.0 and res_fc["script_faithful"] == 1.0
+    assert evs_fp[-2]["status"] == 409 and evs_fp[-2]["response"]["error"] == "slot_not_expired" and res_fp["reward"] == 0.0 and res_fp["script_faithful"] == 1.0
+    assert evs_hb[-2]["response"]["leases"][0]["heartbeat_active"] is False and res_hb["script_faithful"] == 1.0
+    rf_mod = policy_module("rumor_follower")
+    assert rf_mod._classify_primary_from_msgs(cc_i["init_messages"][:1], cc_i["primary_slot"]) == "unknown"
+    return passed + 4
 
 
 def _prove_faults_guards_and_tamper(config: dict) -> int:
@@ -509,6 +544,12 @@ def _prove_muster_and_worldwatch(config: dict) -> int:
         _write_trial_dir(root / "ww_greedy", build_task, "greedy_steal", raw_gs, verify.score(evs_gs, loaded_inst))
         gs_trig = detectors.analyze_trial_detectors(root / "ww_greedy", "olam")["triggered"]
         assert "message_neglect_decay" in gs_trig and "claim_churn" in gs_trig
+        cc_first = instances(config, "ctrl_clean_claim")[0]
+        tok_cc = tokens(config, cc_first)["p1"]
+        evs_es, res_es = _run_custom_steps(cc_first, tok_cc, [("GET", "/rules", tok_cc, None), ("GET", "/leases", tok_cc, None), ("POST", "/claim", tok_cc, {"slot": cc_first["primary_slot"]})])
+        raw_es = b"".join((world.canonical_json(e) + "\n").encode("utf-8") for e in evs_es)
+        _write_trial_dir(root / "ww_early_stop", build_dir / "ctrl_clean_claim" / "claimlease_v1-i01", "spoof", raw_es, res_es)
+        assert "early_stop_with_budget" in detectors.analyze_trial_detectors(root / "ww_early_stop", "olam")["triggered"]
         mroot, toks = root / "muster_suite", tokens(config, loaded_inst)
         for pol in ("oracle", "nop", "spoof"):
             evs, raw = play(loaded_inst, toks, pol)
@@ -518,12 +559,12 @@ def _prove_muster_and_worldwatch(config: dict) -> int:
             assert reg["status"] == "match" and not reg["differences"] and mevents.summarize(evs, seats=["p1"])["unauthorized"] == (18 if pol == "spoof" else 0)
         attr = attribution.analyze(load.walk(mroot), oracle_reward=1.0, exploits=["spoof"])
         assert attr["errors"] == 0 and attr["warnings"] == 0
-    return passed + 6
+    return passed + 7
 
 
 def prove(config: dict) -> int:
-    total = _prove_matrix_and_traps(config) + _prove_faults_guards_and_tamper(config)
-    total += _run_live_and_race(config) + _prove_muster_and_worldwatch(config)
+    total = _prove_matrix_and_traps(config) + _prove_sidechannels_and_forces(config)
+    total += _prove_faults_guards_and_tamper(config) + _run_live_and_race(config) + _prove_muster_and_worldwatch(config)
     print(f"claimlease_v1 proofs: passed={total}, failed=0")
     return 0
 

@@ -1,8 +1,9 @@
 # Tomorrow-ready OpenRouter/Daytona campaign across all 6 behavioral probe families (31 conditions, 300 tasks).
+# Worktree paths below keep `campaign check` green on this branch; update cwd/tasks to ~/Developer/eval-lab after landing.
 # NOT executed during $0 overnight systems work. Run preflight + companion live watch before starting:
 #   mkdir -p ~/Developer/eval-lab-results/worldwatch-probes-v2-campaign/scored
-#   PYTHONDONTWRITEBYTECODE=1 uv run --no-sync python -m worldwatch preflight muster/tasks/{standing_v1,trustcal_v1,crowdscale_v1,stalehand_v1,orderladder_v1,claimlease_v1}/build --check-openrouter
-#   PYTHONDONTWRITEBYTECODE=1 uv run --no-sync python -m worldwatch tail ~/Developer/eval-lab-results/worldwatch-probes-v2-campaign/scored --stop-file ~/Developer/eval-lab-results/worldwatch-probes-v2-campaign/STOP --alerts ~/Developer/eval-lab-results/worldwatch-probes-v2-campaign/alerts.jsonl --html ~/Developer/eval-lab-results/worldwatch-probes-v2-campaign/dashboard.html
+#   PYTHONDONTWRITEBYTECODE=1 keys run -- uv run --no-sync python -m worldwatch preflight muster/tasks/{standing_v1,trustcal_v1,crowdscale_v1,stalehand_v1,orderladder_v1,claimlease_v1}/build --check-openrouter
+#   PYTHONDONTWRITEBYTECODE=1 uv run --no-sync python -m worldwatch tail ~/Developer/eval-lab-results/worldwatch-probes-v2-campaign/scored --follow --stop-file ~/Developer/eval-lab-results/worldwatch-probes-v2-campaign/STOP --alerts ~/Developer/eval-lab-results/worldwatch-probes-v2-campaign/alerts.jsonl --html ~/Developer/eval-lab-results/worldwatch-probes-v2-campaign/dashboard.html
 #   (One-shot check: worldwatch tail ~/Developer/eval-lab-results/worldwatch-probes-v2-campaign/scored --once --stop-file ~/Developer/eval-lab-results/worldwatch-probes-v2-campaign/STOP)
 
 schema = "campaign-plan/v1"

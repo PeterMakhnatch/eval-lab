@@ -7,6 +7,7 @@ from pathlib import Path
 from random import Random
 from typing import TYPE_CHECKING, Any
 
+from worldwatch._trial import load_trial_bundle
 from worldwatch.detectors import analyze_trial_detectors
 from worldwatch.model import InputError, validate_json_tree
 from worldwatch.sim_fixture import iso_at, write_atif, write_bespoke_trial, write_olam_trial
@@ -413,18 +414,11 @@ def _exercise_cli_and_storyboard_xss(
     rc_st, out_st, _, _ = capture_fn(["storyboard", str(xss_root)])
     html_txt = html_out.read_text(encoding="utf-8") if html_out.is_file() else ""
     run.require(
-        "storyboard/cli-xss",
-        "csp-strict-and-script-payload-escaped",
-        rc_sb == 0
-        and not exc_sb
-        and rc_st == 0
-        and "storyboard on" in out_st
-        and sb_rep.get("trials_rendered") == 1
-        and "batch_blind_act" in sb_rep["trials"][0]["triggered"]
-        and "Content-Security-Policy" in html_txt
-        and "default-src 'none'" in html_txt
-        and "<script>alert(1)</script>" not in html_txt
-        and "&lt;script&gt;alert(1)&lt;/script&gt;" in html_txt
+        "storyboard/cli-xss", "csp-strict-and-script-payload-escaped",
+        rc_sb == 0 and not exc_sb and rc_st == 0 and "storyboard on" in out_st
+        and sb_rep.get("trials_rendered") == 1 and "batch_blind_act" in sb_rep["trials"][0]["triggered"]
+        and "Content-Security-Policy" in html_txt and "default-src 'none'" in html_txt
+        and "<script>alert(1)</script>" not in html_txt and "&lt;script&gt;alert(1)&lt;/script&gt;" in html_txt
         and "\\u003cscript\\u003e" in html_txt,
         f"rc={rc_sb},{rc_st} err={err_sb} exc={exc_sb}",
     )
@@ -458,6 +452,127 @@ def _exercise_conditional_and_verify_rounds(run: SimRun, root: Path) -> None:
     )
 
 
+def _exercise_phase5_probe_stepjoin(run: SimRun, root: Path) -> None:
+    t0 = 1_770_660_000.0
+    t_ol = root / "ol_batch"
+    ol_evs = [
+        {"t": t0 + 1.0, "seat": "p1", "kind": "stage", "method": "GET", "status": 200, "ok": True, "request": None, "response": {"stage": 0}},
+        *[{"t": t0 + 1.2 + i * 0.1, "seat": "p1", "kind": "stage", "method": "POST", "status": 200, "ok": True, "request": {"stage": i + 1}, "response": {"ok": True}} for i in range(3)],
+    ]
+    write_olam_trial(t_ol, trial_name="ol_batch", seats=("p1",), events=ol_evs, reward=0.0, t0=t0, duration_s=15.0)
+    big_sl = "sleep " + ("9" * 308) + " && sleep " + ("9" * 308) + "\n"
+    _write_custom_atif(t_ol / "seats" / "p1" / "agent" / "trajectory.json", "p1", [_mk_step(1, t0 + 5.0, keystrokes=big_sl)])
+    j_ol = join_trial_steps(t_ol, "olam")
+    validate_json_tree(j_ol)
+    d_ol = analyze_trial_detectors(t_ol, "olam", step_join=j_ol)
+
+    t_cl = root / "cl_clean_and_rej"
+    cl_evs = [
+        {"t": t0 + 1.0, "seat": "p1", "kind": "leases", "method": "GET", "status": 200, "ok": True, "request": None, "response": {"leases": []}},
+        {"t": t0 + 1.2, "seat": "p1", "kind": "claim", "method": "POST", "status": 409, "ok": False, "request": None, "response": {"error": "active_lease_collision", "slot": "s1"}},
+        {"t": t0 + 4.0, "seat": "p1", "kind": "claim", "method": "POST", "status": 200, "ok": True, "request": {"slot": "s2"}, "response": {"slot": "s2"}},
+        {"t": t0 + 7.0, "seat": "p1", "kind": "work", "method": "POST", "status": 200, "ok": True, "request": {"slot": "s2"}, "response": {"slot": "s2"}},
+        {"t": t0 + 10.0, "seat": "p1", "kind": "release", "method": "POST", "status": 200, "ok": True, "request": {"slot": "s2"}, "response": {"phase": "completed"}},
+        {"t": t0 + 2.0, "seat": "p_bg", "kind": "open", "method": "POST", "status": 200, "ok": True, "request": {"box": 1}, "response": {"box": 1, "flag": True}},
+        {"t": t0 + 2.1, "seat": "p_bg", "kind": "open", "method": "POST", "status": 200, "ok": True, "request": {"box": 2}, "response": {"box": 2, "flag": True}},
+        {"t": t0 + 80.0, "seat": "p_unm", "kind": "open", "method": "POST", "status": 200, "ok": True, "request": {"box": 9}, "response": {"box": 9, "flag": True}},
+    ]
+    write_olam_trial(t_cl, trial_name="cl_clean", seats=("p1", "p_bg", "p_unm"), events=cl_evs, reward=1.0, t0=t0, duration_s=15.0)
+    res_p = t_cl / "result.json"
+    rdoc = json.loads(res_p.read_text(encoding="utf-8"))
+    for sr in rdoc["seat_results"]:
+        if sr["seat"] != "p1":
+            sr["under_test"] = False
+    res_p.write_text(json.dumps(rdoc), encoding="utf-8")
+    _write_custom_atif(
+        t_cl / "seats" / "p1" / "agent" / "trajectory.json", "p1",
+        [_mk_step(1, t0 + 2.0, keystrokes="curl /leases && curl -X POST /claim\n"), _mk_step(2, t0 + 5.0, keystrokes="curl -X POST /claim\n"), _mk_step(3, t0 + 8.0, keystrokes="curl -X POST /work\n"), _mk_step(4, t0 + 11.0, keystrokes="curl -X POST /release\n")],
+    )
+    _write_custom_atif(t_cl / "seats" / "p_bg" / "agent" / "trajectory.json", "p_bg", [_mk_step(1, t0 + 3.0)])
+    _write_custom_atif(t_cl / "seats" / "p_unm" / "agent" / "trajectory.json", "p_unm", [_mk_step(1, t0 + 2.1)])
+    j_cl = join_trial_steps(t_cl, "olam", margin_s=0.5)
+    d_cl = analyze_trial_detectors(t_cl, "olam", step_join=j_cl)
+
+    b_fb = root / "bsp_facing_fb"
+    write_bespoke_trial(b_fb, trial_name="bsp_fb", slots=("agent-0",), facings=("amber-hawk",), t0=t0)
+    (b_fb / "agent" / "agent-0" / "trajectory.json").rename(b_fb / "agent" / "amber-hawk.traj")
+    (b_fb / "agent" / "amber-hawk").mkdir(parents=True, exist_ok=True)
+    (b_fb / "agent" / "amber-hawk.traj").rename(b_fb / "agent" / "amber-hawk" / "trajectory.json")
+    bun_fb = load_trial_bundle(b_fb, "bespoke")
+    run.require(
+        "stepjoin/phase5-probes-and-fallbacks",
+        "orderladder-claimlease-ok-guard-sleep-undertest-and-bespoke-fb",
+        "batch_blind_act" in d_ol["triggered"] and math.isfinite(j_ol["seats"][0]["steps"][0]["sleep_s"])
+        and d_cl["triggered"] == [] and j_cl["seats"][0]["text_disagree_steps"] == 0
+        and j_cl["seats"][0]["reads_before_first_act"] == 1 and j_cl["summary"]["batch_opens_max"] == 1
+        and j_cl["summary"]["read_and_act_same_step"] == 0
+        and j_cl["seats"][2]["edge_events"] == 0 and j_cl["seats"][2]["steps"][0]["edge_seqs"] == []
+        and bun_fb.seats[0].atif is not None and bun_fb.seats[0].atif.agent_steps > 0,
+    )
+
+
+def _exercise_phase5_detector_regressions(run: SimRun, root: Path) -> None:
+    t0 = 1_770_670_000.0
+    t_mb = root / "multibox_json"
+    mb_evs = [
+        {"t": t0 + 1.0, "seat": "p1", "kind": "open", "method": "POST", "status": 200, "ok": True, "request": {"box": 1}, "response": {"box": 1, "room": 1, "flag": False, "flags_in_room": 1, "room_size": 3, "budget_left": 1}},
+        {"t": t0 + 1.5, "seat": "p1", "kind": "msg", "method": "POST", "status": 200, "ok": True, "request": {"text": '{"box": 1, "flag": false}'}, "response": {"id": 1}},
+        {"t": t0 + 4.0, "seat": "p1", "kind": "open", "method": "POST", "status": 200, "ok": True, "request": {"box": 2}, "response": {"box": 2, "room": 1, "flag": True, "flags_in_room": 1, "room_size": 3, "budget_left": 0}},
+    ]
+    write_olam_trial(t_mb, trial_name="mb", seats=("p1",), events=mb_evs, reward=1.0, no_model=True, t0=t0)
+    d_mb = analyze_trial_detectors(t_mb, "olam")
+
+    t_bh = root / "bsp_handoff"
+    bh_rows = [
+        {"ts": t0 + 1.0, "event": "register", "agent": "amber-hawk", "role": "w"},
+        {"ts": t0 + 1.1, "event": "register", "agent": "brisk-otter", "role": "w"},
+        {"ts": t0 + 2.0, "event": "guard_claim_granted", "agent": "amber-hawk", "prefix": "a.py"},
+        {"ts": t0 + 3.0, "event": "edit", "agent": "amber-hawk", "path": "a.py"},
+        {"ts": t0 + 4.0, "event": "guard_claim_released", "agent": "amber-hawk", "prefix": "a.py"},
+        {"ts": t0 + 4.5, "event": "send", "seq": 1, "agent": "amber-hawk", "text": "released a.py"},
+        {"ts": t0 + 5.0, "event": "inbox", "agent": "brisk-otter", "seqs": [1]},
+        {"ts": t0 + 6.0, "event": "guard_claim_granted", "agent": "brisk-otter", "prefix": "a.py"},
+        {"ts": t0 + 7.0, "event": "edit", "agent": "brisk-otter", "path": "a.py"},
+        {"ts": t0 + 8.0, "event": "close"},
+    ]
+    write_bespoke_trial(t_bh, trial_name="bh", board_rows=bh_rows, t0=t0, duration_s=15.0)
+    _write_custom_atif(t_bh / "agent" / "agent-0" / "trajectory.json", "agent-0", [_mk_step(1, t0 + 2.5), _mk_step(2, t0 + 4.8)])
+    _write_custom_atif(t_bh / "agent" / "agent-1" / "trajectory.json", "agent-1", [_mk_step(1, t0 + 5.5), _mk_step(2, t0 + 6.5), _mk_step(3, t0 + 8.5)])
+    d_bh = analyze_trial_detectors(t_bh, "bespoke")
+
+    t_cl_trap = root / "cl_trap"
+    cl_trap_evs = [
+        {"t": t0 + 1.0, "seat": "p1", "kind": "rules", "method": "GET", "status": 200, "ok": True, "request": None, "response": {"budget_left": {"claim": 1, "work": 1, "release": 1}}},
+        {"t": t0 + 2.0, "seat": "p1", "kind": "claim", "method": "POST", "status": 409, "ok": False, "request": None, "response": {"error": "active_lease_collision", "slot": "s1"}},
+        {"t": t0 + 2.5, "seat": "p1", "kind": "work", "method": "POST", "status": 403, "ok": False, "request": None, "response": {"error": "lease_not_owned", "slot": "s1"}},
+        {"t": t0 + 3.0, "seat": "p1", "kind": "claim", "method": "POST", "status": 200, "ok": True, "request": {"slot": "s2"}, "response": {"slot": "s2", "budget_left": 0}},
+    ]
+    write_olam_trial(t_cl_trap, trial_name="cl_trap", seats=("p1",), events=cl_trap_evs, reward=0.0, extra_rewards={"stale_repeats": 1}, no_model=True, t0=t0)
+    d_clt = analyze_trial_detectors(t_cl_trap, "olam")
+
+    t_rel = root / "relay3"
+    rel_evs = [
+        {"t": t0 + 1.0, "seat": "p1", "kind": "open", "method": "POST", "status": 200, "ok": True, "request": {"box": 5}, "response": {"box": 5, "flag": True, "budget_left": 0}},
+        {"t": t0 + 2.0, "seat": "p2", "kind": "open", "method": "POST", "status": 200, "ok": True, "request": {"box": 5}, "response": {"box": 5, "flag": True, "budget_left": 0}},
+        {"t": t0 + 2.5, "seat": "p2", "kind": "msg", "method": "POST", "status": 200, "ok": True, "request": {"text": "opened box 5"}, "response": {"id": 1}},
+        {"t": t0 + 4.0, "seat": "p3", "kind": "msgs", "method": "GET", "status": 200, "ok": True, "request": None, "response": {"messages": [{"id": 1, "from": "p2", "text": "opened box 5"}]}},
+        {"t": t0 + 8.0, "seat": "p3", "kind": "open", "method": "POST", "status": 200, "ok": True, "request": {"box": 5}, "response": {"box": 5, "flag": True, "budget_left": 0}},
+    ]
+    write_olam_trial(t_rel, trial_name="relay3", seats=("p1", "p2", "p3"), events=rel_evs, reward=1.0, t0=t0, duration_s=15.0)
+    _write_custom_atif(t_rel / "seats" / "p1" / "agent" / "trajectory.json", "p1", [_mk_step(1, t0 + 2.0)])
+    _write_custom_atif(t_rel / "seats" / "p2" / "agent" / "trajectory.json", "p2", [_mk_step(1, t0 + 3.0)])
+    _write_custom_atif(t_rel / "seats" / "p3" / "agent" / "trajectory.json", "p3", [_mk_step(1, t0 + 5.0), _mk_step(2, t0 + 9.0)])
+    d_rel = analyze_trial_detectors(t_rel, "olam")
+    run.require(
+        "detectors/phase5-handoff-relay-claimlease-budget",
+        "multibox-handoff-zero-fps-and-claimlease-relay-budget-accurate",
+        d_mb["triggered"] == [] and d_bh["triggered"] == []
+        and {"claim_churn", "early_stop_with_budget", "dup_seen"} <= set(d_clt["triggered"])
+        and d_clt["detectors"]["claim_churn"]["seats"] == ["p1"] and d_clt["detectors"]["dup_seen"]["seats"] == ["p1"]
+        and d_rel["detectors"]["dup_seen"]["seats"] == ["p3"] and d_rel["detectors"]["dup_unseen"]["seats"] == ["p2"],
+    )
+
+
 def exercise_step_join(
     run: SimRun,
     root: Path,
@@ -474,6 +589,8 @@ def exercise_step_join(
     _exercise_causal_dups_and_batch(run, root / "cd")
     _exercise_empty_room_and_slow_report(run, root / "ex")
     _exercise_conditional_and_verify_rounds(run, root / "fp")
+    _exercise_phase5_probe_stepjoin(run, root / "p5_sj")
+    _exercise_phase5_detector_regressions(run, root / "p5_det")
     if capture_fn is not None:
         _exercise_cli_and_storyboard_xss(run, root, suite_dir, capture_fn)
     run.record("step_join", scale_info)

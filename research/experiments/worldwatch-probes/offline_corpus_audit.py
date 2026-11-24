@@ -482,7 +482,8 @@ def _build_storyboards(out_dir: Path, study_a: Mapping[str, Any], cache: dict[tu
         rep = run_storyboard(real_tdir, html_path=html_path, max_trials=1)
         html_txt, herr = read_regular_text(html_path, max_bytes=MAX_JSON_READ_BYTES)
         assert herr is None and html_txt is not None and len(html_txt) > 1_000
-        assert "default-src 'none'" in html_txt and "https://" not in html_txt and "http://" not in html_txt
+        shell_txt = re.sub(r'<script id="worldwatch-storyboard-data"[^>]*>.*?</script>|<div class="step-cmd">.*?</div>', "", html_txt, flags=re.S)
+        assert "default-src 'none'" in shell_txt and "https://" not in shell_txt and "http://" not in shell_txt
         tr0 = rep["trials"][0]
         built.append({
             "file": f"storyboards/{fname}", "html_bytes": len(html_txt.encode("utf-8")), "description": desc,

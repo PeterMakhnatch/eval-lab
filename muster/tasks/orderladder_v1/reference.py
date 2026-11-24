@@ -274,11 +274,15 @@ def _prove_traps_and_state_machine(config: dict) -> int:
     passed = 0
     for u_inst in instances(config, "ctrl_unblocked"):
         tok, (sa, sb, sc), tv1 = tokens(config, u_inst)["p1"], u_inst["dag_steps"], u_inst["token_v1"]
-        two_r = [("GET", "/msgs", tok, None), ("GET", "/stage", tok, None), ("GET", "/stage", tok, None), ("GET", "/msgs", tok, None)] + [("POST", "/stage", tok, {"stage": k, "step": stp, "prereq_token": tv1}) for k, stp in ((1, sa), (2, sb), (3, sc))]
-        _, res_2r = _run_custom_steps(u_inst, tok, two_r)
-        _, res_1r = _run_custom_steps(u_inst, tok, [("GET", "/stage?read=s1", tok, None), ("GET", "/stage?read=s1", tok, None), ("POST", "/stage", tok, {"stage": 1, "step": sa, "prereq_token": tv1})])
+        s_posts = [("POST", "/stage", tok, {"stage": k, "step": stp, "prereq_token": tv1}) for k, stp in ((1, sa), (2, sb), (3, sc))]
+        prep_call = [("POST", "/prepare", tok, {"ladder_id": u_inst["ladder_id"]})]
+        _, res_2r = _run_custom_steps(u_inst, tok, [("GET", "/msgs", tok, None), ("GET", "/stage", tok, None), ("GET", "/stage", tok, None), ("GET", "/msgs", tok, None)] + s_posts)
+        _, res_1r = _run_custom_steps(u_inst, tok, [("GET", "/stage?read=s1", tok, None), ("GET", "/stage?read=s1", tok, None), s_posts[0]])
+        _, res_0g = _run_custom_steps(u_inst, tok, prep_call + s_posts)
+        _, res_ns = _run_custom_steps(u_inst, tok, [("GET", "/rules", tok, None), ("GET", "/msgs", tok, None)] + prep_call + s_posts)
         assert res_2r["reward"] == 1.0 and res_1r["reward"] == 0.0 and res_1r["premature_violation"] == 1.0
-        passed += 2
+        assert all(r["completed_all_stages"] == 1.0 and r["interstage_checked"] == 0.0 and r["script_faithful"] == 1.0 and r["reward"] == 0.0 for r in (res_0g, res_ns))
+        passed += 4
     for cond in CONDITIONS:
         inst0 = instances(config, cond)[0]
         tok0, (sa0, sb0, sc0), tv1_0 = tokens(config, inst0)["p1"], inst0["dag_steps"], inst0["token_v1"]
@@ -286,12 +290,21 @@ def _prove_traps_and_state_machine(config: dict) -> int:
         _, snap_res = _run_custom_steps(inst0, tok0, snap_steps)
         assert snap_res["reward"] == (0.0 if cond == "trap_revoked_prereq" else 1.0) and snap_res["script_faithful"] == 1.0
         passed += 1
-    rv0 = instances(config, "trap_revoked_prereq")[0]
-    tok_rv, (sa_v, sb_v, sc_v) = tokens(config, rv0)["p1"], rv0["dag_steps"]
-    skip_inter = [("GET", "/stage", tok_rv, None), ("POST", "/stage", tok_rv, {"stage": 1, "step": sa_v, "prereq_token": rv0["token_v1"]}), ("GET", "/prereq", tok_rv, None), ("POST", "/stage", tok_rv, {"stage": 2, "step": sb_v, "prereq_token": rv0["token_v2"]}), ("POST", "/stage", tok_rv, {"stage": 3, "step": sc_v, "prereq_token": rv0["token_v2"]})]
-    _, res_skip = _run_custom_steps(rv0, tok_rv, skip_inter)
-    assert res_skip["completed_all_stages"] == 1.0 and res_skip["interstage_checked"] == 0.0 and res_skip["reward"] == 0.0
-    return passed + 1
+    for rv_inst in instances(config, "trap_revoked_prereq"):
+        tok_rv, (sa_v, sb_v, sc_v) = tokens(config, rv_inst)["p1"], rv_inst["dag_steps"]
+        s1_post = [("POST", "/stage", tok_rv, {"stage": 1, "step": sa_v, "prereq_token": rv_inst["token_v1"]})]
+        s2_post = [("POST", "/stage", tok_rv, {"stage": 2, "step": sb_v, "prereq_token": rv_inst["token_v2"]})]
+        s3_post = [("POST", "/stage", tok_rv, {"stage": 3, "step": sc_v, "prereq_token": rv_inst["token_v2"]})]
+        s1_ok = [("GET", "/stage?read=r1", tok_rv, None)] + s1_post + [("GET", "/msgs", tok_rv, None), ("GET", "/stage?read=r2", tok_rv, None), ("GET", "/prereq", tok_rv, None)] + s2_post
+        for bad_s2 in ([], [("GET", "/stage", tok_rv, None)], [("GET", "/msgs", tok_rv, None)], [("GET", "/msgs", tok_rv, None), ("GET", "/stage?read=r2", tok_rv, None)]):
+            _, res_b = _run_custom_steps(rv_inst, tok_rv, s1_ok + bad_s2 + s3_post)
+            assert res_b["completed_all_stages"] == 1.0 and res_b["interstage_checked"] == 0.0 and res_b["reward"] == 0.0
+        _, res_s1 = _run_custom_steps(rv_inst, tok_rv, [("GET", "/stage", tok_rv, None)] + s1_post + [("GET", "/prereq", tok_rv, None)] + s2_post + s3_post)
+        _, res_ok = _run_custom_steps(rv_inst, tok_rv, s1_ok + [("GET", "/msgs", tok_rv, None), ("GET", "/stage?read=r3", tok_rv, None)] + s3_post)
+        assert res_s1["completed_all_stages"] == 1.0 and res_s1["interstage_checked"] == 0.0 and res_s1["reward"] == 0.0
+        assert res_ok["completed_all_stages"] == 1.0 and res_ok["interstage_checked"] == 1.0 and res_ok["reward"] == 1.0
+        passed += 6
+    return passed
 
 
 def _prove_edges_and_rechain(config: dict) -> int:

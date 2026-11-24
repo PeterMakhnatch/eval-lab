@@ -173,6 +173,7 @@ class ClaimLease(World):
         self.tick = 0
         self.lease_reads = 0
         self.msg_reads = 0
+        self.saw_expired_on_leases = False
         self.collision_count = 0
         self.lock_violation_count = 0
         self.my_lease: dict[str, Any] | None = None
@@ -198,6 +199,7 @@ class ClaimLease(World):
         self.peer_released = False
         raw_rmsg = instance.get("peer_release_msg")
         self.peer_release_msg = dict(raw_rmsg) if isinstance(raw_rmsg, dict) else None
+        self.release_msg_sent = False
         self.slot_order = [str(s["slot"]) for s in instance["initial_slots"]]
         self.slots_by_id = {str(s["slot"]): dict(s) for s in instance["initial_slots"]}
         assert self.slot_order == [self.primary_slot, self.backup_slot, self.peer_slot]
@@ -255,8 +257,10 @@ class ClaimLease(World):
                 self._log(None, "script.round", "POST", None, 200, {
                     "transition": "peer_release", "actor": "p_peer", "slot": self.primary_slot, "lease_id": rel_lid, "tick": self.tick,
                 })
-                if self.peer_release_msg is not None:
-                    self._emit_scripted_msg(str(self.peer_release_msg["from"]), str(self.peer_release_msg["role"]), str(self.peer_release_msg["text"]))
+        msg_due = self.peer_release_at_tick if self.peer_release_at_tick is not None else 1
+        if self.peer_release_msg is not None and not self.release_msg_sent and self.tick >= msg_due:
+            self.release_msg_sent = True
+            self._emit_scripted_msg(str(self.peer_release_msg["from"]), str(self.peer_release_msg["role"]), str(self.peer_release_msg["text"]))
         for sid in self.slot_order:
             entry = self.slots_by_id[sid]
             if entry["status"] != "active":
@@ -316,7 +320,8 @@ class ClaimLease(World):
             return self._log(seat, kind, method, None, refusal.status, refusal.body)
         except Exception as error:
             return self._log(seat, kind, method, None, 500, {"error": f"world error: {type(error).__name__}"})
-        cand = {**result, "budget_left": int(left) - 1} if kind in self.budgets else result
+        rem = {k: max(0, b - self.used[seat].get(k, 0) - (1 if k == kind else 0)) for k, b in sorted(self.budgets.items())}
+        cand = {**result, "budget_left": rem} if kind in self.budgets else result
         if not _json_safe(cand, MAX_JSON_DEPTH, MAX_JSON_NODES, MAX_EVENT_BYTES):
             return self._log(seat, kind, method, None, 500, {"error": "world error: ResponseOverflow"})
         status_out, resp_out = self._log(seat, kind, method, body if method == "POST" else None, 200, cand)
@@ -375,7 +380,8 @@ class ClaimLease(World):
         assert seat == "p1"
         if not self.channel:
             raise Reject(404, "this world has no message channel")
-        self._advance_tick()
+        if self.tick < 1:
+            self._advance_tick()
         self.msg_reads += 1
         last_id = self.messages[-1]["id"] if self.messages else 0
         return {"tick": self.tick, "messages": [dict(m) for m in self.messages], "last_id": last_id}
@@ -384,6 +390,8 @@ class ClaimLease(World):
         assert seat == "p1"
         self._advance_tick()
         self.lease_reads += 1
+        if self.my_lease is None and self.slots_by_id[self.primary_slot]["status"] == "expired":
+            self.saw_expired_on_leases = True
         return {
             "task_id": self.task_id, "tick": self.tick, "lease_reads": self.lease_reads,
             "collisions_recorded": self.collision_count,
@@ -399,7 +407,7 @@ class ClaimLease(World):
             raise Reject(400, 'send JSON {"text": "..."} and nothing else')
         if not text.strip() or len(text) > MAX_MSG_CHARS or not _clean_str(text, MAX_MSG_CHARS):
             raise Reject(400, "text must be 1 to 500 clean characters")
-        reserved = 1 if (self.peer_release_at_tick is not None and not self.peer_released and self.peer_release_msg is not None) else 0
+        reserved = 1 if (self.peer_release_msg is not None and not self.release_msg_sent) else 0
         if len(self.messages) + reserved >= MAX_TOTAL_MSGS:
             raise Reject(429, "channel_full")
         msg = {"id": len(self.messages) + 1, "from": seat, "role": "operator", "text": text}
@@ -430,11 +438,13 @@ class ClaimLease(World):
             raise Reject(409, "seat_already_claimed")
         if entry["status"] == "expired" and not force_exp:
             self._reject_collision(409, "expired_lease_requires_force_expired", False, slot=slot, expired_lease_id=entry["lease_id"])
+        if force_exp and entry["status"] != "expired":
+            raise Reject(409, "slot_not_expired", slot=slot, lease_status=entry["status"])
         reclaimed, prev_lid = entry["status"] == "expired", entry["lease_id"]
         expires_at = self.tick + DEFAULT_CLAIM_TTL_TICKS
         entry["status"], entry["holder"], entry["lease_id"] = "active", "p1", self.p1_lease_id
         entry["acquired_at_tick"], entry["ttl_ticks"], entry["expires_at_tick"] = self.tick, DEFAULT_CLAIM_TTL_TICKS, expires_at
-        entry["heartbeat_active"] = True
+        entry["heartbeat_active"] = False
         self.my_lease = {
             "slot": slot, "lease_id": self.p1_lease_id, "status": "active",
             "acquired_at_tick": self.tick, "expires_at_tick": expires_at, "work_completed": False,

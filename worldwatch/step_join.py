@@ -27,25 +27,37 @@ from worldwatch.model import (
 DEFAULT_STEP_MARGIN_S = 0.5
 _MAX_STEPS = 100_000
 _MAX_SKEW_S = 86_400.0
+_MAX_SLEEP_S = 1e12
 _NUDGE_S = 1e-6
 _PREVIEW_LIMIT = 160
 
 _SCRIPTED_RE = re.compile(r"\b(?:for|while|until|do|xargs|seq|python3?|node|bash|sh)\b|\$\(")
 _SLEEP_RE = re.compile(r"\bsleep\s+([0-9]+(?:\.[0-9]+)?)\b")
 _TEXT_REQ_RE = re.compile(
-    r"/(msgs|new|dms|notices|msg|open|rules|mine|status|state|claim|claims|execute|verify|take|pledge|answer|report_value)\b"
+    r"/(verify_dependency|report_unknown|flag_misreport|submit_choice|ask_creditor|"
+    r"report_value|task_state|team_state|round_state|audit_log|final_probe|commit_round|"
+    r"msgs|new|dms|notices|msg|open|rules|mine|status|state|claim|claims|execute|"
+    r"verify|take|pledge|pledges|answer|stage|prereq|prepare|leases|work|release|drop|"
+    r"game|ledger)\b"
 )
 
-_OLAM_READ_KINDS = frozenset({"msgs", "new", "dms", "notices", "claims"})
+_OLAM_READ_KINDS = frozenset({
+    "msgs", "new", "dms", "notices", "claims",
+    "stage", "prereq", "leases", "state", "status",
+    "task_state", "team_state", "round_state", "audit_log",
+    "final_probe", "mine", "game", "pledges", "ledger",
+})
 _OLAM_MSG_KINDS = frozenset({"msg", "notice"})
 _OLAM_ACT_KINDS = frozenset({
     "open", "probe", "scan", "execute", "claim", "take", "pledge", "drop",
     "release", "contribute", "answer", "report_value", "submit_choice", "submit_answer", "finalize",
+    "stage", "prepare", "work", "verify_dependency", "report_unknown", "verify",
+    "flag_misreport", "commit_round",
 })
 _BESPOKE_SKIP_KINDS = frozenset({"config", "register", "subagent", "close"})
 _BESPOKE_READ_KINDS = frozenset({"inbox", "read"})
 _BESPOKE_MSG_KINDS = frozenset({"send", "post"})
-_BESPOKE_ACT_KINDS = frozenset({"guard_claim_granted", "edit", "write", "guard_claim_denied"})
+_BESPOKE_ACT_KINDS = frozenset({"guard_claim_granted", "edit", "write"})
 
 
 def _valid_seat(name: str) -> bool:
@@ -132,7 +144,12 @@ def _load_seat_steps(
         sid_raw = item.get("step_id")
         sid = sid_raw if isinstance(sid_raw, (int, str)) and not isinstance(sid_raw, bool) else idx + 1
         cmd = _extract_step_cmd(item)
-        sleep_s = sum(float(x) for x in _SLEEP_RE.findall(cmd) if finite_float(float(x)) is not None)
+        sleep_s = 0.0
+        for raw_sl in _SLEEP_RE.findall(cmd)[:1024]:
+            sl_v = finite_float(float(raw_sl))
+            if sl_v is not None and sl_v > 0.0:
+                sleep_s = min(_MAX_SLEEP_S, sleep_s + min(sl_v, _MAX_SLEEP_S))
+        assert math.isfinite(sleep_s)
         ep = ts_dt.timestamp()
         raw_epochs.append(ep)
         parsed.append({
@@ -169,7 +186,7 @@ def _olam_target_label(row: Mapping[str, Any]) -> str | None:
     if shared is not None:
         return sanitize_surrogates(shared)
     for container in (as_map(row.get("request")), as_map(row.get("response"))):
-        for key in ("room", "target", "resource", "item", "commitment_id"):
+        for key in ("room", "target", "resource", "item", "commitment_id", "slot", "stage"):
             val = container.get(key)
             if isinstance(val, (str, int)) and not isinstance(val, bool):
                 return sanitize_surrogates(f"{key}={val}")
@@ -191,11 +208,14 @@ def _extract_seat_events(
             mapped = facing_map.get(raw_ag, raw_ag) if isinstance(raw_ag, str) and raw_ag else None
             if mapped != seat:
                 continue
-            role = "read" if ev_kind in _BESPOKE_READ_KINDS else ("msg" if ev_kind in _BESPOKE_MSG_KINDS else ("act" if ev_kind in _BESPOKE_ACT_KINDS else "other"))
-            tgt_raw = row.get("prefix") or row.get("path")
             ok_val = row.get("ok") is not False and ev_kind not in ("refused", "guard_claim_denied", "guard_unread_block")
+            role = (
+                "read" if (ev_kind in _BESPOKE_READ_KINDS and ok_val)
+                else ("msg" if (ev_kind in _BESPOKE_MSG_KINDS and ok_val) else ("act" if (ev_kind in _BESPOKE_ACT_KINDS and ok_val) else "other"))
+            )
+            tgt_raw = row.get("prefix") or row.get("path")
             out.append({
-                "seq": idx, "kind": sanitize_surrogates(ev_kind), "method": "GET" if role == "read" else "POST",
+                "seq": idx, "kind": sanitize_surrogates(ev_kind), "method": "GET" if ev_kind in _BESPOKE_READ_KINDS else "POST",
                 "ok": ok_val, "t": _event_epoch(row), "role": role,
                 "target": sanitize_surrogates(str(tgt_raw)) if isinstance(tgt_raw, str) and tgt_raw else None,
             })
@@ -211,7 +231,7 @@ def _extract_seat_events(
         ok_val = row.get("ok") is True
         role = (
             "read" if (method == "GET" and kind in _OLAM_READ_KINDS and ok_val)
-            else ("msg" if (method == "POST" and kind in _OLAM_MSG_KINDS) else ("act" if (method == "POST" and kind in _OLAM_ACT_KINDS) else "other"))
+            else ("msg" if (method == "POST" and kind in _OLAM_MSG_KINDS and ok_val) else ("act" if (method == "POST" and kind in _OLAM_ACT_KINDS and ok_val) else "other"))
         )
         out.append({
             "seq": seq, "kind": sanitize_surrogates(kind), "method": sanitize_surrogates(method),
@@ -423,7 +443,6 @@ def _join_single_seat(
             joined = True
     if not joined:
         fail_reason = "unmatched_events" if out0 else "non_agent_step_event"
-        _populate_step_events(steps, bounds, seat_evs, pl0, 0.0, margin_s)
         return _make_seat_dict(seat_info, traj_rel, False, fail_reason, 0.0, None, None, False, 0, steps, m0, total_evs - m0)
     edges = _populate_step_events(steps, bounds, seat_evs, chosen_pl, chosen_off, margin_s)
     b_max, same_ra, r_before, u_ratio, txt_dis = _compute_step_rollups(steps, seat_evs, chosen_pl, ecosystem)
@@ -466,9 +485,10 @@ def join_trial_steps(
         evs = events
     seat_reports = [_join_single_seat(tdir, ecosystem, clean_margin, s_info, bun, evs) for s_info in bun.seats]
     joined, status, zero_all = _classify_trial_join(seat_reports)
+    under_reports = [s for s in seat_reports if s["under_test"]] or seat_reports
     summary = {
-        "batch_opens_max": max((int(s["batch_opens_max"]) for s in seat_reports), default=0),
-        "read_and_act_same_step": sum(int(s["read_and_act_same_step"]) for s in seat_reports),
+        "batch_opens_max": max((int(s["batch_opens_max"]) for s in under_reports), default=0),
+        "read_and_act_same_step": sum(int(s["read_and_act_same_step"]) for s in under_reports),
         "edge_events": sum(int(s["edge_events"]) for s in seat_reports),
         "zero_offset_ok_all": zero_all,
         "events_matched": sum(int(s["events_matched"]) for s in seat_reports),

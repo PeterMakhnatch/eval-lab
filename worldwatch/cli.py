@@ -107,6 +107,7 @@ def _configure_tail(sub: argparse.ArgumentParser) -> None:
     sub.add_argument("target", type=Path, help="Harbor/Muster/Bespoke job or trial directory")
     sub.add_argument("--interval", type=_pos_float, default=2.0, help="poll interval seconds")
     sub.add_argument("--once", action="store_true", help="poll once deterministically and exit")
+    sub.add_argument("--follow", action="store_true", help="keep polling across multi-arm gaps until critical/STOP")
     sub.add_argument("--stall-seconds", type=_pos_float, default=DEFAULT_STALL_SECONDS)
     sub.add_argument("--alerts", type=Path, default=None, help="append deduplicated NDJSON alerts")
     sub.add_argument("--html", type=Path, default=None, help="atomic dark-theme HTML dashboard path")
@@ -132,6 +133,7 @@ def _cmd_tail(args: argparse.Namespace) -> int:
         engine,
         once=args.once,
         interval=args.interval,
+        follow=args.follow,
         now=args.now,
         fail_on_alert=args.fail_on_alert,
     )

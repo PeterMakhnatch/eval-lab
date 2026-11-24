@@ -32,6 +32,7 @@ _CHANNEL_KINDS = frozenset({
     "pledges",
     "claim",
     "claims",
+    "release",
     "rules",
     "status",
     "health",
@@ -237,7 +238,7 @@ def detect_dup_unseen_events(
         return _detect_bespoke_dup_unseen(events, facing_map)
     seen_msgs: dict[str, set[int]] = {}
     posts_by_seat: dict[str, list[tuple[int, int]]] = {}
-    first_by_target: dict[str, tuple[str, int]] = {}
+    priors_by_target: dict[str, list[tuple[str, int]]] = {}
     dup_seats: list[str] = []
     hits = 0
     for idx, row in enumerate(events, start=1):
@@ -269,15 +270,19 @@ def detect_dup_unseen_events(
         target = shared_action_target(row)
         if target is None:
             continue
-        prior = first_by_target.get(target)
-        if prior is None:
-            first_by_target[target] = (seat, seq)
+        priors = priors_by_target.get(target)
+        if not priors:
+            priors_by_target[target] = [(seat, seq)]
             continue
-        first_seat, first_seq = prior
-        if first_seat == seat:
+        if any(a_seat == seat for a_seat, _ in priors):
             continue
         read_ids = seen_msgs.get(seat, set())
-        informed = any(p_seq > first_seq and mid in read_ids for p_seq, mid in posts_by_seat.get(first_seat, ()))
+        informed = any(
+            p_seq > a_seq and mid in read_ids
+            for a_seat, a_seq in priors
+            for p_seq, mid in posts_by_seat.get(a_seat, ())
+        )
+        priors.append((seat, seq))
         if not informed:
             hits += 1
             if seat not in dup_seats:
@@ -291,15 +296,18 @@ def _detect_bespoke_dup_unseen(
 ) -> tuple[int, list[str]]:
     seen_seqs: dict[str, set[int]] = {}
     posts_by_seat: dict[str, list[int]] = {}
-    owner_by_prefix: dict[str, tuple[str, int]] = {}
+    owner_by_prefix: dict[str, list[str]] = {}
     hits = 0
     dup_seats: list[str] = []
-    for idx, row in enumerate(events, start=1):
+    for row in events:
         ev = str(row.get("event") or "")
+        if ev == "close":
+            break
         seat = _event_seat(row, "bespoke", facing_map)
         if seat is None:
             continue
         b_seq = strict_int(row.get("seq"))
+        pref = str(row.get("prefix") or row.get("path") or "")
         if ev in ("send", "post") and b_seq is not None:
             posts_by_seat.setdefault(seat, []).append(b_seq)
         elif ev in ("inbox", "read"):
@@ -308,18 +316,22 @@ def _detect_bespoke_dup_unseen(
                 si = strict_int(s)
                 if si is not None:
                     bucket.add(si)
-        elif ev in ("guard_claim_granted", "edit", "write") and isinstance(row.get("prefix") or row.get("path"), str):
-            pref = str(row.get("prefix") or row.get("path"))
-            owner_by_prefix.setdefault(pref, (seat, idx))
-        elif ev == "guard_claim_denied" and isinstance(row.get("prefix"), str):
-            pref = str(row["prefix"])
-            prior = owner_by_prefix.get(pref)
-            if prior is not None and prior[0] != seat:
-                read_s = seen_seqs.get(seat, set())
-                if not any(s in read_s for s in posts_by_seat.get(prior[0], ())):
-                    hits += 1
-                    if seat not in dup_seats:
-                        dup_seats.append(seat)
+        elif ev == "guard_claim_released" and pref:
+            owner_by_prefix.pop(pref, None)
+        elif ev in ("guard_claim_granted", "edit", "write", "guard_claim_denied") and pref:
+            holders = owner_by_prefix.get(pref)
+            if not holders:
+                if ev != "guard_claim_denied":
+                    owner_by_prefix[pref] = [seat]
+                continue
+            if seat in holders:
+                continue
+            read_s = seen_seqs.get(seat, set())
+            if not any(s in read_s for h in holders for s in posts_by_seat.get(h, ())):
+                hits += 1
+                if seat not in dup_seats:
+                    dup_seats.append(seat)
+            holders.append(seat)
     return hits, dup_seats
 
 
@@ -335,8 +347,10 @@ def detect_claim_churn_events(
         seat = _event_seat(row, ecosystem, facing_map)
         if ecosystem == "bespoke":
             ev = str(row.get("event") or "")
+            if ev == "close":
+                break
             pref = str(row.get("prefix") or "")
-            if ev in ("guard_claim_granted", "guard_claim_released", "guard_claim_denied"):
+            if ev in ("guard_claim_granted", "guard_claim_denied"):
                 if pref:
                     target_touches[pref] = target_touches.get(pref, 0) + 1
                 if ev == "guard_claim_denied":
@@ -345,9 +359,19 @@ def detect_claim_churn_events(
                     seats_hit.append(seat)
         else:
             kind = str(row.get("kind") or "")
-            req = as_map(row.get("request"))
-            if kind in ("claim", "release"):
-                tgt = str(req.get("target") or req.get("resource") or req.get("box") or req.get("item") or kind)
+            if kind == "admin.close" and row.get("ok"):
+                break
+            req, resp = as_map(row.get("request")), as_map(row.get("response"))
+            err_s = str(resp.get("error") or "").lower()
+            is_work_lock = kind == "work" and not row.get("ok") and any(
+                tok in err_s for tok in ("lease_not_owned", "lock_violation", "lease_expired")
+            )
+            if kind == "claim" or is_work_lock:
+                tgt = str(
+                    req.get("target") or req.get("resource") or req.get("slot") or req.get("box") or req.get("item")
+                    or resp.get("target") or resp.get("resource") or resp.get("slot") or resp.get("box") or resp.get("item")
+                    or kind
+                )
                 target_touches[tgt] = target_touches.get(tgt, 0) + 1
                 if not row.get("ok"):
                     denied += 1

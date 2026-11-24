@@ -393,6 +393,27 @@ def _build_olam_seats(
     )
 
 
+def _bespoke_seat_artifacts(
+    trial_dir: Path, agent_root: Path, slot: str, facing: str, n_slots: int, raw_exit: Any, is_lost: bool
+) -> tuple[AtifSummary | None, int | None, str | None]:
+    if not _valid_seat_token(slot):
+        return None, None, f"invalid seat name {slot[:24]!r}"
+    cands = [agent_root / slot / "trajectory.json"]
+    if facing != slot and _valid_seat_token(facing):
+        cands.append(agent_root / facing / "trajectory.json")
+    if n_slots == 1:
+        cands.append(agent_root / "trajectory.json")
+    chosen = next((c for c in cands if os.path.lexists(c)), cands[0])
+    atif = read_atif_summary(chosen, root=trial_dir)
+    ec, eerr = parse_bespoke_exit(raw_exit, is_lost)
+    if ec is None and eerr is None:
+        for adir in [c.parent for c in cands]:
+            ec, eerr = _read_exit_code(adir, root=trial_dir)
+            if ec is not None or eerr is not None:
+                break
+    return atif, ec, eerr
+
+
 def _build_bespoke_seats(
     trial_dir: Path,
     result: Mapping[str, Any],
@@ -413,13 +434,9 @@ def _build_bespoke_seats(
         facing_to_seat[facing] = slot
         entry = _as_dict(agents_meta.get(slot))
         is_lost = slot in lost_set or facing in lost_set
-        if _valid_seat_token(slot):
-            atif = read_atif_summary(agent_root / slot / "trajectory.json", root=trial_dir)
-            ec, eerr = parse_bespoke_exit(entry.get("exit"), is_lost)
-            if ec is None and eerr is None:
-                ec, eerr = _read_exit_code(agent_root / slot, root=trial_dir)
-        else:
-            atif, ec, eerr = None, None, f"invalid seat name {slot[:24]!r}"
+        atif, ec, eerr = _bespoke_seat_artifacts(
+            trial_dir, agent_root, slot, facing, len(slots), entry.get("exit"), is_lost
+        )
         steps = atif.agent_steps if atif and atif.problem is None else 0
         harness, is_mod, seat_exc = classify_bespoke_seat_attrs(
             entry, ag_top, ec, eerr, is_lost, time_up, steps

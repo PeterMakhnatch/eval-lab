@@ -309,6 +309,7 @@ def _eval_openrouter_key(
 ) -> dict[str, Any]:
     data = as_map(key_snap.get("data")) if isinstance(key_snap.get("data"), Mapping) else as_map(key_snap)
     raw_rem, raw_lim, raw_use = data.get("limit_remaining"), data.get("limit"), data.get("usage")
+    raw_eff = as_map(data.get("effective_budget")).get("remaining_usd")
     lim_val = finite_float(raw_lim) if raw_lim is not None else None
     use_val = finite_float(raw_use) if raw_use is not None else None
     if raw_lim is not None and (lim_val is None or lim_val < 0.0):
@@ -327,8 +328,15 @@ def _eval_openrouter_key(
         capped = True
         if lim_val is not None and (raw_use is None or use_val is not None):
             rem_val = round(lim_val - (use_val or 0.0), 6)
-    elif not any(k in data for k in ("usage", "label", "is_free_tier", "limit", "limit_remaining")):
+    elif raw_eff is None and not any(k in data for k in ("usage", "label", "is_free_tier", "limit", "limit_remaining", "effective_budget")):
         findings.append(make_finding("openrouter-key-invalid", "empty or unrecognized OpenRouter key payload"))
+    if raw_eff is not None:
+        eff_val = finite_float(raw_eff)
+        if eff_val is None:
+            findings.append(make_finding("openrouter-key-invalid", "non-finite effective_budget.remaining_usd in key snapshot"))
+        else:
+            capped = True
+            rem_val = eff_val if rem_val is None else min(rem_val, eff_val)
     if capped and rem_val is not None and (rem_val <= 0.0 or rem_val < min_key_usd):
         msg = f"OpenRouter per-key limit_remaining ${rem_val:.6f} is exhausted or below min_key_usd ${min_key_usd:.2f}"
         findings.append(make_finding("openrouter-key-limit-low", msg))

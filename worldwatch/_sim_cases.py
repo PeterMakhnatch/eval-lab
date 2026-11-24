@@ -1,27 +1,36 @@
 from __future__ import annotations
 
+import base64
+import hashlib
 import math
 import os
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 from random import Random
 from typing import Any
 
+from worldwatch._io import check_no_symlink_ancestors, discover_trials
 from worldwatch._sim_step_join import (
     inject_extra_detector_events,
     write_extra_detector_trajectories,
 )
-from worldwatch.model import DETECTOR_NAMES, parse_strict_json
+from worldwatch.detectors import analyze_trial_detectors
+from worldwatch.model import DETECTOR_NAMES, parse_iso_utc, parse_strict_json, stamp_utc
+from worldwatch.preflight import run_preflight
+from worldwatch.render import to_json
 from worldwatch.sim_fixture import (
     encode_jsonl,
     iso_at,
     seal_chain,
+    write_atif,
     write_bespoke_trial,
     write_olam_trial,
     write_synthetic_family,
 )
+from worldwatch.storyboard import run_storyboard
 from worldwatch.stream import TailEngine, run_tail_loop
 from worldwatch.validity import fisher_exact_two_sided
 
@@ -328,6 +337,160 @@ def _inject_malformed_proxy(px_path: Path, kind: str, t0: float, agent: str) -> 
         px_path.write_bytes(encode_jsonl(tampered))
 
 
+def _exercise_tail_follow_io_and_preflight(
+    run: SimRun,
+    root: Path,
+    capture_fn: Callable[[list[str]], tuple[int, str, str, str]],
+) -> None:
+    t0 = 1_770_450_000.0
+    p5 = root / "p5_tail"
+    write_olam_trial(p5 / "arm1" / "t_done", trial_name="t_done", seats=("p1",), reward=1.0, finished=True, t0=t0, cost_per_seat=1.0)
+    sleeps_def: list[float] = []
+    _, rc_def = run_tail_loop(TailEngine(p5), once=False, interval=2.0, max_ticks=4, sleep_fn=sleeps_def.append)
+    stop_txt_p = root / "plain_STOP"
+    sleeps_fol: list[float] = []
+
+    def on_sleep(sec: float) -> None:
+        sleeps_fol.append(sec)
+        if len(sleeps_fol) == 2:
+            stop_txt_p.write_text("operator halt\n", encoding="utf-8")
+
+    rep_fol, rc_fol = run_tail_loop(
+        TailEngine(p5, stop_file=stop_txt_p), once=False, interval=2.0, follow=True, max_ticks=5, sleep_fn=on_sleep
+    )
+    rep_keep = TailEngine(p5, max_cost_usd=0.10, stop_file=stop_txt_p).poll(datetime.fromtimestamp(t0 + 20.0, UTC))
+    rc_cli_f, _, _, exc_f = capture_fn(["tail", str(p5), "--follow", "--stop-file", str(stop_txt_p)])
+    run.require(
+        "tail/follow-and-plain-stop",
+        "follow-polls-past-finished-and-honors-preserves-plain-stop",
+        rc_def == 0 and not sleeps_def and rc_fol == 1 and len(sleeps_fol) == 2 and rep_fol["stopped"] is True
+        and rep_keep["stopped"] is True and stop_txt_p.read_text(encoding="utf-8") == "operator halt\n"
+        and rc_cli_f == 1 and not exc_f,
+    )
+    tz_p5 = timezone(timedelta(hours=5))
+    run.require(
+        "model/iso-overflow",
+        "boundary-iso-and-stamp-return-none-without-overflow",
+        parse_iso_utc("0001-01-01T00:00:00+05:00") is None
+        and parse_iso_utc("9999-12-31T23:59:59-05:00") is None
+        and stamp_utc(datetime(1, 1, 1, 0, 0, tzinfo=tz_p5)) is None,
+    )
+    merged = root / "merged_arm"
+    merged.mkdir(parents=True, exist_ok=True)
+    os.symlink(p5 / "arm1" / "t_done", merged / "t_done")
+    os.symlink(root, merged / "not_a_trial")
+    disc_m = discover_trials(merged)
+    dotdot_err = check_no_symlink_ancestors(root / "a" / ".." / "b", root=root)
+    eff_snap = {"data": {"limit": None, "limit_remaining": None, "usage": 5.0, "effective_budget": {"remaining_usd": 0.25}}}
+    cred_snap = {"data": {"total_credits": 20.0, "total_usage": 5.0}}
+    rep_eff, rc_eff = run_preflight([], min_key_usd=1.0, min_account_usd=4.5, key_snapshot=eff_snap, credits_snapshot=cred_snap)
+    run.require(
+        "io-preflight/merged-dotdot-effbudget",
+        "merged-symlink-discovered-dotdot-rejected-and-effbudget-enforced",
+        len(disc_m) == 1 and disc_m[0][0] == (p5 / "arm1" / "t_done").resolve()
+        and dotdot_err is not None and rc_eff == 1
+        and "openrouter-key-limit-low" in {f["code"] for f in rep_eff["findings"]},
+    )
+
+
+def _exercise_storyboard_budget_and_csp(run: SimRun, root: Path) -> None:
+    t0 = 1_770_460_000.0
+    sb_dir = root / "sb_scale"
+    n_tr, n_st, n_sp = (8, 48, 16) if run.seed in (0, 2) else (2, 12, 4)
+    seats_k = tuple(f"p{i}" for i in range(1, n_st + 1))
+    for ti in range(n_tr):
+        tdir = sb_dir / f"tr_{ti:02d}"
+        evs = [
+            {"t": t0 + 1.0 + si * 2.0 + k * 0.02, "seat": seats_k[k % n_st], "kind": "open", "method": "POST", "status": 200, "ok": True, "request": {"box": k + 1}, "response": {"box": k + 1, "flag": True, "budget_left": 0}}
+            for si in range(n_sp) for k in range(20)
+        ]
+        write_olam_trial(tdir, trial_name=f"tr_{ti:02d}", seats=seats_k, events=evs, reward=0.5, t0=t0, duration_s=45.0)
+        for s in seats_k:
+            write_atif(tdir / "seats" / s / "agent" / "trajectory.json", seat=s, t0=t0, steps=n_sp, complete=True)
+    seats_66 = tuple(f"p{i}" for i in range(1, 67))
+    write_olam_trial(sb_dir / "tr_wide66", trial_name="tr_wide66", seats=seats_66, events=[], reward=0.0, no_model=True, t0=t0)
+    html_all = root / "sb_all.html"
+    rep_all = run_storyboard(sb_dir, html_path=html_all, max_trials=64)
+    js_all = to_json(rep_all)
+    html_lim = root / "sb_lim.html"
+    run_storyboard(sb_dir, html_path=html_lim, max_trials=2)
+    txt_all = html_all.read_text(encoding="utf-8")
+    txt_lim = html_lim.read_text(encoding="utf-8")
+    csp_m = re.search(r'<meta http-equiv="Content-Security-Policy" content="([^"]+)">', txt_all)
+    csp_val = csp_m.group(1) if csp_m else ""
+    scripts = re.findall(r"<script(?![^>]*type=)[^>]*>(.*?)</script>", txt_all, flags=re.S)
+    js_hash = base64.b64encode(hashlib.sha256(scripts[0].encode("utf-8")).digest()).decode("ascii") if len(scripts) == 1 else ""
+    run.require(
+        "storyboard/scale-notices-and-csp-sha256",
+        "multiseat-json-bounded-seat-notice-and-exact-js-sha256",
+        len(js_all) > 100
+        and "Showing 64 of 66 seats" in txt_all
+        and "limited to top 2" in txt_lim and "clamped to max 64" not in txt_lim
+        and "base-uri 'none'" in csp_val and "form-action 'none'" in csp_val
+        and "script-src 'unsafe-inline'" not in csp_val
+        and bool(js_hash) and f"script-src 'sha256-{js_hash}'" in csp_val,
+    )
+
+
+    r1_dir = root / "rsize1_and_404"
+    r1_evs = [
+        {"t": t0 + 1.0, "seat": "p2", "kind": "open", "method": "POST", "status": 200, "ok": True, "request": {"box": 1}, "response": {"box": 1, "room": 1, "room_size": 1, "flag": False, "budget_left": 0}},
+        {"t": t0 + 1.2, "seat": "p2", "kind": "msg", "method": "POST", "status": 200, "ok": True, "request": {"text": '{"box": 1, "flag": false}'}, "response": {"id": 1}},
+        {"t": t0 + 2.0, "seat": "p1", "kind": "msgs", "method": "GET", "status": 200, "ok": True, "request": None, "response": {"messages": [{"id": 1, "from": "p2", "text": '{"box": 1, "flag": false}'}]}},
+        {"t": t0 + 3.0, "seat": "p1", "kind": "open", "method": "POST", "status": 200, "ok": True, "request": {"box": 1}, "response": {"box": 1, "room": 1, "room_size": 1, "flag": False, "budget_left": 0}},
+    ]
+    write_olam_trial(r1_dir / "r1", trial_name="r1", seats=("p1", "p2"), events=r1_evs, reward=1.0, no_model=True, t0=t0)
+    nch_evs = [
+        {"t": t0 + 0.5, "seat": "p1", "kind": "msg", "method": "POST", "status": 404, "ok": False, "request": None, "response": {"error": "no message channel"}},
+        *[{"t": t0 + 1.0 + i, "seat": "p1", "kind": "open", "method": "POST", "status": 200, "ok": True, "request": {"box": i + 1}, "response": {"box": i + 1, "flag": True, "budget_left": 0}} for i in range(4)],
+        {"t": t0 + 6.0, "seat": "p2", "kind": "open", "method": "POST", "status": 200, "ok": True, "request": {"box": 9}, "response": {"box": 9, "flag": True, "budget_left": 0}},
+    ]
+    write_olam_trial(r1_dir / "nch", trial_name="nch", seats=("p1", "p2"), events=nch_evs, reward=1.0, no_model=True, t0=t0)
+    ol_h_evs = [
+        {"t": t0 + 1.0, "seat": "p1", "kind": "claim", "method": "POST", "status": 200, "ok": True, "request": {"slot": "s1"}, "response": {"slot": "s1"}},
+        {"t": t0 + 2.0, "seat": "p1", "kind": "release", "method": "POST", "status": 200, "ok": True, "request": {"slot": "s1"}, "response": {"slot": "s1"}},
+        {"t": t0 + 3.0, "seat": "p2", "kind": "claim", "method": "POST", "status": 200, "ok": True, "request": {"slot": "s1"}, "response": {"slot": "s1"}},
+        {"t": t0 + 4.0, "seat": "p2", "kind": "release", "method": "POST", "status": 200, "ok": True, "request": {"slot": "s1"}, "response": {"phase": "completed"}},
+    ]
+    write_olam_trial(r1_dir / "ol_h", trial_name="ol_h", seats=("p1", "p2"), events=ol_h_evs, reward=1.0, no_model=True, t0=t0)
+    run.require(
+        "detectors/rsize1-nochannel-and-olam-handoff",
+        "rsize1-fires-empty-room-404-suppresses-slow-report-and-handoff-clean",
+        "empty_room_open" in analyze_trial_detectors(r1_dir / "r1", "olam")["triggered"]
+        and "slow_report" not in analyze_trial_detectors(r1_dir / "nch", "olam")["triggered"]
+        and analyze_trial_detectors(r1_dir / "ol_h", "olam")["triggered"] == [],
+    )
+
+
+def _exercise_early_stop_exclusive_budgets(run: SimRun, root: Path) -> None:
+    t0 = 1_770_480_000.0
+    st_ok = root / "st_exec"
+    write_olam_trial(st_ok, trial_name="st_exec", seats=("p1",), events=[
+        {"t": t0 + 1.0, "seat": "p1", "kind": "rules", "method": "GET", "status": 200, "ok": True, "request": None, "response": {"budget_left": {"ask_creditor": 1, "drop": 1, "execute": 1}}},
+        {"t": t0 + 2.0, "seat": "p1", "kind": "ask_creditor", "method": "POST", "status": 200, "ok": True, "request": {}, "response": {"budget_left": 0}},
+        {"t": t0 + 3.0, "seat": "p1", "kind": "execute", "method": "POST", "status": 200, "ok": True, "request": {}, "response": {"budget_left": 0}},
+    ], reward=0.8, no_model=True, t0=t0)
+    st_stop = root / "st_stop"
+    write_olam_trial(st_stop, trial_name="st_stop", seats=("p1",), events=[
+        {"t": t0 + 1.0, "seat": "p1", "kind": "rules", "method": "GET", "status": 200, "ok": True, "request": None, "response": {"budget_left": {"ask_creditor": 1, "drop": 1, "execute": 1}}},
+        {"t": t0 + 2.0, "seat": "p1", "kind": "ask_creditor", "method": "POST", "status": 200, "ok": True, "request": {}, "response": {"budget_left": 0}},
+    ], reward=0.0, no_model=True, t0=t0)
+    ord_ok = root / "ord_ok"
+    write_olam_trial(ord_ok, trial_name="ord_ok", seats=("p1",), events=[
+        {"t": t0 + 1.0, "seat": "p1", "kind": "rules", "method": "GET", "status": 200, "ok": True, "request": None, "response": {"budget_left": {"msg": 12, "prepare": 1, "stage": 3}}},
+        {"t": t0 + 2.0, "seat": "p1", "kind": "stage", "method": "POST", "status": 200, "ok": True, "request": {"stage": 1}, "response": {"budget_left": 2}},
+        {"t": t0 + 3.0, "seat": "p1", "kind": "stage", "method": "POST", "status": 200, "ok": True, "request": {"stage": 2}, "response": {"budget_left": 1}},
+        {"t": t0 + 4.0, "seat": "p1", "kind": "stage", "method": "POST", "status": 200, "ok": True, "request": {"stage": 3}, "response": {"budget_left": 0}},
+    ], reward=0.5, no_model=True, t0=t0)
+    run.require(
+        "detectors/early-stop-exclusive-and-optional-budgets",
+        "execute-clears-drop-optional-ignored-and-incomplete-fires",
+        "early_stop_with_budget" not in analyze_trial_detectors(st_ok, "olam")["triggered"]
+        and "early_stop_with_budget" in analyze_trial_detectors(st_stop, "olam")["triggered"]
+        and "early_stop_with_budget" not in analyze_trial_detectors(ord_ok, "olam")["triggered"],
+    )
+
+
 def exercise_bespoke_and_malformed(
     run: SimRun,
     root: Path,
@@ -377,4 +540,7 @@ def exercise_bespoke_and_malformed(
         clock_fn=lambda: datetime.fromtimestamp(clock_ticks.pop(0) if clock_ticks else t0 + 40.0, UTC),
     )
     run.require("tail/loop", "halts-immediately-on-critical", loop_rc == 1 and not sleeps and loop_rep["critical_alerts"] >= 1)
+    _exercise_tail_follow_io_and_preflight(run, root / "p5_io", capture_fn)
+    _exercise_storyboard_budget_and_csp(run, root / "p5_sb")
+    _exercise_early_stop_exclusive_budgets(run, root / "p5_eb")
     run.record("bespoke", {"malformed": malformed_kind, "trig": sorted(b_trig)})

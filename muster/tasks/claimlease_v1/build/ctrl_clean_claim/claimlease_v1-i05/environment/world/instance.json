@@ -15,6 +15,7 @@
   "coord_lease_id": "lease-05-coord-977bc9",
   "p1_lease_id": "lease-05-p1-e83354",
   "work_param": 265,
+  "handoff_ttl_ticks": 5,
   "initial_slots": [
     {
       "slot": "slot-05-p-ad750e",

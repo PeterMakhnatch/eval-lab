@@ -39,11 +39,17 @@ class FileStatBytes:
 
 def check_no_symlink_ancestors(path: Path, root: Path | None = None) -> str | None:
     target = Path(path)
+    if ".." in target.parts:
+        return f"{target.name or str(target)} contains '..'"
     if root is not None:
         base = Path(root)
+        if ".." in base.parts:
+            return f"{base.name or str(base)} contains '..'"
         try:
             rel_parts = target.relative_to(base).parts
         except ValueError:
+            return f"{target.name} escapes root"
+        if ".." in rel_parts:
             return f"{target.name} escapes root"
         cur = base
         for part in rel_parts[:-1]:
@@ -427,14 +433,31 @@ def classify_trial_dir(directory: Path) -> str | None:
     return None
 
 
+def _resolve_symlink_trial(entry_path: Path) -> tuple[Path, str] | None:
+    try:
+        real = entry_path.resolve(strict=True)
+    except (OSError, RuntimeError):
+        return None
+    if not os.path.isdir(real) or os.path.islink(real) or real.name.endswith(".checkpoints"):
+        return None
+    if check_no_symlink_ancestors(real) is not None:
+        return None
+    kind = classify_trial_dir(real)
+    return (real, kind) if kind is not None else None
+
+
 def discover_trials(root: Path) -> list[tuple[Path, str]]:
     base = Path(root)
+    if os.path.islink(base):
+        sym_hit = _resolve_symlink_trial(base)
+        return [sym_hit] if sym_hit is not None else []
     if not os.path.isdir(base) or base.name.endswith(".checkpoints"):
         return []
     direct = classify_trial_dir(base)
     if direct is not None:
         return [(base, direct)]
     found: list[tuple[Path, str]] = []
+    seen_real: set[Path] = set()
     stack: list[tuple[Path, int]] = [(base, 0)]
     visited = 0
     while stack:
@@ -444,27 +467,45 @@ def discover_trials(root: Path) -> list[tuple[Path, str]]:
         if current != base:
             kind = classify_trial_dir(current)
             if kind is not None:
-                found.append((current, kind))
-                if len(found) >= MAX_TRIALS:
-                    break
+                try:
+                    real_cur = current.resolve()
+                except OSError:
+                    real_cur = current
+                if real_cur not in seen_real:
+                    seen_real.add(real_cur)
+                    found.append((current, kind))
+                    if len(found) >= MAX_TRIALS:
+                        break
                 continue
         if depth >= _MAX_WALK_DEPTH:
             continue
         try:
-            children = sorted(
+            entries = sorted(
                 (
-                    Path(entry.path)
+                    entry
                     for entry in os.scandir(current)
                     if not entry.name.startswith(".")
                     and entry.name != "__pycache__"
                     and not entry.name.endswith(".checkpoints")
-                    and entry.is_dir(follow_symlinks=False)
                 ),
-                reverse=True,
+                key=lambda item: item.name,
             )
         except OSError:
             continue
-        for child in children:
+        dirs_next: list[Path] = []
+        for entry in entries:
+            if entry.is_symlink():
+                sym_trial = _resolve_symlink_trial(Path(entry.path))
+                if sym_trial is not None and sym_trial[0] not in seen_real:
+                    seen_real.add(sym_trial[0])
+                    found.append(sym_trial)
+                    if len(found) >= MAX_TRIALS:
+                        break
+            elif entry.is_dir(follow_symlinks=False):
+                dirs_next.append(Path(entry.path))
+        if len(found) >= MAX_TRIALS:
+            break
+        for child in reversed(dirs_next):
             stack.append((child, depth + 1))
     found.sort(key=lambda item: (item[0].name, str(item[0])))
     assert len(found) <= MAX_TRIALS

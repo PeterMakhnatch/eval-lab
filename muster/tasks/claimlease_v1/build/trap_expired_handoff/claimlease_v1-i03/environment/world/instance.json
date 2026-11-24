@@ -15,6 +15,7 @@
   "coord_lease_id": "lease-03-coord-01398c",
   "p1_lease_id": "lease-03-p1-bf7884",
   "work_param": 636,
+  "handoff_ttl_ticks": 6,
   "initial_slots": [
     {
       "slot": "slot-03-p-47aec4",
@@ -24,8 +25,8 @@
       "holder": "p_peer",
       "lease_id": "lease-03-peer-3164d5",
       "acquired_at_tick": 0,
-      "ttl_ticks": 4,
-      "expires_at_tick": 4,
+      "ttl_ticks": 6,
+      "expires_at_tick": 6,
       "heartbeat_active": false,
       "released_by": null,
       "released_at_tick": null,
@@ -72,12 +73,12 @@
     {
       "from": "p_coord",
       "role": "coordinator",
-      "text": "[task-03-a47d2c] Lease coordinator online (index-rebuild): candidate slots primary=slot-03-p-47aec4, backup=slot-03-b-b79aab, work_param=636. Check authoritative GET /leases before claiming; prefer slot-03-p-47aec4 whenever free, released, or reclaimable after logical expiry. Backup slot slot-03-b-b79aab is under active coordinator hold lease-03-coord-01398c."
+      "text": "[task-03-a47d2c] Lease coordinator online (index-rebuild): candidate slots primary=slot-03-p-47aec4, backup=slot-03-b-b79aab, work_param=636. Check authoritative GET /leases before claiming; prefer slot-03-p-47aec4 whenever free, released, or reclaimable after logical expiry."
     },
     {
       "from": "p_peer",
       "role": "peer",
-      "text": "[task-03-a47d2c] Handoff notice from p_peer: stalled while holding lease-03-peer-3164d5 on slot-03-p-47aec4 (heartbeat stopped, expires_at_tick=4). Poll GET /leases until logical expiry, then reclaim a fresh lease with force_expired=true."
+      "text": "[task-03-a47d2c] Handoff notice from p_peer: stalled without heartbeat on slot-03-p-47aec4 (lease-03-peer-3164d5); check candidate status on authoritative GET /leases."
     }
   ]
 }

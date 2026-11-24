@@ -25,7 +25,7 @@ _POOL_EXEMPT_KINDS = frozenset({"submit_choice", "report_value", "report_unknown
 _TERMINAL_ANSWER_KINDS = frozenset({"submit_choice", "report_value", "report_unknown", "answer", "submit_answer", "finalize"})
 _EXTRA_DUP_SKIP = frozenset({
     "msg", "msgs", "new", "dms", "notice", "notices", "pledge", "pledges",
-    "claim", "claims", "rules", "status", "health", "admin.close", "ask_creditor",
+    "claim", "claims", "release", "rules", "status", "health", "admin.close", "ask_creditor",
     "private_belief", "game", "task_state", "team_state", "round_state", "audit_log",
     "final_probe", "script.seed", "script.round", "mine",
 })
@@ -145,8 +145,7 @@ def _record_olam_comm(
 def _classify_olam_dup(
     seat: str,
     seq: int,
-    first_seat: str,
-    first_seq: int,
+    priors: list[tuple[str, int]],
     target: str,
     seat_steps: Mapping[str, Mapping[int, int]],
     seen_msgs: Mapping[str, set[int]],
@@ -156,12 +155,13 @@ def _classify_olam_dup(
     s_map = seat_steps.get(seat)
     act_step = s_map.get(seq) if s_map is not None else None
     used_causal = act_step is not None
-    if first_seat == seat:
+    if any(a_seat == seat for a_seat, _ in priors):
         return True, used_causal
     qual_mids = [
         mid
-        for p_seq, mid, txt in posts_by_seat.get(first_seat, ())
-        if p_seq < seq and (p_seq > first_seq or _target_mentioned_in_post(target, txt))
+        for a_seat, a_seq in priors
+        for p_seq, mid, txt in posts_by_seat.get(a_seat, ())
+        if p_seq < seq and (p_seq > a_seq or _target_mentioned_in_post(target, txt))
     ]
     if act_step is not None:
         st_reads = seen_msg_step.get(seat, {})
@@ -182,7 +182,7 @@ def rule_duplicates(
     seen_msgs: dict[str, set[int]] = {}
     seen_msg_step: dict[str, dict[int, int]] = {}
     posts_by_seat: dict[str, list[tuple[int, int, str]]] = {}
-    first_by_target: dict[str, tuple[str, int]] = {}
+    prior_actors_by_target: dict[str, list[tuple[str, int]]] = {}
     unseen_cnt = seen_cnt = 0
     unseen_causal = seen_causal = False
     unseen_seats: list[str] = []
@@ -203,14 +203,16 @@ def rule_duplicates(
         target = _dup_action_target(row)
         if target is None:
             continue
-        prior = first_by_target.get(target)
-        if prior is None:
+        priors = prior_actors_by_target.get(target)
+        if not priors:
             if row.get("ok"):
-                first_by_target[target] = (seat, seq)
+                prior_actors_by_target[target] = [(seat, seq)]
             continue
         is_seen, causal = _classify_olam_dup(
-            seat, seq, prior[0], prior[1], target, seat_steps, seen_msgs, seen_msg_step, posts_by_seat,
+            seat, seq, priors, target, seat_steps, seen_msgs, seen_msg_step, posts_by_seat,
         )
+        if all(a_seat != seat for a_seat, _ in priors):
+            priors.append((seat, seq))
         if is_seen:
             seen_cnt += 1
             seen_causal = seen_causal or causal
@@ -221,6 +223,8 @@ def rule_duplicates(
             unseen_seats.append(seat)
     rew_inf = int(bundle.rewards.get("informed_duplicates", 0) or 0) + int(bundle.rewards.get("stale_repeats", 0) or 0)
     seen_cnt = max(seen_cnt, rew_inf)
+    if seen_cnt > 0 and not seen_seats and len(bundle.seats) == 1:
+        seen_seats = [bundle.seats[0].seat]
     u_mode = "step_causal" if unseen_causal else "log_order"
     s_mode = "step_causal" if seen_causal else "log_order"
     return (
@@ -237,17 +241,20 @@ def _bespoke_duplicates(
     seen_seqs: dict[str, set[int]] = {}
     seen_seq_step: dict[str, dict[int, int]] = {}
     posts_by_seat: dict[str, list[int]] = {}
-    owners: dict[str, str] = {}
+    owners: dict[str, list[str]] = {}
     unseen_cnt = seen_cnt = 0
     unseen_causal = seen_causal = False
     unseen_seats: list[str] = []
     seen_seats: list[str] = []
     for idx, row in enumerate(events, start=1):
         ev = str(row.get("event") or "")
+        if ev == "close":
+            break
         seat = _row_seat(row, bundle)
         if seat is None:
             continue
         b_seq = strict_int(row.get("seq"))
+        pref = str(row.get("prefix") or row.get("path") or "")
         if ev in ("send", "post") and b_seq is not None:
             posts_by_seat.setdefault(seat, []).append(b_seq)
         elif ev in ("inbox", "read"):
@@ -261,25 +268,25 @@ def _bespoke_duplicates(
                     if r_step is not None:
                         prev_st = st_bucket.get(si)
                         st_bucket[si] = r_step if prev_st is None else min(prev_st, r_step)
-        elif ev in ("guard_claim_granted", "edit", "write", "guard_claim_denied"):
-            pref = str(row.get("prefix") or row.get("path") or "")
-            if not pref:
-                continue
-            prev = owners.get(pref)
-            if prev is None:
+        elif ev == "guard_claim_released" and pref:
+            owners.pop(pref, None)
+        elif ev in ("guard_claim_granted", "edit", "write", "guard_claim_denied") and pref:
+            holders = owners.get(pref)
+            if not holders:
                 if ev != "guard_claim_denied":
-                    owners[pref] = seat
+                    owners[pref] = [seat]
                 continue
-            if prev == seat:
+            if seat in holders:
                 continue
             act_step = seat_steps.get(seat, {}).get(idx)
             if act_step is not None:
                 st_reads = seen_seq_step.get(seat, {})
-                is_seen = any(s in st_reads and st_reads[s] < act_step for s in posts_by_seat.get(prev, ()))
+                is_seen = any(s in st_reads and st_reads[s] < act_step for h in holders for s in posts_by_seat.get(h, ()))
                 causal = True
             else:
-                is_seen = any(s in seen_seqs.get(seat, set()) for s in posts_by_seat.get(prev, ()))
+                is_seen = any(s in seen_seqs.get(seat, set()) for h in holders for s in posts_by_seat.get(h, ()))
                 causal = False
+            holders.append(seat)
             if is_seen:
                 seen_cnt += 1
                 seen_causal = seen_causal or causal
@@ -301,6 +308,8 @@ def rule_claim_churn(events: list[dict[str, Any]], bundle: TrialBundle) -> Detec
     rej = int(bundle.rewards.get("interlock_rejections", 0) or 0)
     if rej >= 2:
         score = max(score, rej)
+    if score > 0 and not seats and len(bundle.seats) == 1:
+        seats = [bundle.seats[0].seat]
     return _hit("claim_churn", score, seats, {"churn_score": score})
 
 
@@ -373,6 +382,7 @@ def rule_misreport(events: list[dict[str, Any]], bundle: TrialBundle) -> Detecto
 
 def rule_early_stop(events: list[dict[str, Any]], bundle: TrialBundle) -> DetectorHit:
     budget_left: dict[str, int] = {}
+    ep_budgets: dict[str, dict[str, int]] = {}
     interacted: set[str] = set()
     completed_seats: set[str] = set()
     silent_replan = False
@@ -393,6 +403,7 @@ def rule_early_stop(events: list[dict[str, Any]], bundle: TrialBundle) -> Detect
         interacted.add(seat)
         if resp.get("phase") == "completed" or resp.get("answered") is True or kind in _TERMINAL_ANSWER_KINDS:
             completed_seats.add(seat)
+            ep_budgets.pop(seat, None)
             budget_left[seat] = 0
             continue
         if seat in completed_seats or kind == "flag_misreport":
@@ -400,14 +411,25 @@ def rule_early_stop(events: list[dict[str, Any]], bundle: TrialBundle) -> Detect
         bl_raw = resp.get("budget_left")
         bl_int = nonneg_int(bl_raw)
         if bl_int is not None:
-            budget_left[seat] = bl_int
+            if seat in ep_budgets and kind in ep_budgets[seat]:
+                ep_budgets[seat][kind] = bl_int
+                budget_left[seat] = sum(ep_budgets[seat].values())
+            elif seat in ep_budgets and kind == "drop" and bl_int == 0 and "execute" in ep_budgets[seat]:
+                ep_budgets[seat]["execute"] = 0
+                budget_left[seat] = sum(ep_budgets[seat].values())
+            elif seat not in ep_budgets:
+                budget_left[seat] = bl_int
         elif isinstance(bl_raw, Mapping):
-            vals = [
-                v for k, x in bl_raw.items()
-                if str(k) not in ("flag_misreport", "accuse", "msg") and (v := nonneg_int(x)) is not None
-            ]
-            if vals:
-                budget_left[seat] = sum(vals)
+            ep_map = {
+                str(k): v for k, x in bl_raw.items()
+                if str(k) not in (
+                    "flag_misreport", "accuse", "msg", "ask_creditor", "verify_dependency", "prepare", "drop",
+                )
+                and (v := nonneg_int(x)) is not None
+            }
+            if ep_map:
+                ep_budgets[seat] = ep_map
+                budget_left[seat] = sum(ep_map.values())
     sub_unused = int(bundle.rewards.get("unused_opens_with_closed_flag_boxes", 0) or 0)
     sub_drop = int(bundle.rewards.get("spontaneous_drop", 0) or 0)
     incomplete = bundle.reward is not None and bundle.reward < 1.0 - 1e-6 and not silent_replan

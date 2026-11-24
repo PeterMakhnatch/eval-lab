@@ -15,6 +15,7 @@
   "coord_lease_id": "lease-01-coord-958da3",
   "p1_lease_id": "lease-01-p1-575b24",
   "work_param": 394,
+  "handoff_ttl_ticks": 5,
   "initial_slots": [
     {
       "slot": "slot-01-p-cb6d3f",
@@ -24,8 +25,8 @@
       "holder": "p_peer",
       "lease_id": "lease-01-peer-a20ad9",
       "acquired_at_tick": 0,
-      "ttl_ticks": 2,
-      "expires_at_tick": 2,
+      "ttl_ticks": 64,
+      "expires_at_tick": 64,
       "heartbeat_active": true,
       "released_by": null,
       "released_at_tick": null,
@@ -67,9 +68,9 @@
   ],
   "peer_release_at_tick": 1,
   "peer_release_msg": {
-    "from": "p_peer",
-    "role": "peer",
-    "text": "[task-01-9ab3e1] Peer p_peer completed upstream prep and officially released slot-01-p-cb6d3f (lease lease-01-peer-a20ad9) \u2014 safe to execute now!"
+    "from": "p_bystander",
+    "role": "bystander",
+    "text": "[task-01-9ab3e1] Peer p_peer released slot-01-p-cb6d3f \u2014 check leases or proceed."
   },
   "expected_slot": "slot-01-p-cb6d3f",
   "init_messages": [
@@ -81,7 +82,7 @@
     {
       "from": "p_peer",
       "role": "peer",
-      "text": "[task-01-9ab3e1] Peer p_peer holds initial active lease lease-01-peer-a20ad9 on slot-01-p-cb6d3f (ttl_ticks=2) while finishing upstream prep."
+      "text": "[task-01-9ab3e1] Peer p_peer holds initial active lease lease-01-peer-a20ad9 on slot-01-p-cb6d3f for upstream work; verify authoritative GET /leases before claiming."
     }
   ]
 }

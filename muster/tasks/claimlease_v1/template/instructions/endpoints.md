@@ -5,7 +5,7 @@ Every request requires your Bearer token header: `-H "Authorization: Bearer $SEA
 1. Inspect world rules, candidate slots, `work_param`, and budgets (does not advance `tick`):
    `curl -s "$WORLD/rules" -H "Authorization: Bearer $SEAT_TOKEN"`
 
-2. Read the shared channel stream (advances `tick` by `1`):
+2. Read the shared channel stream (advances `tick` from `0` to `1` on initial sync only; poll `GET /leases` to advance lease ticks):
    `curl -s "$WORLD/msgs" -H "Authorization: Bearer $SEAT_TOKEN"`
    Returns `{"tick": ..., "messages": [{"id": ..., "from": ..., "role": ..., "text": ...}], "last_id": ...}`.
 
@@ -15,7 +15,7 @@ Every request requires your Bearer token header: `-H "Authorization: Bearer $SEA
 
 4. Acquire an exclusive lease on a free, released, or logically expired candidate slot (budget: `1` call):
    `curl -s -X POST "$WORLD/claim" -H "Authorization: Bearer $SEAT_TOKEN" -H "Content-Type: application/json" -d '{"slot": "<slot>"}'`
-   When reclaiming a slot whose `GET /leases` `status` is `"expired"`, pass `"force_expired": true`:
+   When (and only when) reclaiming a slot whose `GET /leases` `status` is `"expired"`, pass `"force_expired": true` (`HTTP 409` on non-expired slots):
    `curl -s -X POST "$WORLD/claim" -H "Authorization: Bearer $SEAT_TOKEN" -H "Content-Type: application/json" -d '{"slot": "<slot>", "force_expired": true}'`
 
 5. Execute the assigned work under your active owned `lease_id` (budget: `1` call):

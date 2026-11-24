@@ -25,11 +25,16 @@ class ArmLedger:
     reserves: int = 0
     settles: int = 0
     reserved_usd: float = 0.0
+    amounts: list[float] = field(default_factory=list)
     statuses: list[str] = field(default_factory=list)
 
     @property
     def open(self) -> bool:
         return self.reserves > self.settles
+
+    @property
+    def open_usd(self) -> float:
+        return sum(self.amounts[self.settles:])
 
     def record(self) -> dict[str, Any]:
         return {
@@ -172,8 +177,10 @@ def state(path: Path, campaign: str) -> dict[str, ArmLedger]:
         arm = arms.setdefault(item["arm"], ArmLedger())
         arm.lane = str(item.get("lane", arm.lane))
         if item["event"] == "reserve":
+            amt = _amount(item.get("reserved_usd"))
             arm.reserves += 1
-            arm.reserved_usd += _amount(item.get("reserved_usd"))
+            arm.reserved_usd += amt
+            arm.amounts.append(amt)
         else:
             arm.settles += 1
             arm.statuses.append(str(item.get("status")))

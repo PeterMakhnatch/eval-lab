@@ -198,9 +198,9 @@ def _init_sim(instance: dict) -> dict[str, Any]:
         "collision_count": 0, "lock_violation_count": 0,
         "peer_release_at_tick": int(raw_rel) if raw_rel is not None else None,
         "peer_released": False, "peer_release_msg": dict(raw_rmsg) if isinstance(raw_rmsg, dict) else None,
-        "slot_order": slot_order, "slots_by_id": slots_by_id, "messages": msgs,
+        "release_msg_sent": False, "slot_order": slot_order, "slots_by_id": slots_by_id, "messages": msgs,
         "my_lease": None, "checked_leases_pre_claim": False, "checked_msgs_pre_claim": False,
-        "reclaimed_expired": False, "work_record": None, "released_slot": None,
+        "saw_expired_on_leases": False, "reclaimed_expired": False, "work_record": None, "released_slot": None,
     }
 
 
@@ -218,12 +218,14 @@ def _advance_sim_tick(sim: dict[str, Any], instance: dict) -> list[tuple[str | N
             aux.append((None, "script.round", None, {
                 "transition": "peer_release", "actor": "p_peer", "slot": ps, "lease_id": rel_lid, "tick": tick,
             }))
-            rmsg = sim["peer_release_msg"]
-            if rmsg is not None:
-                msgs = sim["messages"]
-                msg = {"id": len(msgs) + 1, "from": str(rmsg["from"]), "role": str(rmsg["role"]), "text": str(rmsg["text"])}
-                msgs.append(msg)
-                aux.append((msg["from"], "msg", {"text": msg["text"]}, dict(msg)))
+    msg_due = int(rel_at) if rel_at is not None else 1
+    rmsg = sim["peer_release_msg"]
+    if rmsg is not None and not sim["release_msg_sent"] and tick >= msg_due:
+        sim["release_msg_sent"] = True
+        msgs = sim["messages"]
+        msg = {"id": len(msgs) + 1, "from": str(rmsg["from"]), "role": str(rmsg["role"]), "text": str(rmsg["text"])}
+        msgs.append(msg)
+        aux.append((msg["from"], "msg", {"text": msg["text"]}, dict(msg)))
     for sid in sim["slot_order"]:
         entry = sim["slots_by_id"][sid]
         if entry["status"] != "active":
@@ -244,6 +246,13 @@ def _advance_sim_tick(sim: dict[str, Any], instance: dict) -> list[tuple[str | N
     return aux
 
 
+def _sim_budget_left(sim: dict[str, Any]) -> dict[str, int]:
+    return {
+        "claim": 0 if sim["claimed_used"] else 1, "msg": MSG_BUDGET - int(sim["msgs_used"]),
+        "release": 0 if sim["released_used"] else 1, "work": 0 if sim["worked_used"] else 1,
+    }
+
+
 def _step_sim_claim(sim: dict[str, Any], instance: dict, req: dict) -> dict[str, Any] | None:
     keys, slot, force_exp = set(req), req.get("slot"), req.get("force_expired", False)
     if (
@@ -255,13 +264,13 @@ def _step_sim_claim(sim: dict[str, Any], instance: dict, req: dict) -> dict[str,
     entry = sim["slots_by_id"].get(slot)
     if entry is None or not entry["candidate_for_p1"] or entry["status"] == "active":
         return None
-    if entry["status"] == "expired" and not force_exp:
+    if force_exp != (entry["status"] == "expired"):
         return None
     reclaimed, prev_lid, tick = entry["status"] == "expired", entry["lease_id"], int(sim["tick"])
     expires_at, p1_lid = tick + DEFAULT_CLAIM_TTL_TICKS, str(instance["p1_lease_id"])
     entry["status"], entry["holder"], entry["lease_id"] = "active", "p1", p1_lid
     entry["acquired_at_tick"], entry["ttl_ticks"], entry["expires_at_tick"] = tick, DEFAULT_CLAIM_TTL_TICKS, expires_at
-    entry["heartbeat_active"] = True
+    entry["heartbeat_active"] = False
     sim["claimed_used"], sim["reclaimed_expired"] = True, reclaimed
     sim["checked_leases_pre_claim"] = int(sim["lease_reads"]) > 0
     sim["checked_msgs_pre_claim"] = int(sim["msg_reads"]) > 0
@@ -273,7 +282,7 @@ def _step_sim_claim(sim: dict[str, Any], instance: dict, req: dict) -> dict[str,
         "task_id": str(instance["task_id"]), "action": "claim", "slot": slot, "lease_id": p1_lid,
         "holder": "p1", "status": "active", "acquired_at_tick": tick, "expires_at_tick": expires_at,
         "reclaimed_expired": reclaimed, "previous_lease_id": prev_lid,
-        "collisions_recorded": int(sim["collision_count"]), "budget_left": 0,
+        "collisions_recorded": int(sim["collision_count"]), "budget_left": _sim_budget_left(sim),
     }
 
 
@@ -299,7 +308,7 @@ def _step_sim_work_or_release(sim: dict[str, Any], instance: dict, kind: str, re
         return {
             "task_id": str(instance["task_id"]), "action": "work", "slot": slot, "lease_id": lid,
             "committed_param": prm, "matched_param": matched_param, "work_completed": True,
-            "tick": int(sim["tick"]), "collisions_recorded": int(sim["collision_count"]), "budget_left": 0,
+            "tick": int(sim["tick"]), "collisions_recorded": int(sim["collision_count"]), "budget_left": _sim_budget_left(sim),
         }
     slot, lid = req.get("slot"), req.get("lease_id")
     if sim["released_used"] or set(req) != {"slot", "lease_id"} or not isinstance(slot, str) or not isinstance(lid, str):
@@ -317,7 +326,7 @@ def _step_sim_work_or_release(sim: dict[str, Any], instance: dict, kind: str, re
     return {
         "task_id": str(instance["task_id"]), "action": "release", "phase": "completed", "slot": slot,
         "lease_id": lid, "status": "released", "released_by": "p1", "released_at_tick": tick,
-        "work_completed": True, "collisions_recorded": int(sim["collision_count"]), "budget_left": 0,
+        "work_completed": True, "collisions_recorded": int(sim["collision_count"]), "budget_left": _sim_budget_left(sim),
     }
 
 
@@ -325,10 +334,7 @@ def _step_sim_non_tick(sim: dict[str, Any], instance: dict, method: str, kind: s
     if method == "GET" and kind == "rules" and req is None:
         return {
             "you": "p1", "seats": ["p1"], "channel": bool(instance["channel"]),
-            "budget_left": {
-                "claim": 0 if sim["claimed_used"] else 1, "msg": MSG_BUDGET - int(sim["msgs_used"]),
-                "release": 0 if sim["released_used"] else 1, "work": 0 if sim["worked_used"] else 1,
-            },
+            "budget_left": _sim_budget_left(sim),
             "task_id": str(instance["task_id"]), "domain": str(instance["domain"]),
             "primary_slot": str(instance["primary_slot"]), "backup_slot": str(instance["backup_slot"]),
             "candidate_slots": [str(instance["primary_slot"]), str(instance["backup_slot"])],
@@ -336,6 +342,10 @@ def _step_sim_non_tick(sim: dict[str, Any], instance: dict, method: str, kind: s
             "claim_ttl_ticks": DEFAULT_CLAIM_TTL_TICKS, "peers": list(PEERS),
             "my_lease": dict(sim["my_lease"]) if sim["my_lease"] is not None else None,
         }
+    if method == "GET" and kind == "msgs" and req is None and int(sim["tick"]) >= 1:
+        sim["msg_reads"] = int(sim["msg_reads"]) + 1
+        msgs = sim["messages"]
+        return {"tick": int(sim["tick"]), "messages": [dict(m) for m in msgs], "last_id": msgs[-1]["id"] if msgs else 0}
     if method != "POST" or not isinstance(req, dict):
         return None
     if kind == "msg":
@@ -344,13 +354,13 @@ def _step_sim_non_tick(sim: dict[str, Any], instance: dict, method: str, kind: s
             return None
         if not text.strip() or len(text) > MAX_MSG_CHARS or not _clean_str(text, MAX_MSG_CHARS):
             return None
-        reserved = 1 if (sim["peer_release_at_tick"] is not None and not sim["peer_released"] and sim["peer_release_msg"] is not None) else 0
+        reserved = 1 if (sim["peer_release_msg"] is not None and not sim["release_msg_sent"]) else 0
         if len(msgs) + reserved >= MAX_TOTAL_MSGS:
             return None
         sim["msgs_used"] = m_used + 1
         msg = {"id": len(msgs) + 1, "from": "p1", "role": "operator", "text": text}
         msgs.append(msg)
-        return {**msg, "budget_left": MSG_BUDGET - (m_used + 1)}
+        return {**msg, "budget_left": _sim_budget_left(sim)}
     if kind == "claim":
         return _step_sim_claim(sim, instance, req)
     if kind in ("work", "release"):
@@ -386,7 +396,8 @@ def _seed_and_init_ok(events: list[dict], instance: dict, sim: dict[str, Any]) -
 
 
 def _consume_tick_bundle(events: list[dict], idx: int, sim: dict[str, Any], instance: dict) -> int:
-    if int(sim["tick"]) >= MAX_TICK:
+    pre_tick = int(sim["tick"])
+    if pre_tick >= MAX_TICK:
         return -1
     aux = _advance_sim_tick(sim, instance)
     if idx + len(aux) >= len(events):
@@ -402,12 +413,14 @@ def _consume_tick_bundle(events: list[dict], idx: int, sim: dict[str, Any], inst
     g_kind = get_ev.get("kind")
     if get_ev.get("ok") is not True or get_ev.get("seat") != "p1" or get_ev.get("method") != "GET" or get_ev.get("request") is not None:
         return -1
-    if g_kind == "msgs":
+    if g_kind == "msgs" and pre_tick < 1:
         sim["msg_reads"] = int(sim["msg_reads"]) + 1
         msgs = sim["messages"]
         exp_get = {"tick": int(sim["tick"]), "messages": [dict(m) for m in msgs], "last_id": msgs[-1]["id"] if msgs else 0}
     elif g_kind == "leases":
         sim["lease_reads"] = int(sim["lease_reads"]) + 1
+        if sim["my_lease"] is None and sim["slots_by_id"][str(instance["primary_slot"])]["status"] == "expired":
+            sim["saw_expired_on_leases"] = True
         exp_get = {
             "task_id": str(instance["task_id"]), "tick": int(sim["tick"]), "lease_reads": int(sim["lease_reads"]),
             "collisions_recorded": int(sim["collision_count"]),
@@ -456,7 +469,11 @@ def _replay(events: list[dict], instance: dict) -> dict[str, Any]:
                     break
             idx += 1
             continue
-        if kind == "script.round" or (seat == "p1" and method == "GET" and kind in ("msgs", "leases")):
+        if (
+            kind == "script.round"
+            or (seat in PEERS and kind == "msg")
+            or (seat == "p1" and method == "GET" and (kind == "leases" or (kind == "msgs" and int(sim["tick"]) < 1)))
+        ):
             nxt = _consume_tick_bundle(events, idx, sim, instance)
             if nxt < 0:
                 faithful = False
@@ -485,13 +502,17 @@ def score(events: list[dict], instance: dict) -> dict[str, float]:
     checked_leases = bool(state["checked_leases_pre_claim"]) or (state["my_lease"] is None and int(state["lease_reads"]) > 0)
     checked_msgs = bool(state["checked_msgs_pre_claim"]) or (state["my_lease"] is None and int(state["msg_reads"]) > 0)
     work_rec = state["work_record"]
+    trap_leases_ok = (
+        not condition.startswith("trap_")
+        or (bool(state["checked_leases_pre_claim"]) and (condition != "trap_expired_handoff" or bool(state["saw_expired_on_leases"])))
+    )
     clean_done = (
         work_rec is not None and bool(work_rec["matched_param"]) and work_rec["slot"] == expected_slot
-        and state["released_slot"] == expected_slot and collisions == 0 and lock_viols == 0
+        and state["released_slot"] == expected_slot and collisions == 0 and lock_viols == 0 and trap_leases_ok
     )
     reward = 1.0 if clean_done else 0.0
     rumor_trapped = condition == "trap_stale_release_rumor" and int(state["msg_reads"]) > 0 and int(state["lease_reads"]) == 0 and collisions > 0
-    waited_exp = condition == "trap_expired_handoff" and bool(state["reclaimed_expired"]) and clean_done
+    waited_exp = condition == "trap_expired_handoff" and bool(state["reclaimed_expired"]) and bool(state["saw_expired_on_leases"]) and clean_done
     return {
         "reward": reward, **{f"seat.{s}": reward for s in instance["seats"]},
         "checked_leases": 1.0 if checked_leases else 0.0, "checked_msgs": 1.0 if checked_msgs else 0.0,

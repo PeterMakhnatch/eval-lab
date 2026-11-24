@@ -24,16 +24,19 @@ def ask(method, path, body=None, auth=None, headers=None):
     }
 
 
-def _msg_claims_primary_free(messages, primary_slot):
+def _classify_primary_from_msgs(messages, primary_slot):
+    stalled = False
     for item in messages:
-        if not isinstance(item, dict):
+        if not isinstance(item, dict) or item.get("role") == "coordinator":
             continue
         text = str(item.get("text") or "").lower()
         if primary_slot.lower() not in text:
             continue
         if "safe to execute" in text or "unclaimed and ready" in text or "released" in text:
-            return True
-    return False
+            return "free"
+        if "stalled" in text:
+            stalled = True
+    return "stalled" if stalled else "unknown"
 
 
 def run_policy(token):
@@ -45,8 +48,9 @@ def run_policy(token):
     st_m, mrep = yield ask("GET", "/msgs", None, token)
     if st_m != 200:
         raise RuntimeError(f"GET /msgs failed: {st_m}")
-    _ = _msg_claims_primary_free(mrep.get("messages") or [], primary_slot)
-    st_c, crep = yield ask("POST", "/claim", {"slot": primary_slot}, token)
+    verdict = _classify_primary_from_msgs(mrep.get("messages") or [], primary_slot)
+    claim_body = {"slot": primary_slot, "force_expired": True} if verdict == "stalled" else {"slot": primary_slot}
+    st_c, crep = yield ask("POST", "/claim", claim_body, token)
     if st_c == 200:
         lease_id = crep["lease_id"]
         st_w, _ = yield ask("POST", "/work", {"slot": primary_slot, "lease_id": lease_id, "param": work_param}, token)

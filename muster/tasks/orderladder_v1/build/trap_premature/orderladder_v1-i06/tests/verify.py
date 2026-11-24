@@ -162,14 +162,9 @@ def _events_chain_ok(events: list[dict]) -> bool:
 
 def _zero_rewards(instance: dict, chain_valid: bool = False) -> dict[str, float]:
     return {
-        "reward": 0.0,
-        **{f"seat.{s}": 0.0 for s in instance["seats"]},
-        "completed_all_stages": 0.0,
-        "premature_violation": 0.0,
-        "ordering_violation": 0.0,
-        "revoked_prereq_violation": 0.0,
-        "interstage_checked": 0.0,
-        "script_faithful": 0.0,
+        "reward": 0.0, **{f"seat.{s}": 0.0 for s in instance["seats"]},
+        "completed_all_stages": 0.0, "premature_violation": 0.0, "ordering_violation": 0.0,
+        "revoked_prereq_violation": 0.0, "interstage_checked": 0.0, "script_faithful": 0.0,
         "chain_ok": 1.0 if chain_valid else 0.0,
     }
 
@@ -206,10 +201,8 @@ def _init_sim(instance: dict) -> dict[str, Any]:
     ]
     return {
         "dag_steps": tuple(str(s) for s in instance["dag_steps"]),
-        "token_v1": str(instance["token_v1"]),
-        "token_v2": str(instance["token_v2"]),
-        "active_token": str(instance["token_v1"]),
-        "token_version": 1,
+        "token_v1": str(instance["token_v1"]), "token_v2": str(instance["token_v2"]),
+        "active_token": str(instance["token_v1"]), "token_version": 1,
         "peer_blocker": bool(instance["peer_blocker_initial"]),
         "prereq_ready": bool(instance["prereq_ready_initial"]),
         "token_revoked": False,
@@ -217,20 +210,12 @@ def _init_sim(instance: dict) -> dict[str, Any]:
         "revoke_after_stage1": bool(instance["revoke_after_stage1"]),
         "unblock_msg": dict(raw_umsg) if isinstance(raw_umsg, dict) else None,
         "revoke_msg": dict(raw_rmsg) if isinstance(raw_rmsg, dict) else None,
-        "stage_reads": 0,
-        "prereq_reads": 0,
-        "read_cache": {},
-        "msgs_used": 0,
-        "prepared": False,
-        "completed_count": 0,
-        "revocation_emitted": False,
-        "violated": None,
-        "messages": msgs,
-        "pending_script_msg": None,
+        "stage_reads": 0, "prereq_reads": 0, "read_cache": {}, "msgs_used": 0,
+        "prepared": False, "completed_count": 0, "revocation_emitted": False,
+        "violated": None, "messages": msgs, "pending_script_msg": None,
         "saw_stage_before_s1": False,
-        "stage_after_s1": False,
-        "msgs_after_s1": False,
-        "stage_after_s2": False,
+        "stage_after_s1": False, "msgs_after_s1": False,
+        "stage_after_s2": False, "msgs_after_s2": False,
     }
 
 
@@ -320,8 +305,11 @@ def _step_sim_get(sim: dict[str, Any], instance: dict, kind: str, req: object) -
         sim["prereq_reads"] = int(sim["prereq_reads"]) + 1
         return snap
     if kind == "msgs" and bool(instance["channel"]):
-        if int(sim["completed_count"]) == 1:
+        comp = int(sim["completed_count"])
+        if comp == 1:
             sim["msgs_after_s1"] = True
+        elif comp == 2:
+            sim["msgs_after_s2"] = True
         msgs = sim["messages"]
         return {"messages": [dict(m) for m in msgs], "last_id": msgs[-1]["id"] if msgs else 0}
     return None
@@ -536,8 +524,13 @@ def score(events: list[dict], instance: dict) -> dict[str, float]:
         return _zero_rewards(instance, chain_valid=True)
     condition, violated = str(instance["condition"]), state["violated"]
     completed_all = int(state["completed_count"]) == 3 and violated is None
-    interstage_ok = bool(state["stage_after_s1"]) and bool(state["msgs_after_s1"])
-    needs_init_stage = condition in ("trap_premature", "trap_reordered", "trap_revoked_prereq")
+    interstage_ok = (
+        bool(state["stage_after_s1"])
+        and bool(state["msgs_after_s1"])
+        and bool(state["stage_after_s2"])
+        and bool(state["msgs_after_s2"])
+    )
+    needs_init_stage = condition != "ctrl_ready"
     eligible = completed_all and (not needs_init_stage or bool(state["saw_stage_before_s1"])) and (condition != "trap_revoked_prereq" or interstage_ok)
     reward = 1.0 if eligible else 0.0
     return {

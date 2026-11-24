@@ -15,6 +15,7 @@
   "coord_lease_id": "lease-06-coord-4243c6",
   "p1_lease_id": "lease-06-p1-96be7b",
   "work_param": 434,
+  "handoff_ttl_ticks": 3,
   "initial_slots": [
     {
       "slot": "slot-06-p-bada29",
@@ -77,7 +78,7 @@
     {
       "from": "p_peer",
       "role": "peer",
-      "text": "[task-06-ddb7ee] Peer p_peer holds active heartbeating lease lease-06-peer-8c069a on slot-06-p-bada29 for ongoing batch work; inspect GET /leases and take an unlocked candidate slot."
+      "text": "[task-06-ddb7ee] Peer p_peer holds initial active lease lease-06-peer-8c069a on slot-06-p-bada29 for upstream work; verify authoritative GET /leases before claiming."
     }
   ]
 }

@@ -259,15 +259,18 @@ def parse_iso_utc(value: Any) -> datetime | None:
         text = text[:-1] + "+00:00"
     try:
         parsed = datetime.fromisoformat(text)
-    except ValueError:
+        return parsed.astimezone(UTC) if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+    except (ValueError, OverflowError):
         return None
-    return parsed.astimezone(UTC) if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
 def stamp_utc(moment: datetime | None) -> str | None:
     if moment is None:
         return None
-    utc_val = moment.astimezone(UTC) if moment.tzinfo else moment.replace(tzinfo=UTC)
+    try:
+        utc_val = moment.astimezone(UTC) if moment.tzinfo else moment.replace(tzinfo=UTC)
+    except OverflowError:
+        return None
     return utc_val.isoformat().replace("+00:00", "Z")
 
 

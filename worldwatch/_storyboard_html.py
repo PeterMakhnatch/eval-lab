@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import hashlib
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -11,7 +13,8 @@ from worldwatch.model import as_list, as_map, finite_float, nonneg_int
 _MAX_RENDER_TRIALS = 64
 _MAX_RENDER_SEATS = 64
 _MAX_RENDER_STEPS = 400
-_MAX_RENDER_EVENTS = 64
+_MAX_RENDER_EVENTS = 12
+_MAX_HTML_TOTAL_STEPS = 7_680
 
 _CRIT_DETECTORS = frozenset({
     "dup_unseen",
@@ -28,13 +31,6 @@ _WARN_DETECTORS = frozenset({
     "message_neglect_decay",
     "tool_friction_storm",
 })
-
-_CSP = (
-    "default-src 'none'; "
-    "style-src 'unsafe-inline'; "
-    "script-src 'unsafe-inline'; "
-    "img-src data:;"
-)
 
 _CSS = """
 :root { --bg: #0b0f17; --panel: #131a26; --border: #233044; --text: #e2e8f0; --muted: #94a3b8; --ok: #10b981; --warn: #f59e0b; --crit: #ef4444; --accent: #38bdf8; }
@@ -157,6 +153,16 @@ _JS = """
 })();
 """.strip()
 
+_JS_SHA256 = base64.b64encode(hashlib.sha256(_JS.encode("utf-8")).digest()).decode("ascii")
+_CSP = (
+    "default-src 'none'; "
+    "base-uri 'none'; "
+    "form-action 'none'; "
+    "style-src 'unsafe-inline'; "
+    f"script-src 'sha256-{_JS_SHA256}'; "
+    "img-src data:;"
+)
+
 
 def _fmt_num(value: Any, digits: int = 3, *, signed: bool = False) -> str:
     num = finite_float(value)
@@ -227,7 +233,7 @@ def _trial_flags(trial: Mapping[str, Any]) -> tuple[bool, bool, bool, str]:
     same_step = nonneg_int(tsum.get("read_and_act_same_step")) or 0
     batch_max = nonneg_int(tsum.get("batch_opens_max")) or 0
     jstatus = str(trial.get("join_status") or "unjoined")
-    seats = [s for s in as_list(trial.get("seats"))[:_MAX_RENDER_SEATS] if isinstance(s, Mapping)]
+    seats = [s for s in as_list(trial.get("seats"))[:512] if isinstance(s, Mapping)]
     s_parts: list[str] = []
     for s in seats:
         sn = str(s.get("seat") or "").strip()
@@ -266,7 +272,12 @@ def _render_kpis(report: Mapping[str, Any]) -> str:
         if top_dets
         else '<span class="badge badge-ok">NONE FIRED</span>'
     )
-    trunc_sub = "clamped to max 64" if report.get("truncated") else "all trials rendered"
+    rendered_n = nonneg_int(report.get("trials_rendered")) or len(as_list(report.get("trials"))[:_MAX_RENDER_TRIALS])
+    total_n = nonneg_int(report.get("trials_total")) or rendered_n
+    if report.get("truncated") or total_n > rendered_n:
+        trunc_sub = f"clamped to max {_MAX_RENDER_TRIALS}" if rendered_n >= _MAX_RENDER_TRIALS else f"limited to top {rendered_n}"
+    else:
+        trunc_sub = "all trials rendered"
     same_n = nonneg_int(summary.get("read_and_act_same_step")) or 0
     same_tr = nonneg_int(summary.get("trials_with_same_step_read_act")) or 0
     edge_n = nonneg_int(summary.get("edge_events")) or 0
@@ -328,12 +339,17 @@ def _render_index_table(trials: list[Mapping[str, Any]]) -> str:
         rew_txt = esc(f"{rew:.4f}") if rew is not None else "-"
         if tr.get("chain_ok") is False:
             rew_txt += ' <span class="badge badge-crit">BROKEN</span>'
+        raw_seats = [s for s in as_list(tr.get("seats")) if isinstance(s, Mapping)]
+        seats_tot = max(len(raw_seats), nonneg_int(tr.get("seats_total")) or 0)
+        seat_cell = f'{esc(tr.get("seats_joined", 0))}/{esc(seats_tot)}'
+        if len(raw_seats) > _MAX_RENDER_SEATS or tr.get("seats_truncated") is True or seats_tot > _MAX_RENDER_SEATS:
+            seat_cell += f' <span class="badge badge-warn">{_MAX_RENDER_SEATS} SHOWN</span>'
         rows.append(
             f'<tr data-filter="{esc(hay)}" data-flagged="{int(fl)}" data-causal="{int(ca)}" data-nonclean="{int(nc)}">'
             f'<td><button type="button" class="link-btn" data-open-trial="ww-trial-{idx}">{esc(tr.get("trial"))}</button></td>'
             f"<td>{esc(tr.get('ecosystem'))}</td>"
             f"<td>{_trial_join_badge(str(tr.get('join_status') or 'unjoined'))}</td>"
-            f'<td class="num">{esc(tr.get("seats_joined", 0))}/{esc(tr.get("seats_total", 0))}</td>'
+            f'<td class="num">{seat_cell}</td>'
             f'<td class="num">{esc(tr.get("events_count", 0))}</td>'
             f"<td>{causal_html}</td>"
             f'<td class="num">{rew_txt}</td>'
@@ -449,7 +465,15 @@ def _render_seat_lane(seat: Mapping[str, Any]) -> str:
 
 def _render_trial_panel(idx: int, trial: Mapping[str, Any], *, default_open: bool) -> str:
     fl, ca, nc, hay = _trial_flags(trial)
-    seats = [s for s in as_list(trial.get("seats"))[:_MAX_RENDER_SEATS] if isinstance(s, Mapping)]
+    raw_seats = [s for s in as_list(trial.get("seats")) if isinstance(s, Mapping)]
+    seats = raw_seats[:_MAX_RENDER_SEATS]
+    seats_tot = max(len(raw_seats), nonneg_int(trial.get("seats_total")) or 0)
+    seat_banner = (
+        f'<div class="card banner">Showing {len(seats)} of {esc(seats_tot)} seats '
+        f"(truncated to max {_MAX_RENDER_SEATS} seats for HTML safety).</div>"
+        if (len(raw_seats) > _MAX_RENDER_SEATS or trial.get("seats_truncated") is True or seats_tot > len(seats))
+        else ""
+    )
     lanes_html = (
         '<div class="swimlanes">' + "".join(_render_seat_lane(s) for s in seats) + "</div>"
         if seats
@@ -468,19 +492,71 @@ def _render_trial_panel(idx: int, trial: Mapping[str, Any], *, default_open: boo
         f'<div class="pill-wrap"><span class="meta">{rew_txt} | events={esc(trial.get("events_count", 0))}</span>'
         f"{_render_detector_pills(trial)}</div>"
         "</summary>"
-        f'<div class="trial-body">{lanes_html}</div>'
+        f'<div class="trial-body">{seat_banner}{lanes_html}</div>'
         "</details>"
     )
 
 
+def _compact_step_dict(st: Mapping[str, Any]) -> dict[str, Any]:
+    brief = [dict(e) for e in as_list(st.get("events_brief"))[:_MAX_RENDER_EVENTS] if isinstance(e, Mapping)]
+    return {
+        "step_id": st.get("step_id"), "source": st.get("source"), "t_epoch": st.get("t_epoch"),
+        "read_count": st.get("read_count", 0), "act_count": st.get("act_count", 0), "msg_count": st.get("msg_count", 0),
+        "sleep_s": st.get("sleep_s", 0.0), "scripted": bool(st.get("scripted")),
+        "same_step_read_act": bool(st.get("same_step_read_act")),
+        "keystrokes_preview": st.get("keystrokes_preview", ""), "events_brief": brief,
+    }
+
+
+def _compact_html_payload(report: Mapping[str, Any]) -> dict[str, Any]:
+    trials_raw = [t for t in as_list(report.get("trials"))[:_MAX_RENDER_TRIALS] if isinstance(t, Mapping)]
+    tot_seats = sum(min(_MAX_RENDER_SEATS, len(as_list(t.get("seats")))) for t in trials_raw)
+    step_cap = max(1, min(_MAX_RENDER_STEPS, _MAX_HTML_TOTAL_STEPS // max(1, tot_seats)))
+    c_trials: list[dict[str, Any]] = []
+    for tr in trials_raw:
+        r_seats = [s for s in as_list(tr.get("seats")) if isinstance(s, Mapping)]
+        k_seats = r_seats[:_MAX_RENDER_SEATS]
+        s_tot = max(len(r_seats), nonneg_int(tr.get("seats_total")) or 0)
+        c_seats = [
+            {
+                "seat": s.get("seat"), "facing": s.get("facing"), "joined": bool(s.get("joined")),
+                "join_reason": s.get("join_reason"), "clock_offset_s": s.get("clock_offset_s", 0.0),
+                "events_matched": s.get("events_matched", 0), "events_unmatched": s.get("events_unmatched", 0),
+                "edge_events": s.get("edge_events", 0),
+                "steps_truncated": bool(s.get("steps_truncated")) or len(as_list(s.get("steps"))) > step_cap,
+                "steps": [_compact_step_dict(st) for st in as_list(s.get("steps"))[:step_cap] if isinstance(st, Mapping)],
+            }
+            for s in k_seats
+        ]
+        c_trials.append({
+            "trial": tr.get("trial"), "ecosystem": tr.get("ecosystem"), "events_count": tr.get("events_count", 0),
+            "reward": tr.get("reward"), "chain_ok": tr.get("chain_ok"), "joined": bool(tr.get("joined")),
+            "join_status": tr.get("join_status"), "seats_joined": tr.get("seats_joined", 0), "seats_total": s_tot,
+            "seats_truncated": bool(tr.get("seats_truncated")) or s_tot > len(c_seats),
+            "triggered": list(as_list(tr.get("triggered"))[:64]), "severity_score": tr.get("severity_score", 0),
+            "summary": dict(as_map(tr.get("summary"))), "seats": c_seats,
+        })
+    return {
+        "command": report.get("command", "storyboard"), "path": report.get("path", ""),
+        "margin_s": report.get("margin_s", 0.5), "trials_total": report.get("trials_total", len(c_trials)),
+        "trials_rendered": len(c_trials),
+        "truncated": bool(report.get("truncated")) or len(as_list(report.get("trials"))) > len(c_trials),
+        "trials_joined": report.get("trials_joined", 0), "summary": dict(as_map(report.get("summary"))),
+        "trials": c_trials,
+    }
+
+
 def render_storyboard_html(report: Mapping[str, Any]) -> str:
     assert isinstance(report, Mapping)
-    safe_blob = safe_json_for_html(report)
-    trials = [t for t in as_list(report.get("trials"))[:_MAX_RENDER_TRIALS] if isinstance(t, Mapping)]
+    safe_blob = safe_json_for_html(_compact_html_payload(report))
+    all_trials = [t for t in as_list(report.get("trials")) if isinstance(t, Mapping)]
+    trials = all_trials[:_MAX_RENDER_TRIALS]
+    tot_trials = max(len(all_trials), nonneg_int(report.get("trials_total")) or 0)
+    is_trunc = bool(report.get("truncated")) or tot_trials > len(trials)
     banner = (
-        f'<div class="card banner">Showing {esc(report.get("trials_rendered", len(trials)))} of '
-        f'{esc(report.get("trials_total", len(trials)))} trials (flagged, unjoined, and high-severity prioritized).</div>'
-        if report.get("truncated")
+        f'<div class="card banner">Showing {esc(len(trials))} of '
+        f'{esc(tot_trials)} trials (flagged, unjoined, and high-severity prioritized).</div>'
+        if is_trunc
         else ""
     )
     panels = [_render_trial_panel(idx, tr, default_open=(idx < 2)) for idx, tr in enumerate(trials)]

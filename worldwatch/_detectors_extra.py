@@ -90,24 +90,32 @@ def _parse_msg_room_signals(
             jmap = as_map(json.loads(stripped))
         except ValueError:
             jmap = {}
-        j_room = strict_int(jmap.get("room"))
+        raw_jroom = strict_int(jmap.get("room"))
         j_box = strict_int(jmap.get("box"))
-        if j_room is None and j_box is not None and j_box >= 1 and room_size and room_size > 0:
-            j_room = (j_box - 1) // room_size + 1
+        b_room = ((j_box - 1) // room_size + 1) if (j_box is not None and j_box >= 1 and room_size and room_size > 0) else None
+        j_room = raw_jroom if raw_jroom is not None else (b_room if room_size == 1 else None)
         if j_room is not None and j_room >= 1:
             if jmap.get("empty") is True or jmap.get("flags") == 0 or jmap.get("flags_in_room") == 0:
                 empty_rooms.add(j_room)
-            elif jmap.get("flag") is False and "flags_in_room" not in jmap:
+            elif jmap.get("flag") is False and "flags_in_room" not in jmap and (j_box is None or room_size in (None, 1)):
                 empty_rooms.add(j_room)
-            elif jmap.get("flag") is True and j_box is not None:
-                pos_flags.append((j_room, j_box))
+        p_room = raw_jroom if raw_jroom is not None else b_room
+        if jmap.get("flag") is True and j_box is not None and p_room is not None and p_room >= 1:
+            pos_flags.append((p_room, j_box))
     for clause in _CLAUSE_RE.split(text)[:64]:
         c_rooms = _rooms_in_clause(clause)
         c_boxes = [int(m.group(1)) for m in _BOX_SINGLE_RE.finditer(clause)]
-        if room_size and room_size > 0:
-            c_rooms |= {(b - 1) // room_size + 1 for b in c_boxes if b >= 1}
+        if room_size == 1:
+            c_rooms |= {b for b in c_boxes if b >= 1}
         if _EMPTY_RE.search(clause) and not _CONDITIONAL_EMPTY_RE.search(clause):
-            empty_rooms |= c_rooms
+            is_box_only_false = bool(
+                c_boxes
+                and room_size is not None
+                and room_size > 1
+                and re.search(r"\b(?:empty|no\s*flags?|0\s+flags?)\b", clause, re.I) is None
+            )
+            if not is_box_only_false:
+                empty_rooms |= c_rooms
         elif _FLAG_POS_RE.search(clause) and c_boxes:
             for bx in c_boxes[:8]:
                 rm = (bx - 1) // room_size + 1 if (room_size and room_size > 0) else (next(iter(c_rooms)) if len(c_rooms) == 1 else None)
@@ -144,7 +152,11 @@ def _scan_room_world_meta(events: list[dict[str, Any]]) -> tuple[bool, int | Non
                 rm = (bx - 1) // room_size + 1
             if rm is not None and rm >= 1:
                 has_rooms = True
-                if resp.get("flag") is True:
+                if (
+                    resp.get("flag") is True
+                    or (nonneg_int(resp.get("flags_in_room")) or 0) > 0
+                    or (nonneg_int(resp.get("remaining_flags")) or 0) > 0
+                ):
                     flag_rooms.add(rm)
     return has_rooms, room_size, flags_per_room, flag_rooms
 
@@ -203,7 +215,9 @@ def _apply_text_room_signals(
 ) -> None:
     emp_set, pos_list = _parse_msg_room_signals(text, global_rsize)
     for rm in emp_set:
-        if global_cap is not None or room_caps.get(rm) is not None or rm not in true_flag_rooms:
+        cap = room_caps.get(rm, global_cap)
+        known_fl = len(known_flags.get((seat, rm), ()))
+        if (cap is None and rm not in true_flag_rooms) or (cap is not None and known_fl >= cap):
             _mark_room_empty(empty_at, seat, rm, seq, st_idx)
     if include_pos:
         for rm, bx in pos_list:
@@ -280,15 +294,24 @@ def rule_slow_report(
         return _hit("slow_report", 0, [], {})
     all_seats = {s.seat for s in bundle.seats if s.seat}
     channel_disabled = False
+    has_ok_comm = False
+    has_comm_404 = False
     for row in events:
         if row.get("kind") == "admin.close" and row.get("ok"):
             break
         s = _row_seat(row, bundle)
         if s:
             all_seats.add(s)
-        if row.get("ok") and as_map(row.get("response")).get("channel") is False:
+        kind = str(row.get("kind") or "")
+        resp = as_map(row.get("response"))
+        if resp.get("channel") is False or as_map(row.get("request")).get("channel") is False:
             channel_disabled = True
-    if len(all_seats) < 2 or channel_disabled:
+        elif kind in ("msg", "msgs", "new", "dms", "notice", "notices"):
+            if row.get("ok"):
+                has_ok_comm = True
+            elif strict_int(row.get("status")) in (403, 404, 405):
+                has_comm_404 = True
+    if len(all_seats) < 2 or channel_disabled or (has_comm_404 and not has_ok_comm):
         return _hit("slow_report", 0, [], {})
     under_test = {s.seat for s in bundle.seats if s.under_test} or all_seats
     seat_steps = joined_event_steps(step_join)

@@ -23,9 +23,11 @@ from worldwatch.step_join import join_trial_steps
 
 DEFAULT_MAX_STORYBOARD_TRIALS = 64
 
+_MAX_STORYBOARD_SEATS = 64
 _MAX_STEPS_PER_TRIAL = 1_000
-_MAX_EVENTS_PER_STEP = 64
-_MAX_SEQS_PER_STEP = 256
+_MAX_TOTAL_RENDERED_STEPS = 7_680
+_MAX_EVENTS_BRIEF = 12
+_MAX_SEQS_PER_STEP = 32
 _CANONICAL_JOIN_STATUSES = ("joined", "skew_joined", "partial", "no_trajectory", "unjoined")
 _CRIT_DETECTORS = frozenset({
     "dup_unseen",
@@ -38,7 +40,7 @@ _CRIT_DETECTORS = frozenset({
 
 def _bound_step_row(step: Mapping[str, Any]) -> dict[str, Any]:
     out = dict(step)
-    raw_brief = [dict(e) for e in as_list(step.get("events_brief"))[:_MAX_EVENTS_PER_STEP] if isinstance(e, Mapping)]
+    raw_brief = [dict(e) for e in as_list(step.get("events_brief"))[:_MAX_EVENTS_BRIEF] if isinstance(e, Mapping)]
     out["events_brief"] = raw_brief
     out["event_seqs"] = list(as_list(step.get("event_seqs"))[:_MAX_SEQS_PER_STEP])
     out["edge_seqs"] = list(as_list(step.get("edge_seqs"))[:_MAX_SEQS_PER_STEP])
@@ -52,6 +54,21 @@ def _bound_seat_row(seat: Mapping[str, Any], max_steps: int) -> dict[str, Any]:
     out["steps"] = [_bound_step_row(s) for s in raw_steps[:max_steps]]
     out["steps_truncated"] = len(raw_steps) > max_steps
     return out
+
+
+def _budget_rendered_trials(rendered: list[dict[str, Any]]) -> None:
+    total_seats = sum(len(as_list(tr.get("seats"))) for tr in rendered)
+    if total_seats <= 0:
+        return
+    global_cap = max(1, min(400, _MAX_TOTAL_RENDERED_STEPS // total_seats))
+    for tr in rendered:
+        seats = [s for s in as_list(tr.get("seats")) if isinstance(s, dict)]
+        trial_cap = max(1, min(global_cap, _MAX_STEPS_PER_TRIAL // max(1, len(seats))))
+        for s in seats:
+            steps = as_list(s.get("steps"))
+            if len(steps) > trial_cap:
+                s["steps"] = list(steps[:trial_cap])
+                s["steps_truncated"] = True
 
 
 def _compute_severity_score(
@@ -92,9 +109,11 @@ def _compute_severity_score(
 def _build_trial_entry(trial_dir: Path, ecosystem: str, margin_s: float) -> dict[str, Any]:
     join_row = join_trial_steps(trial_dir, ecosystem, margin_s=margin_s)
     det_row = analyze_trial_detectors(trial_dir, ecosystem, step_join=join_row)
-    raw_seats = [s for s in as_list(join_row.get("seats"))[:MAX_SEATS] if isinstance(s, Mapping)]
-    per_seat_cap = max(16, _MAX_STEPS_PER_TRIAL // max(1, len(raw_seats)))
-    seats = [_bound_seat_row(s, per_seat_cap) for s in raw_seats]
+    all_seats = [s for s in as_list(join_row.get("seats"))[:MAX_SEATS] if isinstance(s, Mapping)]
+    seats_total = nonneg_int(join_row.get("seats_total")) or len(all_seats)
+    kept_seats = all_seats[:_MAX_STORYBOARD_SEATS]
+    per_seat_cap = max(1, min(400, _MAX_STEPS_PER_TRIAL // max(1, len(kept_seats))))
+    seats = [_bound_seat_row(s, per_seat_cap) for s in kept_seats]
     chain_raw = det_row.get("chain_ok")
     chain_ok = chain_raw if isinstance(chain_raw, bool) else None
     chain_err = str(det_row["chain_error"]) if det_row.get("chain_error") is not None else None
@@ -123,7 +142,9 @@ def _build_trial_entry(trial_dir: Path, ecosystem: str, margin_s: float) -> dict
         "joined": joined,
         "join_status": join_status,
         "seats_joined": nonneg_int(join_row.get("seats_joined")) or 0,
-        "seats_total": nonneg_int(join_row.get("seats_total")) or len(seats),
+        "seats_total": seats_total,
+        "seats_rendered": len(seats),
+        "seats_truncated": seats_total > len(seats),
         "triggered": triggered,
         "detectors": det_map,
         "summary": join_sum,
@@ -245,6 +266,7 @@ def run_storyboard(
     summary = _summarize_trials(all_trials)
     limit = min(max_trials, DEFAULT_MAX_STORYBOARD_TRIALS)
     rendered = all_trials[:limit]
+    _budget_rendered_trials(rendered)
     trials_rendered = len(rendered)
     truncated = trials_total > trials_rendered
     assert 1 <= trials_rendered <= DEFAULT_MAX_STORYBOARD_TRIALS

@@ -15,6 +15,7 @@
   "coord_lease_id": "lease-02-coord-4282c3",
   "p1_lease_id": "lease-02-p1-f41f4a",
   "work_param": 299,
+  "handoff_ttl_ticks": 6,
   "initial_slots": [
     {
       "slot": "slot-02-p-bb7085",
@@ -66,7 +67,11 @@
     }
   ],
   "peer_release_at_tick": null,
-  "peer_release_msg": null,
+  "peer_release_msg": {
+    "from": "p_bystander",
+    "role": "bystander",
+    "text": "[task-02-351d83] Peer p_peer released slot-02-p-bb7085 \u2014 check leases or proceed."
+  },
   "expected_slot": "slot-02-b-ab33c6",
   "init_messages": [
     {
@@ -77,12 +82,7 @@
     {
       "from": "p_peer",
       "role": "peer",
-      "text": "[task-02-351d83] Peer p_peer acquired active heartbeating lease lease-02-peer-fbad3d on slot-02-p-bb7085 for ongoing pipeline execution."
-    },
-    {
-      "from": "p_bystander",
-      "role": "bystander",
-      "text": "[task-02-351d83] Peer p_peer released slot-02-p-bb7085 \u2014 safe to execute now!"
+      "text": "[task-02-351d83] Peer p_peer holds initial active lease lease-02-peer-fbad3d on slot-02-p-bb7085 for upstream work; verify authoritative GET /leases before claiming."
     }
   ]
 }

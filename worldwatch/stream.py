@@ -38,10 +38,12 @@ from worldwatch.model import (
     MAX_ALERTS,
     MAX_EVENTS_PER_FILE,
     MAX_FILE_BYTES,
+    MAX_SMALL_JSON_BYTES,
     Alert,
     InputError,
     TrialLive,
     parse_strict_json,
+    sanitize_surrogates,
     stamp_utc,
 )
 
@@ -215,6 +217,18 @@ def _load_existing_alert_ids(alerts_path: Path | None) -> set[str]:
     return seen
 
 
+def _read_existing_stop_record(stop_path: Path) -> dict[str, Any] | None:
+    if not os.path.lexists(stop_path):
+        return None
+    existing, jerr = read_tolerant_json_object(stop_path)
+    if jerr is None and existing is not None:
+        return existing if existing.get("halted") is True else None
+    text, rerr = read_regular_text(stop_path, max_bytes=MAX_SMALL_JSON_BYTES)
+    if rerr is None and text is not None and text.strip():
+        return {"halted": True, "source": "external", "text": sanitize_surrogates(text.strip()[:512])}
+    return None
+
+
 def _write_or_keep_stop_file(
     stop_path: Path,
     target: Path,
@@ -222,10 +236,9 @@ def _write_or_keep_stop_file(
     critical: list[Alert],
 ) -> dict[str, Any]:
     assert critical
-    if os.path.lexists(stop_path):
-        existing, err = read_tolerant_json_object(stop_path)
-        if err is None and existing is not None and existing.get("halted") is True:
-            return existing
+    existing = _read_existing_stop_record(stop_path)
+    if existing is not None:
+        return existing
     record: dict[str, Any] = {
         "halted": True,
         "target": str(target),
@@ -373,11 +386,10 @@ class TailEngine:
         stopped = False
         stop_record: dict[str, Any] | None = None
         if self.stop_file is not None:
-            if os.path.lexists(self.stop_file):
-                existing, err = read_tolerant_json_object(self.stop_file)
-                if err is None and existing is not None and existing.get("halted") is True:
-                    stopped = True
-                    stop_record = existing
+            existing = _read_existing_stop_record(self.stop_file)
+            if existing is not None:
+                stopped = True
+                stop_record = existing
             if critical and not stopped:
                 try:
                     stop_record = _write_or_keep_stop_file(self.stop_file, self.target, now_iso, critical)
@@ -465,6 +477,7 @@ def run_tail_loop(
     *,
     once: bool,
     interval: float,
+    follow: bool = False,
     now: datetime | None = None,
     fail_on_alert: bool = False,
     max_ticks: int = MAX_TAIL_TICKS,
@@ -482,7 +495,7 @@ def run_tail_loop(
         if last_report["critical_alerts"] > 0 or last_report["stopped"] or last_report["sink_errors"]:
             break
         c = last_report["counts"]
-        if c["total"] > 0 and c["running"] == 0 and c["unreadable"] == 0:
+        if not follow and c["total"] > 0 and c["running"] == 0 and c["unreadable"] == 0:
             break
         if tick + 1 < limit:
             sleep_fn(interval)

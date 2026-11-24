@@ -12,6 +12,32 @@ Times are New York time (ET). Newest entry first. Each entry says what is done a
 
 ## 2026-11-24
 
+**1:30 PM. Swarm QA from stored data, a sealed-set inventory, 2 money controls in `campaign`, 1 mistake.**
+No trial ran. The study is `research/experiments/swarm-qa-stored-verdicts/` (`README.md`, `DESIGN.md`).
+- Stored QA verdicts (audited): at the reported thresholds a union of 2 cheap runs flags more labeled
+  positives than 1 higher-priced model in 3 cohorts, and more labeled controls. The labels are mostly
+  model-made. This supports a trial of union screening, not a policy at equal dollars.
+- Stored QA attempts that execution judged (audited): on 30 tasks with the tests hidden, 1 model route has a
+  credited grader differential on 3.67 tasks on average, 2 routes on 5.40, all 6 routes on 9. With the tests
+  visible 1 route has 7.00. A queue with a retry after grader feedback goes from 21 to 36 of 39. On 13
+  priced tasks DeepSeek Flash has 4 hits for $0.13 of model telemetry and Sonnet 0 for $0.52.
+- Sealed-set inventory (audited): 80 listed candidates with executable or documentary evidence, 0 admitted
+  to a decision set (prior use, public answers, unknown custody). The lab holds more execution evidence
+  than the list (69 wrong-pass pairs in the H1 hardening study), all used in development. The route to a
+  sealed set is to hold out a part of every new batch of verified defects before any detector reads it.
+- `campaign` cost cap (`5e577a3a7`): a result with no seat list counted $0.00 at the cap; found by the safety
+  review of the parked launcher. It now charges a recorded team cost, or the unknown-seat reserve when a
+  result shows model use and no cost. The first repair charged every scripted seat and would have stopped
+  a `standin` campaign on charges that do not exist; a regression over 34 stored roots caught it before
+  the land. Simulation: 133 seeds, 91,297 checks, 6 of 6 seeded bugs.
+- `campaign` per-lane OpenRouter keys (built, reviewed, 6 review fixes in work on the branch
+  `fable/campaign9`): a plan names its key (`money.key_env`), the runner inserts an exec shim after
+  `keys run --` so that the arm gets that key and no other OpenRouter key, and `campaign spend --probe-keys`
+  reads each lane key's provider counters. The remedy for "1 shared key at its limit, spend not attributable".
+- Mistake: Codex workers started subagents, and those ran on Anthropic Opus 5.5 (913 turns in 5 build
+  workers); a provider fallback near 10:58 AM added 56. The earlier attestation read only the main session
+  files. Worker prompts now forbid subagents and the attestation counts every session file.
+
 **12:05 PM. The matched-budget study: stored data read, 1 comparison designed, the pilot not recommended.**
 All of this is in `research/experiments/mac-matched-budget/` (`README.md` first). No trial ran.
 - Bespoke's 517 published runs at equal agent-hours (the lane's own recount of the headline rows agrees with

@@ -1,0 +1,106 @@
+[[roots]]
+label = "flotilla"
+path = "~/Developer/flotilla-wt/lab/.flotilla-local/jobs"
+kind = "harbor-trials"
+
+[[roots]]
+label = "flotilla"
+path = "~/Developer/harbor-multiagent-flotilla/.flotilla-local/trials"
+kind = "harbor-trials"
+
+[[roots]]
+label = "flotilla-decompose"
+path = "~/Developer/muster-runs/flotilla-decompose/arms"
+kind = "harbor-trials"
+copies_of = "flotilla"
+
+[[roots]]
+label = "muster"
+path = "~/Developer/muster-runs"
+kind = "harbor-trials"
+exclude = ["flotilla-decompose", "tidegauge-seats/review"]
+
+[[roots]]
+label = "muster"
+path = "~/Developer/muster-runs/e5/spend-ledger.jsonl"
+kind = "settle-ledger"
+report_only = true
+provider_override = "openrouter"
+
+[[roots]]
+label = "eval-lab-harbor"
+path = "~/Developer/eval-lab-results/multiagent-campaign-2026-11-23"
+kind = "harbor-trials"
+exclude = ["bespoke"]
+
+[[roots]]
+label = "eval-lab-harbor"
+path = "~/Developer/eval-lab-results/multiagent-campaign-2026-11-23/spend-ledger.jsonl"
+kind = "campaign-ledger"
+report_only = true
+
+[[roots]]
+label = "bespoke"
+path = "~/Developer/eval-lab-results/multiagent-campaign-2026-11-23"
+kind = "call-log"
+include = "bespoke/study4-holdout/**/proxy-usage.jsonl"
+time_field = "ts"
+model_field = "model"
+usd_field = "usd"
+dedup_fields = ["ts", "model", "agent", "status", "usd"]
+provider_override = "openrouter"
+model_prefix = "anthropic/"
+cost_source = "token-list-price"
+
+[[roots]]
+label = "crucible"
+path = "~/Developer/harbor-crucible/runs"
+kind = "harbor-trials"
+
+[[roots]]
+label = "worldwatch"
+path = "~/Developer/eval-lab-results/worldwatch-probes-2026-11-24/runs"
+kind = "harbor-trials"
+
+[[roots]]
+label = "worldwatch"
+path = "~/Developer/eval-lab-results/worldwatch-probes-2026-11-24/spend-ledger.jsonl"
+kind = "settle-ledger"
+report_only = true
+provider_override = "openrouter"
+
+[[roots]]
+label = "footnote"
+path = "~/.local/state/footnote/spend.jsonl"
+kind = "call-log"
+time_field = "ts"
+model_field = "model"
+provider_field = "provider"
+usd_field = "cost_usd"
+id_field = "call_id"
+skip_field = "status"
+skip_value = "reserved"
+
+[[roots]]
+label = "trace-review"
+path = "~/.local/state/tracereview/spend.jsonl"
+kind = "call-log"
+time_field = "ts"
+model_field = "model"
+provider_field = "provider"
+usd_field = "cost_usd"
+id_field = "call_id"
+skip_field = "status"
+skip_value = "reserved"
+
+[[roots]]
+label = "trace-review-field"
+path = "~/.local/state/tracereview-field/spend.jsonl"
+kind = "call-log"
+time_field = "ts"
+model_field = "model"
+provider_field = "provider"
+usd_field = "cost_usd"
+id_field = "call_id"
+skip_field = "status"
+skip_value = "reserved"

@@ -18,7 +18,7 @@ from random import Random
 from tempfile import TemporaryDirectory
 from typing import Any, TypedDict
 
-from campaign import evidence, fill, ledger, report
+from campaign import evidence, fill, ledger, report, sim_spend
 from campaign.plan import RERUN_TAG, Plan, PlanError, base_arm, load, parse, sha256_file
 from campaign.runner import (
     LOCK_NOTE_SECONDS,
@@ -65,6 +65,7 @@ _MAX_REGRESSIONS = 512
 _MAX_SEED = 2**64 - 1
 _DEFAULT_HUNT_SEED = 1_124_007
 _RESERVE_UNION_SEED = 1_124_008
+_MUTATION_SEED = 1_124_009
 _MAX_HUNT_SEEDS = 1_000_000
 _MAX_STEPS = 4000
 _MAX_RESUMES = 12
@@ -210,6 +211,9 @@ def _examples(run: Run) -> None:
     for argv, flagged in _WRAPPER_CASES:
         run.check(bool(report.wrapper_problem(argv)) == flagged, "wrapper-shape", repr(argv))
     for path in sorted(_PLANS.glob("*.toml")):
+        if path.name == sim_spend.EXAMPLE:
+            sim_spend.example(run, path)
+            continue
         try:
             plan = load(path)
         except PlanError as error:
@@ -1056,6 +1060,7 @@ def _run_seed(seed: int) -> Run:
         _ledger_end(sim)
         _status_end(sim)
         _merge_end(sim)
+        sim_spend.scenario(run, seed, root / "spend")
     return run
 
 
@@ -1103,9 +1108,25 @@ def _check() -> int:
                 shown.add(key)
                 print(f"{'Known regression' if is_known else 'Failure'}: {failure}",
                       file=sys.stdout if is_known else sys.stderr)
+    missed = _mutate(sorted(sim_spend.MUTATIONS), _MUTATION_SEED)
     print(f"Seeds: {len(seeds)}. Invariants checked: {checks}. Unexpected violations: {unexpected}. "
-          f"Known violations: {expected}. Time: {time.monotonic() - started:.2f} s.")
-    return int(unexpected > 0)
+          f"Known violations: {expected}. Seeded bugs caught: {len(sim_spend.MUTATIONS) - missed} of "
+          f"{len(sim_spend.MUTATIONS)}. Time: {time.monotonic() - started:.2f} s.")
+    return int(unexpected > 0 or missed > 0)
+
+
+def _mutate(names: list[str], seed: int) -> int:
+    missed = 0
+    for name in names:
+        run = Run(seed)
+        with TemporaryDirectory(prefix="campaign-sim-") as directory:
+            sim_spend.scenario(run, seed, Path(directory) / "spend", name)
+        fired = sorted({failure.invariant for failure in run.failures})
+        expected = sim_spend.MUTATIONS[name]
+        missed += expected not in fired
+        print(f"Seeded bug {name} at seed {seed}: {'caught' if expected in fired else 'missed'} by {expected}; "
+              f"violated invariants: {', '.join(fired) or 'none'}.")
+    return missed
 
 
 def _record(rows: list[Regression], seed: int, new: list[Violation]) -> None:
@@ -1166,6 +1187,12 @@ def _seconds(value: str) -> int:
     return seconds
 
 
+def _bug(value: str) -> str:
+    if value not in sim_spend.MUTATIONS:
+        raise argparse.ArgumentTypeError(f"use one of {', '.join(sorted(sim_spend.MUTATIONS))}")
+    return value
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m campaign.sim")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -1175,11 +1202,16 @@ def main(argv: list[str] | None = None) -> int:
     hunt.add_argument("--start-seed", type=_seed, default=_DEFAULT_HUNT_SEED)
     replay = commands.add_parser("replay", help="replay a single seed")
     replay.add_argument("seed", type=_seed)
+    mutate = commands.add_parser("mutate", help="inject seeded spend bugs and show the invariant that catches each")
+    mutate.add_argument("names", nargs="*", type=_bug, metavar="BUG", help=", ".join(sorted(sim_spend.MUTATIONS)))
+    mutate.add_argument("--seed", type=_seed, default=_MUTATION_SEED)
     args = parser.parse_args(argv)
     if args.command == "check":
         return _check()
     if args.command == "hunt":
         return _hunt(args.seconds, args.start_seed)
+    if args.command == "mutate":
+        return int(_mutate(args.names or sorted(sim_spend.MUTATIONS), args.seed) > 0)
     assert args.command == "replay"
     return _replay(args.seed)
 

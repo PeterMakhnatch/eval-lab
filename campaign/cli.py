@@ -12,7 +12,7 @@ from pathlib import Path
 from types import FrameType
 from typing import Any
 
-from campaign import __version__, fill, report
+from campaign import __version__, fill, report, spend_cli
 from campaign.plan import Plan, PlanError, load
 from campaign.runner import EventLog, Expand, Runner, Stop, drive, expand_first_run, read_funds
 from campaign.system import RealSystem
@@ -25,6 +25,7 @@ run     start the arms of each lane in order, with the money, stop and plan guar
 status  per arm: planned, started, with a reward, unmeasured by kind, cost, ledger
 fill    the 1 rerun round of unmeasured trials into <arm>.r1-m<missing>
 merge   link every trial with a reward, first runs and reruns, under DEST/<arm>
+spend   recorded model spend from ROOTS.toml by lane, day and model, with key reconciliation
 """
 
 
@@ -133,9 +134,10 @@ def _command(sub: Any, name: str, text: str, handler: Callable[[argparse.Namespa
     return child
 
 
-def parser() -> argparse.ArgumentParser:
+def parser(*, private: bool = False) -> argparse.ArgumentParser:
     top = argparse.ArgumentParser(
-        prog="campaign", description=DESCRIPTION, formatter_class=argparse.RawDescriptionHelpFormatter
+        prog="campaign", description=DESCRIPTION, formatter_class=argparse.RawDescriptionHelpFormatter,
+        exit_on_error=not private,
     )
     top.add_argument("--version", action="version", version=f"campaign {__version__}")
     sub = top.add_subparsers(dest="command", required=True, metavar="COMMAND")
@@ -149,11 +151,23 @@ def parser() -> argparse.ArgumentParser:
     filler.add_argument("--dry-run", action="store_true", help="print the rerun plan; start and write nothing")
     merge = _command(sub, "merge", "link every trial with a reward under DEST/<arm>", cmd_merge)
     merge.add_argument("dest", type=Path)
+    spend_cli.register(sub)
     return top
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    args = parser().parse_args(argv)
+    values = sys.argv[1:] if argv is None else argv
+    private = bool(values and values[0] == "spend")
+    command_parser = parser(private=private)
+    if private:
+        try:
+            args, extra = command_parser.parse_known_args(values)
+        except argparse.ArgumentError:
+            return spend_cli.bad_arguments()
+        if extra:
+            return spend_cli.bad_arguments()
+    else:
+        args = command_parser.parse_args(values)
     try:
         return args.run(args)
     except PlanError as error:

@@ -487,7 +487,7 @@ are not known.
   primary tests without them as a check after the result.
 - Nothing else changes.
 
-## Amendment 11 (2:52 AM ET, 2026-11-24, before any scored E9 trial): E9 `horde`, the plain team from 8 to 48 agents at 96 opens, and 2 rules at 48 agents
+## Amendment 11 (2:50 AM ET, 2026-11-24, before any scored E9 trial): E9 `horde`, the plain team from 8 to 48 agents at 96 opens, and 2 rules at 48 agents
 
 Written after E5 to E7 and the E5 open arms (F19, F23, F24, F25). 3 pilot trials with a model exist and I know
 their results (below). No scored `horde` trial exists. An independent review of the draft, of the task copy

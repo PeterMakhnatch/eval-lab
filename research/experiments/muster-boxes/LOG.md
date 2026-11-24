@@ -12,7 +12,7 @@ Times are New York time (ET). Newest entry first. Each entry says what is done a
 
 ## 2026-11-24
 
-**2:52 AM. E9 `horde` is pre-registered (Amendment 11). 3 pilot trials with 48 real agents.**
+**2:50 AM. E9 `horde` is pre-registered (Amendment 11). 3 pilot trials with 48 real agents.**
 - Pilot, 1 trial each on `horde-i01`, DeepSeek Flash, Daytona with the 4 vCPU snapshot, not scored:
   `zones-48` 0.9875 (1 repeat, $0.048, 168 s), `team-48` 0.4875 (36 repeats, 162 messages, $0.107, 231 s),
   `chief-48` 1.0 (0 repeats, 113 messages, $0.081, 293 s). 0 of 144 seats ended with an exception. Folder

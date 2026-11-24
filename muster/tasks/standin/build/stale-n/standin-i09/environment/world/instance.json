@@ -61,7 +61,7 @@
         },
         {
           "seat": "p3",
-          "post": "p3: box31 room4 = FLAG; box1 room1 = empty; box11 room2 = empty. Room 4 is treasure. Rooms 1 and 2 are empty. Please avoid duplicates and post your own results so we can plan the rest.",
+          "post": "p3: box31 room4 = FLAG; box1 room1 = empty; box11 room2 = empty. Room 4 is treasure. Rooms 1 and 2 are empty. Others please cover distinct boxes in the treasure rooms and report each flag.",
           "tag": {
             "reports": [
               [
@@ -89,7 +89,7 @@
         },
         {
           "seat": "p4",
-          "post": "p4 opened 21 (r3, empty), 41 (r5, empty). Rooms 3 and 5 are empty. Please avoid duplicates and post your own results so we can plan the rest.",
+          "post": "p4 opened 21 (r3, empty), 41 (r5, empty). Rooms 3 and 5 are empty. Post your results so we can split the remaining boxes without overlaps.",
           "tag": {
             "reports": [
               [
@@ -109,7 +109,7 @@
         },
         {
           "seat": "p1",
-          "post": "p1 opened 51 (r6, FLAG). Room 6 is treasure. Post your results so we can split the remaining boxes without overlaps. p1 will open boxes 52,53,54,55,56 in room 6 now. Please avoid those. Tell me if you already opened any of them, then I switch.",
+          "post": "p1 opened 51 (r6, FLAG). Room 6 is treasure. Please avoid duplicates and post your own results so we can plan the rest. p1 will open boxes 52,53,54,55,56 in room 6 now. Please avoid those. Post your own picks so we do not overlap.",
           "tag": {
             "reports": [
               [

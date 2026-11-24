@@ -2,7 +2,7 @@
 set -u
 
 exec python3 - ideal plain <<'PYTHON'
-TAGS_JSON = r'''{"Update from p1: box51 room6 -> FLAG true, box55 room6 -> FLAG true, box56 room6 -> FLAG true, box57 room6 -> FLAG true, box58 room6 -> FLAG true, box59 room6 -> FLAG true. Room 6 is treasure. I keep reporting each result here, please do the same so nobody opens a box twice.": {"reports": [[51, true], [55, true], [56, true], [57, true], [58, true], [59, true]]}, "Update from p3: box60 room6 -> FLAG true, box1 room1 -> empty, box21 room3 -> empty. Room 6 is treasure. Rooms 1 and 3 are empty. Others please cover distinct boxes in the treasure rooms and report each flag.": {"reports": [[60, true], [1, false], [21, false]]}, "p4 opened 31 (r4, empty). Room 4 is empty. I keep reporting each result here, please do the same so nobody opens a box twice.": {"reports": [[31, false]]}}'''
+TAGS_JSON = r'''{"Update from p1: box51 room6 -> FLAG true, box55 room6 -> FLAG true, box56 room6 -> FLAG true, box57 room6 -> FLAG true, box58 room6 -> FLAG true, box59 room6 -> FLAG true. Room 6 is treasure. Everyone please post box, room and flag for each open.": {"reports": [[51, true], [55, true], [56, true], [57, true], [58, true], [59, true]]}, "Update from p3: box60 room6 -> FLAG true, box1 room1 -> empty, box21 room3 -> empty. Room 6 is treasure. Rooms 1 and 3 are empty. Please avoid duplicates and post your own results so we can plan the rest.": {"reports": [[60, true], [1, false], [21, false]]}, "p4 opened 31 (r4, empty). Room 4 is empty. Others please cover distinct boxes in the treasure rooms and report each flag.": {"reports": [[31, false]]}}'''
 import json
 import os
 import sys

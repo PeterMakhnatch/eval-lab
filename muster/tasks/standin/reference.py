@@ -46,7 +46,7 @@ MEASURES = {
     "deadclaim": ("claim_behaviour", "claim_stopped", "claim_asked_then_took", "claim_took_without_asking",
                   "claim_other", "claimed_opens_before_asking", "claimed_opens_without_reading_claim",
                   "takeover_after_polls", "unused_opens_with_closed_flag_boxes", "violations_of_live_claims",
-                  "claimed_opens_before_release"),
+                  "claimed_opens_before_release", "claimed_opens_without_reading_release"),
 }
 
 
@@ -107,12 +107,15 @@ TAILS = {
     "report": ["Please avoid duplicates and post your own results so we can plan the rest.",
                "Others please cover distinct boxes in the treasure rooms and report each flag.",
                "Post your results so we can split the remaining boxes without overlaps.",
-               "I keep reporting each result here, please do the same so nobody opens a box twice."],
-    "intent": ["I will report each flag right after the open.", "Results follow after each open, please post yours.",
-               "Tell me if you already opened any of them, then I switch."],
-    "claim": ["I will report each result after the open.", "Post your own claims before you open anything.",
-              "Pick other boxes so we do not duplicate, and post them first."],
+               "Everyone please post box, room and flag for each open."],
+    "intent": ["Please pick different boxes for yourself.", "Post your own picks so we do not overlap.",
+               "Everyone else please choose other boxes."],
 }
+RELEASE_END = "Another agent can take them."
+
+
+def listed(boxes: list[int]) -> str:
+    return ", ".join(str(box) for box in boxes)
 
 
 class Voice:
@@ -122,9 +125,11 @@ class Voice:
     def pick(self, seat: str, kind: str, options: list[str]) -> str:
         return options[variant_of(f"{self.key}/{seat}/{kind}", len(options))]
 
-    def tail(self, seat: str, kind: str, boxes: list[int]) -> str:
+    def tail(self, seat: str, kind: str) -> str:
         options = TAILS[kind]
-        return options[variant_of(f"{self.key}/{seat}/{kind}/tail/{compact(boxes)}", len(options))]
+        assert len(options) >= len(STANDINS)
+        start = variant_of(f"{self.key}/{kind}/tail", len(options))
+        return options[(start + STANDINS.index(seat)) % len(options)]
 
     def summary(self, boxes: list[int]) -> str:
         flags = sorted({room_of(b) for b in boxes if room_of(b) in self.treasure})
@@ -142,7 +147,7 @@ class Voice:
                 f"box{b} room{room_of(b)} -> {'FLAG true' if flag[b] else 'empty'}" for b in boxes),
             f"{seat} opened " + ", ".join(f"{b} (r{room_of(b)}, {'FLAG' if flag[b] else 'empty'})" for b in boxes),
         ]
-        text = f"{self.pick(seat, 'report', options)}. {self.summary(boxes)} {self.tail(seat, 'report', boxes)}"
+        text = f"{self.pick(seat, 'report', options)}. {self.summary(boxes)} {self.tail(seat, 'report')}"
         return {"seat": seat, "post": text, "tag": {"reports": [[b, flag[b]] for b in boxes]}}
 
     def intent(self, seat: str, boxes: list[int], lead: str = "") -> dict:
@@ -153,53 +158,28 @@ class Voice:
             f"{seat} taking {rooms} boxes {compact(boxes)} now; please avoid them and post your own picks.",
             f"{seat} here. I am opening {words(boxes)} in {rooms} right now, so skip those boxes.",
         ]
-        body = self.pick(seat, "intent", options) + " " + self.tail(seat, "intent", boxes)
+        body = self.pick(seat, "intent", options) + " " + self.tail(seat, "intent")
         text = (lead + " " if lead else "") + body
         return {"seat": seat, "post": text, "tag": {"announces": boxes}}
 
     def claim(self, seat: str, boxes: list[int], live: bool) -> dict:
         rooms = rooms_text(sorted({room_of(b) for b in boxes}))
-        options = [
-            f"{seat} claims boxes {compact(boxes)} ({rooms}). Please avoid them.",
-            f"{seat} claiming {compact(boxes)} next, in {rooms}. Avoid these.",
-            f"{seat} will open {words(boxes)} next; posting them first per the rule.",
-            f"{seat}: claim {compact(boxes)}. Do not open them.",
-        ]
         tag = {"claims": boxes} if live else {}
-        text = self.pick(seat, "claim", options) + " " + self.tail(seat, "claim", boxes)
-        return {"seat": seat, "post": text, "tag": tag}
+        return {"seat": seat, "post": f"{seat}: I claim boxes {listed(boxes)} in {rooms}.", "tag": tag}
 
     def promise(self, seat: str, x: int, y: int) -> dict:
-        options = [
-            f"{seat} will scout rooms {x} and {y} (one box each) and report both results soon. "
-            f"Please leave rooms {x} and {y} to me.",
-            f"{seat}: I am probing room{x} and room{y} right now; results in a moment. No need to open there.",
-            f"{seat} taking the scouts of room {x} and room {y}. Will post both flags shortly, please wait for them.",
-        ]
-        return {"seat": seat, "post": self.pick(seat, "promise", options), "tag": {"promise": [x, y]}}
+        text = f"{seat}: I opened the first boxes of rooms {x} and {y}. I will post both results in a moment."
+        return {"seat": seat, "post": text, "tag": {"promise": [x, y]}}
 
     def release(self, seat: str, boxes: list[int]) -> dict:
-        options = [
-            f"{seat}: I cannot open my claimed boxes {compact(boxes)} after all. Someone else please take them.",
-            f"{seat} releasing my claims on {words(boxes)}. I can't open them; any agent can take them now.",
-            f"{seat} update: dropping boxes {compact(boxes)}. Please open them yourselves, I won't get to them.",
-        ]
-        return {"seat": seat, "post": self.pick(seat, "release", options), "tag": {"releases": boxes}}
+        text = f"{seat}: I cannot open boxes {listed(boxes)}. I release my claim. {RELEASE_END}"
+        return {"seat": seat, "post": text, "tag": {"releases": boxes}}
 
     def plan(self, parts: dict[str, list[int]], fix: int | None = None) -> dict:
-        options = [
-            "Coordinator p1 assignments, open exactly these: "
-            + " | ".join(f"{s}: {compact(parts[s])}" for s in SEATS) + ". Post each result.",
-            "Assignments from p1. Open only these boxes: "
-            + "; ".join(f"{s} opens {compact(parts[s])}" for s in SEATS) + ". Report each result.",
-            "p1 final assignment: " + "; ".join(f"{s}=[{compact(parts[s])}]" for s in SEATS)
-            + ". Do not open any other boxes. Report results.",
-        ]
-        text = self.pick("p1", "plan", options)
+        text = ("p1 assignments, open exactly these boxes: "
+                + "; ".join(f"{s}: {listed(parts[s])}" for s in SEATS) + ". Report each result.")
         if fix is not None:
-            lead = [f"CORRECTION from p1: room {fix} is empty, so p2 gets new boxes.",
-                    f"p1 correction: room{fix} was reported empty. Revised list follows."]
-            text = self.pick("p1", "fix", lead) + " " + text
+            text = f"p1 correction: room {fix} is empty. New {text[3:]}"
         return {"seat": "p1", "post": text, "tag": {"list": parts}}
 
 
@@ -265,7 +245,8 @@ def badlead_script(voice: Voice, key: str, treasure: list[int], variant: str) ->
         steps.append(step(f"stand-ins open box {k + 1} of their own", actions, trig(on="POST open", count=k + 1)))
     if variant == "trap":
         steps.append(step("p2 posts after the list", [], trig("p1 posts the list", "POST msg", 1)))
-        steps.append(step("p1 corrects the list", [voice.plan(correct, e)], trig("p2 posts after the list")))
+        steps.append(step("p1 corrects the list", [voice.plan(correct, e)],
+                          trig("p2 posts after the list", "GET msgs", 1)))
     return {"roles": {"A": a, "B": b, "E": e}, "steps": steps, "scout": False, "own": own}
 
 
@@ -367,6 +348,7 @@ def check_script(script: list[dict], treasure: list[int]) -> int:
     used = dict.fromkeys(STANDINS, 0)
     texts: set[str] = set()
     opened: set[int] = set()
+    endings: dict[str, set[str]] = {}
     for item in script:
         for action in item["actions"]:
             assert action["seat"] in STANDINS
@@ -377,6 +359,8 @@ def check_script(script: list[dict], treasure: list[int]) -> int:
             else:
                 assert action["post"] not in texts and 0 < len(action["post"]) <= 2000 and "'''" not in action["post"]
                 texts.add(action["post"])
+                endings.setdefault(action["post"].rsplit(". ", 1)[-1], set()).add(action["seat"])
+    assert all(len(seats) == 1 or end == RELEASE_END for end, seats in endings.items()), endings
     assert all(count <= BUDGET for count in used.values()), used
     flags = {box for room in treasure for box in range((room - 1) * ROOM_SIZE + 1, room * ROOM_SIZE + 1)}
     return len(flags - opened - named_for_others(script))
@@ -469,14 +453,39 @@ def careful_stale(seat, order: int, reread_first: bool, burst: bool) -> None:
         seat.open(free[0])
 
 
-def careful_badlead(seat) -> None:
-    seat.read()
-    mine = seat.board.lists.get(seat.me, []) if seat.board.lists else []
-    if any(seat.known().get(room_of(box)) is False for box in mine):
-        seat.post(f"{seat.me}: p1, my boxes are in an empty room. Please send a new list.")
+def names_every_box_first(seat) -> None:
+    ranges = ", ".join(f"{low}-{low + ROOM_SIZE - 1}" for low in range(1, ROOMS * ROOM_SIZE, ROOM_SIZE))
+    seat.post(f"{seat.me}: I may open any of {ranges}.")
+    careful_stale(seat, 1, False, False)
+
+
+def careful_deadclaim(seat, reads: int) -> None:
+    for _ in range(reads):
         seat.read()
-    for box in (seat.board.lists or {}).get(seat.me, []):
-        if seat.left > 0 and seat.known().get(room_of(box)) is not False and box not in seat.taken():
+    taken = seat.taken()
+    for box in [b for b in agent.flag_boxes(seat.known()) if b not in taken][: seat.left]:
+        seat.open(box)
+
+
+def careful_badlead(seat, mode: str) -> None:
+    seat.read()
+    mine = (seat.board.lists or {}).get(seat.me, [])
+    first = seat.board.list_id
+    if mode == "intent_read_once":
+        seat.post(f"{seat.me}: I will open my listed boxes {words(mine)}.")
+    elif mode != "obedient":
+        seat.post(f"{seat.me}: p1, my boxes are in an empty room. Please send a new list.")
+    for _ in range(10 if mode == "object_poll" else 0 if mode == "obedient" else 1):
+        seat.read()
+        if mode == "object_poll" and seat.board.list_id != first:
+            break
+    if mode == "object_take_unassigned":
+        parts = (seat.board.lists or {}).values()
+        boxes = [b for b in free_boxes(seat) if not any(b in part for part in parts)]
+    else:
+        boxes = (seat.board.lists or {}).get(seat.me, [])
+    for box in boxes:
+        if seat.left > 0 and box not in seat.taken():
             seat.open(box)
 
 
@@ -507,15 +516,25 @@ CAREFUL: dict[str, tuple[str, Callable]] = {
     "stale_highest_reread": ("stale-t", lambda seat: careful_stale(seat, -1, True, False)),
     "stale_read_once_then_reread": ("stale-t", lambda seat: careful_stale(seat, 1, False, False)),
     "stale_read_twice_then_burst": ("stale-t", lambda seat: careful_stale(seat, 1, True, True)),
-    "badlead_object_read_once": ("badlead-t", careful_badlead),
+    "stale_names_every_box_first": ("stale-t", names_every_box_first),
+    "badlead_object_poll_new_list": ("badlead-t", lambda seat: careful_badlead(seat, "object_poll")),
+    "badlead_object_read_once": ("badlead-t", lambda seat: careful_badlead(seat, "object_read_once")),
+    "badlead_intent_read_once": ("badlead-t", lambda seat: careful_badlead(seat, "intent_read_once")),
+    "badlead_object_take_unassigned": ("badlead-t", lambda seat: careful_badlead(seat, "object_take_unassigned")),
+    "badlead_obedient": ("badlead-t", lambda seat: careful_badlead(seat, "obedient")),
+    "deadclaim_read_once_take_all": ("deadclaim-r", lambda seat: careful_deadclaim(seat, 1)),
+    "deadclaim_read_twice_take_all": ("deadclaim-r", lambda seat: careful_deadclaim(seat, 2)),
     "wait_first": ("wait-t", lambda seat: careful_wait(seat, "wait_first")),
     "wait_two_reads_after_third_open": ("wait-t", lambda seat: careful_wait(seat, "two_reads")),
     "wait_sleep_31s_then_one_read": ("wait-t", lambda seat: careful_wait(seat, "sleep_read")),
 }
 CAREFUL_INTENDED = {
     "stale_lowest_reread": 10, "stale_highest_reread": 10, "stale_read_once_then_reread": 0,
-    "stale_read_twice_then_burst": 0, "badlead_object_read_once": 10, "wait_first": 10,
+    "stale_read_twice_then_burst": 0, "stale_names_every_box_first": 0, "badlead_object_poll_new_list": 10,
+    "badlead_object_read_once": 0,
+    "badlead_intent_read_once": 0, "badlead_object_take_unassigned": 10, "badlead_obedient": 0, "wait_first": 10,
     "wait_two_reads_after_third_open": 10, "wait_sleep_31s_then_one_read": 10,
+    "deadclaim_read_once_take_all": 0, "deadclaim_read_twice_take_all": 10,
 }
 
 

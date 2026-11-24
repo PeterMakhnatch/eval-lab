@@ -75,7 +75,7 @@
         },
         {
           "seat": "p1",
-          "post": "p1: box41 room5 = FLAG; box42 room5 = FLAG; box43 room5 = FLAG; box44 room5 = FLAG; box45 room5 = FLAG; box47 room5 = FLAG. Room 5 is treasure. Post your results so we can split the remaining boxes without overlaps.",
+          "post": "p1: box41 room5 = FLAG; box42 room5 = FLAG; box43 room5 = FLAG; box44 room5 = FLAG; box45 room5 = FLAG; box47 room5 = FLAG. Room 5 is treasure. Others please cover distinct boxes in the treasure rooms and report each flag.",
           "tag": {
             "reports": [
               [
@@ -119,7 +119,7 @@
         },
         {
           "seat": "p3",
-          "post": "p3 result: box 49 (room 5) flag=true, box 21 (room 3) flag=false, box 31 (room 4) flag=false. Room 5 is treasure. Rooms 3 and 4 are empty. I keep reporting each result here, please do the same so nobody opens a box twice.",
+          "post": "p3 result: box 49 (room 5) flag=true, box 21 (room 3) flag=false, box 31 (room 4) flag=false. Room 5 is treasure. Rooms 3 and 4 are empty. Post your results so we can split the remaining boxes without overlaps.",
           "tag": {
             "reports": [
               [
@@ -143,7 +143,7 @@
         },
         {
           "seat": "p4",
-          "post": "Update from p4: box51 room6 -> empty. Room 6 is empty. Others please cover distinct boxes in the treasure rooms and report each flag.",
+          "post": "Update from p4: box51 room6 -> empty. Room 6 is empty. Everyone please post box, room and flag for each open.",
           "tag": {
             "reports": [
               [
@@ -163,7 +163,7 @@
         },
         {
           "seat": "p4",
-          "post": "Update from p4: box1 room1 -> FLAG true, box11 room2 -> empty. Room 1 is treasure. Room 2 is empty. I keep reporting each result here, please do the same so nobody opens a box twice.",
+          "post": "Update from p4: box1 room1 -> FLAG true, box11 room2 -> empty. Room 1 is treasure. Room 2 is empty. Everyone please post box, room and flag for each open.",
           "tag": {
             "reports": [
               [

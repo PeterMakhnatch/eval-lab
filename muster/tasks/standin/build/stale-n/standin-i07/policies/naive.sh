@@ -2,7 +2,7 @@
 set -u
 
 exec python3 - naive plain <<'PYTHON'
-TAGS_JSON = r'''{"p1 opened 21 (r3, FLAG). Room 3 is treasure. Others please cover distinct boxes in the treasure rooms and report each flag. p1 here. I am opening 22, 23, 24, 25 and 26 in room 3 right now, so skip those boxes. Tell me if you already opened any of them, then I switch.": {"announces": [22, 23, 24, 25, 26], "reports": [[21, true]]}, "p3 opened 1 (r1, FLAG), 11 (r2, empty), 31 (r4, empty). Room 1 is treasure. Rooms 2 and 4 are empty. Please avoid duplicates and post your own results so we can plan the rest.": {"reports": [[1, true], [11, false], [31, false]]}, "p4: box41 room5 = empty; box51 room6 = empty. Rooms 5 and 6 are empty. Others please cover distinct boxes in the treasure rooms and report each flag.": {"reports": [[41, false], [51, false]]}}'''
+TAGS_JSON = r'''{"p1 opened 21 (r3, FLAG). Room 3 is treasure. Everyone please post box, room and flag for each open. p1 here. I am opening 22, 23, 24, 25 and 26 in room 3 right now, so skip those boxes. Everyone else please choose other boxes.": {"announces": [22, 23, 24, 25, 26], "reports": [[21, true]]}, "p3 opened 1 (r1, FLAG), 11 (r2, empty), 31 (r4, empty). Room 1 is treasure. Rooms 2 and 4 are empty. Please avoid duplicates and post your own results so we can plan the rest.": {"reports": [[1, true], [11, false], [31, false]]}, "p4: box41 room5 = empty; box51 room6 = empty. Rooms 5 and 6 are empty. Others please cover distinct boxes in the treasure rooms and report each flag.": {"reports": [[41, false], [51, false]]}}'''
 import json
 import os
 import sys

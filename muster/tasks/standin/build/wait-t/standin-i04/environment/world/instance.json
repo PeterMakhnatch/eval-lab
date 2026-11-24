@@ -143,7 +143,7 @@
         },
         {
           "seat": "p4",
-          "post": "p4 opened 51 (r6, empty). Room 6 is empty. Others please cover distinct boxes in the treasure rooms and report each flag.",
+          "post": "p4 opened 51 (r6, empty). Room 6 is empty. Post your results so we can split the remaining boxes without overlaps.",
           "tag": {
             "reports": [
               [
@@ -163,7 +163,7 @@
         },
         {
           "seat": "p4",
-          "post": "p4: I am probing room3 and room4 right now; results in a moment. No need to open there.",
+          "post": "p4: I opened the first boxes of rooms 3 and 4. I will post both results in a moment.",
           "tag": {
             "promise": [
               3,
@@ -230,7 +230,7 @@
       "actions": [
         {
           "seat": "p4",
-          "post": "p4 opened 21 (r3, FLAG), 31 (r4, empty). Room 3 is treasure. Room 4 is empty. I keep reporting each result here, please do the same so nobody opens a box twice.",
+          "post": "p4 opened 21 (r3, FLAG), 31 (r4, empty). Room 3 is treasure. Room 4 is empty. Post your results so we can split the remaining boxes without overlaps.",
           "tag": {
             "reports": [
               [

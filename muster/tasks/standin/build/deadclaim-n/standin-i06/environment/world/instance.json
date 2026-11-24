@@ -49,7 +49,7 @@
       "actions": [
         {
           "seat": "p1",
-          "post": "p1: claim 21,31,32,36,37,38. Do not open them. Post your own claims before you open anything.",
+          "post": "p1: I claim boxes 21, 31, 32, 36, 37, 38 in rooms 3 and 4.",
           "tag": {}
         },
         {
@@ -78,7 +78,7 @@
         },
         {
           "seat": "p1",
-          "post": "p1: box21 room3 = FLAG; box31 room4 = FLAG; box32 room4 = FLAG; box36 room4 = FLAG; box37 room4 = FLAG; box38 room4 = FLAG. Rooms 3 and 4 are treasure. Please avoid duplicates and post your own results so we can plan the rest.",
+          "post": "p1: box21 room3 = FLAG; box31 room4 = FLAG; box32 room4 = FLAG; box36 room4 = FLAG; box37 room4 = FLAG; box38 room4 = FLAG. Rooms 3 and 4 are treasure. Post your results so we can split the remaining boxes without overlaps.",
           "tag": {
             "reports": [
               [
@@ -110,7 +110,7 @@
         },
         {
           "seat": "p3",
-          "post": "p3 will open 23, 25 and 26 next; posting them first per the rule. Post your own claims before you open anything.",
+          "post": "p3: I claim boxes 23, 25, 26 in room 3.",
           "tag": {}
         },
         {
@@ -127,7 +127,7 @@
         },
         {
           "seat": "p3",
-          "post": "p3 opened 23 (r3, FLAG), 25 (r3, FLAG), 26 (r3, FLAG). Room 3 is treasure. Post your results so we can split the remaining boxes without overlaps.",
+          "post": "p3 opened 23 (r3, FLAG), 25 (r3, FLAG), 26 (r3, FLAG). Room 3 is treasure. Everyone please post box, room and flag for each open.",
           "tag": {
             "reports": [
               [
@@ -147,7 +147,7 @@
         },
         {
           "seat": "p4",
-          "post": "p4 claims boxes 27,28 (room 3). Please avoid them. Post your own claims before you open anything.",
+          "post": "p4: I claim boxes 27, 28 in room 3.",
           "tag": {}
         },
         {
@@ -160,7 +160,7 @@
         },
         {
           "seat": "p4",
-          "post": "p4: box27 room3 = FLAG; box28 room3 = FLAG. Room 3 is treasure. I keep reporting each result here, please do the same so nobody opens a box twice.",
+          "post": "p4: box27 room3 = FLAG; box28 room3 = FLAG. Room 3 is treasure. Please avoid duplicates and post your own results so we can plan the rest.",
           "tag": {
             "reports": [
               [

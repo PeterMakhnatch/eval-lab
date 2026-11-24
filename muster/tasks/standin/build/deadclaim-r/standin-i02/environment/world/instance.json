@@ -49,7 +49,7 @@
       "actions": [
         {
           "seat": "p1",
-          "post": "p1 claims boxes 1,2,3,4,6,51 (rooms 1 and 6). Please avoid them. Post your own claims before you open anything.",
+          "post": "p1: I claim boxes 1, 2, 3, 4, 6, 51 in rooms 1 and 6.",
           "tag": {}
         },
         {
@@ -78,7 +78,7 @@
         },
         {
           "seat": "p1",
-          "post": "Update from p1: box1 room1 -> FLAG true, box2 room1 -> FLAG true, box3 room1 -> FLAG true, box4 room1 -> FLAG true, box6 room1 -> FLAG true, box51 room6 -> FLAG true. Rooms 1 and 6 are treasure. Post your results so we can split the remaining boxes without overlaps.",
+          "post": "Update from p1: box1 room1 -> FLAG true, box2 room1 -> FLAG true, box3 room1 -> FLAG true, box4 room1 -> FLAG true, box6 room1 -> FLAG true, box51 room6 -> FLAG true. Rooms 1 and 6 are treasure. Others please cover distinct boxes in the treasure rooms and report each flag.",
           "tag": {
             "reports": [
               [
@@ -110,7 +110,7 @@
         },
         {
           "seat": "p3",
-          "post": "p3 claims boxes 53,54,56 (room 6). Please avoid them. Pick other boxes so we do not duplicate, and post them first.",
+          "post": "p3: I claim boxes 53, 54, 56 in room 6.",
           "tag": {}
         },
         {
@@ -127,7 +127,7 @@
         },
         {
           "seat": "p3",
-          "post": "Update from p3: box53 room6 -> FLAG true, box54 room6 -> FLAG true, box56 room6 -> FLAG true. Room 6 is treasure. Others please cover distinct boxes in the treasure rooms and report each flag.",
+          "post": "Update from p3: box53 room6 -> FLAG true, box54 room6 -> FLAG true, box56 room6 -> FLAG true. Room 6 is treasure. Post your results so we can split the remaining boxes without overlaps.",
           "tag": {
             "reports": [
               [
@@ -147,7 +147,7 @@
         },
         {
           "seat": "p4",
-          "post": "p4 claiming 58,60 next, in room 6. Avoid these. I will report each result after the open.",
+          "post": "p4: I claim boxes 58, 60 in room 6.",
           "tag": {}
         },
         {
@@ -160,7 +160,7 @@
         },
         {
           "seat": "p4",
-          "post": "p4 opened 58 (r6, FLAG), 60 (r6, FLAG). Room 6 is treasure. Others please cover distinct boxes in the treasure rooms and report each flag.",
+          "post": "p4 opened 58 (r6, FLAG), 60 (r6, FLAG). Room 6 is treasure. Everyone please post box, room and flag for each open.",
           "tag": {
             "reports": [
               [
@@ -176,7 +176,7 @@
         },
         {
           "seat": "p3",
-          "post": "p3 claims boxes 7,8,10 (room 1). Please avoid them. Pick other boxes so we do not duplicate, and post them first.",
+          "post": "p3: I claim boxes 7, 8, 10 in room 1.",
           "tag": {
             "claims": [
               7,
@@ -187,7 +187,7 @@
         },
         {
           "seat": "p4",
-          "post": "p4 claiming 52,55,57 next, in room 6. Avoid these. I will report each result after the open.",
+          "post": "p4: I claim boxes 52, 55, 57 in room 6.",
           "tag": {
             "claims": [
               52,
@@ -212,7 +212,7 @@
       "actions": [
         {
           "seat": "p3",
-          "post": "p3 releasing my claims on 7, 8 and 10. I can't open them; any agent can take them now.",
+          "post": "p3: I cannot open boxes 7, 8, 10. I release my claim. Another agent can take them.",
           "tag": {
             "releases": [
               7,
@@ -223,7 +223,7 @@
         },
         {
           "seat": "p4",
-          "post": "p4 update: dropping boxes 52,55,57. Please open them yourselves, I won't get to them.",
+          "post": "p4: I cannot open boxes 52, 55, 57. I release my claim. Another agent can take them.",
           "tag": {
             "releases": [
               52,

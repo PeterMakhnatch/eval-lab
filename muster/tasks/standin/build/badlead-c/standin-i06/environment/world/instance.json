@@ -65,7 +65,7 @@
         },
         {
           "seat": "p1",
-          "post": "p1: box31 room4 = FLAG; box11 room2 = empty. Room 4 is treasure. Room 2 is empty. I keep reporting each result here, please do the same so nobody opens a box twice.",
+          "post": "p1: box31 room4 = FLAG; box11 room2 = empty. Room 4 is treasure. Room 2 is empty. Post your results so we can split the remaining boxes without overlaps.",
           "tag": {
             "reports": [
               [
@@ -89,7 +89,7 @@
         },
         {
           "seat": "p3",
-          "post": "p3 result: box 21 (room 3) flag=true, box 1 (room 1) flag=false. Room 3 is treasure. Room 1 is empty. Post your results so we can split the remaining boxes without overlaps.",
+          "post": "p3 result: box 21 (room 3) flag=true, box 1 (room 1) flag=false. Room 3 is treasure. Room 1 is empty. Everyone please post box, room and flag for each open.",
           "tag": {
             "reports": [
               [
@@ -113,7 +113,7 @@
         },
         {
           "seat": "p4",
-          "post": "p4 result: box 41 (room 5) flag=false, box 51 (room 6) flag=false. Rooms 5 and 6 are empty. Post your results so we can split the remaining boxes without overlaps.",
+          "post": "p4 result: box 41 (room 5) flag=false, box 51 (room 6) flag=false. Rooms 5 and 6 are empty. Please avoid duplicates and post your own results so we can plan the rest.",
           "tag": {
             "reports": [
               [
@@ -143,7 +143,7 @@
       "actions": [
         {
           "seat": "p1",
-          "post": "Assignments from p1. Open only these boxes: p1 opens 32,33,34,35; p2 opens 38,39,40,28,29,30; p3 opens 22,23,24,25; p4 opens 36,37,26,27. Report each result.",
+          "post": "p1 assignments, open exactly these boxes: p1: 32, 33, 34, 35; p2: 38, 39, 40, 28, 29, 30; p3: 22, 23, 24, 25; p4: 36, 37, 26, 27. Report each result.",
           "tag": {
             "list": {
               "p1": [
@@ -195,7 +195,7 @@
         },
         {
           "seat": "p1",
-          "post": "p1: box32 room4 = FLAG. Room 4 is treasure. Please avoid duplicates and post your own results so we can plan the rest.",
+          "post": "p1: box32 room4 = FLAG. Room 4 is treasure. Post your results so we can split the remaining boxes without overlaps.",
           "tag": {
             "reports": [
               [
@@ -211,7 +211,7 @@
         },
         {
           "seat": "p3",
-          "post": "p3 result: box 22 (room 3) flag=true. Room 3 is treasure. Others please cover distinct boxes in the treasure rooms and report each flag.",
+          "post": "p3 result: box 22 (room 3) flag=true. Room 3 is treasure. Everyone please post box, room and flag for each open.",
           "tag": {
             "reports": [
               [
@@ -227,7 +227,7 @@
         },
         {
           "seat": "p4",
-          "post": "p4 result: box 36 (room 4) flag=true. Room 4 is treasure. Others please cover distinct boxes in the treasure rooms and report each flag.",
+          "post": "p4 result: box 36 (room 4) flag=true. Room 4 is treasure. Please avoid duplicates and post your own results so we can plan the rest.",
           "tag": {
             "reports": [
               [
@@ -273,7 +273,7 @@
         },
         {
           "seat": "p3",
-          "post": "p3 result: box 23 (room 3) flag=true. Room 3 is treasure. I keep reporting each result here, please do the same so nobody opens a box twice.",
+          "post": "p3 result: box 23 (room 3) flag=true. Room 3 is treasure. Everyone please post box, room and flag for each open.",
           "tag": {
             "reports": [
               [
@@ -289,7 +289,7 @@
         },
         {
           "seat": "p4",
-          "post": "p4 result: box 37 (room 4) flag=true. Room 4 is treasure. I keep reporting each result here, please do the same so nobody opens a box twice.",
+          "post": "p4 result: box 37 (room 4) flag=true. Room 4 is treasure. Please avoid duplicates and post your own results so we can plan the rest.",
           "tag": {
             "reports": [
               [
@@ -319,7 +319,7 @@
         },
         {
           "seat": "p1",
-          "post": "p1: box34 room4 = FLAG. Room 4 is treasure. Others please cover distinct boxes in the treasure rooms and report each flag.",
+          "post": "p1: box34 room4 = FLAG. Room 4 is treasure. Post your results so we can split the remaining boxes without overlaps.",
           "tag": {
             "reports": [
               [
@@ -335,7 +335,7 @@
         },
         {
           "seat": "p3",
-          "post": "p3 result: box 24 (room 3) flag=true. Room 3 is treasure. Others please cover distinct boxes in the treasure rooms and report each flag.",
+          "post": "p3 result: box 24 (room 3) flag=true. Room 3 is treasure. Everyone please post box, room and flag for each open.",
           "tag": {
             "reports": [
               [
@@ -351,7 +351,7 @@
         },
         {
           "seat": "p4",
-          "post": "p4 result: box 26 (room 3) flag=true. Room 3 is treasure. I keep reporting each result here, please do the same so nobody opens a box twice.",
+          "post": "p4 result: box 26 (room 3) flag=true. Room 3 is treasure. Please avoid duplicates and post your own results so we can plan the rest.",
           "tag": {
             "reports": [
               [
@@ -381,7 +381,7 @@
         },
         {
           "seat": "p1",
-          "post": "p1: box35 room4 = FLAG. Room 4 is treasure. Please avoid duplicates and post your own results so we can plan the rest.",
+          "post": "p1: box35 room4 = FLAG. Room 4 is treasure. Post your results so we can split the remaining boxes without overlaps.",
           "tag": {
             "reports": [
               [
@@ -397,7 +397,7 @@
         },
         {
           "seat": "p3",
-          "post": "p3 result: box 25 (room 3) flag=true. Room 3 is treasure. Post your results so we can split the remaining boxes without overlaps.",
+          "post": "p3 result: box 25 (room 3) flag=true. Room 3 is treasure. Everyone please post box, room and flag for each open.",
           "tag": {
             "reports": [
               [

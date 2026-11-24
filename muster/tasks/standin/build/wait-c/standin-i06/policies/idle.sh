@@ -2,7 +2,7 @@
 set -u
 
 exec python3 - idle plain <<'PYTHON'
-TAGS_JSON = r'''{"p1 result: box 21 (room 3) flag=true, box 22 (room 3) flag=true, box 24 (room 3) flag=true, box 25 (room 3) flag=true, box 26 (room 3) flag=true, box 29 (room 3) flag=true. Room 3 is treasure. Post your results so we can split the remaining boxes without overlaps.": {"reports": [[21, true], [22, true], [24, true], [25, true], [26, true], [29, true]]}, "p3 result: box 30 (room 3) flag=true, box 1 (room 1) flag=false, box 11 (room 2) flag=false. Room 3 is treasure. Rooms 1 and 2 are empty. I keep reporting each result here, please do the same so nobody opens a box twice.": {"reports": [[30, true], [1, false], [11, false]]}, "p4 opened 41 (r5, empty). Room 5 is empty. Others please cover distinct boxes in the treasure rooms and report each flag.": {"reports": [[41, false]]}}'''
+TAGS_JSON = r'''{"p1 result: box 21 (room 3) flag=true, box 22 (room 3) flag=true, box 24 (room 3) flag=true, box 25 (room 3) flag=true, box 26 (room 3) flag=true, box 29 (room 3) flag=true. Room 3 is treasure. Others please cover distinct boxes in the treasure rooms and report each flag.": {"reports": [[21, true], [22, true], [24, true], [25, true], [26, true], [29, true]]}, "p3 result: box 30 (room 3) flag=true, box 1 (room 1) flag=false, box 11 (room 2) flag=false. Room 3 is treasure. Rooms 1 and 2 are empty. Post your results so we can split the remaining boxes without overlaps.": {"reports": [[30, true], [1, false], [11, false]]}, "p4 opened 41 (r5, empty). Room 5 is empty. Everyone please post box, room and flag for each open.": {"reports": [[41, false]]}}'''
 import json
 import os
 import sys

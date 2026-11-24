@@ -61,7 +61,7 @@
         },
         {
           "seat": "p3",
-          "post": "p3 result: box 11 (room 2) flag=true, box 1 (room 1) flag=false, box 21 (room 3) flag=false. Room 2 is treasure. Rooms 1 and 3 are empty. Post your results so we can split the remaining boxes without overlaps.",
+          "post": "p3 result: box 11 (room 2) flag=true, box 1 (room 1) flag=false, box 21 (room 3) flag=false. Room 2 is treasure. Rooms 1 and 3 are empty. Others please cover distinct boxes in the treasure rooms and report each flag.",
           "tag": {
             "reports": [
               [
@@ -109,7 +109,7 @@
         },
         {
           "seat": "p1",
-          "post": "p1: box51 room6 = FLAG. Room 6 is treasure. Others please cover distinct boxes in the treasure rooms and report each flag. p1 here. I am opening 52, 53, 54, 55 and 56 in room 6 right now, so skip those boxes. I will report each flag right after the open.",
+          "post": "p1: box51 room6 = FLAG. Room 6 is treasure. Please avoid duplicates and post your own results so we can plan the rest. p1 here. I am opening 52, 53, 54, 55 and 56 in room 6 right now, so skip those boxes. Post your own picks so we do not overlap.",
           "tag": {
             "reports": [
               [
@@ -162,7 +162,7 @@
       "actions": [
         {
           "seat": "p3",
-          "post": "p3: opening 12,13,14 (room 2) now to avoid duplicates. Others take different boxes. I will report each flag right after the open.",
+          "post": "p3: opening 12,13,14 (room 2) now to avoid duplicates. Others take different boxes. Everyone else please choose other boxes.",
           "tag": {
             "announces": [
               12,
@@ -199,7 +199,7 @@
       "actions": [
         {
           "seat": "p4",
-          "post": "p4: opening 19,20 (room 2) now to avoid duplicates. Others take different boxes. I will report each flag right after the open.",
+          "post": "p4: opening 19,20 (room 2) now to avoid duplicates. Others take different boxes. Please pick different boxes for yourself.",
           "tag": {
             "announces": [
               19,

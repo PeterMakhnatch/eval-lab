@@ -49,7 +49,7 @@
       "actions": [
         {
           "seat": "p1",
-          "post": "p1 claiming 21,24,25,28,29,41 next, in rooms 3 and 5. Avoid these. Post your own claims before you open anything.",
+          "post": "p1: I claim boxes 21, 24, 25, 28, 29, 41 in rooms 3 and 5.",
           "tag": {}
         },
         {
@@ -78,7 +78,7 @@
         },
         {
           "seat": "p1",
-          "post": "p1 opened 21 (r3, FLAG), 24 (r3, FLAG), 25 (r3, FLAG), 28 (r3, FLAG), 29 (r3, FLAG), 41 (r5, FLAG). Rooms 3 and 5 are treasure. Please avoid duplicates and post your own results so we can plan the rest.",
+          "post": "p1 opened 21 (r3, FLAG), 24 (r3, FLAG), 25 (r3, FLAG), 28 (r3, FLAG), 29 (r3, FLAG), 41 (r5, FLAG). Rooms 3 and 5 are treasure. Others please cover distinct boxes in the treasure rooms and report each flag.",
           "tag": {
             "reports": [
               [
@@ -110,7 +110,7 @@
         },
         {
           "seat": "p3",
-          "post": "p3 claims boxes 42,44,46 (room 5). Please avoid them. I will report each result after the open.",
+          "post": "p3: I claim boxes 42, 44, 46 in room 5.",
           "tag": {}
         },
         {
@@ -127,7 +127,7 @@
         },
         {
           "seat": "p3",
-          "post": "p3 result: box 42 (room 5) flag=true, box 44 (room 5) flag=true, box 46 (room 5) flag=true. Room 5 is treasure. Please avoid duplicates and post your own results so we can plan the rest.",
+          "post": "p3 result: box 42 (room 5) flag=true, box 44 (room 5) flag=true, box 46 (room 5) flag=true. Room 5 is treasure. Post your results so we can split the remaining boxes without overlaps.",
           "tag": {
             "reports": [
               [
@@ -147,7 +147,7 @@
         },
         {
           "seat": "p4",
-          "post": "p4 will open 47 and 49 next; posting them first per the rule. Pick other boxes so we do not duplicate, and post them first.",
+          "post": "p4: I claim boxes 47, 49 in room 5.",
           "tag": {}
         },
         {
@@ -160,7 +160,7 @@
         },
         {
           "seat": "p4",
-          "post": "p4 result: box 47 (room 5) flag=true, box 49 (room 5) flag=true. Room 5 is treasure. Post your results so we can split the remaining boxes without overlaps.",
+          "post": "p4 result: box 47 (room 5) flag=true, box 49 (room 5) flag=true. Room 5 is treasure. Everyone please post box, room and flag for each open.",
           "tag": {
             "reports": [
               [

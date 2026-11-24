@@ -61,7 +61,7 @@
         },
         {
           "seat": "p3",
-          "post": "p3: box1 room1 = FLAG; box11 room2 = empty; box21 room3 = empty. Room 1 is treasure. Rooms 2 and 3 are empty. Post your results so we can split the remaining boxes without overlaps.",
+          "post": "p3: box1 room1 = FLAG; box11 room2 = empty; box21 room3 = empty. Room 1 is treasure. Rooms 2 and 3 are empty. Others please cover distinct boxes in the treasure rooms and report each flag.",
           "tag": {
             "reports": [
               [
@@ -109,7 +109,7 @@
         },
         {
           "seat": "p1",
-          "post": "p1: box41 room5 = FLAG. Room 5 is treasure. Others please cover distinct boxes in the treasure rooms and report each flag. p1 here. I am opening 42, 43, 44, 45 and 46 in room 5 right now, so skip those boxes. Tell me if you already opened any of them, then I switch.",
+          "post": "p1: box41 room5 = FLAG. Room 5 is treasure. Please avoid duplicates and post your own results so we can plan the rest. p1 here. I am opening 42, 43, 44, 45 and 46 in room 5 right now, so skip those boxes. Please pick different boxes for yourself.",
           "tag": {
             "reports": [
               [

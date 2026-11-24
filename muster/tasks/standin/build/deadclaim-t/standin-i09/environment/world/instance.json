@@ -49,7 +49,7 @@
       "actions": [
         {
           "seat": "p1",
-          "post": "p1 will open 31, 34, 37, 39, 40 and 51 next; posting them first per the rule. Pick other boxes so we do not duplicate, and post them first.",
+          "post": "p1: I claim boxes 31, 34, 37, 39, 40, 51 in rooms 4 and 6.",
           "tag": {}
         },
         {
@@ -78,7 +78,7 @@
         },
         {
           "seat": "p1",
-          "post": "p1 opened 31 (r4, FLAG), 34 (r4, FLAG), 37 (r4, FLAG), 39 (r4, FLAG), 40 (r4, FLAG), 51 (r6, FLAG). Rooms 4 and 6 are treasure. Post your results so we can split the remaining boxes without overlaps.",
+          "post": "p1 opened 31 (r4, FLAG), 34 (r4, FLAG), 37 (r4, FLAG), 39 (r4, FLAG), 40 (r4, FLAG), 51 (r6, FLAG). Rooms 4 and 6 are treasure. Everyone please post box, room and flag for each open.",
           "tag": {
             "reports": [
               [
@@ -110,7 +110,7 @@
         },
         {
           "seat": "p3",
-          "post": "p3: claim 52,54,57. Do not open them. Post your own claims before you open anything.",
+          "post": "p3: I claim boxes 52, 54, 57 in room 6.",
           "tag": {}
         },
         {
@@ -147,7 +147,7 @@
         },
         {
           "seat": "p4",
-          "post": "p4 will open 59 and 60 next; posting them first per the rule. Post your own claims before you open anything.",
+          "post": "p4: I claim boxes 59, 60 in room 6.",
           "tag": {}
         },
         {
@@ -176,7 +176,7 @@
         },
         {
           "seat": "p3",
-          "post": "p3: claim 32,35,38. Do not open them. I will report each result after the open.",
+          "post": "p3: I claim boxes 32, 35, 38 in room 4.",
           "tag": {
             "claims": [
               32,
@@ -187,7 +187,7 @@
         },
         {
           "seat": "p4",
-          "post": "p4 will open 53, 56 and 58 next; posting them first per the rule. I will report each result after the open.",
+          "post": "p4: I claim boxes 53, 56, 58 in room 6.",
           "tag": {
             "claims": [
               53,

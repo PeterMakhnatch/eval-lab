@@ -89,7 +89,7 @@
         },
         {
           "seat": "p4",
-          "post": "p4 result: box 21 (room 3) flag=false, box 51 (room 6) flag=false. Rooms 3 and 6 are empty. I keep reporting each result here, please do the same so nobody opens a box twice.",
+          "post": "p4 result: box 21 (room 3) flag=false, box 51 (room 6) flag=false. Rooms 3 and 6 are empty. Everyone please post box, room and flag for each open.",
           "tag": {
             "reports": [
               [
@@ -109,7 +109,7 @@
         },
         {
           "seat": "p1",
-          "post": "Update from p1: box41 room5 -> FLAG true. Room 5 is treasure. I keep reporting each result here, please do the same so nobody opens a box twice. p1 taking room 5 boxes 42,43,44,45,46 now; please avoid them and post your own picks. Results follow after each open, please post yours.",
+          "post": "Update from p1: box41 room5 -> FLAG true. Room 5 is treasure. Others please cover distinct boxes in the treasure rooms and report each flag. p1 taking room 5 boxes 42,43,44,45,46 now; please avoid them and post your own picks. Everyone else please choose other boxes.",
           "tag": {
             "reports": [
               [

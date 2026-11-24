@@ -109,7 +109,7 @@
         },
         {
           "seat": "p1",
-          "post": "p1 opened 21 (r3, FLAG). Room 3 is treasure. Others please cover distinct boxes in the treasure rooms and report each flag. p1 here. I am opening 22, 23, 24, 25 and 26 in room 3 right now, so skip those boxes. Tell me if you already opened any of them, then I switch.",
+          "post": "p1 opened 21 (r3, FLAG). Room 3 is treasure. Everyone please post box, room and flag for each open. p1 here. I am opening 22, 23, 24, 25 and 26 in room 3 right now, so skip those boxes. Everyone else please choose other boxes.",
           "tag": {
             "reports": [
               [

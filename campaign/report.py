@@ -138,7 +138,7 @@ def _foreign_lines(plan: Plan, problems: list[str], now: datetime) -> list[str]:
     return [head, *(shown or ["  none"]), f"  total ${total:.2f} in {len(found)} open reserves"]
 
 
-def _rules() -> list[str]:
+def _rules(keyed: bool) -> list[str]:
     return [
         "rules for a paid run:",
         "  1. give the campaign an OpenRouter key that nothing else uses during the run, or set floor_usd to at "
@@ -149,8 +149,10 @@ def _rules() -> list[str]:
         "  5. after a harbor-alive line, run its commands, then check `daytona sandbox list`",
         "  6. start uv, muster, python or python3 directly after optional keys run --, env or nohup; "
         "do not use a shell wrapper",
-        "  7. the API key can have its own spend limit below the account credits; set key_limit_probe so the "
-        "smaller number gates each start",
+        ("  7. the fixed key limit probe must read a finite limit and remaining amount for the lane key; "
+         "the smaller of the key remainder and account credits gates each start" if keyed else
+         "  7. the API key can have its own spend limit below the account credits; set key_limit_probe so the "
+         "smaller number gates each start"),
         "  8. run `campaign check PLAN` with network access just before `run`, and start only if it exits 0",
         "  9. run `fill` with a detector only when no other lane in the same process runs an arm",
     ]
@@ -199,6 +201,8 @@ def check(plan: Plan, now: datetime, funds: tuple[Funds | None, str]) -> tuple[l
         (f"environment: the keyenv shim maps {plan.key_env} to OPENROUTER_API_KEY and removes lane and "
          "management keys" if plan.key_env else
          "environment: run passes the whole environment of the caller to each arm, plus the env lines below"),
+        *(["The shim sets the arm's initial environment; it does not isolate the key store from code "
+           "that runs as the same user."] if plan.key_env else []),
         f"harbor wrapper {plan.wrapper_path()}: 'run ARGS' becomes "
         f"{shlex.join([str(plan.harbor_program), 'run', 'ARGS', *plan.harbor_run_args])}",
         "order:",
@@ -206,7 +210,7 @@ def check(plan: Plan, now: datetime, funds: tuple[Funds | None, str]) -> tuple[l
         *_arm_lines(plan, problems),
         f"expected ${sum(arm.expected_usd for arm in plan.arms):.2f}; reserves "
         f"${sum(arm.reserve_usd for arm in plan.arms):.2f}",
-        *_rules(),
+        *_rules(plan.key_env is not None),
     ]
     return lines, problems
 

@@ -19,11 +19,17 @@ def protected(name: str) -> bool:
     return name in (API_KEY, MANAGEMENT_KEY) or name.startswith(LANE_PREFIX)
 
 
+def scrub_environment(environ: Mapping[str, str]) -> dict[str, str]:
+    return {name: value for name, value in environ.items() if not protected(name)}
+
+
 def arm_environment(source: str, environ: Mapping[str, str]) -> dict[str, str] | None:
     key = environ.get(source)
     if not key:
         return None
-    return {**{name: value for name, value in environ.items() if not protected(name)}, API_KEY: key}
+    env = scrub_environment(environ)
+    env[API_KEY] = key
+    return env
 
 
 def main(argv: list[str] | None = None) -> int:

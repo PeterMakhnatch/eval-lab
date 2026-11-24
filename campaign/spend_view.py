@@ -81,19 +81,20 @@ def _reconciliation(result: dict[str, Any]) -> list[str]:
     ]
 
 
-def _key_reconciliation(rows: list[dict[str, str | None]]) -> list[str]:
+def _key_reconciliation(rows: list[dict[str, Any]]) -> list[str]:
     if not rows:
         return ['', 'OpenRouter lane keys: no lane has a key_env to probe.']
     fields = ('usage', 'usage_daily', 'usage_weekly', 'usage_monthly', 'limit', 'limit_remaining',
-              'recorded_usd', 'remainder_usd')
+              'recorded_usd', 'remainder_usd', 'combined_remainder_usd')
     return [
         '', 'Live OpenRouter lane keys (USD):',
         'Recorded USD counts only OpenRouter records in the supplied roots and date filter, up to report start.',
         'Remainder = key usage minus recorded USD. The records do not prove which key paid.',
-        'Rows that name the same key repeat its counters. Do not add those counters.',
+        'A shared key has one combined row for its provider counters and remainder.',
         *_table(
-            ('Lane', 'Key name', 'Total', 'Day', 'Week', 'Month', 'Limit', 'Remaining', 'Recorded', 'Remainder'),
-            [[row['lane'] or '-', row['key_env'] or '-',
+            ('Lane', 'Key name', 'Scope', 'Total', 'Day', 'Week', 'Month', 'Limit', 'Remaining', 'Recorded',
+             'Remainder', 'Combined remainder'),
+            [[row['lane'] or 'All lanes for key', row['key_env'], 'shared' if row['shared'] else 'single',
               *(_usd(value) if value is not None else '-' for value in (row[field] for field in fields))]
              for row in rows],
         ),

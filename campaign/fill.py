@@ -70,13 +70,13 @@ def run_detector(system: System, plan: Plan, arm_dir: Path, owner: int) -> list[
             continue
         try:
             item = json.loads(line)
-        except ValueError as error:
-            raise Stop("detector", f"the detector printed a line that is not JSON: {line[:80]}") from error
+        except (ValueError, RecursionError):
+            raise Stop("detector", f"the detector printed invalid JSON ({len(line.encode('utf-8'))} bytes)") from None
         trial = item.get("trial") if isinstance(item, dict) else None
         if trial is None:
             continue
         if not isinstance(trial, str) or not evidence.is_trial(arm_dir / trial):
-            raise Stop("detector", f"the detector names {trial!r}, which is not a trial of {arm_dir}")
+            raise Stop("detector", f"the detector printed a bad trial name ({len(line.encode('utf-8'))} bytes)")
         names.append(trial)
     return sorted(set(names))
 

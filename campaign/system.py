@@ -12,6 +12,8 @@ from http.client import HTTPException, HTTPSConnection
 from pathlib import Path
 from typing import IO, Protocol
 
+from campaign.keyenv import scrub_environment
+
 MAX_CAPTURE_BYTES = 4_000_000
 MAX_PROCESSES = 100_000
 PS_TIMEOUT_SECONDS = 30
@@ -42,9 +44,11 @@ class System(Protocol):
 
     def host(self) -> str: ...
 
-    def capture(self, argv: list[str], timeout: float, owner: int) -> tuple[int | None, str]: ...
+    def capture(self, argv: list[str], timeout: float, owner: int, *,
+                scrub_keys: bool = False) -> tuple[int | None, str]: ...
 
-    def spawn(self, argv: list[str], cwd: Path, env: dict[str, str], log: Path, owner: int) -> int: ...
+    def spawn(self, argv: list[str], cwd: Path, env: dict[str, str], log: Path, owner: int, *,
+              scrub_keys: bool = False) -> int: ...
 
     def poll(self, pid: int) -> int | None: ...
 
@@ -83,10 +87,12 @@ class RealSystem:
     def host(self) -> str:
         return socket.gethostname()
 
-    def capture(self, argv: list[str], timeout: float, owner: int) -> tuple[int | None, str]:
+    def capture(self, argv: list[str], timeout: float, owner: int, *,
+                scrub_keys: bool = False) -> tuple[int | None, str]:
         assert argv and timeout > 0 and owner > 0
+        env = scrub_environment(os.environ) if scrub_keys else None
         try:
-            done = subprocess.run(argv, capture_output=True, timeout=timeout, check=False)
+            done = subprocess.run(argv, capture_output=True, timeout=timeout, check=False, env=env)
         except (OSError, subprocess.SubprocessError):
             return None, ""
         return done.returncode, done.stdout[:MAX_CAPTURE_BYTES].decode("utf-8", errors="replace")
@@ -105,12 +111,16 @@ class RealSystem:
         finally:
             connection.close()
 
-    def spawn(self, argv: list[str], cwd: Path, env: dict[str, str], log: Path, owner: int) -> int:
+    def spawn(self, argv: list[str], cwd: Path, env: dict[str, str], log: Path, owner: int, *,
+              scrub_keys: bool = False) -> int:
         assert argv and owner > 0
+        child_env = {**os.environ, **env}
+        if scrub_keys:
+            child_env = scrub_environment(child_env)
         stream: IO[bytes] = log.open("xb")
         try:
             child = subprocess.Popen(
-                argv, cwd=cwd, env={**os.environ, **env}, stdin=subprocess.DEVNULL,
+                argv, cwd=cwd, env=child_env, stdin=subprocess.DEVNULL,
                 stdout=stream, stderr=subprocess.STDOUT, start_new_session=True,
             )
         except BaseException:

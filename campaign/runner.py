@@ -112,9 +112,9 @@ class Funds:
 
 
 def _read_probe(system: System, argv: tuple[str, ...], label: str, timeout: float, owner: int,
-                none_ok: bool) -> tuple[float | None, str]:
+                *, none_ok: bool, scrub_keys: bool) -> tuple[float | None, str]:
     assert argv and timeout > 0
-    code, text = system.capture(list(argv), timeout, owner)
+    code, text = system.capture(list(argv), timeout, owner, scrub_keys=scrub_keys)
     value = text.strip()
     if code is None:
         return None, f"the {label} timed out after {timeout:.0f} s or did not start"
@@ -133,13 +133,18 @@ def _read_probe(system: System, argv: tuple[str, ...], label: str, timeout: floa
 
 def read_funds(system: System, plan: Plan, owner: int) -> tuple[Funds | None, str]:
     timeout = plan.probe_timeout_seconds
-    credits, problem = _read_probe(system, plan.probe, "balance probe", timeout, owner, none_ok=False)
+    keyed = plan.key_env is not None
+    if keyed and not plan.key_limit_probe:
+        return None, "the fixed key limit probe is required with money.key_env"
+    credits, problem = _read_probe(system, plan.probe, "balance probe", timeout, owner,
+                                   none_ok=False, scrub_keys=keyed)
     if credits is None:
         assert problem
         return None, problem
     if not plan.key_limit_probe:
         return Funds(credits, None), ""
-    key_left, problem = _read_probe(system, plan.key_limit_probe, "key limit probe", timeout, owner, none_ok=True)
+    key_left, problem = _read_probe(system, plan.key_limit_probe, "key limit probe", timeout, owner,
+                                    none_ok=not keyed, scrub_keys=keyed)
     if problem:
         return None, problem
     return Funds(credits, key_left), ""
@@ -623,7 +628,7 @@ class Runner:
         log = self.plan.output_root / f"{step.out}.out"
         try:
             self.plan.output_root.mkdir(parents=True, exist_ok=True)
-            pid = self.system.spawn(argv, self.plan.cwd, env, log, self.owner)
+            pid = self.system.spawn(argv, self.plan.cwd, env, log, self.owner, scrub_keys=self.plan.key_env is not None)
         except OSError as error:
             self._settle(run.lane.name, step.out, "spawn-failed", None)
             raise Stop("spawn", f"cannot start {step.out}: {error}; its reserve is settled") from error

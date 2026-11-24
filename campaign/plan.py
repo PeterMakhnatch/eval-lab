@@ -27,6 +27,7 @@ MAX_BALANCE_USD = 100_000.0
 DEFAULT_FOREIGN_WINDOW_HOURS = 6.0
 DIRECT_COMMANDS = frozenset(("uv", "muster", "python", "python3"))
 KEYENV_SCRIPT = Path(keyenv.__file__).resolve()
+KEYPROBE_SCRIPT = KEYENV_SCRIPT.with_name("keyprobe.py")
 
 
 class PlanError(Exception):
@@ -156,11 +157,13 @@ def arm_values(plan: Plan, out_name: str, tasks: Path, attempts: int, concurrenc
     }
 
 
+def _wrap_keys(argv: tuple[str, ...], source: str) -> tuple[str, ...]:
+    return (*argv[:3], sys.executable, "-I", str(KEYENV_SCRIPT), source, "--", *argv[3:])
+
+
 def render_argv(plan: Plan, values: dict[str, str]) -> list[str]:
-    argv = [render(arg, values) for arg in plan.argv]
-    if plan.key_env is not None:
-        argv[3:3] = [sys.executable, "-I", str(KEYENV_SCRIPT), plan.key_env, "--"]
-    return argv
+    argv = tuple(render(arg, values) for arg in plan.argv)
+    return list(_wrap_keys(argv, plan.key_env) if plan.key_env is not None else argv)
 
 
 def arm_command(
@@ -297,6 +300,8 @@ def _money(data: Any) -> dict[str, Any]:
     key_env = table.get("key_env")
     if "key_env" in table and not keyenv.valid_name(key_env):
         raise PlanError("money.key_env must be a name such as OPENROUTER_KEY_MUSTER")
+    if key_env is not None and "key_limit_probe" in table:
+        raise PlanError("money.key_env forbids money.key_limit_probe; campaign builds the fixed probe")
     roots = table["cap_roots"]
     if not isinstance(roots, list) or not 1 <= len(roots) <= 64:
         raise PlanError("money.cap_roots must be a list of 1 to 64 paths")
@@ -417,11 +422,17 @@ def _check_places(fields: dict[str, Any]) -> None:
 
 
 def _check_key_env(fields: dict[str, Any], argv: tuple[str, ...], env: tuple[tuple[str, str], ...]) -> None:
-    if fields["key_env"] is None:
+    source = fields["key_env"]
+    if source is None:
         return
-    for probe in ("probe", "key_limit_probe"):
-        if any(keyenv.API_KEY in arg for arg in fields[probe]):
-            raise PlanError(f"money.{probe} names {keyenv.API_KEY}; use money.key_env instead")
+    probe = fields["probe"]
+    if len(probe) < 4 or Path(probe[0]).name != "keys" or probe[1:3] != ("run", "--"):
+        raise PlanError("money.key_env requires money.probe to start keys run --")
+    probe_text = " ".join(probe[3:])
+    if keyenv.LANE_PREFIX in probe_text or keyenv.MANAGEMENT_KEY in probe_text:
+        raise PlanError("money.probe with money.key_env must use OPENROUTER_API_KEY, not lane or management variables")
+    if re.search(r"\bkeys\s+run\b", probe_text):
+        raise PlanError("money.key_env forbids another keys run inside money.probe")
     if (len(argv) < 4 or Path(argv[0]).name != "keys" or argv[1:3] != ("run", "--")
             or Path(argv[3]).name not in DIRECT_COMMANDS):
         raise PlanError("money.key_env requires command.argv to start keys run -- followed by uv, muster, "
@@ -431,6 +442,8 @@ def _check_key_env(fields: dict[str, Any], argv: tuple[str, ...], env: tuple[tup
         raise PlanError("money.key_env forbids another keys run -- inside the arm command")
     if any(keyenv.protected(name) for name, _ in env):
         raise PlanError("money.key_env requires command.env to omit OpenRouter key settings")
+    fields["probe"] = _wrap_keys(probe, source)
+    fields["key_limit_probe"] = ("keys", "run", "--", sys.executable, "-I", str(KEYPROBE_SCRIPT), source)
 
 
 def parse(raw: bytes, path: Path) -> Plan:

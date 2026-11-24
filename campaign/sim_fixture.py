@@ -609,8 +609,10 @@ class World:
         lines.append(json.dumps({"arm": arm_dir.name, "with_stalled_seat": len(lines), "moved": False}))
         return 0, "\n".join(lines) + "\n"
 
-    def capture(self, argv: list[str], timeout: float, owner: int) -> tuple[int | None, str]:
+    def capture(self, argv: list[str], timeout: float, owner: int, *,
+                scrub_keys: bool = False) -> tuple[int | None, str]:
         assert timeout > 0
+        assert not scrub_keys
         self.calls.append(argv[0])
         if argv == ["fake-balance"]:
             return self._probe(owner, timeout)
@@ -658,8 +660,10 @@ class World:
             unstoppable=rng.random() < case.unstoppable_rate,
         )
 
-    def spawn(self, argv: list[str], cwd: Path, env: dict[str, str], log: Path, owner: int) -> int:
+    def spawn(self, argv: list[str], cwd: Path, env: dict[str, str], log: Path, owner: int, *,
+              scrub_keys: bool = False) -> int:
         assert owner in self.live_owners and cwd == self.root
+        assert not scrub_keys
         self.calls.append(argv[0])
         out = Path(argv[3])
         assert argv[0] == "muster" and argv[2] == "--out" and env == {"FAKE_ARM": out.name}, (argv, env)

@@ -75,5 +75,33 @@
     "invariant": "cap-scripted-and-idle-seats-free",
     "detail": "solo-scripted",
     "known": false
+  },
+  {
+    "seed": 1124009,
+    "step": "keyenv/arm-and-spend",
+    "invariant": "keyenv-inherited-keys-scrubbed",
+    "detail": "missing: remove every protected inherited variable before entering keys",
+    "known": false
+  },
+  {
+    "seed": 1124009,
+    "step": "keyenv/arm-and-spend",
+    "invariant": "keyenv-hidden-shared-limit-cannot-start",
+    "detail": "the account probe cannot override a low or missing limit on the selected key",
+    "known": false
+  },
+  {
+    "seed": 1124009,
+    "step": "keyenv/arm-and-spend",
+    "invariant": "keyenv-unlimited-never-starts",
+    "detail": "the account probe cannot override a low or missing limit on the selected key",
+    "known": false
+  },
+  {
+    "seed": 1124009,
+    "step": "keyenv/arm-and-spend",
+    "invariant": "keyenv-spend-shared-no-lane-remainder",
+    "detail": "per-lane rows show cost, but no provider figures or remainder",
+    "known": false
   }
 ]

@@ -57,7 +57,7 @@ def _counters(body: bytes) -> dict[str, Decimal | None] | None:
     return counters
 
 
-def _read(system: KeyProbeSystem, name: str) -> tuple[dict[str, Decimal | None] | None, str | None]:
+def read_counters(system: KeyProbeSystem, name: str) -> tuple[dict[str, Decimal | None] | None, str | None]:
     value = system.key_env_value(name)
     if not value:
         return None, "variable is missing or empty"
@@ -72,22 +72,36 @@ def _read(system: KeyProbeSystem, name: str) -> tuple[dict[str, Decimal | None] 
     return data, None
 
 
+def _row(name: str, lane: str | None, shared: bool, recorded: Decimal,
+         data: dict[str, Decimal | None] | None, problem: str | None) -> dict[str, str | bool | None]:
+    counters = {field: format(value, "f") if value is not None else None
+                for field, value in (data or dict.fromkeys(COUNTERS)).items()}
+    usage = data["usage"] if data is not None else None
+    remainder = format(usage - recorded, "f") if usage is not None else None
+    return {
+        "lane": lane, "key_env": name, "shared": shared, "problem": problem,
+        **counters,
+        "recorded_usd": format(recorded, "f"),
+        "remainder_usd": remainder if not shared else None,
+        "combined_remainder_usd": remainder if shared and lane is None else None,
+    }
+
+
 def rows(system: KeyProbeSystem, lanes: dict[str, str], recorded: dict[str, Decimal],
-         problems: list[str]) -> list[dict[str, str | None]]:
-    probes = {name: _read(system, name) for name in sorted(set(lanes.values()))}
-    result = []
+         problems: list[str]) -> list[dict[str, str | bool | None]]:
+    by_key: dict[str, list[str]] = {}
     for lane, name in lanes.items():
-        data, problem = probes[name]
+        by_key.setdefault(name, []).append(lane)
+    result = []
+    for name, members in sorted(by_key.items()):
+        data, problem = read_counters(system, name)
         if problem is not None:
-            problems.append(f"{lane}: {name}: {problem}")
-        counters: dict[str, str | None] = dict.fromkeys(COUNTERS)
-        if data is not None:
-            counters.update({field: format(value, "f") for field, value in data.items() if value is not None})
-        usage = data["usage"] if data is not None else None
-        result.append({
-            "lane": lane, "key_env": name, "problem": problem,
-            **counters,
-            "recorded_usd": format(recorded[lane], "f"),
-            "remainder_usd": format(usage - recorded[lane], "f") if usage is not None else None,
-        })
+            problems.append(f"{', '.join(members)}: {name}: {problem}")
+        if len(members) == 1:
+            lane = members[0]
+            result.append(_row(name, lane, False, recorded[lane], data, problem))
+        else:
+            result.extend(_row(name, lane, True, recorded[lane], None, None) for lane in members)
+            combined = sum((recorded[lane] for lane in members), Decimal(0))
+            result.append(_row(name, None, True, combined, data, problem))
     return result

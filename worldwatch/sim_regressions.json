@@ -82,5 +82,23 @@
     "step": "f12/tigerstyle-ast",
     "invariant": "all-eight-ast-bypasses-caught",
     "known": false
+  },
+  {
+    "seed": 113,
+    "step": "f13/loop-and-zero-activity",
+    "invariant": "newline-loop-fires-friction-and-zero-activity",
+    "known": false
+  },
+  {
+    "seed": 114,
+    "step": "f14/compose-quoted-multiline",
+    "invariant": "quoted-and-multiline-bypasses-caught",
+    "known": false
+  },
+  {
+    "seed": 115,
+    "step": "f14/deadlock-zero-events",
+    "invariant": "empty-events-log-deadlock-fires-zero-world-activity",
+    "known": false
   }
 ]

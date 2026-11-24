@@ -28,6 +28,7 @@ from worldwatch.sim_fixture import (
     encode_jsonl,
     iso_at,
     seal_chain,
+    write_atif,
     write_bespoke_trial,
     write_olam_trial,
 )
@@ -403,6 +404,152 @@ def _exercise_f11_f12(run: SimRun, root: Path) -> None:
             run.require("f12/tigerstyle-ast", "all-eight-ast-bypasses-caught", all_caught)
 
 
+def _exercise_f13_loop_and_zero_activity(run: SimRun, root: Path) -> None:
+    root.mkdir(parents=True, exist_ok=True)
+    t0 = 1_770_540_000.0
+    loop_dir = root / "f13_loop"
+    loop_evs = [
+        {"t": t0 + 0.5, "seat": None, "kind": "script.seed", "method": "POST", "status": 200, "ok": True, "request": {}, "response": {"seeded": True}},
+        {"t": t0 + 35.0, "seat": None, "kind": "admin.close", "method": "POST", "status": 200, "ok": True, "request": {}, "response": {"closed": True}},
+    ]
+    write_olam_trial(loop_dir, trial_name="f13_loop", seats=("p1",), events=loop_evs, reward=0.0, t0=t0)
+    traj_p = loop_dir / "seats" / "p1" / "agent" / "trajectory.json"
+    write_atif(traj_p, seat="p1", t0=t0, steps=6, tool_errors=0, complete=False, model_name="openai/gpt-5-nano")
+    traj = json.loads(traj_p.read_text(encoding="utf-8"))
+    warn_txt = "Previous response had warnings:\nWARNINGS: - Command 1 should end with newline when followed by another command."
+    for idx, step in enumerate(traj["steps"]):
+        res0 = step["observation"]["results"][0]
+        res0["is_error"] = idx == 5
+        res0["content"] = "Failed to parse JSON response" if idx == 5 else warn_txt
+    traj["steps"].insert(0, {
+        "step_id": 0, "source": "agent", "is_copied_context": True, "timestamp": iso_at(t0),
+        "tool_calls": [], "observation": {"results": [{"source_call_id": "cp0", "content": warn_txt}]},
+    })
+    traj_p.write_text(json.dumps(traj), encoding="utf-8")
+    atif_loop = read_atif_summary(traj_p, root=loop_dir)
+    det_loop = analyze_trial_detectors(loop_dir, "olam")
+    tail_loop = TailEngine(loop_dir).poll(datetime.fromtimestamp(t0 + 40.0, UTC))
+    z_alerts = [a for a in tail_loop["alerts"] if a["code"] == "zero-world-activity"]
+    ok_loop = (
+        atif_loop is not None and atif_loop.agent_steps == 6 and atif_loop.tool_errors == 6
+        and "tool_friction_storm" in det_loop["triggered"] and det_loop["detectors"]["tool_friction_storm"]["seats"] == ["p1"]
+        and len(z_alerts) == 1 and z_alerts[0]["severity"] == "warn" and z_alerts[0]["seat"] == "p1"
+        and tail_loop["critical_alerts"] == 0
+    )
+    run.require("f13/loop-and-zero-activity", "newline-loop-fires-friction-and-zero-activity", ok_loop, str((det_loop["triggered"], z_alerts)))
+
+    nw_dir = root / "f13_nonworld"
+    write_atif(nw_dir / "agent" / "trajectory.json", seat="agent", t0=t0, steps=6, complete=True, model_name="openai/gpt-5-nano")
+    (nw_dir / "result.json").write_text(json.dumps({
+        "trial_name": "harbor-nonworld__01", "task_name": "harbor-nonworld",
+        "config": {"agent": {"name": "terminus-2", "model_name": "openai/gpt-5-nano"}},
+        "agent_info": {"name": "terminus-2", "model_info": {"name": "openai/gpt-5-nano"}},
+        "verifier_result": {"rewards": {"reward": 1.0}}, "reward_valid": True,
+        "started_at": iso_at(t0), "finished_at": iso_at(t0 + 35.0),
+        "agent_execution": {"started_at": iso_at(t0), "finished_at": iso_at(t0 + 33.0)},
+    }), encoding="utf-8")
+    nw_codes = {a["code"] for a in TailEngine(nw_dir).poll(datetime.fromtimestamp(t0 + 40.0, UTC))["alerts"]}
+    run.require("f13/non-world-harbor", "non-world-harbor-no-zero-activity", "zero-world-activity" not in nw_codes, str(nw_codes))
+
+    ok_dir = root / "f13_healthy"
+    ok_evs = [
+        {"t": t0 + 0.5, "seat": None, "kind": "script.seed", "method": "POST", "status": 200, "ok": True, "request": {}, "response": {"seeded": True}},
+        {"t": t0 + 5.0, "seat": "p1", "kind": "rules", "method": "GET", "status": 200, "ok": True, "request": None, "response": {"budget_left": 0}},
+        {"t": t0 + 10.0, "seat": "p1", "kind": "submit_choice", "method": "POST", "status": 200, "ok": True, "request": {"candidate": "C1"}, "response": {"submitted": True}},
+        {"t": t0 + 35.0, "seat": None, "kind": "admin.close", "method": "POST", "status": 200, "ok": True, "request": {}, "response": {"closed": True}},
+    ]
+    write_olam_trial(ok_dir, trial_name="f13_healthy", seats=("p1",), events=ok_evs, reward=1.0, t0=t0)
+    write_atif(ok_dir / "seats" / "p1" / "agent" / "trajectory.json", seat="p1", t0=t0, steps=6, complete=True, model_name="anthropic/claude-haiku-5.5")
+    det_ok = analyze_trial_detectors(ok_dir, "olam")
+    ok_codes = {a["code"] for a in TailEngine(ok_dir).poll(datetime.fromtimestamp(t0 + 40.0, UTC))["alerts"]}
+    run.require("f13/healthy-olam", "active-seat-no-friction-or-zero-activity", "tool_friction_storm" not in det_ok["triggered"] and "zero-world-activity" not in ok_codes, str((det_ok["triggered"], ok_codes)))
+
+
+def _exercise_f13_parse_loop(run: SimRun, root: Path) -> None:
+    root.mkdir(parents=True, exist_ok=True)
+    t0 = 1_770_545_000.0
+    p_dir = root / "f13_parse_loop"
+    p_evs = [
+        {"t": t0 + 0.5, "seat": None, "kind": "script.seed", "method": "POST", "status": 200, "ok": True, "request": {}, "response": {"seeded": True}},
+        {"t": t0 + 3.0, "seat": "p1", "kind": "submit_choice", "method": "POST", "status": 200, "ok": True, "request": {"candidate": "C1"}, "response": {"submitted": True}},
+        {"t": t0 + 35.0, "seat": None, "kind": "admin.close", "method": "POST", "status": 200, "ok": True, "request": {}, "response": {"closed": True}},
+    ]
+    write_olam_trial(p_dir, trial_name="f13_parse_loop", seats=("p1",), events=p_evs, reward=0.0, t0=t0)
+    traj_p = p_dir / "seats" / "p1" / "agent" / "trajectory.json"
+    write_atif(traj_p, seat="p1", t0=t0, steps=7, tool_errors=0, complete=False, model_name="qwen/qwen3-30b-a3b")
+    traj = json.loads(traj_p.read_text(encoding="utf-8"))
+    for idx, step in enumerate(traj["steps"][1:]):
+        res0 = step["observation"]["results"][0]
+        res0["is_error"] = False
+        res0["content"] = (
+            "Previous response had parsing errors:\nERROR: No valid JSON found in response"
+            if idx < 5
+            else "ERROR: No Valid JSON Found In Response"
+        )
+    traj_p.write_text(json.dumps(traj), encoding="utf-8")
+    atif_p = read_atif_summary(traj_p, root=p_dir)
+    det_p = analyze_trial_detectors(p_dir, "olam")
+    p_codes = {a["code"] for a in TailEngine(p_dir).poll(datetime.fromtimestamp(t0 + 40.0, UTC))["alerts"]}
+    ok_parse = (
+        atif_p is not None and atif_p.agent_steps == 7 and atif_p.tool_errors == 6
+        and "tool_friction_storm" in det_p["triggered"] and "zero-world-activity" not in p_codes
+    )
+    run.require("f13/parse-error-loop", "parsing-errors-loop-fires-friction-only", ok_parse, str((det_p["triggered"], p_codes)))
+
+
+def _exercise_f14_deadlock_and_benign_atif(run: SimRun, root: Path) -> None:
+    root.mkdir(parents=True, exist_ok=True)
+    t0 = 1_770_550_000.0
+    dl_dir = root / "f14_deadlock"
+    write_olam_trial(dl_dir, trial_name="f14_deadlock", seats=("p1", "p2"), events=[], finished=False, t0=t0)
+    for seat in ("p1", "p2"):
+        write_atif(
+            dl_dir / "seats" / seat / "agent" / "trajectory.json",
+            seat=seat,
+            t0=t0,
+            steps=6,
+            tool_errors=0,
+            complete=False,
+            model_name="openai/gpt-5-nano",
+        )
+    dl_snap = TailEngine(dl_dir, stall_seconds=300.0).poll(datetime.fromtimestamp(t0 + 40.0, UTC))
+    dl_zero = sorted(a["seat"] for a in dl_snap["alerts"] if a["code"] == "zero-world-activity")
+    run.require(
+        "f14/deadlock-zero-events",
+        "empty-events-log-deadlock-fires-zero-world-activity",
+        dl_snap["total_events"] == 0 and dl_zero == ["p1", "p2"],
+        str((dl_snap["total_events"], dl_zero)),
+    )
+
+    benign_dir = root / "f14_benign_atif"
+    b_evs = [
+        {"t": t0 + 2.0, "seat": "p1", "kind": "msgs", "method": "GET", "status": 200, "ok": True, "request": None, "response": {"messages": []}},
+        {"t": t0 + 35.0, "seat": None, "kind": "admin.close", "method": "POST", "status": 200, "ok": True, "request": {}, "response": {"closed": True}},
+    ]
+    write_olam_trial(benign_dir, trial_name="f14_benign", seats=("p1",), events=b_evs, reward=1.0, t0=t0)
+    bt_path = benign_dir / "seats" / "p1" / "agent" / "trajectory.json"
+    write_atif(bt_path, seat="p1", t0=t0, steps=6, tool_errors=0, complete=True, model_name="anthropic/claude-haiku-5.5")
+    b_traj = json.loads(bt_path.read_text(encoding="utf-8"))
+    benign_samples = (
+        "Previous response had warnings:\nWARNINGS: - Extra text detected before JSON object\n\nNew Terminal Output:\nCommand 1 should end with newline",
+        "New Terminal Output:\npytest: test_failed_to_parse PASSED\ncat /msgs -> Previous response had parsing errors: none",
+        "GET /msgs returned: failed to parse peer payload; should end with newline",
+    )
+    for idx, step in enumerate(b_traj["steps"]):
+        r0 = step["observation"]["results"][0]
+        r0.pop("is_error", None)
+        r0["content"] = benign_samples[idx % len(benign_samples)]
+    bt_path.write_text(json.dumps(b_traj), encoding="utf-8")
+    b_atif = read_atif_summary(bt_path, root=benign_dir)
+    b_det = analyze_trial_detectors(benign_dir, "olam")
+    run.require(
+        "f14/benign-atif",
+        "extra-text-warning-and-stdout-not-counted-as-tool-errors",
+        b_atif is not None and b_atif.tool_errors == 0 and "tool_friction_storm" not in b_det["triggered"],
+        str((b_atif.tool_errors if b_atif else None, b_det["triggered"])),
+    )
+
+
 def exercise_redteam_regressions(
     run: SimRun,
     root: Path,
@@ -418,4 +565,7 @@ def exercise_redteam_regressions(
     _exercise_f8_f10(run, root / "r5")
     _exercise_f9(run, root / "r6")
     _exercise_f11_f12(run, root / "r7")
+    _exercise_f13_loop_and_zero_activity(run, root / "r8")
+    _exercise_f13_parse_loop(run, root / "r9")
+    _exercise_f14_deadlock_and_benign_atif(run, root / "r10")
     run.record("f1_f12_regressions", "ok")

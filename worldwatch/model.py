@@ -41,6 +41,7 @@ WARN_TRIPWIRES = frozenset({
     "claim-churn",
     "dup-unseen",
     "post-close-action",
+    "zero-world-activity",
 })
 ALL_TRIPWIRES = CRITICAL_TRIPWIRES | WARN_TRIPWIRES
 

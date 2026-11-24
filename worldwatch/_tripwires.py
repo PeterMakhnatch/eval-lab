@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Mapping
 from datetime import datetime
 from typing import Any
 
+from worldwatch._io import check_no_symlink_ancestors
 from worldwatch._trial import TrialBundle
 from worldwatch.model import (
     CRITICAL_TRIPWIRES,
@@ -425,6 +427,19 @@ def make_alert(
     )
 
 
+def _has_olam_world_context(bundle: TrialBundle, events_count: int) -> bool:
+    if events_count > 0:
+        return True
+    tdir = bundle.path
+    if os.path.isdir(tdir / "seats") and not os.path.islink(tdir / "seats"):
+        return True
+    for rel in ("verifier/events.jsonl", "logs/world/events.jsonl", "artifacts/logs/world/events.jsonl"):
+        cand = tdir / rel
+        if check_no_symlink_ancestors(cand, root=tdir) is None and os.path.lexists(cand):
+            return True
+    return False
+
+
 def _health_tripwires(
     bundle: TrialBundle,
     seats_live: tuple[SeatLive, ...],
@@ -433,32 +448,17 @@ def _health_tripwires(
     chain_error: str | None,
     now_iso: str,
     max_reject_ratio: float,
+    events_count: int = 0,
 ) -> list[Alert]:
     alerts: list[Alert] = []
     tname = bundle.trial_name
     if chain_error is not None:
-        alerts.append(
-            make_alert(
-                "broken-hash-chain",
-                now_iso,
-                tname,
-                None,
-                f"Trial {tname}: event/usage log integrity check failed ({chain_error}).",
-                {"error": chain_error},
-            )
-        )
+        msg = f"Trial {tname}: event/usage log integrity check failed ({chain_error})."
+        alerts.append(make_alert("broken-hash-chain", now_iso, tname, None, msg, {"error": chain_error}))
     stalled_seats = [s for s in seats_live if s.stalled]
     for s in stalled_seats:
-        alerts.append(
-            make_alert(
-                "silent-seat",
-                now_iso,
-                tname,
-                s.seat,
-                f"Trial {tname} seat {s.seat} silent for {s.silent_s}s.",
-                {"silent_s": s.silent_s, "state": s.state},
-            )
-        )
+        msg = f"Trial {tname} seat {s.seat} silent for {s.silent_s}s."
+        alerts.append(make_alert("silent-seat", now_iso, tname, s.seat, msg, {"silent_s": s.silent_s, "state": s.state}))
     active_candidates = [s for s in seats_live if s.state in ("playing", "stalled")]
     if (
         seats_live
@@ -466,30 +466,22 @@ def _health_tripwires(
         and len(stalled_seats) == len(active_candidates)
         and (bundle.result_state != "ready" or len(stalled_seats) == len(seats_live))
     ):
-        alerts.append(
-            make_alert(
-                "all-seats-silent",
-                now_iso,
-                tname,
-                None,
-                f"Trial {tname}: all {len(stalled_seats)} active seat(s) are silent above threshold.",
-                {"seats": [s.seat for s in stalled_seats]},
-            )
-        )
+        msg = f"Trial {tname}: all {len(stalled_seats)} active seat(s) are silent above threshold."
+        alerts.append(make_alert("all-seats-silent", now_iso, tname, None, msg, {"seats": [s.seat for s in stalled_seats]}))
     ratio = (rejected_req / total_req) if total_req > 0 else 0.0
     n_seats = max(1, len(seats_live))
     min_rej = 1 if max_reject_ratio <= 0.0 else max(6, 3 * n_seats)
     if total_req >= min_rej and rejected_req >= min_rej and ratio > max_reject_ratio:
-        alerts.append(
-            make_alert(
-                "reject-storm",
-                now_iso,
-                tname,
-                None,
-                f"Trial {tname}: rejected {rejected_req}/{total_req} ({ratio:.1%}) exceeds {max_reject_ratio:.1%}.",
-                {"rejected": rejected_req, "total": total_req, "ratio": round(ratio, 6)},
-            )
-        )
+        msg = f"Trial {tname}: rejected {rejected_req}/{total_req} ({ratio:.1%}) exceeds {max_reject_ratio:.1%}."
+        ev = {"rejected": rejected_req, "total": total_req, "ratio": round(ratio, 6)}
+        alerts.append(make_alert("reject-storm", now_iso, tname, None, msg, ev))
+    if bundle.ecosystem == "olam" and _has_olam_world_context(bundle, events_count):
+        model_seats = {info.seat for info in bundle.seats if info.under_test and info.is_model}
+        for s in seats_live:
+            if s.seat in model_seats and s.agent_steps >= 5 and s.world_events == 0:
+                msg = f"Trial {tname} seat {s.seat} took {s.agent_steps} steps with 0 world requests."
+                ev = {"agent_steps": s.agent_steps, "world_events": 0, "state": s.state}
+                alerts.append(make_alert("zero-world-activity", now_iso, tname, s.seat, msg, ev))
     return alerts
 
 
@@ -504,7 +496,14 @@ def evaluate_trial_tripwires(
     max_reject_ratio: float,
 ) -> list[Alert]:
     alerts = _health_tripwires(
-        bundle, seats_live, total_req, rejected_req, chain_error, now_iso, max_reject_ratio
+        bundle,
+        seats_live,
+        total_req,
+        rejected_req,
+        chain_error,
+        now_iso,
+        max_reject_ratio,
+        events_count=len(events),
     )
     tname = bundle.trial_name
     churn_score, churn_seats = detect_claim_churn_events(events, bundle.ecosystem, bundle.facing_to_seat)

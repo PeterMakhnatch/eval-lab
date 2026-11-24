@@ -6,9 +6,11 @@ import sys
 from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from worldwatch import __version__
 from worldwatch.baselines import run_certify_baselines
+from worldwatch.compare import run_compare
 from worldwatch.detectors import run_detectors
 from worldwatch.model import (
     DEFAULT_MAX_REJECT_RATIO,
@@ -16,9 +18,12 @@ from worldwatch.model import (
     InputError,
     parse_iso_utc,
 )
+from worldwatch.preflight import run_preflight
 from worldwatch.render import (
     render_certify_baselines,
+    render_compare,
     render_detectors,
+    render_preflight,
     render_tail,
     render_validity,
     to_json,
@@ -37,6 +42,16 @@ def _pos_float(text: str) -> float:
     return val
 
 
+def _open_unit_float(text: str) -> float:
+    try:
+        val = float(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not a float: {text!r}") from None
+    if not math.isfinite(val) or not (0.0 < val < 1.0):
+        raise argparse.ArgumentTypeError(f"must be strictly between 0.0 and 1.0: {text!r}")
+    return val
+
+
 def _ratio_float(text: str) -> float:
     try:
         val = float(text)
@@ -44,6 +59,16 @@ def _ratio_float(text: str) -> float:
         raise argparse.ArgumentTypeError(f"not a float: {text!r}") from None
     if not math.isfinite(val) or not 0.0 <= val <= 1.0:
         raise argparse.ArgumentTypeError(f"must be between 0.0 and 1.0: {text!r}")
+    return val
+
+
+def _nonneg_int(text: str) -> int:
+    try:
+        val = int(text, 10)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not an integer: {text!r}") from None
+    if val < 0:
+        raise argparse.ArgumentTypeError(f"must be non-negative: {text!r}")
     return val
 
 
@@ -86,6 +111,11 @@ def _cmd_tail(args: argparse.Namespace) -> int:
         now=args.now,
         fail_on_alert=args.fail_on_alert,
     )
+    sink_errs = report.get("sink_errors") or []
+    if sink_errs and not report.get("stopped") and report.get("critical_alerts", 0) == 0:
+        raise InputError("; ".join(str(e) for e in sink_errs))
+    if sink_errs:
+        print(f"worldwatch: {'; '.join(str(e) for e in sink_errs)}", file=sys.stderr)
     print(to_json(report) if args.json else render_tail(report))
     return code
 
@@ -113,6 +143,48 @@ def _cmd_certify(args: argparse.Namespace) -> int:
         print(f"worldwatch: {report['error']}", file=sys.stderr)
     print(to_json(report) if args.json else render_certify_baselines(report))
     return code
+
+
+def _cmd_compare(args: argparse.Namespace) -> int:
+    report, code = run_compare(
+        list(args.arms),
+        html_path=args.html,
+        alpha=args.alpha,
+        stall_seconds=args.stall_seconds,
+        seed=args.seed,
+    )
+    print(to_json(report) if args.json else render_compare(report))
+    return code
+
+
+def _cmd_preflight(args: argparse.Namespace) -> int:
+    report, code = run_preflight(
+        [str(t) for t in args.targets],
+        check_openrouter=args.check_openrouter,
+        min_key_usd=args.min_key_usd,
+        min_account_usd=args.min_account_usd,
+    )
+    print(to_json(report) if args.json else render_preflight(report))
+    return code
+
+
+def _configure_compare_and_preflight(subs: Any) -> None:
+    p_cmp = subs.add_parser("compare", help="paired trial comparison (sign-flip, McNemar, attrition, HTML)")
+    p_cmp.add_argument("arms", nargs="+", metavar="ARM", help="arm directory or LABEL=DIR")
+    p_cmp.add_argument("--html", type=Path, default=None, help="atomic dark-theme comparison HTML report path")
+    p_cmp.add_argument("--alpha", type=_open_unit_float, default=0.05)
+    p_cmp.add_argument("--stall-seconds", type=_pos_float, default=DEFAULT_STALL_SECONDS)
+    p_cmp.add_argument("--seed", type=_nonneg_int, default=0)
+    p_cmp.add_argument("--json", action="store_true", help="emit JSON report")
+    p_cmp.set_defaults(handler=_cmd_compare)
+
+    p_pre = subs.add_parser("preflight", help="static task hygiene and dual OpenRouter budget gate")
+    p_pre.add_argument("targets", nargs="*", type=Path, help="task directory, family build root, or task.toml")
+    p_pre.add_argument("--check-openrouter", action="store_true", help="query OpenRouter /key and /credits")
+    p_pre.add_argument("--min-key-usd", type=_pos_float, default=1.0)
+    p_pre.add_argument("--min-account-usd", type=_pos_float, default=4.50)
+    p_pre.add_argument("--json", action="store_true", help="emit JSON report")
+    p_pre.set_defaults(handler=_cmd_preflight)
 
 
 def _cmd_sim(args: argparse.Namespace) -> int:
@@ -144,7 +216,7 @@ def parser() -> argparse.ArgumentParser:
     p_val = subs.add_parser("validity", help="dual-source liveness and exact 2x2 Fisher attrition gate")
     p_val.add_argument("arms", nargs="+", metavar="ARM", help="arm directory or LABEL=DIR")
     p_val.add_argument("--max-unmeasured-rate", type=_ratio_float, default=0.10)
-    p_val.add_argument("--alpha", type=_pos_float, default=0.05)
+    p_val.add_argument("--alpha", type=_open_unit_float, default=0.05)
     p_val.add_argument("--stall-seconds", type=_pos_float, default=DEFAULT_STALL_SECONDS)
     p_val.add_argument("--json", action="store_true", help="emit JSON report")
     p_val.set_defaults(handler=_cmd_validity)
@@ -153,6 +225,8 @@ def parser() -> argparse.ArgumentParser:
     p_cert.add_argument("family_dir", type=Path, help="task family directory with family.toml and reference.py")
     p_cert.add_argument("--json", action="store_true", help="emit JSON report")
     p_cert.set_defaults(handler=_cmd_certify)
+
+    _configure_compare_and_preflight(subs)
 
     p_sim = subs.add_parser("sim", help="deterministic simulation testing (check, hunt, replay)")
     sim_subs = p_sim.add_subparsers(dest="sim_command", required=True)
@@ -171,7 +245,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser().parse_args(argv)
     try:
         return int(args.handler(args))
-    except (InputError, FileNotFoundError) as exc:
+    except (InputError, FileNotFoundError, OSError) as exc:
         print(f"worldwatch: {' '.join(str(exc).split())}", file=sys.stderr)
         return 3
     except BrokenPipeError:

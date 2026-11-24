@@ -144,19 +144,36 @@ def _read_exit_code(agent_dir: Path, root: Path | None = None) -> tuple[int | No
     return int(token), None
 
 
+def _is_step_result_error(item: Mapping[str, Any]) -> bool:
+    if item.get("is_error") is True:
+        return True
+    err = item.get("error")
+    if isinstance(err, str) and bool(err) and item.get("is_error") is not False:
+        return True
+    content = item.get("content")
+    if not isinstance(content, str) or not content:
+        return False
+    stripped = content.lstrip().lower()
+    head = stripped.split("\n\nnew terminal output:", 1)[0]
+    if head.startswith("previous response had parsing errors:"):
+        return True
+    if head.startswith("error: no valid json found in response"):
+        return True
+    return head.startswith("previous response had warnings:") and (
+        "should end with newline when followed by another command" in head
+    )
+
+
 def _count_step_tools(step: Mapping[str, Any]) -> tuple[int, int, bool]:
+    if step.get("is_copied_context") is True:
+        return 0, 0, False
     calls = step.get("tool_calls")
     call_list = [c for c in calls if isinstance(c, Mapping)] if isinstance(calls, list) else []
     completed = any(c.get("function_name") in _COMPLETE_TOOLS for c in call_list)
     obs = _as_dict(step.get("observation"))
     results = obs.get("results")
     res_list = [r for r in results if isinstance(r, Mapping)] if isinstance(results, list) else []
-    errors = sum(
-        1
-        for item in res_list
-        if item.get("is_error") is True
-        or (isinstance(item.get("error"), str) and bool(item["error"]) and item.get("is_error") is not False)
-    )
+    errors = sum(1 for item in res_list if _is_step_result_error(item))
     return len(call_list), errors, completed
 
 

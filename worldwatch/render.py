@@ -210,3 +210,80 @@ def render_certify_baselines(report: Mapping[str, Any]) -> str:
         f_rows = [[f["severity"], f["code"], f["message"]] for f in findings]
         lines.extend(["", table(["severity", "code", "message"], f_rows)])
     return sanitize_surrogates("\n".join(lines))
+
+
+def render_compare(report: Mapping[str, Any]) -> str:
+    verdict = "PASS" if report.get("passed") else "FAIL"
+    lines = [
+        f"compare: {verdict} (alpha={report['alpha']:g}, stall={report['stall_seconds']:g}s, seed={report['seed']})",
+        "",
+    ]
+    a_rows = [
+        [
+            a["arm"],
+            a["total_trials"],
+            a["measured"],
+            pct(a.get("unmeasured_rate")),
+            num(a.get("mean_measured_reward")),
+            pct(a.get("binary_pass_rate")),
+            "-" if a.get("mean_cost_usd") is None else f"${float(a['mean_cost_usd']):.4f}",
+            "-" if a.get("total_cost_usd") is None else f"${float(a['total_cost_usd']):.4f}",
+        ]
+        for a in report.get("arms", ())
+    ]
+    lines.append(
+        table(
+            ["arm", "trials", "measured", "unmeas", "mean", "pass_rate", "cost_usd", "total_usd"],
+            a_rows,
+            right=(1, 2, 3, 4, 5, 6, 7),
+        )
+    )
+    if report.get("pairs"):
+        p_rows = [
+            [
+                p["arm_a"],
+                p["arm_b"],
+                p["pairing_mode"],
+                p["n_paired"],
+                "n/a" if p.get("mean_delta") is None else f"{float(p['mean_delta']):+.4f}",
+                num(p.get("sign_flip_p"), 6),
+                num(p.get("mcnemar_p"), 6),
+                num(p.get("attrition_fisher_p"), 6),
+                "YES" if p.get("differential_attrition") else "no",
+            ]
+            for p in report["pairs"]
+        ]
+        lines.extend(
+            ["", table(["arm_a", "arm_b", "mode", "n", "delta", "sf_p", "mc_p", "fisher_p", "attr"], p_rows, right=(3, 4, 5, 6, 7))]
+        )
+    return sanitize_surrogates("\n".join(lines))
+
+
+def render_preflight(report: Mapping[str, Any]) -> str:
+    verdict = "PASS" if report.get("passed") else "FAIL"
+    lines = [
+        f"preflight: {verdict} (tasks={report.get('tasks_passed', 0)}/{report.get('tasks_checked', 0)}, "
+        f"failed={report.get('tasks_failed', 0)}, findings={report.get('findings_count', 0)})",
+    ]
+    or_info = report.get("openrouter") or {}
+    if or_info.get("checked"):
+        key_rem = (or_info.get("key") or {}).get("limit_remaining_usd")
+        acc_rem = (or_info.get("credits") or {}).get("account_remaining_usd")
+        min_k = or_info.get("min_key_usd")
+        min_a = or_info.get("min_account_usd")
+        key_s = "n/a" if key_rem is None else f"${float(key_rem):.4f}"
+        acc_s = "n/a" if acc_rem is None else f"${float(acc_rem):.4f}"
+        min_k_s = "n/a" if min_k is None else f"${float(min_k):.2f}"
+        min_a_s = "n/a" if min_a is None else f"${float(min_a):.2f}"
+        lines.append(
+            f"openrouter: {'PASS' if or_info.get('passed') else 'FAIL'} "
+            f"(key_rem={key_s} min={min_k_s}, account_rem={acc_s} min={min_a_s})"
+        )
+    findings = report.get("findings") or []
+    if findings:
+        f_rows = [
+            [f.get("severity", "error"), f.get("code", "-"), f.get("task") or "-", shorten(str(f.get("message", "")), 72)]
+            for f in findings[:100]
+        ]
+        lines.extend(["", table(["severity", "code", "task", "message"], f_rows)])
+    return sanitize_surrogates("\n".join(lines))

@@ -10,9 +10,51 @@ Times are New York time (ET). Newest entry first. Each entry says what is done a
 3. Start the first scored experiment (E1, `boxes`, 5 arms x 10 instances x 3 attempts, DeepSeek Flash
    with thinking off, about $1.50) and report it with `tidegauge`.
 
+## 2026-11-24
+
+**2:08 AM. E5 is complete and audited (F25). Night tools are on `main`. A blind coding study (F26).**
+- Peter's instruction at about 12:15 AM ET: work through the night, mostly systems work and benchmark
+  crafting for multi-agent evaluation, with $10 for experiments. Plan: `muster-runs/night-2026-11-24/PLAN.md`.
+- The lane for the E5 arms that were left open ran from 10:45 PM to 1:46 AM ET: 249 trials with a reward,
+  $1.68, 0 stalled seats. 1 `solo-6` trial failed before the agent started and ran again once. Result:
+  `claim-2` 98.2%, `claim-3` 94.3%, `claim-4` 86.8% (`claim-8` 73.5%); `indep-3` 42.5%, `indep-4` 38.8%;
+  `solo-8` 26.3%, `solo-6` 19.8%, `solo-3` 6.9%; the route anchor `team-3-e1` 84.8% against 85.7% in E1.
+  Output: `muster-runs/e5/analysis/e5-full.txt` and `.json`; merged trials `muster-runs/e5/final-full/`.
+- An independent audit ran before the text. Every number matched; the reward equals the event log in 449 of
+  449 trials. Its findings are in F25: the new arms ran 8 hours after the arms that they are compared with
+  (a shift of about 10 points is not excluded); the contrast against `union-k` does not measure
+  interference; the blocking of claimed boxes starts at 3 to 4 agents and the 30-turn cap binds the claim
+  arms; `indep-2` stays at 18 trials; the folder names do not separate first runs from reruns.
+- Tools that landed in the night, each built by a subagent in its own worktree and checked by me or by an
+  independent reviewer:
+  - `7c31b6824` `tidegauge`: findings for stalled, lost, zero-call and turn-cap seats and for trials that
+    never started; `tidegauge process` (trials at once over several run folders); `tidegauge live`. On the
+    E6 `team-8` folder it marks the 6 trials and 14 seats of F23.
+  - `08049782d` `campaign`: a runner that reads 1 plan file (arms, lanes, money floor, cap, stop rules,
+    reruns). A safety review with fake processes found 3 blockers, all of 1 kind: the runner can exit, or
+    start the next arm, while Harbor still runs. The fixes are in work. It has not run a paid campaign.
+  - `f1ed0404c`, `01f6f2b3e` `crowd_rules.py --parser v2` (post hoc numbers in F24).
+  - `ab8ccb8a6` `analysis/seat_codes.py` and `2258b8a6e` `analysis/storyboard.py` (a timeline page for 1
+    trial and an overview page for an arm; examples in `muster-runs/night-2026-11-24/storyboards/`).
+  - `1994fccbf` the task family `horde`: 240 boxes, 24 rooms, 80 flags, 96 opens in total, for 1 agent and
+    for 8, 16, 32 and 48 agents with no rule, a fixed plan (`zones`) or a coordinator (`chief`). 2 review
+    rounds. Scripted check on Daytona (the best policy in every seat, no model): 8 of 8 trials score 1.0,
+    3 of them with 48 seats, on the 2 vCPU / 4 GiB sandbox. No real-agent result yet.
+- Fork: draft pull request 114 in Peter's fork records the last agent step of each seat, marks a seat that
+  stalls, and offers an idle limit. It marks the same 14 seats of F23.
+- Blind coding study of 96 transcripts with 4 raters, and a script that applies the log rules to 27 arms:
+  F26, `muster-runs/forensics-2026-11-24/REPORT.md`.
+- Research files: `research-context/multi-agent/2026-11-24-behaviour-probe-designs-and-run-validity-evidence.md`
+  and `2026-11-24-muster-failure-mode-coding-of-team-transcripts.md`. One correction to an earlier text of
+  mine: Generality Labs did vary the team size at a fixed total budget (`RESULTS.md`, other work).
+- Money of the night so far: $1.68 of model cost and about $1.79 of Daytona time at list price (10.6
+  sandbox hours). Recorded model cost of E5, E6 and E7: $10.01.
+- Next: the task family `standin` (1 real agent among scripted teammates, 4 behaviour probes) is in its
+  second review; then its pre-registration (E8) and a first run of `horde` with real agents.
+
 ## 2026-11-23
 
-**10:52 PM. E7 done and audited (F24). The E5 extra arms run.**
+**10:49 PM. E7 done and audited (F24). The E5 extra arms run.**
 - The 2 E7 lanes ran from 9:28 PM to 10:36 PM ET: 9 arms, 180 trials, every trial with a reward, 0 stalled
   seats (Amendment 10a did not apply), 0 reruns, $2.03. E5 + E6 + E7 are at $8.33 of the $12 cap.
 - Result at 8 seats: `team-8` 58.2%, `zones-8` 97.0%, `chief-8` 94.3%, `share-8` 45.0%, `solo-24` 100.0%.

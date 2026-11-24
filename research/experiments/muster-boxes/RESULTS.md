@@ -16,9 +16,9 @@ old muster repository: `docs/` and `experiments/` are now this folder, `tasks/` 
   agent that holds all facts. Every team waited for both reports before it answered. So the team's losses in
   `boxes` come from acting on a shared resource at the same time, not from passing information.
 - More agents make it worse (E5, 2026-11-23). With 24 opens in total, 1 agent scores 100%, a talking team of 2
-  84%, of 3 79%, of 4 69% and of 8 54%: 15 points lost for each doubling. Under the post-first rule, 8 agents
-  score 73.5%, 26.5 points below 1 agent: their claims block boxes that nobody opens. E5 did not run the rule
-  at 2 or 3 agents; at 3 agents it closed the gap in F14, on another route and backend.
+  84%, of 3 79%, of 4 69% and of 8 54%: 15 points lost for each doubling. The post-first rule helps at every
+  size (98%, 94%, 87% and 73.5% at 2, 3, 4 and 8 agents) and also loses 13 points for each doubling: from 3
+  to 4 agents on, claims block boxes that nobody opens. It is within 5 points of 1 agent only at 2 agents.
 - When each agent has its own budget (E6, 2026-11-23, 240 boxes, 9 opens for each agent), more agents score
   more and talk helps at 8 agents (46% against 32% without a channel). But 1 agent with the same 72 opens
   scores 70.5%, 24 points more, at a fifth of the cost. A sweep over the number of agents needs that control.
@@ -172,8 +172,10 @@ is final. Score: the share of the 5 totals that are exactly right. Pre-registere
 each). Pre-registered in `PREREGISTRATION.md` (Amendments 7 and 7a) after an independent review of the plan;
 Amendment 9 (reruns and the order after the pull limit) was written after the primary arms were seen. Seats:
 terminus-2 with DeepSeek V4.1 Flash through OpenRouter, thinking off. Runner: Daytona sandboxes. 20 trials for
-each complete arm (`indep-2` 18). An independent audit recomputed the numbers from the event logs. Details,
-deviations and the audit: F19, F20 and `LOG.md`.
+each complete arm (`indep-2` 18; `solo-8` 30, `solo-6` 40, `solo-3` 80). The primary arms ran in the
+afternoon of 2026-11-23; the arms that the money stop left open ran in the night of 2026-11-24 (F25). 2
+independent audits recomputed the numbers from the event logs. Details, deviations and the audits: F19, F20,
+F25 and `LOG.md`.
 
 | Arm | Seats x opens | Score | Repeats (of 24 opens) | Unused opens | Messages | Cost per trial |
 |---|---|---|---|---|---|---|
@@ -182,8 +184,15 @@ deviations and the audit: F19, F20 and `LOG.md`.
 | `team-3` | 3 x 8 | 79.2% | 3.45 | 0.40 | 12.4 | $0.0084 |
 | `team-4` | 4 x 6 | 69.2% | 5.45 | 0.65 | 18.8 | $0.0123 |
 | `team-8` | 8 x 3 | 54.2% | 8.40 | 0.15 | 31.2 | $0.0178 |
+| `claim-2` | 2 x 12, post-first rule | 98.2% | 0.25 | 0.95 | 29.8 | $0.0120 |
+| `claim-3` | 3 x 8, post-first rule | 94.3% | 0.65 | 0.35 | 32.5 | $0.0170 |
+| `claim-4` | 4 x 6, post-first rule | 86.8% | 0.95 | 1.70 | 52.1 | $0.0306 |
 | `claim-8` | 8 x 3, post-first rule | 73.5% | 1.25 | 2.60 | 78.4 | $0.0502 |
+| `indep-2` | 2 x 12, no channel | 67.5% | 5.83 | 0.00 | 0 | $0.0069 |
+| `indep-3` | 3 x 8, no channel | 42.5% | 9.90 | 0.00 | 0 | $0.0076 |
+| `indep-4` | 4 x 6, no channel | 38.8% | 10.90 | 0.00 | 0 | $0.0096 |
 | `indep-8` | 8 x 3, no channel | 25.8% | 13.85 | 0.00 | 0 | $0.0123 |
+| `solo-12` / `solo-8` / `solo-6` / `solo-3` | 1 x 12 / 8 / 6 / 3 | 45.2% / 26.3% / 19.8% / 6.9% | 0 | 0.00 to 0.12 | 0 | $0.0011 to $0.0035 |
 
 - OBSERVED: the first primary test passes. The `team-k` score falls by 15.5 points for each doubling of k
   (95% interval [-20.1, -10.7], exact sign-flip p 0.002, slopes for each of the 10 layouts).
@@ -209,10 +218,24 @@ deviations and the audit: F19, F20 and `LOG.md`.
 - OBSERVED, 2 seats: `team-2` 84.0%, 2 silent agents (`indep-2`) 67.5%, 1 agent with 12 opens (`solo-12`)
   45.2%, and the distinct flags of 2 separate `solo-12` runs 52.0%. The channel adds 16.5 points [5.3, 29.2]
   even at 2 seats, where best silent play can score 1.0.
-- Not done: the arms without a channel at 3 and 4 seats have 7 and 11 of 20 trials. The claim rule at 2, 3 and
-  4 seats, the single-agent arms with 3, 6 and 8 opens (for the union control) and the route anchor have no
-  result. Docker Hub's pull limit failed 111 trials (F21). After the fix, the last credits of the shared
-  OpenRouter account went to the reruns of `solo-12` and `indep-2`, and then the account was empty.
+- OBSERVED, the arms that were left open (F25, night of 2026-11-24, $1.68):
+  - The post-first rule against 1 agent: `solo-24 - claim-k` = 1.8 [0.0, 4.3] at 2 agents (inside the
+    5-point margin), 5.8 [3.3, 8.5] at 3 (inconclusive), 13.2 [7.2, 20.0] at 4 and 26.5 at 8 (both fail).
+  - The rule against the plain team: +14.2, +15.0, +17.5 and +19.2 points at 2, 3, 4 and 8 agents, each
+    interval above 0. The `claim-k` score falls by 12.8 points for each doubling [-15.6, -10.2].
+  - The blocking of claimed boxes starts at 3 to 4 agents: at 4 agents 20 seats stop with 34 opens left, and
+    15 of 16 such stops cite claims. The 30-turn cap also binds: in `claim-2`, 5 seats end at the cap with
+    opens left.
+  - Talk helps at every size: `team-k - indep-k` = 16.5, 36.8, 30.5 and 28.5 points.
+  - The route anchor: the E1 task for 3 agents scores 84.8% on this route, against 85.7% (E1) and 83.8%
+    (F14c) on DeepSeek's own API and local Docker. The 10-point rule passes; the paired interval is
+    [-11.4, 9.1].
+  - The arms of the night ran 8 hours after the arms that they are compared with. A shift of up to about 10
+    points between the 2 times is not excluded. The signs of the contrasts hold under such a shift; their
+    sizes and the differences between team sizes do not.
+  - The contrast of k silent agents against the union of k separate single agents does not measure
+    interference, as the pre-registration called it: a silent seat never sees another seat. It measures how
+    far the seat name and the knowledge of other agents spread the agents out (+4.0 to +16.8 points).
 - E6 `field` is complete; see the next section.
 - E7 `crowdrules` is complete; see the section after E6.
 - Seat count of the runner (F22, scripted trials, no model): 48 seats in 1 trial pass on the small Daytona
@@ -283,7 +306,8 @@ numbers before this text. Details: F24.
   rooms without treasure.
 - OBSERVED: agents obey `zones` in 97.5% of their opens at 8 agents. The obedience of `chief` is not
   measured: the parser could not read the coordinator's list for 35% of the opens. A blind hand check of 40
-  coordinator posts found 0 wrong lists and 11 lists that the parser refused.
+  coordinator posts found 0 wrong lists and 11 lists that the parser refused. Post hoc, with a second
+  parser written after the result (F24): 16.0% not readable, obedience 0.993 [0.98, 1.00] at 8 agents.
 - OBSERVED: `zones-8` costs $0.0074 for a trial, a third of the team without a rule ($0.0204) and 5 times 1
   agent ($0.0015).
 - INFERRED: a single owner for each box is not enough; the team also needs the order of the search. The plan
@@ -319,6 +343,16 @@ numbers before this text. Details: F24.
   session, because the task is short and its whole state fits in 1 context. So `boxes` favors 1 agent.
   https://arxiv.org/html/2611.09798 (local copy:
   `research-context/multi-agent/sources/papers/2026-11-06-parallel-agent-teams-compute-scaling.md`)
+- Generality Labs, MirrorCode at a fixed token budget (2026-10): 1 to 64 agents share 250M tokens in total,
+  with the single agent that holds all 250M tokens as the control. On 2 of 3 tasks every team scores below
+  1 agent and the score falls with the number of agents (Cprepro, GPT-6 Luna: 79.5% at 1 agent, 23.1% at
+  64). On the task that splits well (Ruff), the score peaks near 8 agents. The share of direct messages
+  that the receiver retrieved falls from 0.83 at 2 agents to 0.28 at 64 (recomputed from the released
+  figure data). This is the public study that fixes the total budget; an earlier text of this lane said
+  that no study in its reading set does. E5 agrees with it where repeated work costs budget.
+  (`research-context/multi-agent/2026-11-24-behaviour-probe-designs-and-run-validity-evidence.md`, source
+  notes `posts/2026-10-29-generality-mirrorcode-fixed-budget-teams.md` and
+  `posts/2026-11-11-generality-mirrorcode-coordination-failures.md`)
 
 ## Limits
 
@@ -332,9 +366,11 @@ numbers before this text. Details: F24.
   model results yet.
 - **Small samples:** 10 instances; 20 or 30 trials per arm. The design detects differences of about 12 to 16
   pts, so smaller real effects can show as "not resolved".
-- **Time:** E1 and E2 ran on 11-19, F14 on 11-20, F14c to F17 on 11-21, E5 on 11-23. F14c checks for drift
-  for the plain team only. E5 used another route to the model (OpenRouter to DeepInfra) and another backend
-  (Daytona) and has no anchor arm, so its levels must not be compared with the earlier levels.
+- **Time:** E1 and E2 ran on 11-19, F14 on 11-20, F14c to F17 on 11-21, E5 on 11-23 and in the night of
+  11-24. F14c checks for drift for the plain team only. E5 used another route to the model (OpenRouter to
+  DeepInfra) and another backend (Daytona). Its anchor arm (F25) agrees with E1 within 1 point, with a
+  paired interval of about 10 points each way; the E5 arms of the afternoon and of the night can differ by
+  up to about 10 points for the time alone.
 - **Prompt protocols:** report-first and the F15 to F17 changes are written rules. They measure the value of
   that rule, not what agents find without it.
 - **2 runners:** the fork of Harbor at `6aeb609e`, on local Docker on 1 Mac (E1 to E4) and on Daytona

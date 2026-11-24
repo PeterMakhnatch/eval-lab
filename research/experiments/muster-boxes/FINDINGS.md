@@ -362,6 +362,8 @@ More arms:
   The pre-registration says that their contrasts are not available; their scores are for the record only.
 - E5 has no route anchor (`team-3-e1`) and no union control above 2 seats. Levels must not be compared with
   E1 to F18 (other route, other backend, 27 opens there).
+  Later (night of 2026-11-24): the incomplete arms, the route anchor and the union control are complete; see
+  F25.
 - Counting: 313 trials were started. 200 have a reward. 111 failed at the pull limit before any seat started,
   and 2 failed when the account was empty. Failed trials are unmeasured, never 0. 23 of the failed trials were
   run again (`solo-12` 7, `indep-2` 16); 21 of the reruns have a reward and are in the table. The reruns ran 12
@@ -680,6 +682,11 @@ OBSERVED (9 arms, 180 trials, every trial has a reward, 0 stalled seats, 0 rerun
   list. The blind hand check of 40 p1 posts found 0 wrong lists, 23 exact lists, 11 lists that a person can
   read and the parser refused, and 6 posts without a list. It also found that the parser does not see an
   order to 1 seat ("p4: open box 16, then box 17") as a list: 5 of 10 control posts.
+  Post hoc (2026-11-24, not the registered result): parser v2 (`crowd_rules.py --parser v2`, commits
+  `f1ed0404c` and `01f6f2b3e`) reads more forms of a list. It was tuned on 34 E7 posts (34 exact, 0 wrong)
+  and checked on 60 other posts with blind labels: it read 1 of 48 lists wrongly before a fix and 0 after
+  it. No unseen E7 post is left to test that fix. With v2 the opens that cannot be classed are 16.0% at 8
+  seats and 10.7% at 4 seats, and obedience is 0.993 [0.98, 1.00] and 0.953 [0.88, 0.99].
 - In all 40 `chief` trials p1 posted boxes for 2 or more seats before the first open of the trial. The first
   list of `chief-8` came after 19 s (median).
 - **Why `chief-4` is weak: 1 reading of the rule text.** In 7 of 20 trials, p1's first list gave each of the 4
@@ -720,3 +727,124 @@ a team can find the plan. `chief` needs no knowledge of the layout in the prompt
 seats its text has 2 readings, so `chief-4` does not show that a coordinator is worse for a small team. E7
 has no primary test that ranks the rules; "share hurts" and "zones is the best rule" are not supported. No
 rule is shown to reach the score of 1 agent. 1 model, 1 harness, 1 synthetic task, 10 layouts.
+
+## F25. E5, the arms that were left open: the post-first rule helps at every team size, loses 13 points for each doubling, and is within 5 points of 1 agent only at 2 agents (2026-11-24, $1.68)
+
+The arms of Amendment 7 that the money stop of 2026-11-23 left open, in the order of Amendments 9 and 10
+(after E7). 1 lane, 4 trials at once, Daytona with the mirror snapshot, 10:45 PM ET on 2026-11-23 to 1:46 AM
+ET on 2026-11-24. Roster, turn cap, task bytes and Harbor checkout as in E5. 249 new trials with a reward.
+Analysis: `analysis/crowd_scaling.py --total-budget 24` over 17 arms (`muster-runs/e5/analysis/e5-full.txt`
+and `.json`). An independent audit recomputed every number from the event logs before this text.
+
+OBSERVED (score in %, 24 opens in total; `solo-24` scores 100.0):
+
+| Agents k | 1 agent with 24/k opens | k silent agents (`indep-k`) | k talking agents (`team-k`) | Post-first rule (`claim-k`) | Union of k separate single agents |
+|---|---|---|---|---|---|
+| 2 | 45.2 | 67.5 (18 trials) | 84.0 | 98.2 | 52.0 |
+| 3 | 26.3 | 42.5 | 79.2 | 94.3 | 38.5 |
+| 4 | 19.8 | 38.8 | 69.2 | 86.8 | 27.0 |
+| 8 | 6.9 | 25.8 | 54.2 | 73.5 | 9.0 |
+
+| Arm | Trials | Repeats | Unused opens | Messages | Cost per trial | Seats at the 30-turn cap |
+|---|---|---|---|---|---|---|
+| `claim-2` | 20 | 0.25 | 0.95 | 29.8 | $0.0120 | 8 |
+| `claim-3` | 20 | 0.65 | 0.35 | 32.5 | $0.0170 | 2 |
+| `claim-4` | 20 | 0.95 | 1.70 | 52.1 | $0.0306 | 5 |
+| `claim-8` (afternoon) | 20 | 1.25 | 2.60 | 78.4 | $0.0502 | 1 |
+| `indep-3` | 20 | 9.90 | 0.00 | 0 | $0.0076 | 0 |
+| `indep-4` | 20 | 10.90 | 0.00 | 0 | $0.0096 | 0 |
+| `solo-8` / `solo-6` / `solo-3` | 30 / 40 / 80 | 0 | 0.00 / 0.12 / 0.00 | 0 | $0.0020 / $0.0023 / $0.0011 | 0 |
+
+- **The post-first rule against 1 agent** (5-point margin, secondary): `solo-24 - claim-2` = 1.8 [0.0, 4.3],
+  pass. `solo-24 - claim-3` = 5.8 [3.3, 8.5], inconclusive. `solo-24 - claim-4` = 13.2 [7.2, 20.0], fail.
+  `solo-24 - claim-8` = 26.5 [20.8, 32.3], fail (the primary test of F19). These 4 are robust against the
+  time of day: `solo-24` scores 100% in the afternoon and in the evening.
+- **The rule against the plain team:** `claim-k - team-k` = 14.2 [4.0, 24.2] (p 0.039), 15.0 [7.5, 23.0]
+  (p 0.0098), 17.5 [8.0, 26.0] (p 0.014) and 19.2 [14.0, 24.5] (p 0.002) at k = 2, 3, 4, 8.
+- **The rule loses with team size:** the `claim-k` score falls by 12.8 points for each doubling of k
+  [-15.6, -10.2], p 0.002 (secondary). The `indep-k` score falls by 19.4 [-24.9, -14.2]; `team-k` by 15.5
+  (F19). No test compares the 3 slopes.
+- **The blocking queue of F20 starts at 3 to 4 agents.** Seats that stop with opens left: `claim-2` 11 (19
+  opens), `claim-3` 7 (7), `claim-4` 20 (34), `claim-8` 31 (52). At 4 agents 15 of 16 early stops cite
+  claims ("all treasure-room boxes ... already claimed ... would violate the coordination rule"); at 3
+  agents 5 of 6. At 2 agents the stops come after all 20 flags are found (5 of 6; 1 says "all 20" with 19
+  found). The 30-turn cap also binds the claim arms, because each open needs a post and a read: in
+  `claim-2`, 8 seats reach the cap and 5 of them have opens left (9 opens).
+- **Talk helps at every size:** `team-k - indep-k` = 16.5 [5.3, 29.2], 36.8 [28.0, 44.0], 30.5 [20.0, 41.8]
+  and 28.5 [22.0, 35.2].
+- **Headcount at a fixed budget for each agent:** `indep-k - solo-(24/k)` = 22.2, 16.2, 19.0 and 18.9
+  points. k silent agents with k times the opens beat 1 small agent.
+- **The union control.** The distinct flags of k separate single agents with 24/k opens each (`union-k`) are
+  52.0, 38.5, 27.0 and 9.0%. Each layout has exactly k such trials, so the value does not depend on a
+  grouping. `indep-k - union-k` = 15.5 [4.2, 25.0], 4.0 [-3.8, 12.5], 11.8 [6.3, 18.0] and 16.8
+  [13.2, 20.0]. The pre-registration calls this contrast "interference". That name is wrong: a silent seat
+  never sees the effect of another seat, so `indep-k` and `union-k` differ only in the instruction text (a
+  seat name, and "k - 1 other agents ... cannot communicate" against "You work alone"). The contrast
+  measures how far that text makes silent agents spread out. `union-k` is at the floor of identical agents
+  (50, 33.3, 23.3 and 8.7%): 99% of the `solo-3` trials start at box 1.
+- **The route anchor.** `team-3-e1` (the frozen E1 `boxes` tasks for 3 agents, same task checksums in 10 of
+  10 instances) scores 84.8% (20 trials, SE 3.3) on OpenRouter and Daytona. E1 `team-3` scored 85.7% and
+  F14c 83.8% on DeepSeek's own API and local Docker. The pre-registered 10-point rule passes. The paired
+  interval against E1 is [-11.4, 9.1], so the anchor cannot exclude a route difference of 10 points.
+- **Time of day.** `team-k`, `claim-8`, `indep-8`, `indep-2`, `solo-24` and `solo-12` ran in the afternoon.
+  `claim-2`, `claim-3`, `solo-8`, `solo-6`, `solo-3` and the anchor ran 8 hours later. `indep-3` (7 and 13
+  trials), `indep-4` (11 and 9) and `claim-4` (4 and 16) are mixed. The checks for a shift: E7 `team-8`
+  minus E5 `team-8` = +4.0 [-1.5, 9.75]; E7 `team-4` minus E5 `team-4` = +2.0 [-8.5, 11.75]; inside
+  `indep-4`, the evening trials minus the afternoon trials of the same layouts = -8.3; the median model call
+  was 10% to 15% faster in the evening. A shift of up to about 10 points in either direction is not
+  excluded. The signs of `claim-k - team-k` (lower ends 4.0 to 8.0) and of `team-k - indep-k` at k = 3 and
+  4 (lower ends 28.0 and 20.0) hold under such a shift. Their exact sizes, the differences between k, and
+  the 2 new slopes do not.
+- **The pre-registered expectations** (Amendment 7): the rule passes the margin at k = 2 (met), at k = 3 (not
+  met: inconclusive) and at k = 4 (not met: fail). Messages grow about linearly in k for `team` (6.5 to
+  31.2) and slower for `claim` (29.8 to 78.4).
+- **Accounting and deviations:**
+  - First runs: `solo-6` 40 (1 failed in `docker compose up` before the agent started and ran again once),
+    `solo-3` 80, `claim-3` 20, `team-3-e1` 20. Reruns of trials that Docker Hub's pull limit failed before
+    any model call (F21): `solo-8` 30, `claim-2` 20, `claim-4` 16, `indep-3` 13, `indep-4` 9. The folder
+    names (`.r1-*`) do not show which is which. No trial ran again twice. No trial with a reward was
+    replaced or dropped. 0 seats with an exception and 0 stalled seats.
+  - `indep-2` keeps 18 trials. The 2 trials that failed at the empty account were reruns already, so under
+    Amendment 7 they stay unmeasured; the rerun "if credits return" of Amendment 9 was not applied.
+  - 1 `solo-6` seat wrote a script plan, used 1 of 6 opens and ended. The trial counts (reward 0.05).
+  - Money: recorded cost over E5, E6 and E7 was $8.33 before the lane and $10.01 after it, under the $12
+    cap. The lowest balance at an arm start was $14.35.
+
+INFERRED. The post-first rule is a full fix at 2 agents and a partial fix above that. It removes the
+repeats at every size (0.25 to 1.25 for each trial) and replaces them with boxes that are claimed and never
+opened; that cost starts at 3 to 4 agents and grows. Not supported: "the claim rule fixes small teams" (it
+is shown at 2 agents; 3 is inconclusive), "its gain grows with team size" (not tested, and the arms ran at
+different times), "silent teams lose faster than talking teams" (the slopes are not compared), "union-k
+measures interference". With E7: at 8 agents a fixed plan or a coordinator reaches 94% to 97%, the post-first
+rule 73.5% (on another day). 1 model, 1 harness, 1 synthetic task, 10 layouts.
+
+## F26. A blind coding of 96 agent transcripts: 42% of the agents without a rule repeat a box that they never saw reported; a script reproduces the counts for 27 arms (2026-11-24, no trial)
+
+Not pre-registered: an analysis of the stored E5, E6 and E7 trials. Files:
+`muster-runs/forensics-2026-11-24/` (`REPORT.md`, `codebook.md`, `ratings/`, `analysis.txt`, `detect.py`,
+`all-arms/all-arms.txt`). Script: `analysis/seat_codes.py` (commit `ab8ccb8a6`).
+
+OBSERVED:
+- 96 seat transcripts (stratified over 10 arms) were rendered without the arm name, the score or the rule
+  text and coded by 4 raters with a fixed codebook. The 4 raters are copies of 1 model; no person checked
+  the codes. Agreement on the primary code: 0.84, kappa 0.81.
+- A repeat of a box that the agent never saw reported (`DUP_UNSEEN`) is the primary code of 24 of 96
+  transcripts: 42% of the agents without a rule and 0% of the agents under a rule of E7.
+- A wrong report to the team (`MISREPORT`) is in 21 of 96 transcripts, 7 of the 10 from `share-8`. A wrong
+  reading of the goal (`OBJECTIVE_MISREAD`, for example "both treasure rooms are found" as the end of the
+  task) is in 8. An agent that follows a teammate's wrong statement without a check (`BLIND_OBEY`) is in 1.
+- The event log shows that 39 of the 96 agents repeated a box. 10 of them got no repeat code from the
+  raters: a transcript alone hides repeats.
+- Rules that read only the event log (`detect.py`) against the raters: an early stop with opens left has
+  precision 0.75 and recall 1.00; any repeat 0.74 and 0.88. The rules were tuned once on the same 96 items,
+  so these values are optimistic.
+- `seat_codes.py` applies the log rules to every seat of 27 arms. Examples: in E7 `team-8`, 59% of the seats
+  repeat a box and 62% of the opens follow a board read by the same seat since its last open; in `share-8`,
+  0 repeats, 98% of the opens follow a read, and 27% of the seats open boxes in rooms that the board already
+  shows as empty. In E5 `team-8`, 118 repeats hit a box with no report that the seat had read, against 43
+  repeats of a box whose report it had read.
+
+INFERRED. The main failure of these teams is an action on a view of the shared state that is 1 turn old,
+not a refusal to read: most opens do follow a read. The behaviour probes of the `standin` family (a change
+that arrives between a read and an open, a wrong list, a promised report, a claim that nobody uses) come
+from these codes. Limits: 1 model as the rater, 96 items, rules tuned on the test items.

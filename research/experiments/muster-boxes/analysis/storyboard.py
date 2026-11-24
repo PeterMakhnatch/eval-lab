@@ -30,6 +30,10 @@ BY_BOX = ("own", "unposted_box", "unread_box", "read_box")
 F13 = ("own", "unsent", "unread", "read")
 NEW_READ = ("new", "GET")
 BOARD_EVENTS = (("msg", "POST"), ("msgs", "GET"), NEW_READ)
+STANDIN_KEYS = ("probe_pass", "behaviour_ok", "script_faithful", "claim_behaviour")
+CLAIM_CLASSES = {0: "other", 1: "stopped", 2: "asked_then_took", 3: "took_without_asking"}
+NAMING_TAGS = ("announces", "claims")
+SCRIPT_GUTTER = 46
 CSS = """
 :root { color-scheme: light dark; --bg: #ffffff; --fg: #1b1b1b; --muted: #666666;
   --grid: #d4d4d4; --zebra: #f3f3f3; --flag: #E69F00; --empty: #0072B2; --repeat: #CC79A7;
@@ -270,6 +274,70 @@ def event_mark(e: dict, story: dict) -> dict | None:
     return None
 
 
+def cast_of(inst: dict, seats: list[str]) -> dict | None:
+    if "standins" not in inst:
+        return None
+    real, standins = inst["real"], list(inst["standins"])
+    assert real in seats and real not in standins, (real, standins)
+    assert sorted([real, *standins], key=seat_key) == seats, (real, standins, seats)
+    scripted: dict[tuple[str, str], list[dict]] = {}
+    for step in inst.get("script") or []:
+        for action in step["actions"]:
+            if "post" in action:
+                assert action["seat"] in standins, (step["name"], action["seat"])
+                entry = {"step": step["name"], "tag": action.get("tag") or {}}
+                scripted.setdefault((action["seat"], action["post"]), []).append(entry)
+    return {"real": real, "standins": standins, "scripted": scripted}
+
+
+def family_values(trial: Path) -> dict:
+    path = trial / "verifier" / "reward.json"
+    if not path.is_file():
+        return {}
+    data = json.loads(path.read_text())
+    assert isinstance(data, dict), path
+    return {key: data[key] for key in STANDIN_KEYS if key in data}
+
+
+def note_tag(tag: dict, who: tuple[str, float], named: dict, listed: dict, real: str) -> None:
+    seat, t = who
+    for kind in NAMING_TAGS:
+        boxes = tag.get(kind) or []
+        assert all(isinstance(box, int) for box in boxes), (kind, boxes)
+        for box in boxes:
+            named.setdefault(box, (seat, t, kind))
+    for box in tag.get("releases") or []:
+        if box in named and named[box][2] == "claims":
+            del named[box]
+    if "list" in tag:
+        listed.clear()
+        for owner, boxes in tag["list"].items():
+            if owner != real:
+                listed.update({box: (seat, t, f"list part for {owner}") for box in boxes})
+
+
+def script_marks(marks: list[dict], cast: dict) -> int:
+    pending = {key: list(steps) for key, steps in cast["scripted"].items()}
+    named: dict[int, tuple] = {}
+    listed: dict[int, tuple] = {}
+    unmatched = 0
+    for mk in marks:
+        e = mk["e"]
+        if mk["kind"] == "post" and e["seat"] in cast["standins"]:
+            steps = pending.get((e["seat"], e["response"]["text"])) or []
+            if not steps:
+                unmatched += 1
+                continue
+            mk |= steps.pop(0)
+            note_tag(mk["tag"], (e["seat"], e["t"]), named, listed, cast["real"])
+        elif mk["kind"] == "open" and e["seat"] == cast["real"]:
+            mk["real"] = True
+            hit = named.get(e["response"]["box"]) or listed.get(e["response"]["box"])
+            if hit is not None and mk["result"] != "repeat":
+                mk["named"] = hit
+    return unmatched
+
+
 def trial_model(trial: Path) -> dict:
     result = json.loads((trial / "result.json").read_text())
     assert isinstance(result, dict), trial
@@ -284,7 +352,8 @@ def trial_model(trial: Path) -> dict:
     total_flags = treasure_count * inst["room_size"]
     reward = cs.read_reward(trial, result)
     found = len(story["flag_times"])
-    if reward is not None:
+    cast = cast_of(inst, seats)
+    if reward is not None and cast is None:
         assert abs(reward - found / total_flags) < REWARD_TOLERANCE, (trial, reward, found)
     t0 = events[0]["t"]
     marks = [m for m in (event_mark(e, story) for e in events) if m is not None]
@@ -293,6 +362,9 @@ def trial_model(trial: Path) -> dict:
     if anonymous:
         lanes.append({"name": NO_TOKEN, "error": None, "times": [], "count": Counter()})
         lanes[-1]["count"]["refused"] = anonymous
+    unmatched = script_marks(marks, cast) if cast is not None else 0
+    for lane in lanes:
+        lane["script"] = cast is not None and lane["name"] in cast["standins"]
     return {
         "trial": trial,
         "name": trial.name,
@@ -309,6 +381,9 @@ def trial_model(trial: Path) -> dict:
         "total_flags": total_flags,
         "treasure": treasure_text,
         "anonymous": anonymous,
+        "cast": cast,
+        "values": family_values(trial) if cast is not None else {},
+        "unmatched": unmatched,
     }
 
 
@@ -316,6 +391,8 @@ def geometry(base: dict, lanes: list[dict], span: float) -> dict:
     assert lanes and span > 0
     lane_h = max(base["min"], min(base["max"], base["space"] // len(lanes)))
     height = base["strip"] + lane_h * len(lanes) + base["axis"]
+    if any(lane.get("script") for lane in lanes):
+        base = base | {"left": base["left"] + SCRIPT_GUTTER}
     width = base["left"] + base["plot"] + base["right"]
     rows = {lane["name"]: i for i, lane in enumerate(lanes)}
     return base | {"lane_h": lane_h, "height": height, "width": width, "rows": rows, "span": span}
@@ -344,10 +421,17 @@ def mark_title(mk: dict, m: dict) -> str:
         if mk["result"] == "repeat":
             seat, seq, t = mk["first"]
             text += f"; first opened by {seat} at {t - m['t0']:.3f} s (seq {seq})"
+        if "named" in mk:
+            seat, t, kind = mk["named"]
+            text += f"; named before by stand-in {seat} at {t - m['t0']:.3f} s ({kind})"
         return text
     if mk["kind"] == "post":
         body = e["response"]["text"]
-        return f"{head}: post #{e['response']['id']}: {body[:TEXT_CHARS]}"
+        script = ""
+        if "step" in mk:
+            tag = json.dumps(mk["tag"], separators=(",", ":")) if mk["tag"] else "none"
+            script = f" [stand-in script step '{mk['step']}', tag {tag}]"
+        return f"{head}: post #{e['response']['id']}{script}: {body[:TEXT_CHARS]}"
     if mk["kind"] == "read":
         got = e["response"].get("messages") or []
         newest = max((x.get("id", 0) for x in got), default=0)
@@ -392,13 +476,22 @@ def shape_svg(kind: str, result: str | None, x: float, y: float, g: dict) -> str
     return a + b
 
 
+def named_svg(x: float, y: float, g: dict) -> str:
+    side = 2 * max(2.0, min(6.0, g["lane_h"] * 0.22)) + 7
+    box = f'x="{num(x - side / 2)}" y="{num(y - side / 2)}" width="{num(side)}" height="{num(side)}"'
+    return f'<rect {box} fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="2 1.5"/>'
+
+
 def mark_svg(mk: dict, m: dict, g: dict) -> str:
     x, y = gx(g, mk["e"]["t"] - m["t0"]), gy(g, mk["lane"])
     result = mk.get("result")
     css = f"{mk['kind']} {result}" if result else mk["kind"]
     title = f"<title>{esc(mark_title(mk, m))}</title>" if g["titled"] else ""
     box = f' data-box="{mk["e"]["response"]["box"]}"' if mk["kind"] == "open" else ""
-    return f'<g class="{css}"{box}>{title}{shape_svg(mk["kind"], result, x, y, g)}</g>'
+    box += ' data-real="1"' if mk.get("real") else ""
+    box += ' data-named="1"' if "named" in mk else ""
+    extra = named_svg(x, y, g) if "named" in mk else ""
+    return f'<g class="{css}"{box}>{title}{shape_svg(mk["kind"], result, x, y, g)}{extra}</g>'
 
 
 def link_svg(mk: dict, m: dict, g: dict) -> str:
@@ -470,8 +563,11 @@ def lane_svg(i: int, lane: dict, m: dict, g: dict) -> list[str]:
     css = ' class="muted"' if lane["error"] or not lane["times"] or lane["name"] == NO_TOKEN else ""
     title = f"<title>{esc(lane_title(lane, m))}</title>" if g["titled"] else ""
     label = esc(lane["name"]) + ("!" if lane["error"] else "")
+    if lane.get("script"):
+        css, label = ' class="muted" font-style="italic"', label + " (script)"
     if h >= 5:
-        out.append(f'<text x="{g["left"] - 6}" y="{num(y + font * 0.35)}" font-size="{font}" text-anchor="end"{css}>{title}{label}</text>')
+        gap = 11 if lane.get("script") else 6
+        out.append(f'<text x="{g["left"] - gap}" y="{num(y + font * 0.35)}" font-size="{font}" text-anchor="end"{css}>{title}{label}</text>')
     if g["right"] >= 100:
         out.append(f'<text x="{right + 8}" y="{num(y + font * 0.35)}" font-size="{font}"{css}>{esc(lane_text(lane))}</text>')
     return out
@@ -520,7 +616,7 @@ def chart_svg(m: dict, g: dict) -> str:
     return "".join(parts)
 
 
-def legend_svg() -> str:
+def legend_svg(standin: bool) -> str:
     g = PAGE | {"lane_h": 24, "titled": False}
     items = [
         ("open", "flag", "open: new flag box (ring)"),
@@ -530,14 +626,25 @@ def legend_svg() -> str:
         ("read", None, "board read, GET /msgs or GET /new (hollow dot below)"),
         ("refused", None, "refused request (cross below)"),
     ]
-    out = ['<svg xmlns="http://www.w3.org/2000/svg" class="legend" viewBox="0 0 1380 60" width="1380" height="60" style="max-width:100%;height:auto">']
+    if standin:
+        items.append(("open", "flag", "real seat opens a box a stand-in named before (dashed square)"))
+    height = 60 if len(items) <= 6 else 88
+    out = [f'<svg xmlns="http://www.w3.org/2000/svg" class="legend" viewBox="0 0 1380 {height}" width="1380" height="{height}" style="max-width:100%;height:auto">']
     for i, (kind, result, text) in enumerate(items):
         x, y = 14 + (i % 3) * 460, 16 + (i // 3) * 28
         css = f"{kind} {result}" if result else kind
-        out.append(f'<g class="{css}">{shape_svg(kind, result, x, y, g)}</g>')
+        extra = named_svg(x, y, g) if i == 6 else ""
+        out.append(f'<g class="{css}">{shape_svg(kind, result, x, y, g)}{extra}</g>')
         out.append(f'<text x="{x + 14}" y="{y + 4}" font-size="12">{esc(text)}</text>')
     out.append("</svg>")
     return "".join(out)
+
+
+def value_text(key: str, value) -> str:
+    assert isinstance(value, int | float) and not isinstance(value, bool), (key, value)
+    if key == "claim_behaviour":
+        return f"{int(value)} ({CLAIM_CLASSES[int(value)]})"
+    return f"{value:g}"
 
 
 def stat_html(m: dict) -> str:
@@ -563,7 +670,44 @@ def stat_html(m: dict) -> str:
         (m["anonymous"], "refused (no seat token)"),
         (m["treasure"], "treasure rooms"),
     ]
+    if m["cast"] is not None:
+        items[0] = (reward, "reward (the standin family's own reward, from reward.json)")
+        items += [(value_text(k, v), k) for k, v in m["values"].items()]
     return "".join(f"<span><b>{esc(v)}</b> {esc(k)}</span>" for v, k in items)
+
+
+def cast_note(m: dict) -> str:
+    cast = m["cast"]
+    if cast is None:
+        return ""
+    text = (
+        f"Only {cast['real']} is a real agent. The world plays {', '.join(cast['standins'])} from the "
+        "script in instance.json (lanes marked script). The reward is min(new flags of the real seat, "
+        f"ceiling) / ceiling, ceiling {m['inst'].get('ceiling', '?')} in instance.json (rule in family.toml); it is not the "
+        "share of distinct flag boxes in the strip. Hover a stand-in post for its script step and tag."
+    )
+    if m["unmatched"]:
+        text += f" {m['unmatched']} stand-in posts were not found in the script."
+    return f'<p class="sub">{esc(text)}</p>'
+
+
+def cast_table(m: dict) -> list[str]:
+    cast = m["cast"]
+    shown = [
+        mk for mk in m["marks"]
+        if mk["lane"] == cast["real"] or (mk["kind"] == "post" and "step" in mk)
+    ]
+    out = [f"<h2>Real seat {esc(cast['real'])} and the stand-in posts, in log order ({len(shown)})</h2>"]
+    out.append("<table><thead><tr><th>seconds</th><th>seq</th><th>seat</th><th>event</th></tr></thead><tbody>")
+    for mk in shown:
+        e = mk["e"]
+        detail = mark_title(mk, m).split(": ", 1)[1]
+        seat = e["seat"] + (" (script)" if e["seat"] in cast["standins"] else "")
+        cells = [f"{e['t'] - m['t0']:.1f}", str(e["seq"]), seat]
+        row = "".join(f"<td>{esc(c)}</td>" for c in cells) + f'<td class="text">{esc(detail)}</td>'
+        out.append(f"<tr>{row}</tr>")
+    out.append("</tbody></table>")
+    return out
 
 
 def page_head(title: str) -> list[str]:
@@ -641,9 +785,12 @@ def trial_page(m: dict) -> str:
     note = f"Seats with an agent error (label ends in !): {', '.join(errors)}." if errors else ""
     out = page_head(f"{m['name']} storyboard")
     out += [f"<h1>{esc(m['name'])}</h1>", f'<p class="sub">{esc(sub)}</p>']
-    out += [f'<div class="stats">{stat_html(m)}</div>', legend_svg()]
+    out += [f'<div class="stats">{stat_html(m)}</div>', legend_svg(m["cast"] is not None)]
+    out += [cast_note(m)] if m["cast"] is not None else []
     out += [f'<p class="sub">Dotted lane: the seat made no request in that time. Solid lane: from its first to its last request. {esc(note)} Hover a mark for its exact time and content.</p>']
-    out += [chart_svg(m, g), *repeat_table(m), "</body></html>"]
+    out += [chart_svg(m, g)]
+    out += cast_table(m) if m["cast"] is not None else []
+    out += [*repeat_table(m), "</body></html>"]
     return "\n".join(out)
 
 
@@ -653,6 +800,8 @@ def card_html(m: dict, span: float) -> str:
     reward = "unmeasured" if m["reward"] is None else f"{m['reward']:.3f}"
     repeats = len(m["story"]["repeats"])
     name = f"{m['name']} · reward {reward} · {repeats} repeats"
+    if m["cast"] is not None:
+        name += "".join(f" · {k} {value_text(k, v)}" for k, v in m["values"].items())
     return f'<div class="card"><p class="name">{esc(name)}</p>{chart_svg(m, g)}</div>'
 
 
@@ -671,7 +820,8 @@ def arm_page(arm: Path) -> str:
         "refused requests without a seat token are left out"
     )
     out = page_head(f"{label} overview")
-    out += [f"<h1>{esc(label)}</h1>", f'<p class="sub">{esc(sub)}</p>', legend_svg()]
+    standin = any(m["cast"] is not None for m in models)
+    out += [f"<h1>{esc(label)}</h1>", f'<p class="sub">{esc(sub)}</p>', legend_svg(standin)]
     out.append('<div class="cards">')
     out.extend(card_html(m, span) for m in models)
     out += ["</div>", "</body></html>"]
@@ -713,6 +863,19 @@ def check_rows(root: ET.Element, c: Counter) -> int:
     return len(rows)
 
 
+def check_cast(chart: ET.Element, trial: Path) -> str:
+    inst = load_instance(json.loads((trial / "result.json").read_text()))
+    if "standins" not in inst:
+        return ""
+    real = inst["real"]
+    logged = sum(1 for e in cs.played(trial) if e["seat"] == real and (e["kind"], e["method"]) == ("open", "POST"))
+    marked = [el for el in chart.iter() if el.get("data-real") == "1"]
+    assert len(marked) == logged, (trial, len(marked), logged)
+    named = [el for el in marked if el.get("data-named") == "1"]
+    assert all("repeat" not in (el.get("class") or "") for el in named), trial
+    return f"; real seat {real}: {len(marked)} open marks = {logged} logged opens, {len(named)} named before by a stand-in"
+
+
 def check(path: Path, trials: list[Path], page: bool) -> list[str]:
     root = ET.fromstring(path.read_text(encoding="utf-8"))
     charts = {el.get("data-trial"): el for el in root.iter() if el.get("data-trial")}
@@ -723,6 +886,7 @@ def check(path: Path, trials: list[Path], page: bool) -> list[str]:
         shown = check_chart(charts[trial.name], c)
         rows = check_rows(root, c) if page else None
         table = f" repeat rows {rows} match the walk" if page else ""
+        table += check_cast(charts[trial.name], trial)
         lines.append(f"ok {trial.name}: open marks {sum(shown.values())} = successful opens {c['opens']} (flag {shown['flag']}, empty {shown['empty']}, repeat {shown['repeat']}){table}")
     return lines
 

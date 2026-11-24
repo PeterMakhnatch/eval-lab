@@ -26,5 +26,12 @@
     "seed": 6318,
     "step": 144,
     "subsystem": "package-anatomy"
+  },
+  {
+    "found_at_utc": "2026-11-24T06:13:03.375130+00:00",
+    "invariant": "mechanics_reward_write_lines",
+    "seed": 65,
+    "step": 157,
+    "subsystem": "grader-script-mechanics"
   }
 ]

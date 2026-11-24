@@ -6,7 +6,12 @@ from pathlib import Path
 from random import Random
 from typing import Any
 
-from evallab.package_anatomy import _test_sources, grader_script_mechanics, load_package
+from evallab.package_anatomy import (
+    _HOOK_CLASSES_BY_RUNNER,
+    _test_sources,
+    grader_script_mechanics,
+    load_package,
+)
 from evallab.sim.engine import STEP_LIMIT, Simulation
 
 _STEP_BUDGET = 20
@@ -41,15 +46,22 @@ _EXIT_LINE = {
 _PIPE = "pytest tests -q | tee /tmp/pytest.out"
 _PLUGIN = "export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1"
 _REWARD_SOURCE = "def test_reward():\n    target = 'reward.txt'\n"
-_RESET = {
-    "enumerated_files": [],
-    "enumerated_count": 0,
-    "files_touched_by_hidden_patch": [],
-    "autoload_reset_by_pattern": True,
-    "restores_from_outside_agent_tree": False,
-    "autoload_hook_classes_left_writable": [],
-    "helper_modules_not_shipped_by_patch": [],
-}
+
+
+def _reset(plan: _Plan) -> dict[str, Any]:
+    patterns = plan.plugin_autoload_disabled or plan.noconftest
+    hooks = [] if patterns else list(_HOOK_CLASSES_BY_RUNNER["pytest"])
+    assert len(hooks) <= len(_HOOK_CLASSES_BY_RUNNER["pytest"])
+    return {
+        "enumerated_files": [],
+        "enumerated_count": 0,
+        "files_touched_by_hidden_patch": [],
+        "autoload_reset_by_pattern": patterns,
+        "restores_from_outside_agent_tree": False,
+        "autoload_hook_classes_left_writable": hooks,
+        "helper_modules_not_shipped_by_patch": [],
+    }
+
 
 _Hit = tuple[int, str]
 
@@ -77,6 +89,8 @@ class _Plan:
     pythonpath_count: int
     deselect_count: int
     workdir_mode: str
+    pipefail: bool
+    plugin_autoload_disabled: bool
 
 
 @dataclass(slots=True)
@@ -90,6 +104,7 @@ class _Lines:
     addopts: list[_Hit] = field(default_factory=list)
     pythonpath: list[_Hit] = field(default_factory=list)
     deselect: list[_Hit] = field(default_factory=list)
+    pipe: _Hit | None = None
 
 
 class _Script:
@@ -134,6 +149,8 @@ def _plan(rng: Random) -> _Plan:
         pythonpath_count=rng.randint(0, 2),
         deselect_count=rng.randint(0, 2),
         workdir_mode=rng.choice(_WORKDIR),
+        pipefail=_flag(rng),
+        plugin_autoload_disabled=_flag(rng),
     )
     assert plan.exit_trigger in _EXIT_TRIGGERS
     assert plan.addopts in _ADDOPTS and plan.workdir_mode in _WORKDIR
@@ -167,14 +184,14 @@ def _present(hits: tuple[_Hit | None, ...]) -> list[_Hit]:
 
 def _reward_lines(lines: _Lines) -> list[dict[str, Any]]:
     found = _present((lines.reward_clear, lines.echo))
-    if lines.echo is not None:
-        found.append(lines.echo)
     assert len(found) <= 6
     return _evidence("tests/test.sh", found)
 
 
 def _masks(lines: _Lines) -> list[dict[str, Any]]:
-    return _evidence("tests/test.sh", _present((lines.or_true, lines.set_plus_e)))
+    found = _present((lines.or_true, lines.set_plus_e, lines.pipe))
+    assert len(found) <= 6
+    return _evidence("tests/test.sh", found)
 
 
 def _isolation(plan: _Plan) -> dict[str, bool]:
@@ -183,7 +200,7 @@ def _isolation(plan: _Plan) -> dict[str, bool]:
         "python_isolated": plan.python_isolated,
         "noconftest": plan.noconftest,
         "config_nulled": plan.config_nulled,
-        "plugin_autoload_disabled": True,
+        "plugin_autoload_disabled": plan.plugin_autoload_disabled,
         "no_cacheprovider": plan.no_cacheprovider,
         "importlib_mode": plan.importlib_mode,
     }
@@ -213,7 +230,8 @@ def _render(plan: _Plan) -> tuple[str, _Lines]:
     script = _Script()
     recorded = _Lines()
     script.add("#!/bin/bash")
-    script.add("set -o pipefail")
+    if plan.pipefail:
+        script.add("set -o pipefail")
     if plan.reward_clear:
         recorded.reward_clear = script.add("rm -f /logs/verifier/reward.txt")
     if plan.mask_set_plus_e:
@@ -222,7 +240,8 @@ def _render(plan: _Plan) -> tuple[str, _Lines]:
         recorded.early_exit = script.add("exit 1")
     if plan.mask_or_true:
         recorded.or_true = script.add("pytest tests || true")
-    script.add(_PIPE)
+    pipe = script.add(_PIPE)
+    recorded.pipe = None if plan.pipefail else pipe
     if plan.structured:
         script.add("jq . /tmp/report.json")
     if plan.log_grep:
@@ -230,7 +249,10 @@ def _render(plan: _Plan) -> tuple[str, _Lines]:
     _render_env(script, recorded, plan)
     _render_tail(script, recorded, plan)
     text = script.text()
-    assert _PIPE in text and "pipefail" in text and _PLUGIN in text
+    assert _PIPE in text
+    assert ("pipefail" in text) is plan.pipefail
+    assert (_PLUGIN in text) is plan.plugin_autoload_disabled
+    assert (recorded.pipe is not None) is (not plan.pipefail)
     return text, recorded
 
 
@@ -243,7 +265,8 @@ def _render_env(script: _Script, recorded: _Lines, plan: _Plan) -> None:
         script.add("pytest tests --noconftest")
     if plan.config_nulled:
         script.add("pytest tests -c /dev/null")
-    script.add(_PLUGIN)
+    if plan.plugin_autoload_disabled:
+        script.add(_PLUGIN)
     if plan.no_cacheprovider:
         script.add("pytest tests -p no:cacheprovider")
     if plan.importlib_mode:
@@ -382,7 +405,7 @@ class MechanicsSimulation:
         sim.require(
             result["runs_in_agent_workdir"] == (cwd is not None), "mechanics_runs_in_agent_workdir"
         )
-        sim.require(result["reset_list"] == _RESET, "mechanics_reset_list")
+        sim.require(result["reset_list"] == _reset(plan), "mechanics_reset_list")
         sim.require(result["executes_agent_writable_code"] == [], "mechanics_executes_agent_code")
         sim.require(result["baked_tests_executed"] == [], "mechanics_baked_tests_executed")
         sim.require(result["early_exit_paths"] == early, "mechanics_early_exit_paths")

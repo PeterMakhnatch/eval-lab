@@ -46,6 +46,8 @@ On demand:
   Cap scans count missing costs only for seats with evidence of model use or absent participants with configured models, and use `money.expected_seats` (default 1) when a result without seats has no numeric cost and shows model use or gives no agent information; pass probe credentials through standard input, not command arguments.
   Cap scans also reserve for a zero cost with positive tokens unless the model name matches an exact entry in `money.free_models`.
 
+- `worldwatch/` monitors live and completed multi-agent Harbor jobs (`worldwatch tail|detectors|validity|certify-baselines`): incremental byte-offset log tailing over Olam/Muster and Bespoke runs with 8 tripwires, atomic dashboard HTML and STOP files, deterministic behavioral detectors, dual-source Fisher validity comparisons, and task baseline certification. It is standard library only, never imports Harbor, `evallab`, `muster`, `tidegauge`, or `campaign`, and `python -m worldwatch.sim check` replays its recorded seeds in the gate.
+
 ## Execution and spend
 
 - Read `task.toml`, `environment/Dockerfile`, and `policy/standing-approvals.yaml` before any trial. Check the task, harness, model, and backend together.

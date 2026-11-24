@@ -35,6 +35,7 @@ evallab = "evallab.entry:main"
 tidegauge = "tidegauge.cli:main"
 muster = "muster.cli:main"
 campaign = "campaign.cli:main"
+worldwatch = "worldwatch.cli:main"
 
 [dependency-groups]
 benchmarks = [
@@ -61,7 +62,7 @@ exclude-newer = "7 days"
 default-groups = ["dev"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/evallab", "tidegauge", "muster", "campaign"]
+packages = ["src/evallab", "tidegauge", "muster", "campaign", "worldwatch"]
 
 [tool.ruff]
 line-length = 100

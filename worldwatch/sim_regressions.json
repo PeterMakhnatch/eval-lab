@@ -1,0 +1,14 @@
+[
+  {
+    "seed": 0,
+    "step": "detectors/injected",
+    "invariant": "exact-injected-detectors-fired",
+    "known": false
+  },
+  {
+    "seed": 1,
+    "step": "validity/clean",
+    "invariant": "clean-plus-active-timeout-measured",
+    "known": false
+  }
+]

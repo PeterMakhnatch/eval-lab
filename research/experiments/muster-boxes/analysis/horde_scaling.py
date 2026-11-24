@@ -4,9 +4,10 @@ import math
 import re
 import sys
 from collections import Counter
+from datetime import datetime
 from functools import cache
 from pathlib import Path
-from statistics import fmean
+from statistics import fmean, median
 from types import ModuleType
 
 import crowd_scaling as cs
@@ -14,14 +15,57 @@ from crowd_rules import load_module, parse_list, parse_list_v2
 
 TASKS = Path(__file__).resolve().parents[4] / "muster" / "tasks"
 FAMILY_TOML = TASKS / "horde" / "family.toml"
-KS = (8, 16, 32, 48)
 KINDS = ("solo", "team", "zones", "chief")
 SOLO = "solo-96"
 PRIMARY_FAMILY = 3
 PRIMARY_K = 48
-SECONDARY_KS = (8, 16, 32)
 LEAD = "p1"
 TASK_NAME = re.compile(r"horde-i([0-9]{2})")
+INSTANCE = re.compile(r"i([0-9]{2})")
+MAX_UNCLASSIFIED = 0.2
+STALL_GAP_S = 300.0
+TIMEOUT_ERROR = "AgentTimeoutError"
+DEFINITIONS = (
+    "unit: 1 instance; an arm's value for an instance = mean reward of its trials with a reward;"
+    " points = reward x 100",
+    "instances: the set of --instances; a test is available only when every instance of the set"
+    " has a value in each arm that the test uses; otherwise not available, with the missing"
+    " arm:instance pairs",
+    "sign-flip p: crowd_scaling.sign_flip, exact and two-sided; statistic = sum of the n instance"
+    " values; all 2^n sign patterns; a pattern counts when |pattern sum| >= |observed sum| - 1e-9;"
+    " zero values stay in; smallest p = 2 / 2^n",
+    "bootstrap 95% interval: percentile; random.Random(0); 10000 resamples of n instance indices"
+    " with replacement; statistic = mean; ends sorted[250] and sorted[9749]",
+    "slope: for each instance, least squares of points on x = log2 k over the --ks team arms:"
+    " slope = sum of w_k * points_k, w_k = (x_k - mean x) / sum (x - mean x)^2;"
+    " the estimate is the mean of the instance slopes (points per doubling of k)",
+    "Holm: family of 3 (P1, P2, P3), fixed even when a test is not available; the available"
+    " tests are sorted by p, ties in the registered order P1, P2, P3; the test at position j"
+    " (0, 1, 2) passes when p <= 0.05 / (3 - j) and every earlier test passed; falls / rises"
+    " (P1) and helps / hurts (P2, P3) need a Holm pass and a 95% interval on 1 side of 0,"
+    " otherwise not resolved",
+    "secondary: no correction; split cost solo-96 - arm: pass when hi95 < 5 points, fail when"
+    " lo95 > 5 points, otherwise inconclusive; other contrasts: the side of 0 of the 95% interval",
+    "repeats: opens of an already opened box (= verifier duplicate_opens, checked for each"
+    " trial); unused opens = 96 - opens; board reads = events GET /msgs + GET /new; a GET /new"
+    " read counts as a read of every earlier post",
+    "turn cap: a seat is at the cap when its agent steps (trajectory steps with source agent)"
+    " >= max_turns of the seat in the trial config.json; opens left: seat opens < seat budget"
+    " at the end of play",
+    "stalled seat (muster-runs/stalled.py): exception AgentTimeoutError and no trajectory step in"
+    " the last 300 s before the end of the agent phase; time-limit seat: AgentTimeoutError (the"
+    " 600 s agent limit) and not stalled",
+    "model-call time: median of agent_result.metadata.api_request_times_msec over all calls of"
+    " the arm; step gap: median time between consecutive agent steps of 1 seat's trajectory,"
+    " over all seats of the arm",
+    "zones obedience: every open counts, repeats too; allowed when the box belongs to the seat"
+    " in reference.py zones() for the true treasure rooms; obedience = allowed / opens",
+    "chief: p1 posts read by crowd_rules parser v2; an open is allowed when its box is under the"
+    " seat in an earlier p1 post read as a list; after a p1 post that v2 cannot read, the other"
+    " opens are unclassified; first list = p1's first post that v2 reads as a list (any number"
+    " of seats); strict obedience = allowed / classified, not measured when more than 20% of"
+    " the opens are unclassified",
+)
 PARSERS = {"v1": parse_list, "v2": parse_list_v2}
 ZONES_CLASSES = {
     "own scout box": True,
@@ -38,6 +82,7 @@ CHIEF_CLASSES = {
 }
 VERDICT_WORDS = {"P1": ("rises", "falls"), "P2": ("helps", "hurts"), "P3": ("helps", "hurts")}
 TEST_KEYS = ("instances", "estimate_pts", "lo", "hi", "p_sign_flip")
+BLANK_TEST = dict.fromkeys(TEST_KEYS) | {"verdict": "not available"}
 
 
 @cache
@@ -238,55 +283,106 @@ def chief_summary(label: str, found: list[dict], parser: str) -> dict:
     out["cross_checked_trials"] = sum(1 for f in found if f["cross_checked"])
     out["classes"] = {cls: classes[cls] for cls in CHIEF_CLASSES}
     out["p1_posts_by_parse"] = dict(sorted(how.items()))
+    measured = opens and out["unclassified"] / opens <= MAX_UNCLASSIFIED
+    out["obedience_status"] = "measured" if measured else "not measured"
+    if not measured:
+        out |= {key: None for key in ("obedience", "instance_mean", "ci_lo", "ci_hi")}
     return out
 
 
-def restricted(label: str, numbered: dict, base: list[str]) -> dict | None:
-    if label not in numbered or not base or not set(base) <= set(numbered[label]):
-        return None
+def parse_instances(text: str) -> list[str]:
+    out: list[str] = []
+    for part in text.split(","):
+        low, sep, high = part.strip().partition("-")
+        first = INSTANCE.fullmatch(low)
+        last = INSTANCE.fullmatch(high) if sep else first
+        assert first and last, f"--instances wants iNN-iNN or iNN,iNN: {text}"
+        lo, hi = int(first.group(1)), int(last.group(1))
+        assert 1 <= lo <= hi <= cs.MAX_INSTANCES, f"--instances: {part}"
+        out += [f"i{n:02d}" for n in range(lo, hi + 1)]
+    assert 0 < len(out) == len(set(out)) <= cs.MAX_INSTANCES, f"--instances: {text}"
+    return sorted(out)
+
+
+def parse_ks(text: str | None, arms: list[dict]) -> list[int]:
+    given = sorted(a["n"] for a in arms if a["kind"] == "team")
+    if text is None:
+        return given
+    ks = sorted({int(token) for token in text.split(",")})
+    for k in ks:
+        assert f"team-{k}" in family_config()["conditions"], f"--ks: no condition team-{k}"
+    return ks
+
+
+def missing_of(labels: list[str], numbered: dict, base: list[str]) -> list[str]:
+    out: list[str] = []
+    for label in labels:
+        if label not in numbered:
+            out.append(f"{label}:arm missing")
+            continue
+        out += [f"{label}:{i}" for i in base if i not in numbered[label]]
+    return out
+
+
+def values_of(label: str, numbered: dict, base: list[str]) -> dict[str, float]:
     return {i: numbered[label][i] for i in base}
-
-
-def blank_test(head: dict) -> dict:
-    return head | dict.fromkeys(TEST_KEYS) | {"verdict": "not available"}
 
 
 def pair_test(a: str, b: str, question: str, numbered: dict, base: list[str]) -> dict:
     head = {"contrast": f"{a} - {b}", "question": question}
-    ma, mb = restricted(a, numbered, base), restricted(b, numbered, base)
-    if ma is None or mb is None:
-        return blank_test(head)
-    found = cs.contrast(a, b, question, {a: ma, b: mb})
+    missing = missing_of([a, b], numbered, base)
+    if missing:
+        return head | BLANK_TEST | {"missing": ",".join(missing)}
+    means = {a: values_of(a, numbered, base), b: values_of(b, numbered, base)}
+    found = cs.contrast(a, b, question, means)
     assert found["instances"] == len(base)
-    return (
-        head
-        | {key: found[key] for key in TEST_KEYS if key != "estimate_pts"}
-        | {"estimate_pts": found["diff_pts"]}
-    )
+    found["estimate_pts"] = found["diff_pts"]
+    return head | {key: found[key] for key in TEST_KEYS} | {"missing": None}
 
 
-def slope_test(kind: str, numbered: dict, base: list[str]) -> dict:
-    labels = [f"{kind}-{k}" for k in KS]
-    head = {"contrast": f"slope of {kind}-k on log2 k", "question": "k = 8, 16, 32, 48"}
-    got = [restricted(label, numbered, base) for label in labels]
-    if any(g is None for g in got):
-        return blank_test(head)
-    xs = [math.log2(k) for k in KS]
-    slopes = [cs.slope(xs, [100.0 * g[i] for g in got]) for i in base]
+def slope_weights(ks: list[int]) -> dict[int, float]:
+    xs = [math.log2(k) for k in ks]
+    mx = fmean(xs)
+    sxx = sum((x - mx) ** 2 for x in xs)
+    assert len(ks) >= 2 and sxx > 0, ks
+    weights = {k: (x - mx) / sxx for k, x in zip(ks, xs, strict=True)}
+    assert abs(sum(weights.values())) < cs.SIGN_TOLERANCE
+    return weights
+
+
+def slope_test(ks: list[int], numbered: dict, base: list[str]) -> dict:
+    head = {"contrast": "slope of team-k on log2 k", "question": f"k = {','.join(map(str, ks))}"}
+    if len(ks) < 2:
+        return head | BLANK_TEST | {"missing": "fewer than 2 team arms", "weights": None}
+    weights = slope_weights(ks)
+    head["weights"] = {str(k): w for k, w in weights.items()}
+    labels = [f"team-{k}" for k in ks]
+    missing = missing_of(labels, numbered, base)
+    if missing:
+        return head | BLANK_TEST | {"missing": ",".join(missing)}
+    xs = [math.log2(k) for k in ks]
+    slopes = []
+    for i in base:
+        points = [100.0 * numbered[label][i] for label in labels]
+        value = sum(weights[k] * y for k, y in zip(ks, points, strict=True))
+        assert abs(value - cs.slope(xs, points)) < 1e-6, (i, value)
+        slopes.append(value)
     lo, hi = cs.bootstrap(len(slopes), lambda s: fmean(slopes[i] for i in s))
     found = {"instances": len(slopes), "estimate_pts": fmean(slopes), "lo": lo, "hi": hi}
-    return head | found | {"p_sign_flip": cs.sign_flip(slopes)}
+    found |= {"p_sign_flip": cs.sign_flip(slopes), "missing": None}
+    return head | found | {"instance_slopes": dict(zip(base, slopes, strict=True))}
 
 
 def holm(rows: list[dict]) -> list[dict]:
-    assert len(rows) == PRIMARY_FAMILY
+    assert [r["test"] for r in rows] == list(VERDICT_WORDS)
+    order = {name: place for place, name in enumerate(VERDICT_WORDS)}
     tested = sorted(
-        (r for r in rows if r["p_sign_flip"] is not None), key=lambda r: r["p_sign_flip"]
+        (r for r in rows if r["p_sign_flip"] is not None),
+        key=lambda r: (r["p_sign_flip"], order[r["test"]]),
     )
     passing = True
     decided = {}
-    for r in tested:
-        place = next(i for i, d in enumerate(tested) if d["p_sign_flip"] == r["p_sign_flip"])
+    for place, r in enumerate(tested):
         threshold = cs.P_PASS / (PRIMARY_FAMILY - place)
         passing = passing and r["p_sign_flip"] <= threshold
         above, below = VERDICT_WORDS[r["test"]]
@@ -297,13 +393,12 @@ def holm(rows: list[dict]) -> list[dict]:
     return [r | decided.get(r["test"], blank) for r in rows]
 
 
-def primary(numbered: dict, base: list[str]) -> list[dict]:
+def primary(numbered: dict, base: list[str], ks: list[int]) -> list[dict]:
+    team, zones, chief = (f"{kind}-{PRIMARY_K}" for kind in KINDS[1:])
     rows = [
-        {"test": "P1"} | slope_test("team", numbered, base),
-        {"test": "P2"}
-        | pair_test(f"zones-{PRIMARY_K}", f"team-{PRIMARY_K}", "zones rule", numbered, base),
-        {"test": "P3"}
-        | pair_test(f"chief-{PRIMARY_K}", f"team-{PRIMARY_K}", "chief rule", numbered, base),
+        {"test": "P1"} | slope_test(ks, numbered, base),
+        {"test": "P2"} | pair_test(zones, team, "zones rule", numbered, base),
+        {"test": "P3"} | pair_test(chief, team, "chief rule", numbered, base),
     ]
     return holm(rows)
 
@@ -322,70 +417,133 @@ def margin_verdict(row: dict, margin_pts: float) -> dict:
     return row | {"verdict": "fail" if row["lo"] > margin_pts else verdict}
 
 
-def secondary(numbered: dict, base: list[str], margin_pts: float) -> list[dict]:
-    rows = [
-        interval_verdict(slope_test(kind, numbered, base), "rises", "falls") for kind in KINDS[2:]
-    ]
-    for rule in KINDS[2:]:
-        for k in SECONDARY_KS:
-            found = pair_test(f"{rule}-{k}", f"team-{k}", f"{rule} rule", numbered, base)
-            rows.append(interval_verdict(found, "helps", "hurts"))
-    for k in KS:
-        found = pair_test(f"zones-{k}", f"chief-{k}", "between rules", numbered, base)
-        rows.append(interval_verdict(found, "zones higher", "chief higher"))
-    for kind in KINDS[1:]:
-        for k in KS:
-            found = pair_test(SOLO, f"{kind}-{k}", "split cost", numbered, base)
-            rows.append(margin_verdict(found, margin_pts))
+def optional_rules(numbered: dict, base: list[str]) -> list[dict]:
+    rows = []
+    ks = sorted({int(label.split("-")[1]) for label in numbered if not label.startswith("solo")})
+    for k in [k for k in ks if k != PRIMARY_K]:
+        for rule in KINDS[2:]:
+            if f"{rule}-{k}" in numbered and f"team-{k}" in numbered:
+                found = pair_test(f"{rule}-{k}", f"team-{k}", f"{rule} rule", numbered, base)
+                rows.append(interval_verdict(found, "helps", "hurts"))
+        if f"zones-{k}" in numbered and f"chief-{k}" in numbered:
+            found = pair_test(f"zones-{k}", f"chief-{k}", "between rules", numbered, base)
+            rows.append(interval_verdict(found, "zones higher", "chief higher"))
+    return rows
+
+
+def secondary(numbered: dict, base: list[str], ks: list[int], cfg: dict) -> list[dict]:
+    zones, chief = f"zones-{PRIMARY_K}", f"chief-{PRIMARY_K}"
+    found = pair_test(zones, chief, "between rules", numbered, base)
+    rows = [interval_verdict(found, "zones higher", "chief higher")]
+    for low, high in zip(ks, ks[1:], strict=False):
+        found = pair_test(f"team-{high}", f"team-{low}", "team size", numbered, base)
+        rows.append(interval_verdict(found, f"team-{high} higher", f"team-{low} higher"))
+    for label in cfg["multi_seat"]:
+        found = pair_test(SOLO, label, "split cost", numbered, base)
+        rows.append(margin_verdict(found, 100.0 * cfg["margin"]))
+    rows += optional_rules(numbered, base)
     return [r if "margin_pts" in r else r | {"margin_pts": None} for r in rows]
 
 
-def base_instances(rows_by: dict) -> list[str]:
-    if SOLO not in rows_by:
-        return []
-    names = {r["instance"] for r in rows_by[SOLO]}
-    return sorted(cs.by_number(SOLO, dict.fromkeys(names, 0.0)))
+def stamp(text: str) -> datetime:
+    return datetime.fromisoformat(text.replace("Z", "+00:00"))
 
 
-def horde_arm(summary: dict, rows: list[dict]) -> dict:
+def seat_measures(trial: Path, item: dict, cap: object, end: str | None) -> dict:
+    path = trial / "seats" / item["seat"] / "agent" / "trajectory.json"
+    steps = json.loads(path.read_text()).get("steps") if path.is_file() else None
+    assert steps is None or len(steps) <= cs.MAX_STEPS, path
+    agent = [s for s in steps or [] if s.get("source") == "agent"]
+    times = sorted(stamp(s["timestamp"]) for s in agent if s.get("timestamp"))
+    got = item.get("agent_result") or {}
+    calls = (got.get("metadata") or {}).get("api_request_times_msec") or []
+    known = steps is not None and type(cap) is int
+    out = {
+        "cap_unknown": int(not known),
+        "cap_seat": int(known and len(agent) >= cap),
+        "gaps": [(b - a).total_seconds() for a, b in zip(times, times[1:], strict=False)],
+        "calls": [ms / 1000.0 for ms in calls if cs.number(ms)],
+        "stalled": 0,
+        "time_limit": 0,
+    }
+    if (item.get("exception_info") or {}).get("exception_type") != TIMEOUT_ERROR:
+        return out
+    every = [stamp(s["timestamp"]) for s in steps or [] if s.get("timestamp")]
+    silent = (stamp(end) - max(every)).total_seconds() if every and end else math.inf
+    stalled = end is not None and silent >= STALL_GAP_S
+    return out | {"stalled": int(stalled), "time_limit": int(not stalled)}
+
+
+def trial_extras(trial: Path, row: dict) -> dict:
+    result = json.loads((trial / "result.json").read_text())
+    config_path = trial / "config.json"
+    config = json.loads(config_path.read_text()) if config_path.is_file() else {}
+    participants = [p for p in config.get("participants") or [] if isinstance(p, dict)]
+    turns = {p.get("seat"): (p.get("kwargs") or {}).get("max_turns") for p in participants}
+    phase = result.get("agent_execution") or {}
+    end = phase.get("finished_at") or result.get("finished_at")
+    items = result["seat_results"]
+    seats = [seat_measures(trial, item, turns.get(item["seat"]), end) for item in items]
+    keys = ("cap_unknown", "cap_seat", "stalled", "time_limit")
+    out: dict = {key: sum(s[key] for s in seats) for key in keys}
+    out |= {key: [v for s in seats for v in s[key]] for key in ("gaps", "calls")}
+    path = trial / "verifier" / "reward.json"
+    duplicates = json.loads(path.read_text()).get("duplicate_opens") if path.is_file() else None
+    out["duplicates_checked"] = int(row["reward"] is not None and cs.number(duplicates))
+    if out["duplicates_checked"]:
+        assert duplicates == row["repeats"], (trial, duplicates, row["repeats"])
+    return out
+
+
+def horde_arm(summary: dict, rows: list[dict], job: Path) -> dict:
     scored = [r for r in rows if r["reward"] is not None]
-    extra = {key: cs.mean_of(scored, key) for key in ("reads_new", "seats_left")}
-    return summary | extra
+    extras = [trial_extras(job / r["trial"], r) for r in rows]
+    out = summary | {key: cs.mean_of(scored, key) for key in ("reads_new", "seats_left")}
+    out["cap_seats_config"] = sum(e["cap_seat"] for e in extras)
+    out["cap_unknown_config"] = sum(e["cap_unknown"] for e in extras)
+    out["stalled_seats"] = sum(e["stalled"] for e in extras)
+    out["time_limit_seats"] = sum(e["time_limit"] for e in extras)
+    out["duplicates_checked_trials"] = sum(e["duplicates_checked"] for e in extras)
+    calls = [v for e in extras for v in e["calls"]]
+    gaps = [v for e in extras for v in e["gaps"]]
+    out["model_calls"] = len(calls)
+    out["model_call_s_median"] = median(calls) if calls else None
+    out["step_gaps"] = len(gaps)
+    out["step_gap_s_median"] = median(gaps) if gaps else None
+    return out
 
 
 def analyze(arms: list[dict], cfg: dict) -> dict:
     summaries, rows_by, means = cs.load_arms(arms, cfg)
     numbered = {label: cs.by_number(label, values) for label, values in means.items()}
-    base = base_instances(rows_by)
-    parser = cfg["parser"]
-    zones = [
-        zones_summary(a["label"], rule_rows(a, rows_by[a["label"]], parser))
-        for a in arms
-        if a["kind"] == "zones"
-    ]
+    base, ks, parser = cfg["instances"], cfg["ks"], cfg["parser"]
+    jobs = {a["label"]: a["job"] for a in arms}
+    ruled = [a for a in arms if a["kind"] in KINDS[2:]]
+    found = {a["label"]: rule_rows(a, rows_by[a["label"]], parser) for a in ruled}
+    zones = [zones_summary(a["label"], found[a["label"]]) for a in ruled if a["kind"] == "zones"]
     chief = [
-        chief_summary(a["label"], rule_rows(a, rows_by[a["label"]], parser), parser)
-        for a in arms
-        if a["kind"] == "chief"
+        chief_summary(a["label"], found[a["label"]], parser) for a in ruled if a["kind"] == "chief"
     ]
-    ks = sorted({1, *(a["n"] for a in arms if a["kind"] != "solo")})
     keys = ("total", "boxes", "flags", "room_size", "cap", "margin", "missing_as_zero", "parser")
     settings = {key: cfg[key] for key in keys} | {
         "instances": base,
         "n": len(base),
-        "smallest_p": 2.0 / 2 ** len(base) if base else None,
+        "smallest_p": 2.0 / 2 ** len(base),
+        "ks": ks,
         "alpha": cs.P_PASS,
         "holm_family_size": PRIMARY_FAMILY,
         "primary_k": PRIMARY_K,
+        "definitions": list(DEFINITIONS),
     }
+    seat_counts = sorted({1, *(a["n"] for a in arms if a["kind"] != "solo")})
     return {
         "settings": settings,
-        "arms": [horde_arm(s, rows_by[s["label"]]) for s in summaries],
+        "arms": [horde_arm(s, rows_by[s["label"]], jobs[s["label"]]) for s in summaries],
         "zones_obedience": zones,
         "chief_obedience": chief,
-        "primary": primary(numbered, base),
-        "secondary": secondary(numbered, base, 100.0 * cfg["margin"]),
-        "baselines": cs.baselines(ks, cfg["total"], cfg["boxes"]),
+        "primary": primary(numbered, base, ks),
+        "secondary": secondary(numbered, base, ks, cfg),
+        "baselines": cs.baselines(seat_counts, cfg["total"], cfg["boxes"]),
     }
 
 
@@ -396,9 +554,16 @@ def arm_table(arms: list[dict]) -> str:
     cols += (("newEmpty", "empty", 2), ("repeats", "repeats", 2), ("unused", "unused", 2))
     cols += (("msgs", "messages", 2), ("msgsPerSeat", "msgs_per_seat", 2))
     cols += (("reads", "reads", 2), ("readsNew", "reads_new", 2))
-    cols += (("seatsOpensLeft", "seats_left", 2), ("capSeats", "cap_seats", 0))
-    cols += (("seatExc", "seat_exceptions", 0), ("usd", "cost_usd", 4), ("wallS", "wall_s", 1))
-    title = "HORDE ARMS (per-trial means; reads = GET /msgs + GET /new; capSeats, seatExc: sums)"
+    cols += (("seatsOpensLeft", "seats_left", 2), ("capSeats", "cap_seats_config", 0))
+    cols += (("capUnk", "cap_unknown_config", 0), ("timeLimit", "time_limit_seats", 0))
+    cols += (("stalled", "stalled_seats", 0), ("seatExc", "seat_exceptions", 0))
+    cols += (("callSMed", "model_call_s_median", 2), ("stepGapSMed", "step_gap_s_median", 1))
+    cols += (("usd", "cost_usd", 4), ("wallS", "wall_s", 1))
+    cols += (("dupChecked", "duplicates_checked_trials", 0),)
+    title = (
+        "HORDE ARMS (per-trial means; capSeats to seatExc: sums of seats over the trials;"
+        " callSMed, stepGapSMed: medians in s, - when the trajectories do not record them)"
+    )
     return cs.spec_table(title, shown, "label", cols)
 
 
@@ -434,6 +599,7 @@ def chief_table(chief: list[dict]) -> str:
         a
         | {
             "ci": ci_text(a),
+            "strict": a["obedience"] if a["obedience_status"] == "measured" else "not measured",
             "waits": ",".join(f"{w:.1f}" for w in a["first_list_sec"]) or None,
             "parses": " ".join(f"{k}:{v}" for k, v in a["p1_posts_by_parse"].items()) or None,
         }
@@ -442,15 +608,24 @@ def chief_table(chief: list[dict]) -> str:
     cols = (("parser", "parser", 0), ("trials", "trials", 0), ("opens", "opens", 0))
     cols += (("classified", "classified", 0), ("classifiedShare", "classified_share", 3))
     cols += (("allowed", "allowed", 0), ("outside", "outside", 0))
-    cols += (("strictObedience", "obedience", 3), ("instMean", "instance_mean", 3))
+    cols += (("strictObedience", "strict", 3), ("instMean", "instance_mean", 3))
     cols += (("95%CI(inst)", "ci", 0), ("opensBeforeList", "opens_before_first_list", 0))
     cols += (("firstListSec", "waits", 0), ("noList", "trials_without_list", 0))
     cols += (("xChecked", "cross_checked_trials", 0), ("p1Posts", "parses", 0))
     title = (
-        "CHIEF obedience (allowed: box under the seat in an earlier parsed p1 list;"
-        " after an unparsed p1 list post, other opens are unclassified)"
+        "CHIEF obedience (allowed: box under the seat in an earlier p1 post that parser v2"
+        " reads as a list; after a p1 post that v2 cannot read, other opens are unclassified;"
+        " not measured when more than 20% of the opens are unclassified)"
     )
     return cs.spec_table(title, shown, "label", cols)
+
+
+def weights_text(primary_rows: list[dict]) -> str:
+    weights = primary_rows[0].get("weights")
+    if not weights:
+        return "P1 least-squares weights: none (fewer than 2 team arms)"
+    shown = ", ".join(f"k={k}: {w:+.4f}" for k, w in weights.items())
+    return f"P1 least-squares weights w_k (points on x = log2 k): {shown}"
 
 
 def test_tables(report: dict) -> list[str]:
@@ -458,25 +633,23 @@ def test_tables(report: dict) -> list[str]:
     lead = (("question", "question", 0), ("n", "instances", 0), ("estPts", "estimate_pts", 2))
     lead += (("lo95", "lo", 2), ("hi95", "hi", 2), ("pSignFlip", "p_sign_flip", 4))
     p_cols = (("contrast", "contrast", 0), *lead, ("holmThreshold", "holm_threshold", 4))
-    p_cols += (("holm", "holm", 0), ("verdict", "verdict", 0))
+    p_cols += (("holm", "holm", 0), ("verdict", "verdict", 0), ("missing", "missing", 0))
     s_cols = (*lead, ("marginPts", "margin_pts", 1), ("verdict", "verdict", 0))
-    names = ",".join(s["instances"]) or "none"
+    s_cols += (("missing", "missing", 0),)
     head = (
-        f"E9 instances (the instances of {SOLO}): {names}; n = {s['n']};"
-        f" smallest sign-flip p that n allows: {cs.cell(s['smallest_p'], 4)};"
-        " a test is available only when each of these instances has a value in every arm it uses"
+        f"E9 instances (--instances): {','.join(s['instances'])}; n = {s['n']};"
+        f" smallest sign-flip p that n allows: 2/2^{s['n']} = {s['smallest_p']:.4f};"
+        f" team ks of P1: {','.join(map(str, s['ks'])) or 'none'}"
     )
     title = (
-        f"E9 PRIMARY (Holm step-down, fixed family of {s['holm_family_size']}, alpha {s['alpha']}:"
-        " thresholds 0.05/3, 0.05/2, 0.05 by rank of p, stop at the first failure; estPts: P1"
-        " points per doubling of k, P2 and P3 points; a verdict other than not resolved needs"
-        " a Holm pass and a 95% interval on 1 side of 0)"
+        f"E9 PRIMARY (Holm, fixed family of {s['holm_family_size']}, alpha {s['alpha']};"
+        " estPts: P1 points per doubling of k, P2 and P3 points)"
     )
     return [
-        head,
+        head + "\n" + weights_text(report["primary"]),
         cs.spec_table(title, report["primary"], "test", p_cols),
         cs.spec_table(
-            "E9 SECONDARY (no correction; split cost: pass hi95 < margin, fail lo95 > margin)",
+            "E9 SECONDARY (no correction; split cost against the margin)",
             report["secondary"],
             "contrast",
             s_cols,
@@ -488,10 +661,12 @@ def render(report: dict) -> str:
     s = report["settings"]
     header = (
         f"E9 horde: total budget {s['total']}, boxes {s['boxes']}, flags {s['flags']},"
-        f" room size {s['room_size']}, turn cap {s['cap']}, margin {s['margin']},"
-        f" chief lists: parser {s['parser']}"
+        f" room size {s['room_size']}, turn cap of the crowd_scaling tables {s['cap']},"
+        f" margin {s['margin']}, chief lists: parser {s['parser']}"
     )
-    parts = [f"{header}\nmode: trials without a reward are {cs.missing_mode(s)}"]
+    lines = [header, f"mode: trials without a reward are {cs.missing_mode(s)}", "definitions:"]
+    lines += [f"- {text}" for text in s["definitions"]]
+    parts = ["\n".join(lines)]
     parts += cs.render_arms(report["arms"])
     parts.append(arm_table(report["arms"]))
     parts += zones_tables(report["zones_obedience"])
@@ -508,6 +683,8 @@ def render(report: dict) -> str:
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="horde_scaling.py")
     parser.add_argument("--arm", action="append", required=True, metavar="LABEL=JOB_DIR")
+    parser.add_argument("--instances", required=True, metavar="iNN-iNN")
+    parser.add_argument("--ks", metavar="K,K,...")
     parser.add_argument("--turn-cap", type=int, default=30)
     parser.add_argument("--margin", type=float, default=0.05)
     parser.add_argument("--missing-as-zero", action="store_true")
@@ -519,9 +696,10 @@ def main(argv: list[str]) -> int:
     assert args.turn_cap > 0 and 0.0 <= args.margin < 1.0
     assert 0 < len(args.arm) <= cs.MAX_ARMS
     arms = [cs.parse_arm(text, total, None) for text in args.arm]
-    assert len({a["label"] for a in arms}) == len(arms), "arm labels repeat"
-    for a in arms:
-        assert a["label"] in config["conditions"], f"{a['label']}: no horde condition"
+    labels = [a["label"] for a in arms]
+    assert len(set(labels)) == len(labels), "arm labels repeat"
+    for label in labels:
+        assert label in config["conditions"], f"{label}: no horde condition"
     cfg = {
         "total": total,
         "per_seat": None,
@@ -533,6 +711,9 @@ def main(argv: list[str]) -> int:
         "missing_as_zero": args.missing_as_zero,
         "parser": args.parser,
         "reference": cs.load_reference(str(FAMILY_TOML)),
+        "instances": parse_instances(args.instances),
+        "ks": parse_ks(args.ks, arms),
+        "multi_seat": [c for c in config["conditions"] if c in labels and c != SOLO],
     }
     report = analyze(arms, cfg)
     print(json.dumps(report, indent=2) if args.json else render(report))

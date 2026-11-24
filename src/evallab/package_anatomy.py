@@ -834,6 +834,7 @@ class Counts:
     negative_named_tests: int = 0
     literal_eq_assertions: int = 0
     surface_assertions: int = 0
+    surface_only_tests: int = 0
     source_text_assertions: int = 0
     mock_assertions: int = 0
     tests_without_assertion: int = 0
@@ -1009,7 +1010,11 @@ def _py_counts(source: TestSource) -> Counts | None:
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith("test"):
             counts.tests += 1
+            assertions_before, surface_before = counts.assertions, counts.surface_assertions
             _ast_function_counts(node, counts, helpers)
+            asserted = counts.assertions - assertions_before
+            counts.surface_only_tests += asserted > 0 and counts.surface_assertions - surface_before == asserted
+    assert 0 <= counts.surface_only_tests <= counts.tests
     for node in ast.walk(tree):
         if isinstance(node, (ast.Import, ast.ImportFrom)):
             names = [alias.name for alias in node.names] + ([node.module] if isinstance(node, ast.ImportFrom) and node.module else [])
@@ -1033,13 +1038,28 @@ _REGEX_COUNTERS: dict[str, str] = {
 
 def _regex_counts(source: TestSource) -> Counts:
     counts = Counts(files=1, mode_regex_files=1)
+    block: tuple[int, int] | None = None
     for _, text in source.lines:
+        if re.search(_REGEX_COUNTERS["tests"], text):
+            counts.surface_only_tests += _surface_only_block(block, counts)
+            block = (counts.assertions, counts.surface_assertions)
         for name, pattern in _REGEX_COUNTERS.items():
             if re.search(pattern, text):
                 setattr(counts, name, getattr(counts, name) + 1)
         if re.search(r"^\s*(?:async\s+)?def\s+test\w*(?:invalid|error|fail|reject|raise|bad|missing|empty)\w*\(", text, re.I):
             counts.negative_named_tests += 1
+    counts.surface_only_tests += _surface_only_block(block, counts)
+    assert 0 <= counts.surface_only_tests <= counts.tests
     return counts
+
+
+def _surface_only_block(block: tuple[int, int] | None, counts: Counts) -> bool:
+    if block is None:
+        return False
+    asserted = counts.assertions - block[0]
+    surfaced = counts.surface_assertions - block[1]
+    assert asserted >= 0 and surfaced >= 0
+    return asserted > 0 and surfaced == asserted
 
 
 def _build_env_command(patch_text: str) -> str:
@@ -1233,6 +1253,7 @@ def test_suite_rigor(package: Package, sources: Sequence[TestSource], reference_
             "literal_eq_share": round(counts.literal_eq_assertions / asserts, 3) if asserts else None,
             "negative_share": round(counts.negative_assertions / asserts, 3) if asserts else None,
             "surface_share": round(counts.surface_assertions / asserts, 3) if asserts else None,
+            "surface_only_share": round(counts.surface_only_tests / counts.tests, 3) if counts.tests else None,
             "assertions_per_test": round(asserts / counts.tests, 2) if counts.tests else None,
         },
         "instruction_error_words": bool(re.search(r"\b(?:raise[sd]?|raising|invalid|malformed|unsupported|non-?zero|\w+Error|exception)\b", instruction, re.I)),
@@ -1427,9 +1448,9 @@ def build_hypotheses(package: Package, boundary: Mapping[str, Any], grader: Mapp
            f"{counts['tests_without_assertion']} of {counts['tests']} test functions contain no assertion",
            [_ev(f["file"], None, f"{f['tests']} tests / {f['assertions']} assertions") for f in rigor["test_files"]],
            "Stub the code under those tests to return None: they still pass.")
-    if counts["assertions"] and counts["surface_assertions"] / counts["assertions"] >= 0.5:
+    if counts["tests"] and 2 * counts["surface_only_tests"] >= counts["tests"]:
         _h(hyps, "WC-SURFACE-ONLY", "weak_check", 60, "static_probable",
-           f"{counts['surface_assertions']}/{counts['assertions']} assertions are surface checks (existence, non-None, truthiness, source-text)",
+           f"{counts['surface_only_tests']}/{counts['tests']} tests assert only surface checks (existence, non-None, truthiness, source-text)",
            [_ev(f["file"], None, "surface-heavy suite") for f in rigor["test_files"]],
            "Provide an empty/placeholder implementation that merely exposes the names/files; the suite passes without behavior.")
     if counts["source_text_assertions"]:

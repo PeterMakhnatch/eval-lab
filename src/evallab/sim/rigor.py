@@ -20,6 +20,7 @@ _PYTEST_PATH = "tests/test_generated.py"
 _UNITTEST_PATH = "tests/test_generated_unittest.py"
 _BROKEN_PATH = "tests/test_broken_syntax.py"
 _FRAGMENT_PATH = "tests/test_patch_fragment.py"
+_BLOCKS_PATH = "tests/test_surface_blocks.py"
 _CHAIN_PATH = "tests/test_helper_chains.py"
 _CHAIN_KINDS = ("assert", "fail", "plain")
 _CHAIN_BODIES = {
@@ -37,6 +38,7 @@ _COUNT_FIELDS = (
     "negative_named_tests",
     "literal_eq_assertions",
     "surface_assertions",
+    "surface_only_tests",
     "source_text_assertions",
     "mock_assertions",
     "tests_without_assertion",
@@ -63,6 +65,19 @@ _FRAGMENT_TEXT = (
     "    with pytest.raises(KeyError):\n"
     "        raise KeyError()\n"
     "    assert len(items) == 0\n"
+)
+_BLOCKS_TEXT = (
+    "assert setup is not None\n"
+    "def test_exists(:\n"
+    "    assert path.exists()\n"
+    "    assert handle is not None\n"
+    "def test_mixed():\n"
+    "    assert path.exists()\n"
+    "    assert value == 7\n"
+    "def test_blank():\n"
+    "    value = compute()\n"
+    "def test_attr():\n"
+    "    assert hasattr(module, 'run')\n"
 )
 
 
@@ -194,12 +209,20 @@ def _plan(rng: Random, shapes: tuple[_Shape, ...]) -> list[_TestCase]:
     return cases
 
 
+def _surface_only(case: _TestCase) -> bool:
+    asserted = sum(shape.delta.assertions for shape in case.shapes)
+    surfaced = sum(shape.delta.surface_assertions for shape in case.shapes)
+    assert 0 <= surfaced <= asserted
+    return asserted > 0 and surfaced == asserted
+
+
 def _tally(cases: list[_TestCase], randomized_import: bool) -> Counts:
     counts = Counts(files=1, tests=len(cases), mode_ast_files=1)
     if randomized_import:
         counts.randomized_or_property += 1
     for case in cases:
         counts.negative_named_tests += int(case.negative_name)
+        counts.surface_only_tests += int(_surface_only(case))
         for shape in case.shapes:
             counts.add(shape.delta)
     assert counts.files == 1 and counts.mode_ast_files == 1
@@ -209,6 +232,7 @@ def _tally(cases: list[_TestCase], randomized_import: bool) -> Counts:
     assert counts.source_text_assertions > 0 and counts.loops_with_assertions > 0
     assert counts.skipped_or_xfail > 0 and counts.tests_without_assertion > 0
     assert counts.negative_named_tests > 0
+    assert 0 <= counts.surface_only_tests < counts.tests
     return counts
 
 
@@ -259,6 +283,7 @@ def _ratios(counts: Counts) -> dict[str, float | None]:
         "literal_eq_share": round(counts.literal_eq_assertions / asserts, 3) if asserts else None,
         "negative_share": round(counts.negative_assertions / asserts, 3) if asserts else None,
         "surface_share": round(counts.surface_assertions / asserts, 3) if asserts else None,
+        "surface_only_share": round(counts.surface_only_tests / counts.tests, 3) if counts.tests else None,
         "assertions_per_test": round(asserts / counts.tests, 2) if counts.tests else None,
     }
 
@@ -396,11 +421,14 @@ class RigorSimulation:
         sim = self.sim
         broken = _source(_BROKEN_PATH, _BROKEN_TEXT)
         fragment = _source(_FRAGMENT_PATH, _FRAGMENT_TEXT, origin="patch", complete=False)
-        sim.begin("rigor-regex-fallback", files=2)
+        blocks = _source(_BLOCKS_PATH, _BLOCKS_TEXT)
+        sim.begin("rigor-regex-fallback", files=3)
         sim.require(_py_counts(broken) is None, "rigor_syntax_error_not_parsed")
         sim.require(_py_counts(fragment) is not None, "rigor_fragment_parses_as_python")
+        sim.require(_py_counts(blocks) is None, "rigor_blocks_not_parsed")
         broken_counts = _regex_counts(broken)
         fragment_counts = _regex_counts(fragment)
+        blocks_counts = _regex_counts(blocks)
         broken_expected = Counts(
             files=1,
             tests=1,
@@ -420,10 +448,20 @@ class RigorSimulation:
             literal_eq_assertions=1,
             mode_regex_files=1,
         )
+        blocks_expected = Counts(
+            files=1,
+            tests=4,
+            assertions=6,
+            literal_eq_assertions=1,
+            surface_assertions=5,
+            surface_only_tests=2,
+            mode_regex_files=1,
+        )
         self._require_counts(asdict(broken_counts), broken_expected, "rigor_regex_broken_expected")
         self._require_counts(asdict(fragment_counts), fragment_expected, "rigor_regex_fragment_expected")
+        self._require_counts(asdict(blocks_counts), blocks_expected, "rigor_regex_blocks_expected")
         total = Counts()
-        for counts in (broken_counts, fragment_counts):
+        for counts in (broken_counts, fragment_counts, blocks_counts):
             total.add(counts)
         package = Package(
             self.root / "fallback",
@@ -431,12 +469,13 @@ class RigorSimulation:
                 "instruction.md": _INSTRUCTION,
                 _BROKEN_PATH: _BROKEN_TEXT,
                 _FRAGMENT_PATH: _FRAGMENT_TEXT,
+                _BLOCKS_PATH: _BLOCKS_TEXT,
             },
         )
-        result = test_suite_rigor(package, [broken, fragment], None)
+        result = test_suite_rigor(package, [broken, fragment, blocks], None)
         self._require_counts(result["counts"], total, "rigor_regex_total")
         self._require_ratios(result, total, "rigor_regex_ratios")
-        sim.require(total.mode_regex_files == 2, "rigor_regex_mode_files")
+        sim.require(total.mode_regex_files == 3, "rigor_regex_mode_files")
         sim.require(total.mode_ast_files == 0, "rigor_regex_no_ast_files")
         sim.require(result["fragment_files"] == 1, "rigor_regex_fragment_files")
         sim.require(
@@ -444,6 +483,7 @@ class RigorSimulation:
             == [
                 _expected_files(broken_counts, _BROKEN_PATH, "regex"),
                 _expected_files(fragment_counts, _FRAGMENT_PATH, "regex"),
+                _expected_files(blocks_counts, _BLOCKS_PATH, "regex"),
             ],
             "rigor_regex_test_files",
         )

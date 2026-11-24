@@ -264,6 +264,8 @@ def _plan_counts(rng: Random) -> dict[str, int]:
     seventy = (7 * asserts + 9) // 10
     half = asserts // 2
     halves = (0, max(0, half - 1), half, (asserts + 1) // 2, asserts)
+    test_half = tests // 2
+    test_halves = (0, max(0, test_half - 1), test_half, (tests + 1) // 2, tests)
     return {
         "files": rng.choice((0, 1, 2)),
         "tests": tests,
@@ -272,6 +274,7 @@ def _plan_counts(rng: Random) -> dict[str, int]:
         "negative_named_tests": rng.choice((0, 0, 1)),
         "literal_eq_assertions": max(0, min(asserts, rng.choice((0, 2, 3, seventy - 1, seventy, asserts)))),
         "surface_assertions": rng.choice(halves),
+        "surface_only_tests": rng.choice(test_halves),
         "source_text_assertions": rng.choice((0, 0, 1, 3)),
         "mock_assertions": rng.choice(halves),
         "tests_without_assertion": rng.choice((0, rng.randint(0, tests))),
@@ -563,7 +566,7 @@ def _expect_counts(plan: _Plan, out: list[_Want]) -> None:
     tests, asserts, rows = counts["tests"], counts["assertions"], plan.test_files
     if tests and counts["tests_without_assertion"]:
         _want(out, "WC-TEST-WITHOUT-ASSERTION", evidence=rows)
-    if asserts and 2 * counts["surface_assertions"] >= asserts:
+    if tests and 2 * counts["surface_only_tests"] >= tests:
         _want(out, "WC-SURFACE-ONLY", evidence=rows)
     if counts["source_text_assertions"]:
         _want(out, "WC-SOURCE-TEXT-ASSERT", evidence=rows)

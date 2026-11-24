@@ -852,6 +852,44 @@ def mimo_semantic_edit_patch(package: Path, source_context: dict[str, str], edit
     return patch
 
 
+_PRUNE_WALK_BOUND = 100_000
+
+
+def _prune_excluded_artifacts(root: Path, excludes: list[str]) -> None:
+    assert root.is_dir(), root
+    assert excludes
+    patterns = [pat.removeprefix("./") for pat in excludes]
+    assert all(isinstance(pat, str) for pat in patterns)
+    pending = [root]
+    visited = 0
+    while pending:
+        assert visited < _PRUNE_WALK_BOUND, root
+        visited += 1
+        current = pending.pop()
+        children = list(current.iterdir())
+        assert len(children) < _PRUNE_WALK_BOUND, current
+        for sub in children:
+            rel_sub = sub.relative_to(root).as_posix()
+            matched = any(
+                fnmatch.fnmatch(sub.name, pat) or fnmatch.fnmatch(rel_sub, pat)
+                for pat in patterns
+            )
+            if sub.is_symlink():
+                if matched:
+                    sub.unlink(missing_ok=True)
+                continue
+            if not matched:
+                if sub.is_dir():
+                    pending.append(sub)
+                    assert len(pending) < _PRUNE_WALK_BOUND, root
+                continue
+            if sub.is_dir():
+                shutil.rmtree(sub, ignore_errors=True)
+                continue
+            sub.unlink(missing_ok=True)
+    assert visited > 0, root
+
+
 class HarborBackend:
 
     environment = "docker"
@@ -1486,17 +1524,7 @@ class HarborBackend:
                     )
                     if cp_res.returncode == 0:
                         if excludes and target.is_dir():
-                            for sub in list(target.rglob("*")):
-                                rel_sub = sub.relative_to(target).as_posix()
-                                if any(
-                                    fnmatch.fnmatch(sub.name, pat.lstrip("./"))
-                                    or fnmatch.fnmatch(rel_sub, pat.lstrip("./"))
-                                    for pat in excludes
-                                ):
-                                    if sub.is_dir() and not sub.is_symlink():
-                                        shutil.rmtree(sub, ignore_errors=True)
-                                    else:
-                                        sub.unlink(missing_ok=True)
+                            _prune_excluded_artifacts(target, excludes)
                         copied.append((raw_path, target))
 
                 subprocess.run(
@@ -2046,17 +2074,7 @@ class HarborBackend:
                         )
                         if cp_res.returncode == 0:
                             if excludes and target.is_dir():
-                                for sub in list(target.rglob("*")):
-                                    rel_sub = sub.relative_to(target).as_posix()
-                                    if any(
-                                        fnmatch.fnmatch(sub.name, pat.lstrip("./"))
-                                        or fnmatch.fnmatch(rel_sub, pat.lstrip("./"))
-                                        for pat in excludes
-                                    ):
-                                        if sub.is_dir() and not sub.is_symlink():
-                                            shutil.rmtree(sub, ignore_errors=True)
-                                        else:
-                                            sub.unlink(missing_ok=True)
+                                _prune_excluded_artifacts(target, excludes)
                             copied.append((dest_path, target))
 
                 _copy_compose_items(main_artifacts)

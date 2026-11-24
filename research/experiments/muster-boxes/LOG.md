@@ -12,6 +12,24 @@ Times are New York time (ET). Newest entry first. Each entry says what is done a
 
 ## 2026-11-24
 
+**7:27 AM. 2 checks after the end entry.**
+- F29, the sentences about what the Haiku agents did (the number check of 7:09 AM did not cover them): the
+  E8 auditor checked 15 sentences against the raw trials, with script counts and readings of 7 to 10
+  texts. 0 are wrong. Not checked: the control cells of E8b.
+- `campaign`, a sixth review of `f9e67cf74`: "go with rules" (10 rules), no blocker. No fix round follows.
+  Open list for the next session, in the reviewer's order:
+  1. The union of the 2 reserve reads can count a reserve of another writer 2 times, when another reserve
+     opens or closes between the reads (the key holds a list position). A lane can then stop with
+     `balance-low` by mistake; it cannot start by mistake. The simulation checks only the lower bound of
+     the need and does not see it. Fix: key the union on the ledger line number, and add the upper bound
+     as an invariant.
+  2. The wrapper check refuses 2 legal shapes (`2>&1`, a path with `(`) and misses others (`bash --norc
+     -c`, `-o pipefail -c`, `env -u X`). The reviewer proposes an allow-list (`uv`, `muster`, `python3`)
+     in place of the shell parsing.
+  3. 1 sentence of `AGENTS.md` says "the first reserve"; the code uses the smallest first reserve.
+  First tests in a paid run: a STOP file during the first real arm; the recorded cost against the
+  provider's numbers; `kill -9` of 1 runner and a restart.
+
 **7:20 AM. End of the night session.**
 - `campaign`: the round for the fifth review is on `main` (`f9e67cf74`, 7:18 AM). The balance gate counts
   each reserve that was open before or after the 2 probes; `run` and `fill` refuse a compound shell

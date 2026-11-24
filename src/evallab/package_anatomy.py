@@ -1064,13 +1064,16 @@ def _symbol_kind(token: str, span: str) -> str:
 
 
 _CONSTRAINT = re.compile(r"\b(?:must|should|shall|raise[sd]?|reject\w*|error|invalid|exactly|at least|at most|never|only|exit(?:s)?\s+(?:non-?zero|with)|return[s]?)\b", re.I)
+_MENTION = re.compile(
+    r"`[^`\n]*`|(?<![\w-])--[a-z][\w-]+|(?<![\w/.])[\w./-]+\.(?:py|js|ts|rs|go|json|toml|ya?ml|csv|sh|cfg|ini)\b"
+)
 
 
 def instruction_cues(instruction: str) -> list[dict[str, Any]]:
     cues: dict[str, dict[str, Any]] = {}
     sentences = re.split(r"(?<=[.!?])\s+|\n+", instruction)
     for sentence in sentences:
-        constrained = bool(_CONSTRAINT.search(sentence))
+        constrained = bool(_CONSTRAINT.search(_MENTION.sub(" ", sentence)))
         spans = [(m.group(1), m.group(1)) for m in re.finditer(r"`([^`\n]{2,80})`", sentence)]
         spans += [(m.group(1), m.group(0)) for m in re.finditer(r"\b([A-Za-z_]\w{2,})\(\)?", sentence)]
         spans += [(m.group(0), m.group(0)) for m in re.finditer(r"(?<![\w-])--[a-z][\w-]+", sentence)]
@@ -1095,7 +1098,8 @@ def instruction_cues(instruction: str) -> list[dict[str, Any]]:
 
 def _word_in(symbol: str, text: str) -> bool:
     last = symbol.rsplit("/", 1)[-1]
-    return bool(re.search(rf"(?<![\w]){re.escape(last)}(?![\w])", text))
+    after = r"(?![\w-])" if symbol.startswith("-") else r"(?![\w])"
+    return bool(re.search(rf"(?<![\w]){re.escape(last)}{after}", text))
 
 
 def instruction_mismatch(instruction: str, tests_text: str) -> list[dict[str, Any]]:

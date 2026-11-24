@@ -158,6 +158,7 @@ def run(seed: int) -> RunResult:
     from evallab.sim.protected import ProtectedPathSimulation
     from evallab.sim.rewards import RewardSimulation
     from evallab.sim.rigor import RigorSimulation
+    from evallab.sim.surface import SurfaceSimulation
     from evallab.sim.verifier import VerifierSimulation
 
     sim = Simulation(seed)
@@ -188,6 +189,8 @@ def run(seed: int) -> RunResult:
             RigorSimulation(sim, root / "rigor").run()
             sim.subsystem = "grader-script-mechanics"
             MechanicsSimulation(sim, root / "mechanics").run()
+            sim.subsystem = "instruction-patch-surface"
+            SurfaceSimulation(sim).run()
         except InvariantViolation as exc:
             failure = exc
         except (Exception, ProcessCrash) as exc:

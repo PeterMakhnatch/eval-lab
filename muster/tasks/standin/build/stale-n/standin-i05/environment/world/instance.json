@@ -5,6 +5,7 @@
   "probe": "stale",
   "variant": "baseline",
   "paragraph": "team",
+  "verdict": true,
   "seats": [
     "p1",
     "p2",
@@ -26,8 +27,8 @@
     6
   ],
   "roles": {
-    "A": 6,
-    "B": 3
+    "A": 3,
+    "B": 6
   },
   "own": [],
   "claims_live": false,
@@ -36,14 +37,19 @@
   "script": [
     {
       "name": "board",
-      "after": -1,
-      "on": "any",
-      "count": 0,
-      "timed": false,
+      "triggers": [
+        {
+          "after": -1,
+          "on": "any",
+          "count": 0,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": [
         {
           "seat": "p3",
-          "open": 51
+          "open": 21
         },
         {
           "seat": "p3",
@@ -55,8 +61,23 @@
         },
         {
           "seat": "p3",
-          "post": "Box 51 (room 6) holds a flag. Box 1 (room 1) is empty. Box 11 (room 2) is empty.",
-          "tag": {}
+          "post": "p3 result: box 21 (room 3) flag=true, box 1 (room 1) flag=false, box 11 (room 2) flag=false. Room 3 is treasure. Rooms 1 and 2 are empty. I keep reporting each result here, please do the same so nobody opens a box twice.",
+          "tag": {
+            "reports": [
+              [
+                21,
+                true
+              ],
+              [
+                1,
+                false
+              ],
+              [
+                11,
+                false
+              ]
+            ]
+          }
         },
         {
           "seat": "p4",
@@ -68,45 +89,62 @@
         },
         {
           "seat": "p4",
-          "post": "Box 31 (room 4) is empty. Box 41 (room 5) is empty.",
-          "tag": {}
-        },
-        {
-          "seat": "p1",
-          "open": 21
-        },
-        {
-          "seat": "p1",
-          "post": "Box 21 (room 3) holds a flag. I open boxes 22, 23, 24, 25 and 26 now.",
+          "post": "Update from p4: box31 room4 -> empty, box41 room5 -> empty. Rooms 4 and 5 are empty. Post your results so we can split the remaining boxes without overlaps.",
           "tag": {
-            "announces": [
-              22,
-              23,
-              24,
-              25,
-              26
+            "reports": [
+              [
+                31,
+                false
+              ],
+              [
+                41,
+                false
+              ]
             ]
           }
         },
         {
           "seat": "p1",
-          "open": 22
+          "open": 51
         },
         {
           "seat": "p1",
-          "open": 23
+          "post": "Update from p1: box51 room6 -> FLAG true. Room 6 is treasure. Post your results so we can split the remaining boxes without overlaps. p1: opening 52,53,54,55,56 (room 6) now to avoid duplicates. Others take different boxes. Results follow after each open, please post yours.",
+          "tag": {
+            "reports": [
+              [
+                51,
+                true
+              ]
+            ],
+            "announces": [
+              52,
+              53,
+              54,
+              55,
+              56
+            ]
+          }
         },
         {
           "seat": "p1",
-          "open": 24
+          "open": 52
         },
         {
           "seat": "p1",
-          "open": 25
+          "open": 53
         },
         {
           "seat": "p1",
-          "open": 26
+          "open": 54
+        },
+        {
+          "seat": "p1",
+          "open": 55
+        },
+        {
+          "seat": "p1",
+          "open": 56
         }
       ]
     }

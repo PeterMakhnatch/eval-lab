@@ -22,10 +22,10 @@ build = reference.build
 
 def validate(config: dict) -> None:
     assert config["name"] == FAMILY.name and config["instances"] > 0 and config["wait_sec"] > 0
-    assert len(config["conditions"]) == len(reference.PROBES) * len(reference.VARIANTS)
+    assert len(config["conditions"]) == sum(len(cells) for cells in reference.CELLS.values())
     for condition, spec in config["conditions"].items():
         probe, suffix = condition.rsplit("-", 1)
-        assert probe == spec["probe"] and suffix in reference.VARIANTS, condition
+        assert probe == spec["probe"] and suffix in reference.CELLS[probe], condition
         assert spec["paragraph"] in ADDED and condition in config["criteria"], condition
 
 
@@ -47,10 +47,13 @@ def instruction(instance: dict) -> str:
 def policies(instance: dict) -> dict[str, str]:
     wrapper = (TEMPLATE / "policies" / "seat.sh").read_text()
     source = (TEMPLATE / "policies" / "agent.py").read_text()
+    tags = json.dumps(reference.post_tags(instance), sort_keys=True)
     assert wrapper.count("@POLICY@") == 1 and wrapper.count("@AGENT@") == 1 and "\nPYTHON\n" not in source
+    assert wrapper.count("@TAGS@") == 1 and "'''" not in tags and "\\" not in tags
     mode = "claim" if instance["paragraph"] == "claim" else "plain"
     texts = {
-        name: wrapper.replace("@POLICY@", policy).replace("@MODE@", mode).replace("@AGENT@", source.rstrip("\n"))
+        name: wrapper.replace("@POLICY@", policy).replace("@MODE@", mode).replace("@TAGS@", tags)
+        .replace("@AGENT@", source.rstrip("\n"))
         for name, policy in SEAT_POLICIES.items()
     }
     return {**texts, **{name: (TEMPLATE / "policies" / f"{name}.sh").read_text() for name in KIT_POLICIES}}

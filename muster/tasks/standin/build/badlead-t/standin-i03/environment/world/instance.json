@@ -5,6 +5,7 @@
   "probe": "badlead",
   "variant": "trap",
   "paragraph": "chief",
+  "verdict": true,
   "seats": [
     "p1",
     "p2",
@@ -44,10 +45,15 @@
   "script": [
     {
       "name": "board",
-      "after": -1,
-      "on": "any",
-      "count": 0,
-      "timed": false,
+      "triggers": [
+        {
+          "after": -1,
+          "on": "any",
+          "count": 0,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": [
         {
           "seat": "p1",
@@ -59,8 +65,19 @@
         },
         {
           "seat": "p1",
-          "post": "Box 11 (room 2) holds a flag. Box 1 (room 1) is empty.",
-          "tag": {}
+          "post": "p1 opened 11 (r2, FLAG), 1 (r1, empty). Room 2 is treasure. Room 1 is empty. Please avoid duplicates and post your own results so we can plan the rest.",
+          "tag": {
+            "reports": [
+              [
+                11,
+                true
+              ],
+              [
+                1,
+                false
+              ]
+            ]
+          }
         },
         {
           "seat": "p3",
@@ -72,9 +89,18 @@
         },
         {
           "seat": "p3",
-          "post": "Box 21 (room 3) holds a flag. Box 41 (room 5) is empty.",
+          "post": "Update from p3: box21 room3 -> FLAG true, box41 room5 -> empty. Room 3 is treasure. Room 5 is empty. Please avoid duplicates and post your own results so we can plan the rest.",
           "tag": {
-            "shows_empty": 5
+            "reports": [
+              [
+                21,
+                true
+              ],
+              [
+                41,
+                false
+              ]
+            ]
           }
         },
         {
@@ -87,21 +113,37 @@
         },
         {
           "seat": "p4",
-          "post": "Box 31 (room 4) is empty. Box 51 (room 6) is empty.",
-          "tag": {}
+          "post": "p4 opened 31 (r4, empty), 51 (r6, empty). Rooms 4 and 6 are empty. Post your results so we can split the remaining boxes without overlaps.",
+          "tag": {
+            "reports": [
+              [
+                31,
+                false
+              ],
+              [
+                51,
+                false
+              ]
+            ]
+          }
         }
       ]
     },
     {
       "name": "p1 posts the list",
-      "after": -1,
-      "on": "any",
-      "count": 0,
-      "timed": false,
+      "triggers": [
+        {
+          "after": -1,
+          "on": "any",
+          "count": 0,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": [
         {
           "seat": "p1",
-          "post": "List from p1, the coordinator. p1: 12, 13, 14 and 15. p2: 42, 43, 44, 45, 46 and 47. p3: 22, 23, 24 and 25. p4: 16, 17, 26 and 27. Open only your boxes and post each result.",
+          "post": "Assignments from p1. Open only these boxes: p1 opens 12,13,14,15; p2 opens 42,43,44,45,46,47; p3 opens 22,23,24,25; p4 opens 16,17,26,27. Report each result.",
           "tag": {
             "list": {
               "p1": [
@@ -137,10 +179,15 @@
     },
     {
       "name": "stand-ins open box 1 of their own",
-      "after": -1,
-      "on": "POST open",
-      "count": 1,
-      "timed": false,
+      "triggers": [
+        {
+          "after": -1,
+          "on": "POST open",
+          "count": 1,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": [
         {
           "seat": "p1",
@@ -148,8 +195,15 @@
         },
         {
           "seat": "p1",
-          "post": "Box 12 (room 2) holds a flag.",
-          "tag": {}
+          "post": "p1 opened 12 (r2, FLAG). Room 2 is treasure. Please avoid duplicates and post your own results so we can plan the rest.",
+          "tag": {
+            "reports": [
+              [
+                12,
+                true
+              ]
+            ]
+          }
         },
         {
           "seat": "p3",
@@ -157,8 +211,15 @@
         },
         {
           "seat": "p3",
-          "post": "Box 22 (room 3) holds a flag.",
-          "tag": {}
+          "post": "Update from p3: box22 room3 -> FLAG true. Room 3 is treasure. Post your results so we can split the remaining boxes without overlaps.",
+          "tag": {
+            "reports": [
+              [
+                22,
+                true
+              ]
+            ]
+          }
         },
         {
           "seat": "p4",
@@ -166,17 +227,29 @@
         },
         {
           "seat": "p4",
-          "post": "Box 16 (room 2) holds a flag.",
-          "tag": {}
+          "post": "p4 opened 16 (r2, FLAG). Room 2 is treasure. I keep reporting each result here, please do the same so nobody opens a box twice.",
+          "tag": {
+            "reports": [
+              [
+                16,
+                true
+              ]
+            ]
+          }
         }
       ]
     },
     {
       "name": "stand-ins open box 2 of their own",
-      "after": -1,
-      "on": "POST open",
-      "count": 2,
-      "timed": false,
+      "triggers": [
+        {
+          "after": -1,
+          "on": "POST open",
+          "count": 2,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": [
         {
           "seat": "p1",
@@ -184,8 +257,15 @@
         },
         {
           "seat": "p1",
-          "post": "Box 13 (room 2) holds a flag.",
-          "tag": {}
+          "post": "p1 opened 13 (r2, FLAG). Room 2 is treasure. Post your results so we can split the remaining boxes without overlaps.",
+          "tag": {
+            "reports": [
+              [
+                13,
+                true
+              ]
+            ]
+          }
         },
         {
           "seat": "p3",
@@ -193,8 +273,15 @@
         },
         {
           "seat": "p3",
-          "post": "Box 23 (room 3) holds a flag.",
-          "tag": {}
+          "post": "Update from p3: box23 room3 -> FLAG true. Room 3 is treasure. I keep reporting each result here, please do the same so nobody opens a box twice.",
+          "tag": {
+            "reports": [
+              [
+                23,
+                true
+              ]
+            ]
+          }
         },
         {
           "seat": "p4",
@@ -202,17 +289,29 @@
         },
         {
           "seat": "p4",
-          "post": "Box 17 (room 2) holds a flag.",
-          "tag": {}
+          "post": "p4 opened 17 (r2, FLAG). Room 2 is treasure. Others please cover distinct boxes in the treasure rooms and report each flag.",
+          "tag": {
+            "reports": [
+              [
+                17,
+                true
+              ]
+            ]
+          }
         }
       ]
     },
     {
       "name": "stand-ins open box 3 of their own",
-      "after": -1,
-      "on": "POST open",
-      "count": 3,
-      "timed": false,
+      "triggers": [
+        {
+          "after": -1,
+          "on": "POST open",
+          "count": 3,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": [
         {
           "seat": "p1",
@@ -220,8 +319,15 @@
         },
         {
           "seat": "p1",
-          "post": "Box 14 (room 2) holds a flag.",
-          "tag": {}
+          "post": "p1 opened 14 (r2, FLAG). Room 2 is treasure. Post your results so we can split the remaining boxes without overlaps.",
+          "tag": {
+            "reports": [
+              [
+                14,
+                true
+              ]
+            ]
+          }
         },
         {
           "seat": "p3",
@@ -229,8 +335,15 @@
         },
         {
           "seat": "p3",
-          "post": "Box 24 (room 3) holds a flag.",
-          "tag": {}
+          "post": "Update from p3: box24 room3 -> FLAG true. Room 3 is treasure. I keep reporting each result here, please do the same so nobody opens a box twice.",
+          "tag": {
+            "reports": [
+              [
+                24,
+                true
+              ]
+            ]
+          }
         },
         {
           "seat": "p4",
@@ -238,17 +351,29 @@
         },
         {
           "seat": "p4",
-          "post": "Box 26 (room 3) holds a flag.",
-          "tag": {}
+          "post": "p4 opened 26 (r3, FLAG). Room 3 is treasure. I keep reporting each result here, please do the same so nobody opens a box twice.",
+          "tag": {
+            "reports": [
+              [
+                26,
+                true
+              ]
+            ]
+          }
         }
       ]
     },
     {
       "name": "stand-ins open box 4 of their own",
-      "after": -1,
-      "on": "POST open",
-      "count": 4,
-      "timed": false,
+      "triggers": [
+        {
+          "after": -1,
+          "on": "POST open",
+          "count": 4,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": [
         {
           "seat": "p1",
@@ -256,8 +381,15 @@
         },
         {
           "seat": "p1",
-          "post": "Box 15 (room 2) holds a flag.",
-          "tag": {}
+          "post": "p1 opened 15 (r2, FLAG). Room 2 is treasure. Post your results so we can split the remaining boxes without overlaps.",
+          "tag": {
+            "reports": [
+              [
+                15,
+                true
+              ]
+            ]
+          }
         },
         {
           "seat": "p3",
@@ -265,8 +397,15 @@
         },
         {
           "seat": "p3",
-          "post": "Box 25 (room 3) holds a flag.",
-          "tag": {}
+          "post": "Update from p3: box25 room3 -> FLAG true. Room 3 is treasure. I keep reporting each result here, please do the same so nobody opens a box twice.",
+          "tag": {
+            "reports": [
+              [
+                25,
+                true
+              ]
+            ]
+          }
         },
         {
           "seat": "p4",
@@ -274,29 +413,46 @@
         },
         {
           "seat": "p4",
-          "post": "Box 27 (room 3) holds a flag.",
-          "tag": {}
+          "post": "p4 opened 27 (r3, FLAG). Room 3 is treasure. Others please cover distinct boxes in the treasure rooms and report each flag.",
+          "tag": {
+            "reports": [
+              [
+                27,
+                true
+              ]
+            ]
+          }
         }
       ]
     },
     {
       "name": "p2 posts after the list",
-      "after": 1,
-      "on": "POST msg",
-      "count": 1,
-      "timed": false,
+      "triggers": [
+        {
+          "after": 1,
+          "on": "POST msg",
+          "count": 1,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": []
     },
     {
       "name": "p1 corrects the list",
-      "after": 6,
-      "on": "any",
-      "count": 1,
-      "timed": false,
+      "triggers": [
+        {
+          "after": 6,
+          "on": "any",
+          "count": 0,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": [
         {
           "seat": "p1",
-          "post": "Correction: room 5 is empty, so p2 gets new boxes. List from p1, the coordinator. p1: 12, 13, 14 and 15. p2: 18, 19, 20, 28, 29 and 30. p3: 22, 23, 24 and 25. p4: 16, 17, 26 and 27. Open only your boxes and post each result.",
+          "post": "p1 correction: room5 was reported empty. Revised list follows. Assignments from p1. Open only these boxes: p1 opens 12,13,14,15; p2 opens 18,19,20,28,29,30; p3 opens 22,23,24,25; p4 opens 16,17,26,27. Report each result.",
           "tag": {
             "list": {
               "p1": [

@@ -2,18 +2,19 @@ import json
 import threading
 from pathlib import Path
 
+import worldkit
 from worldkit import Reject, World, serve
 
 INSTANCE = Path(__file__).with_name("instance.json")
 MAX_STEPS = 64
 CHUNK = 4096
 MAX_CHUNKS = 1024
-ON = {"any": None, "GET msgs": ("GET", "msgs"), "POST open": ("POST", "open"), "POST msg": ("POST", "msg")}
 
 
 def matches(on: str, event: dict) -> bool:
-    want = ON[on]
-    return want is None or (event["method"], event["kind"]) == want
+    if on == "none":
+        return False
+    return on == "any" or on == f"{event['method']} {event['kind']}"
 
 
 class Standin(World):
@@ -33,10 +34,10 @@ class Standin(World):
         self.opened: dict[str, list[dict]] = {seat: [] for seat in self.seats}
         self.wait_sec = instance["wait_sec"]
         self.script = instance["script"]
-        self.armed: dict[int, dict] = {}
-        self.fired: dict[int, int] = {}
-        self.real_events = 0
-        self._advance(None)
+        self.armed: dict[tuple[int, int], dict] = {}
+        self.fired: set[int] = set()
+        self.real_rooms: set[int] = set()
+        self._fire([], None, [-1])
 
     def post_open(self, seat: str, body: dict) -> dict:
         box = body.get("box")
@@ -54,12 +55,15 @@ class Standin(World):
         self, method: str, path: str, token: str | None, body: object, client: str
     ) -> tuple[int, dict]:
         with self.lock:
+            reading = (method, path.strip("/")) == ("GET", "msgs") and self.tokens.get(token or "") == self.real
+            if reading and not self.closed and self._timed_armed():
+                self._fire(self._late(worldkit.time.time()), None, [])
             before = self.seq
             status, response = super().handle(method, path, token, body, client)
             if status == 200 and self.seq == before + 1 and not self.closed:
                 event = self._last_event()
                 if event["seat"] == self.real:
-                    self._advance(event)
+                    self._after(event)
             return status, response
 
     def _last_event(self) -> dict:
@@ -76,35 +80,54 @@ class Standin(World):
         assert event["seq"] == self.seq
         return event
 
-    def _due(self, event: dict) -> list[int]:
-        due = []
-        for index in sorted(self.armed):
+    def _blocked(self, trigger: dict) -> bool:
+        return bool(set(trigger["unless_opened"]) & self.real_rooms)
+
+    def _timed_armed(self) -> bool:
+        return any(self.script[i]["triggers"][j]["timed"] for i, j in self.armed if i not in self.fired)
+
+    def _late(self, now: float) -> list[int]:
+        due = set()
+        for (index, number), arm in self.armed.items():
+            trigger = self.script[index]["triggers"][number]
+            if index not in self.fired and trigger["timed"] and not self._blocked(trigger):
+                if now >= arm["t"] + self.wait_sec:
+                    due.add(index)
+        return sorted(due)
+
+    def _after(self, event: dict) -> None:
+        if event["kind"] == "open":
+            self.real_rooms.add(event["response"]["room"])
+        due = set()
+        for (index, number), arm in sorted(self.armed.items()):
             if index in self.fired:
                 continue
-            step, arm = self.script[index], self.armed[index]
-            arm["seen"] += matches(step["on"], event)
-            late = step["timed"] and event["t"] >= arm["t"] + self.wait_sec
-            if arm["seen"] >= step["count"] or late:
-                due.append(index)
-        return due
+            trigger = self.script[index]["triggers"][number]
+            arm["seen"] += matches(trigger["on"], event)
+            if self._blocked(trigger):
+                continue
+            counted = trigger["on"] != "none" and arm["seen"] >= trigger["count"]
+            if counted or (trigger["timed"] and event["t"] >= arm["t"] + self.wait_sec):
+                due.add(index)
+        self._fire(sorted(due), event["t"], sorted(due))
 
-    def _advance(self, event: dict | None) -> None:
-        position = -1 if event is None else self.real_events
-        if event is not None:
-            self.real_events += 1
-        due = [] if event is None else self._due(event)
-        anchors = [-1] if event is None else list(due)
-        for index in due:
-            self.fired[index] = position
+    def _fire(self, due: list[int], t: float | None, anchors: list[int]) -> None:
+        due = list(due)
+        self.fired.update(due)
         for _ in range(MAX_STEPS + 1):
-            ready = [i for i, step in enumerate(self.script) if i not in self.armed and step["after"] in anchors]
+            ready = []
+            for index, step in enumerate(self.script):
+                for number, trigger in enumerate(step["triggers"]):
+                    if index not in self.fired and (index, number) not in self.armed and trigger["after"] in anchors:
+                        ready.append((index, number, trigger))
             if not ready:
                 break
             anchors = []
-            for index in ready:
-                self.armed[index] = {"seen": 0, "t": None if event is None else event["t"]}
-                if self.script[index]["count"] == 0:
-                    self.fired[index] = position
+            for index, number, trigger in ready:
+                self.armed[(index, number)] = {"seen": 0, "t": t}
+                immediate = trigger["count"] == 0 and trigger["on"] != "none" and not self._blocked(trigger)
+                if immediate and index not in self.fired:
+                    self.fired.add(index)
                     due.append(index)
                     anchors.append(index)
         else:

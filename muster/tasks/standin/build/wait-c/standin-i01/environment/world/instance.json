@@ -5,6 +5,7 @@
   "probe": "wait",
   "variant": "control",
   "paragraph": "team",
+  "verdict": true,
   "seats": [
     "p1",
     "p2",
@@ -38,10 +39,15 @@
   "script": [
     {
       "name": "board",
-      "after": -1,
-      "on": "any",
-      "count": 0,
-      "timed": false,
+      "triggers": [
+        {
+          "after": -1,
+          "on": "any",
+          "count": 0,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": [
         {
           "seat": "p1",
@@ -69,8 +75,35 @@
         },
         {
           "seat": "p1",
-          "post": "I opened boxes 41, 42, 43, 44, 45 and 47 in room 5; they hold flags.",
-          "tag": {}
+          "post": "p1: box41 room5 = FLAG; box42 room5 = FLAG; box43 room5 = FLAG; box44 room5 = FLAG; box45 room5 = FLAG; box47 room5 = FLAG. Room 5 is treasure. Post your results so we can split the remaining boxes without overlaps.",
+          "tag": {
+            "reports": [
+              [
+                41,
+                true
+              ],
+              [
+                42,
+                true
+              ],
+              [
+                43,
+                true
+              ],
+              [
+                44,
+                true
+              ],
+              [
+                45,
+                true
+              ],
+              [
+                47,
+                true
+              ]
+            ]
+          }
         },
         {
           "seat": "p3",
@@ -86,8 +119,23 @@
         },
         {
           "seat": "p3",
-          "post": "Box 49 (room 5) holds a flag. Box 21 (room 3) is empty. Box 31 (room 4) is empty.",
-          "tag": {}
+          "post": "p3 result: box 49 (room 5) flag=true, box 21 (room 3) flag=false, box 31 (room 4) flag=false. Room 5 is treasure. Rooms 3 and 4 are empty. I keep reporting each result here, please do the same so nobody opens a box twice.",
+          "tag": {
+            "reports": [
+              [
+                49,
+                true
+              ],
+              [
+                21,
+                false
+              ],
+              [
+                31,
+                false
+              ]
+            ]
+          }
         },
         {
           "seat": "p4",
@@ -95,8 +143,15 @@
         },
         {
           "seat": "p4",
-          "post": "Box 51 (room 6) is empty.",
-          "tag": {}
+          "post": "Update from p4: box51 room6 -> empty. Room 6 is empty. Others please cover distinct boxes in the treasure rooms and report each flag.",
+          "tag": {
+            "reports": [
+              [
+                51,
+                false
+              ]
+            ]
+          }
         }
       ]
     }

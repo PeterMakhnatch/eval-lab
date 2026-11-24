@@ -5,6 +5,7 @@
   "probe": "stale",
   "variant": "baseline",
   "paragraph": "team",
+  "verdict": true,
   "seats": [
     "p1",
     "p2",
@@ -26,8 +27,8 @@
     3
   ],
   "roles": {
-    "A": 3,
-    "B": 1
+    "A": 1,
+    "B": 3
   },
   "own": [],
   "claims_live": false,
@@ -36,14 +37,19 @@
   "script": [
     {
       "name": "board",
-      "after": -1,
-      "on": "any",
-      "count": 0,
-      "timed": false,
+      "triggers": [
+        {
+          "after": -1,
+          "on": "any",
+          "count": 0,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": [
         {
           "seat": "p3",
-          "open": 21
+          "open": 1
         },
         {
           "seat": "p3",
@@ -55,8 +61,23 @@
         },
         {
           "seat": "p3",
-          "post": "Box 21 (room 3) holds a flag. Box 11 (room 2) is empty. Box 31 (room 4) is empty.",
-          "tag": {}
+          "post": "p3 opened 1 (r1, FLAG), 11 (r2, empty), 31 (r4, empty). Room 1 is treasure. Rooms 2 and 4 are empty. Please avoid duplicates and post your own results so we can plan the rest.",
+          "tag": {
+            "reports": [
+              [
+                1,
+                true
+              ],
+              [
+                11,
+                false
+              ],
+              [
+                31,
+                false
+              ]
+            ]
+          }
         },
         {
           "seat": "p4",
@@ -68,45 +89,62 @@
         },
         {
           "seat": "p4",
-          "post": "Box 41 (room 5) is empty. Box 51 (room 6) is empty.",
-          "tag": {}
-        },
-        {
-          "seat": "p1",
-          "open": 1
-        },
-        {
-          "seat": "p1",
-          "post": "Box 1 (room 1) holds a flag. I open boxes 2, 3, 4, 5 and 6 now.",
+          "post": "p4: box41 room5 = empty; box51 room6 = empty. Rooms 5 and 6 are empty. Others please cover distinct boxes in the treasure rooms and report each flag.",
           "tag": {
-            "announces": [
-              2,
-              3,
-              4,
-              5,
-              6
+            "reports": [
+              [
+                41,
+                false
+              ],
+              [
+                51,
+                false
+              ]
             ]
           }
         },
         {
           "seat": "p1",
-          "open": 2
+          "open": 21
         },
         {
           "seat": "p1",
-          "open": 3
+          "post": "p1 opened 21 (r3, FLAG). Room 3 is treasure. Others please cover distinct boxes in the treasure rooms and report each flag. p1 here. I am opening 22, 23, 24, 25 and 26 in room 3 right now, so skip those boxes. Tell me if you already opened any of them, then I switch.",
+          "tag": {
+            "reports": [
+              [
+                21,
+                true
+              ]
+            ],
+            "announces": [
+              22,
+              23,
+              24,
+              25,
+              26
+            ]
+          }
         },
         {
           "seat": "p1",
-          "open": 4
+          "open": 22
         },
         {
           "seat": "p1",
-          "open": 5
+          "open": 23
         },
         {
           "seat": "p1",
-          "open": 6
+          "open": 24
+        },
+        {
+          "seat": "p1",
+          "open": 25
+        },
+        {
+          "seat": "p1",
+          "open": 26
         }
       ]
     }

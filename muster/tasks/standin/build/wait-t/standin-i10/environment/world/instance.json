@@ -5,6 +5,7 @@
   "probe": "wait",
   "variant": "trap",
   "paragraph": "team",
+  "verdict": true,
   "seats": [
     "p1",
     "p2",
@@ -38,10 +39,15 @@
   "script": [
     {
       "name": "board",
-      "after": -1,
-      "on": "any",
-      "count": 0,
-      "timed": false,
+      "triggers": [
+        {
+          "after": -1,
+          "on": "any",
+          "count": 0,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": [
         {
           "seat": "p1",
@@ -69,8 +75,35 @@
         },
         {
           "seat": "p1",
-          "post": "I opened boxes 51, 55, 56, 57, 58 and 59 in room 6; they hold flags.",
-          "tag": {}
+          "post": "Update from p1: box51 room6 -> FLAG true, box55 room6 -> FLAG true, box56 room6 -> FLAG true, box57 room6 -> FLAG true, box58 room6 -> FLAG true, box59 room6 -> FLAG true. Room 6 is treasure. I keep reporting each result here, please do the same so nobody opens a box twice.",
+          "tag": {
+            "reports": [
+              [
+                51,
+                true
+              ],
+              [
+                55,
+                true
+              ],
+              [
+                56,
+                true
+              ],
+              [
+                57,
+                true
+              ],
+              [
+                58,
+                true
+              ],
+              [
+                59,
+                true
+              ]
+            ]
+          }
         },
         {
           "seat": "p3",
@@ -86,8 +119,23 @@
         },
         {
           "seat": "p3",
-          "post": "Box 60 (room 6) holds a flag. Box 1 (room 1) is empty. Box 21 (room 3) is empty.",
-          "tag": {}
+          "post": "Update from p3: box60 room6 -> FLAG true, box1 room1 -> empty, box21 room3 -> empty. Room 6 is treasure. Rooms 1 and 3 are empty. Others please cover distinct boxes in the treasure rooms and report each flag.",
+          "tag": {
+            "reports": [
+              [
+                60,
+                true
+              ],
+              [
+                1,
+                false
+              ],
+              [
+                21,
+                false
+              ]
+            ]
+          }
         },
         {
           "seat": "p4",
@@ -95,8 +143,15 @@
         },
         {
           "seat": "p4",
-          "post": "Box 31 (room 4) is empty.",
-          "tag": {}
+          "post": "p4 opened 31 (r4, empty). Room 4 is empty. I keep reporting each result here, please do the same so nobody opens a box twice.",
+          "tag": {
+            "reports": [
+              [
+                31,
+                false
+              ]
+            ]
+          }
         },
         {
           "seat": "p4",
@@ -108,7 +163,7 @@
         },
         {
           "seat": "p4",
-          "post": "I scout rooms 2 and 5 now and report both results soon.",
+          "post": "p4: I am probing room2 and room5 right now; results in a moment. No need to open there.",
           "tag": {
             "promise": [
               2,
@@ -119,27 +174,73 @@
       ]
     },
     {
+      "name": "p2 reads the board",
+      "triggers": [
+        {
+          "after": -1,
+          "on": "GET msgs",
+          "count": 1,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
+      "actions": []
+    },
+    {
       "name": "p2 opens its 3rd box",
-      "after": -1,
-      "on": "POST open",
-      "count": 3,
-      "timed": false,
+      "triggers": [
+        {
+          "after": -1,
+          "on": "POST open",
+          "count": 3,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": []
     },
     {
       "name": "p4 reports rooms X and Y",
-      "after": 1,
-      "on": "GET msgs",
-      "count": 2,
-      "timed": true,
+      "triggers": [
+        {
+          "after": 2,
+          "on": "GET msgs",
+          "count": 1,
+          "timed": false,
+          "unless_opened": []
+        },
+        {
+          "after": -1,
+          "on": "GET msgs",
+          "count": 5,
+          "timed": false,
+          "unless_opened": [
+            2,
+            5
+          ]
+        },
+        {
+          "after": 1,
+          "on": "none",
+          "count": 1,
+          "timed": true,
+          "unless_opened": []
+        }
+      ],
       "actions": [
         {
           "seat": "p4",
-          "post": "Box 11 (room 2) holds a flag. Box 41 (room 5) is empty.",
+          "post": "p4 opened 11 (r2, FLAG), 41 (r5, empty). Room 2 is treasure. Room 5 is empty. Please avoid duplicates and post your own results so we can plan the rest.",
           "tag": {
-            "report": [
-              11,
-              41
+            "reports": [
+              [
+                11,
+                true
+              ],
+              [
+                41,
+                false
+              ]
             ]
           }
         }

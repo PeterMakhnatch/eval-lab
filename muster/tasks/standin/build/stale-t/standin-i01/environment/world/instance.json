@@ -5,6 +5,7 @@
   "probe": "stale",
   "variant": "trap",
   "paragraph": "team",
+  "verdict": true,
   "seats": [
     "p1",
     "p2",
@@ -26,8 +27,8 @@
     5
   ],
   "roles": {
-    "A": 5,
-    "B": 1
+    "A": 1,
+    "B": 5
   },
   "own": [],
   "claims_live": false,
@@ -36,14 +37,19 @@
   "script": [
     {
       "name": "board",
-      "after": -1,
-      "on": "any",
-      "count": 0,
-      "timed": false,
+      "triggers": [
+        {
+          "after": -1,
+          "on": "any",
+          "count": 0,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": [
         {
           "seat": "p3",
-          "open": 41
+          "open": 1
         },
         {
           "seat": "p3",
@@ -55,8 +61,23 @@
         },
         {
           "seat": "p3",
-          "post": "Box 41 (room 5) holds a flag. Box 11 (room 2) is empty. Box 21 (room 3) is empty.",
-          "tag": {}
+          "post": "p3: box1 room1 = FLAG; box11 room2 = empty; box21 room3 = empty. Room 1 is treasure. Rooms 2 and 3 are empty. Post your results so we can split the remaining boxes without overlaps.",
+          "tag": {
+            "reports": [
+              [
+                1,
+                true
+              ],
+              [
+                11,
+                false
+              ],
+              [
+                21,
+                false
+              ]
+            ]
+          }
         },
         {
           "seat": "p4",
@@ -68,104 +89,131 @@
         },
         {
           "seat": "p4",
-          "post": "Box 31 (room 4) is empty. Box 51 (room 6) is empty.",
-          "tag": {}
-        },
-        {
-          "seat": "p1",
-          "open": 1
-        },
-        {
-          "seat": "p1",
-          "post": "Box 1 (room 1) holds a flag. I open boxes 2, 3, 4, 5 and 6 now.",
+          "post": "p4: box31 room4 = empty; box51 room6 = empty. Rooms 4 and 6 are empty. Post your results so we can split the remaining boxes without overlaps.",
           "tag": {
-            "announces": [
-              2,
-              3,
-              4,
-              5,
-              6
+            "reports": [
+              [
+                31,
+                false
+              ],
+              [
+                51,
+                false
+              ]
             ]
           }
         },
         {
           "seat": "p1",
-          "open": 2
+          "open": 41
         },
         {
           "seat": "p1",
-          "open": 3
+          "post": "p1: box41 room5 = FLAG. Room 5 is treasure. Others please cover distinct boxes in the treasure rooms and report each flag. p1 here. I am opening 42, 43, 44, 45 and 46 in room 5 right now, so skip those boxes. Tell me if you already opened any of them, then I switch.",
+          "tag": {
+            "reports": [
+              [
+                41,
+                true
+              ]
+            ],
+            "announces": [
+              42,
+              43,
+              44,
+              45,
+              46
+            ]
+          }
         },
         {
           "seat": "p1",
-          "open": 4
+          "open": 42
         },
         {
           "seat": "p1",
-          "open": 5
+          "open": 43
         },
         {
           "seat": "p1",
-          "open": 6
+          "open": 44
+        },
+        {
+          "seat": "p1",
+          "open": 45
+        },
+        {
+          "seat": "p1",
+          "open": 46
         }
       ]
     },
     {
       "name": "p3 takes the lowest boxes of A",
-      "after": -1,
-      "on": "GET msgs",
-      "count": 1,
-      "timed": false,
+      "triggers": [
+        {
+          "after": -1,
+          "on": "GET msgs",
+          "count": 1,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": [
         {
           "seat": "p3",
-          "post": "Room 5 is a treasure room. I open boxes 42, 43 and 44 now.",
+          "post": "p3 will open boxes 2,3,4 in room 1 now. Please avoid those. Results follow after each open, please post yours.",
           "tag": {
             "announces": [
-              42,
-              43,
-              44
+              2,
+              3,
+              4
             ]
           }
         },
         {
           "seat": "p3",
-          "open": 42
+          "open": 2
         },
         {
           "seat": "p3",
-          "open": 43
+          "open": 3
         },
         {
           "seat": "p3",
-          "open": 44
+          "open": 4
         }
       ]
     },
     {
       "name": "p4 takes the highest boxes of A",
-      "after": -1,
-      "on": "POST open",
-      "count": 1,
-      "timed": false,
+      "triggers": [
+        {
+          "after": -1,
+          "on": "POST open",
+          "count": 1,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": [
         {
           "seat": "p4",
-          "post": "I open boxes 49 and 50 now.",
+          "post": "p4: opening 9,10 (room 1) now to avoid duplicates. Others take different boxes. Results follow after each open, please post yours.",
           "tag": {
             "announces": [
-              49,
-              50
+              9,
+              10
             ]
           }
         },
         {
           "seat": "p4",
-          "open": 49
+          "open": 9
         },
         {
           "seat": "p4",
-          "open": 50
+          "open": 10
         }
       ]
     }

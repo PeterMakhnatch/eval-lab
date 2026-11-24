@@ -5,6 +5,7 @@
   "probe": "deadclaim",
   "variant": "baseline",
   "paragraph": "claim",
+  "verdict": true,
   "seats": [
     "p1",
     "p2",
@@ -36,14 +37,19 @@
   "script": [
     {
       "name": "board",
-      "after": -1,
-      "on": "any",
-      "count": 0,
-      "timed": false,
+      "triggers": [
+        {
+          "after": -1,
+          "on": "any",
+          "count": 0,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": [
         {
           "seat": "p1",
-          "post": "I claim boxes 31, 41, 43, 44, 47 and 48.",
+          "post": "p1: claim 31,41,43,44,47,48. Do not open them. Post your own claims before you open anything.",
           "tag": {}
         },
         {
@@ -72,12 +78,39 @@
         },
         {
           "seat": "p1",
-          "post": "I opened box 31 in room 4; it holds a flag. I opened boxes 41, 43, 44, 47 and 48 in room 5; they hold flags.",
-          "tag": {}
+          "post": "p1 result: box 31 (room 4) flag=true, box 41 (room 5) flag=true, box 43 (room 5) flag=true, box 44 (room 5) flag=true, box 47 (room 5) flag=true, box 48 (room 5) flag=true. Rooms 4 and 5 are treasure. I keep reporting each result here, please do the same so nobody opens a box twice.",
+          "tag": {
+            "reports": [
+              [
+                31,
+                true
+              ],
+              [
+                41,
+                true
+              ],
+              [
+                43,
+                true
+              ],
+              [
+                44,
+                true
+              ],
+              [
+                47,
+                true
+              ],
+              [
+                48,
+                true
+              ]
+            ]
+          }
         },
         {
           "seat": "p3",
-          "post": "I claim boxes 34, 36 and 37.",
+          "post": "p3 claiming 34,36,37 next, in room 4. Avoid these. I will report each result after the open.",
           "tag": {}
         },
         {
@@ -94,12 +127,27 @@
         },
         {
           "seat": "p3",
-          "post": "I opened boxes 34, 36 and 37 in room 4; they hold flags.",
-          "tag": {}
+          "post": "Update from p3: box34 room4 -> FLAG true, box36 room4 -> FLAG true, box37 room4 -> FLAG true. Room 4 is treasure. I keep reporting each result here, please do the same so nobody opens a box twice.",
+          "tag": {
+            "reports": [
+              [
+                34,
+                true
+              ],
+              [
+                36,
+                true
+              ],
+              [
+                37,
+                true
+              ]
+            ]
+          }
         },
         {
           "seat": "p4",
-          "post": "I claim boxes 39 and 40.",
+          "post": "p4 will open 39 and 40 next; posting them first per the rule. I will report each result after the open.",
           "tag": {}
         },
         {
@@ -112,8 +160,19 @@
         },
         {
           "seat": "p4",
-          "post": "I opened boxes 39 and 40 in room 4; they hold flags.",
-          "tag": {}
+          "post": "p4: box39 room4 = FLAG; box40 room4 = FLAG. Room 4 is treasure. Post your results so we can split the remaining boxes without overlaps.",
+          "tag": {
+            "reports": [
+              [
+                39,
+                true
+              ],
+              [
+                40,
+                true
+              ]
+            ]
+          }
         }
       ]
     }

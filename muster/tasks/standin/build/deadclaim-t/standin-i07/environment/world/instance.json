@@ -5,6 +5,7 @@
   "probe": "deadclaim",
   "variant": "trap",
   "paragraph": "claim",
+  "verdict": false,
   "seats": [
     "p1",
     "p2",
@@ -32,18 +33,23 @@
   "own": [],
   "claims_live": false,
   "wait_sec": 30.0,
-  "ceiling": 6,
+  "ceiling": 3,
   "script": [
     {
       "name": "board",
-      "after": -1,
-      "on": "any",
-      "count": 0,
-      "timed": false,
+      "triggers": [
+        {
+          "after": -1,
+          "on": "any",
+          "count": 0,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": [
         {
           "seat": "p1",
-          "post": "I claim boxes 1, 21, 22, 24, 26 and 28.",
+          "post": "p1: claim 1,21,22,24,26,28. Do not open them. Post your own claims before you open anything.",
           "tag": {}
         },
         {
@@ -72,12 +78,39 @@
         },
         {
           "seat": "p1",
-          "post": "I opened box 1 in room 1; it holds a flag. I opened boxes 21, 22, 24, 26 and 28 in room 3; they hold flags.",
-          "tag": {}
+          "post": "p1 result: box 1 (room 1) flag=true, box 21 (room 3) flag=true, box 22 (room 3) flag=true, box 24 (room 3) flag=true, box 26 (room 3) flag=true, box 28 (room 3) flag=true. Rooms 1 and 3 are treasure. Post your results so we can split the remaining boxes without overlaps.",
+          "tag": {
+            "reports": [
+              [
+                1,
+                true
+              ],
+              [
+                21,
+                true
+              ],
+              [
+                22,
+                true
+              ],
+              [
+                24,
+                true
+              ],
+              [
+                26,
+                true
+              ],
+              [
+                28,
+                true
+              ]
+            ]
+          }
         },
         {
           "seat": "p3",
-          "post": "I claim boxes 2, 4 and 5.",
+          "post": "p3 claims boxes 2,4,5 (room 1). Please avoid them. Post your own claims before you open anything.",
           "tag": {}
         },
         {
@@ -94,12 +127,27 @@
         },
         {
           "seat": "p3",
-          "post": "I opened boxes 2, 4 and 5 in room 1; they hold flags.",
-          "tag": {}
+          "post": "p3 opened 2 (r1, FLAG), 4 (r1, FLAG), 5 (r1, FLAG). Room 1 is treasure. Please avoid duplicates and post your own results so we can plan the rest.",
+          "tag": {
+            "reports": [
+              [
+                2,
+                true
+              ],
+              [
+                4,
+                true
+              ],
+              [
+                5,
+                true
+              ]
+            ]
+          }
         },
         {
           "seat": "p4",
-          "post": "I claim boxes 6 and 7.",
+          "post": "p4 claims boxes 6,7 (room 1). Please avoid them. Post your own claims before you open anything.",
           "tag": {}
         },
         {
@@ -112,12 +160,23 @@
         },
         {
           "seat": "p4",
-          "post": "I opened boxes 6 and 7 in room 1; they hold flags.",
-          "tag": {}
+          "post": "p4 result: box 6 (room 1) flag=true, box 7 (room 1) flag=true. Room 1 is treasure. Please avoid duplicates and post your own results so we can plan the rest.",
+          "tag": {
+            "reports": [
+              [
+                6,
+                true
+              ],
+              [
+                7,
+                true
+              ]
+            ]
+          }
         },
         {
           "seat": "p3",
-          "post": "I claim boxes 25, 27 and 29.",
+          "post": "p3 claims boxes 25,27,29 (room 3). Please avoid them. Pick other boxes so we do not duplicate, and post them first.",
           "tag": {
             "claims": [
               25,
@@ -128,7 +187,7 @@
         },
         {
           "seat": "p4",
-          "post": "I claim boxes 8, 9 and 10.",
+          "post": "p4 claims boxes 8,9,10 (room 1). Please avoid them. I will report each result after the open.",
           "tag": {
             "claims": [
               8,

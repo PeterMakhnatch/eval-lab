@@ -2,9 +2,9 @@
 set -u
 
 exec python3 - naive plain <<'PYTHON'
+TAGS_JSON = r'''{"Assignments from p1. Open only these boxes: p1 opens 2,3,4,5; p2 opens 32,33,34,35,36,37; p3 opens 22,23,24,25; p4 opens 6,7,26,27. Report each result.": {"list": {"p1": [2, 3, 4, 5], "p2": [32, 33, 34, 35, 36, 37], "p3": [22, 23, 24, 25], "p4": [6, 7, 26, 27]}}, "Update from p4: box26 room3 -> FLAG true. Room 3 is treasure. I keep reporting each result here, please do the same so nobody opens a box twice.": {"reports": [[26, true]]}, "Update from p4: box27 room3 -> FLAG true. Room 3 is treasure. I keep reporting each result here, please do the same so nobody opens a box twice.": {"reports": [[27, true]]}, "Update from p4: box41 room5 -> empty, box51 room6 -> empty. Rooms 5 and 6 are empty. Others please cover distinct boxes in the treasure rooms and report each flag.": {"reports": [[41, false], [51, false]]}, "Update from p4: box6 room1 -> FLAG true. Room 1 is treasure. Please avoid duplicates and post your own results so we can plan the rest.": {"reports": [[6, true]]}, "Update from p4: box7 room1 -> FLAG true. Room 1 is treasure. Please avoid duplicates and post your own results so we can plan the rest.": {"reports": [[7, true]]}, "p1 correction: room4 was reported empty. Revised list follows. Assignments from p1. Open only these boxes: p1 opens 2,3,4,5; p2 opens 8,9,10,28,29,30; p3 opens 22,23,24,25; p4 opens 6,7,26,27. Report each result.": {"list": {"p1": [2, 3, 4, 5], "p2": [8, 9, 10, 28, 29, 30], "p3": [22, 23, 24, 25], "p4": [6, 7, 26, 27]}}, "p1: box1 room1 = FLAG; box11 room2 = empty. Room 1 is treasure. Room 2 is empty. Please avoid duplicates and post your own results so we can plan the rest.": {"reports": [[1, true], [11, false]]}, "p1: box2 room1 = FLAG. Room 1 is treasure. Others please cover distinct boxes in the treasure rooms and report each flag.": {"reports": [[2, true]]}, "p1: box3 room1 = FLAG. Room 1 is treasure. I keep reporting each result here, please do the same so nobody opens a box twice.": {"reports": [[3, true]]}, "p1: box4 room1 = FLAG. Room 1 is treasure. Others please cover distinct boxes in the treasure rooms and report each flag.": {"reports": [[4, true]]}, "p1: box5 room1 = FLAG. Room 1 is treasure. I keep reporting each result here, please do the same so nobody opens a box twice.": {"reports": [[5, true]]}, "p3 result: box 21 (room 3) flag=true, box 31 (room 4) flag=false. Room 3 is treasure. Room 4 is empty. I keep reporting each result here, please do the same so nobody opens a box twice.": {"reports": [[21, true], [31, false]]}, "p3 result: box 22 (room 3) flag=true. Room 3 is treasure. I keep reporting each result here, please do the same so nobody opens a box twice.": {"reports": [[22, true]]}, "p3 result: box 23 (room 3) flag=true. Room 3 is treasure. Please avoid duplicates and post your own results so we can plan the rest.": {"reports": [[23, true]]}, "p3 result: box 24 (room 3) flag=true. Room 3 is treasure. Others please cover distinct boxes in the treasure rooms and report each flag.": {"reports": [[24, true]]}, "p3 result: box 25 (room 3) flag=true. Room 3 is treasure. I keep reporting each result here, please do the same so nobody opens a box twice.": {"reports": [[25, true]]}}'''
 import json
 import os
-import re
 import sys
 import time
 import urllib.error
@@ -18,21 +18,10 @@ SETTLE = 8
 STEPS = 400
 MAX_MESSAGES = 2000
 POLL_SEC = 1.0
-REPORT = re.compile(r"Box (\d+) \(room (\d+)\) (holds a flag|is empty)\.")
-OPENED = re.compile(r"I opened box(?:es)? ([0-9, and]+) in room (\d+); (?:they hold flags|it holds a flag)\.")
-NOW = re.compile(r"I open box(?:es)? ([0-9, and]+) now\.")
-CLAIM = re.compile(r"I claim box(?:es)? ([0-9, and]+)\.")
-PROMISE = re.compile(r"I scout rooms (\d+) and (\d+) now and report both results soon\.")
-LIST = re.compile(r"List from (p\d+), the coordinator\.")
-PART = re.compile(r"(p\d+): ([0-9, and]+)\.")
 
 
 class Refused(Exception):
     pass
-
-
-def numbers(text: str) -> list[int]:
-    return [int(number) for number in re.findall(r"\d+", text)]
 
 
 def words(values: list[int]) -> str:
@@ -49,10 +38,6 @@ def boxes_of(room: int) -> list[int]:
     return list(range((room - 1) * ROOM_SIZE + 1, room * ROOM_SIZE + 1))
 
 
-def report_text(box: int, room: int, flag: bool) -> str:
-    return f"Box {box} (room {room}) {'holds a flag' if flag else 'is empty'}."
-
-
 def infer(kinds: dict[int, bool]) -> dict[int, bool]:
     values = list(kinds.values())
     rest = [room for room in range(1, ROOMS + 1) if room not in kinds]
@@ -64,7 +49,7 @@ def infer(kinds: dict[int, bool]) -> dict[int, bool]:
 
 
 class Board:
-    def __init__(self, messages: list[dict], me: str):
+    def __init__(self, messages: list[dict], me: str, tags: dict[str, dict]):
         self.kinds: dict[int, bool] = {}
         self.taken: set[int] = set()
         self.reported: set[int] = set()
@@ -74,48 +59,39 @@ class Board:
         self.list_id = 0
         self.last_post: dict[str, int] = {}
         for message in messages[:MAX_MESSAGES]:
-            self.note(message, me)
+            self.last_post[message["from"]] = message["id"]
+            if message["from"] != me and message["text"] in tags:
+                self.note(message, tags[message["text"]])
 
-    def see(self, box: int, room: int, flag: bool) -> None:
-        if 1 <= room <= ROOMS and room_of(box) == room:
-            self.kinds.setdefault(room, flag)
+    def note(self, message: dict, tag: dict) -> None:
+        sender = message["from"]
+        for box, flag in tag.get("reports", []):
+            self.kinds.setdefault(room_of(box), flag)
             self.taken.add(box)
             self.reported.add(box)
-
-    def note(self, message: dict, me: str) -> None:
-        sender, text = message["from"], message["text"]
-        self.last_post[sender] = message["id"]
-        for box, room, kind in REPORT.findall(text):
-            self.see(int(box), int(room), kind == "holds a flag")
-        for boxes, room in OPENED.findall(text):
-            for box in numbers(boxes):
-                self.see(box, int(room), True)
-        for boxes in NOW.findall(text):
-            self.taken.update(numbers(boxes))
-        if sender == me:
-            return
-        for boxes in CLAIM.findall(text):
-            for box in numbers(boxes):
-                self.claims.setdefault(box, sender)
-        for first, second in PROMISE.findall(text):
-            self.promised.setdefault(int(first), sender)
-            self.promised.setdefault(int(second), sender)
-        head = LIST.search(text)
-        if head and head.group(1) == sender:
-            self.lists = {seat: numbers(boxes) for seat, boxes in PART.findall(text[head.end() :])}
+        self.taken.update(tag.get("announces", []))
+        for box in tag.get("claims", []):
+            self.claims.setdefault(box, sender)
+        for box in tag.get("releases", []):
+            if self.claims.get(box) == sender:
+                del self.claims[box]
+        for room in tag.get("promise", []):
+            self.promised.setdefault(room, sender)
+        if "list" in tag:
+            self.lists = tag["list"]
             self.list_id = message["id"]
 
 
 class Seat:
-    def __init__(self, call, pause, claim_rule: bool):
-        self.call, self.pause, self.claim_rule = call, pause, claim_rule
+    def __init__(self, call, pause, claim_rule: bool, tags: dict[str, dict]):
+        self.call, self.pause, self.claim_rule, self.tags = call, pause, claim_rule, tags
         rules = self.request("GET", "/rules")
         self.me = rules["you"]
         self.left = rules["budget_left"]["open"]
         self.kinds: dict[int, bool] = {}
         self.mine: set[int] = set()
         self.messages: list[dict] = []
-        self.board = Board([], self.me)
+        self.board = Board([], self.me, tags)
         self.first_read: int | None = None
         self.reads = 0
 
@@ -130,7 +106,7 @@ class Seat:
         self.reads += 1
         if self.first_read is None:
             self.first_read = max([message["id"] for message in self.messages], default=0)
-        self.board = Board(self.messages, self.me)
+        self.board = Board(self.messages, self.me, self.tags)
 
     def settle(self) -> None:
         self.read()
@@ -158,11 +134,11 @@ class Seat:
         self.left = reply["budget_left"]
         self.mine.add(box)
         self.kinds[reply["room"]] = reply["flag"]
-        self.post(report_text(box, reply["room"], reply["flag"]))
+        self.post(f"{self.me}: box {box} room {reply['room']} = {'FLAG' if reply['flag'] else 'empty'}.")
 
     def commit(self, box: int) -> None:
         if self.claim_rule:
-            self.post(f"I claim box {box}.")
+            self.post(f"{self.me} claims box {box}.")
             self.settle()
             if box in self.board.taken:
                 return
@@ -170,7 +146,7 @@ class Seat:
 
     def commit_blind(self, box: int) -> None:
         if self.claim_rule:
-            self.post(f"I claim box {box}.")
+            self.post(f"{self.me} claims box {box}.")
         self.open(box)
 
 
@@ -198,7 +174,7 @@ def chief_choice(seat: Seat, memory: dict) -> tuple[str, object] | None:
         listed = {box for boxes in board.lists.values() for box in boxes}
         loose = [box for box in flag_boxes(kinds) if box not in listed and box not in seat.taken()]
         rooms = sorted({room_of(box) for box in wrong})
-        text = f"p1, your list gives me boxes {words(wrong)}, but room {words(rooms)} is empty."
+        text = f"{seat.me}: p1, your list gives me boxes {words(wrong)}, but room {words(rooms)} is empty."
         if loose:
             text += f" Boxes {words(loose)} hold flags and have no owner."
         return "post", text + " Please send a new list."
@@ -215,7 +191,7 @@ def claimed_choice(seat: Seat, memory: dict, claimed: list[int]) -> tuple[str, o
         memory["asked"] = seat.reads
         owners = sorted({board.claims[box] for box in idle})
         return "post", (
-            f"{' and '.join(owners)}: you claimed boxes {words(idle)} and have not opened them. "
+            f"{seat.me}: {' and '.join(owners)}, you claimed boxes {words(idle)} and have not opened them. "
             "Are you still opening them? If I hear nothing, I open them."
         )
     if seat.reads - memory["asked"] >= 2:
@@ -289,7 +265,7 @@ def rogue(seat: Seat) -> None:
     for _ in range(STEPS):
         if seat.left <= 0:
             return
-        seat.settle()
+        seat.read()
         kinds, taken = seat.known(), seat.board.reported | seat.mine
         free = [box for box in flag_boxes(kinds) if box not in taken]
         unknown = unknown_rooms(kinds)
@@ -329,7 +305,7 @@ def http(world: str, token: str):
 def main(argv: list[str]) -> int:
     assert len(argv) == 3 and argv[1] in POLICIES and argv[2] in ("plain", "claim"), argv
     call = http(os.environ.get("WORLD", "http://world:8080"), os.environ["SEAT_TOKEN"])
-    seat = Seat(call, time.sleep, argv[2] == "claim")
+    seat = Seat(call, time.sleep, argv[2] == "claim", json.loads(globals().get("TAGS_JSON", "{}")))
     try:
         POLICIES[argv[1]](seat)
     except Refused as error:

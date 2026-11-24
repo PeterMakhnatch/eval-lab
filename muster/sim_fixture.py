@@ -323,7 +323,7 @@ def _chaos(seed: int, high: int, sleep: float) -> Callable[[Callable, Callable],
 def _standin(run: Run, step: str, reference: ModuleType, case: Scenario, rng: Random) -> None:
     config = reference.family()
     probe, number = case.instance["probe"], case.instance["instance"]
-    cells = [reference.instances(config, f"{probe}-{suffix}")[number - 1] for suffix in reference.VARIANTS]
+    cells = [reference.instances(config, f"{probe}-{suffix}")[number - 1] for suffix in reference.CELLS[probe]]
     assert case.instance in cells
     token = case.tokens[case.instance["real"]]
     for instance in cells:
@@ -333,7 +333,9 @@ def _standin(run: Run, step: str, reference: ModuleType, case: Scenario, rng: Ra
 def _standin_cell(run: Run, step: str, reference: ModuleType, instance: dict[str, Any], token: str,
                   seed: int) -> None:
     wait, high = instance["wait_sec"], instance["rooms"] * instance["room_size"]
-    runs = {name: reference.play(instance, token, name) for name in ("ideal", "naive", "rogue", "idle", "spoof")}
+    careful = [name for name, (cell, _) in reference.CAREFUL.items() if cell == instance["condition"]]
+    runs = {name: reference.play(instance, token, name)
+            for name in ("ideal", "naive", "rogue", "idle", "spoof", *careful)}
     runs["ideal-slow"] = reference.play(instance, token, "ideal", slow=wait + 1)
     runs["chaos"] = reference.play(instance, token, _chaos(seed, high, 0.0))
     runs["chaos-other-tick"] = reference.play(instance, token, _chaos(seed, high, 0.0), tick=0.003)
@@ -346,12 +348,23 @@ def _standin_cell(run: Run, step: str, reference: ModuleType, instance: dict[str
         replayed = reference.verify.score(json.loads(json.dumps(events)), instance)
         run.require(step, "standin-score-replays-from-the-log", scores[name] == replayed, name)
         run.require(step, "standin-reward-is-bounded", 0 <= scores[name]["reward"] <= 1, f"{name}: {scores[name]}")
+        run.require(step, "standin-faithful-key-agrees-with-replay",
+                    scores[name]["script_faithful"] == int(problem is None), name)
+    verdict = instance["verdict"]
     for name in ("ideal", "ideal-slow"):
+        passed = scores[name]["probe_pass"] if verdict else scores[name]["claim_asked_then_took"]
         run.require(step, "standin-ideal-reaches-full-reward-and-passes",
-                    (scores[name]["reward"], scores[name]["probe_pass"]) == (1.0, 1), f"{name}: {scores[name]}")
-    naive = int(instance["variant"] != "trap")
-    run.require(step, "standin-naive-fails-only-the-trap", scores["naive"]["probe_pass"] == naive, str(scores["naive"]))
-    run.require(step, "standin-idle-never-passes", scores["idle"]["probe_pass"] == 0, str(scores["idle"]))
+                    (scores[name]["reward"], passed) == (1.0, 1), f"{name}: {scores[name]}")
+    run.require(step, "standin-verdict-keys-only-in-verdict-cells",
+                all(("probe_pass" in score and "behaviour_ok" in score) == verdict for score in scores.values()))
+    naive = int(instance["variant"] not in ("trap", "release"))
+    run.require(step, "standin-naive-fails-only-the-trap-and-release",
+                scores["naive"].get("probe_pass", naive) == naive, str(scores["naive"]))
+    run.require(step, "standin-idle-never-passes", scores["idle"].get("probe_pass", 0) == 0, str(scores["idle"]))
+    for name in careful:
+        intended = int(reference.CAREFUL_INTENDED[name] > 0)
+        run.require(step, "standin-careful-policy-gets-its-intended-verdict",
+                    scores[name]["probe_pass"] == intended, f"{name}: {scores[name]}")
     refused = sum(1 for event in runs["spoof"] if event["status"] == 401)
     run.require(step, "standin-spoof-gains-nothing",
                 scores["spoof"]["opens"] == 0 and scores["spoof"]["reward"] == 0
@@ -426,24 +439,27 @@ class Play:
         self.offset += len(suffix)
         expected = int(request.kind != "health")
         events = [json.loads(line) for line in suffix.splitlines()]
-        extra = events[expected:]
         standins = set(self.case.instance.get("standins", []))
+        reading = self.case.family == "standin" and (request.method, request.kind) == ("GET", "msgs")
+        lead = next((i for i, item in enumerate(events) if item.get("seat") not in standins), len(events))
+        lead = lead if reading and expected else 0
+        extra = events[:lead] + events[lead + expected:]
         self.run.require(step, "one-event-per-request-except-health",
-                         len(events) >= expected and (not extra or (expected == 1 and status == 200)),
+                         len(events) >= lead + expected and (not extra or (expected == 1 and status == 200)),
                          f"{len(events)} events, expected {expected}")
         self.run.require(step, "extra-events-are-standin-actions",
                          all(item.get("seat") in standins and item.get("ok") is True for item in extra))
         for item in events:
             self.events.append(item)
             self.run.require(step, "gapless-event-sequence", item.get("seq") == len(self.events))
-        if not events or not expected:
+        if len(events) <= lead or not expected:
             return None
-        event = events[0]
+        event = events[lead]
+        times = {1000 + (ticks + 1 + lead) / 8, *([1000 + (ticks + 2 + lead) / 8] if reading else [])}
         self.run.require(step, "event-matches-request", (
-            event.get("kind"), event.get("method"), event.get("status"), event.get("ok"),
-            event.get("request"), event.get("t"),
+            event.get("kind"), event.get("method"), event.get("status"), event.get("ok"), event.get("request"),
         ) == (request.kind, request.method, status, status == 200,
-              request.body if isinstance(request.body, dict) else None, 1000 + (ticks + 1) / 8))
+              request.body if isinstance(request.body, dict) else None) and event.get("t") in times)
         return event
 
     def send(self, label: str, request: Request, actor: str | None, *, client: str = _REMOTE) -> None:

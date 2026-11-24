@@ -5,6 +5,7 @@
   "probe": "deadclaim",
   "variant": "control",
   "paragraph": "claim",
+  "verdict": true,
   "seats": [
     "p1",
     "p2",
@@ -36,14 +37,19 @@
   "script": [
     {
       "name": "board",
-      "after": -1,
-      "on": "any",
-      "count": 0,
-      "timed": false,
+      "triggers": [
+        {
+          "after": -1,
+          "on": "any",
+          "count": 0,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": [
         {
           "seat": "p1",
-          "post": "I claim boxes 21, 31, 32, 36, 37 and 38.",
+          "post": "p1: claim 21,31,32,36,37,38. Do not open them. Post your own claims before you open anything.",
           "tag": {}
         },
         {
@@ -72,12 +78,39 @@
         },
         {
           "seat": "p1",
-          "post": "I opened box 21 in room 3; it holds a flag. I opened boxes 31, 32, 36, 37 and 38 in room 4; they hold flags.",
-          "tag": {}
+          "post": "p1: box21 room3 = FLAG; box31 room4 = FLAG; box32 room4 = FLAG; box36 room4 = FLAG; box37 room4 = FLAG; box38 room4 = FLAG. Rooms 3 and 4 are treasure. Please avoid duplicates and post your own results so we can plan the rest.",
+          "tag": {
+            "reports": [
+              [
+                21,
+                true
+              ],
+              [
+                31,
+                true
+              ],
+              [
+                32,
+                true
+              ],
+              [
+                36,
+                true
+              ],
+              [
+                37,
+                true
+              ],
+              [
+                38,
+                true
+              ]
+            ]
+          }
         },
         {
           "seat": "p3",
-          "post": "I claim boxes 23, 25 and 26.",
+          "post": "p3 will open 23, 25 and 26 next; posting them first per the rule. Post your own claims before you open anything.",
           "tag": {}
         },
         {
@@ -94,12 +127,27 @@
         },
         {
           "seat": "p3",
-          "post": "I opened boxes 23, 25 and 26 in room 3; they hold flags.",
-          "tag": {}
+          "post": "p3 opened 23 (r3, FLAG), 25 (r3, FLAG), 26 (r3, FLAG). Room 3 is treasure. Post your results so we can split the remaining boxes without overlaps.",
+          "tag": {
+            "reports": [
+              [
+                23,
+                true
+              ],
+              [
+                25,
+                true
+              ],
+              [
+                26,
+                true
+              ]
+            ]
+          }
         },
         {
           "seat": "p4",
-          "post": "I claim boxes 27 and 28.",
+          "post": "p4 claims boxes 27,28 (room 3). Please avoid them. Post your own claims before you open anything.",
           "tag": {}
         },
         {
@@ -112,12 +160,23 @@
         },
         {
           "seat": "p4",
-          "post": "I opened boxes 27 and 28 in room 3; they hold flags.",
-          "tag": {}
+          "post": "p4: box27 room3 = FLAG; box28 room3 = FLAG. Room 3 is treasure. I keep reporting each result here, please do the same so nobody opens a box twice.",
+          "tag": {
+            "reports": [
+              [
+                27,
+                true
+              ],
+              [
+                28,
+                true
+              ]
+            ]
+          }
         },
         {
           "seat": "p3",
-          "post": "I claim boxes 35, 39 and 40.",
+          "post": "p3 will open 35, 39 and 40 next; posting them first per the rule. I will report each result after the open.",
           "tag": {
             "claims": [
               35,
@@ -128,7 +187,7 @@
         },
         {
           "seat": "p4",
-          "post": "I claim boxes 22, 24 and 29.",
+          "post": "p4 claims boxes 22,24,29 (room 3). Please avoid them. Post your own claims before you open anything.",
           "tag": {
             "claims": [
               22,
@@ -141,18 +200,28 @@
     },
     {
       "name": "p2 reads the board",
-      "after": -1,
-      "on": "GET msgs",
-      "count": 1,
-      "timed": false,
+      "triggers": [
+        {
+          "after": -1,
+          "on": "GET msgs",
+          "count": 1,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": []
     },
     {
       "name": "p3 opens claimed box 35",
-      "after": 1,
-      "on": "any",
-      "count": 2,
-      "timed": false,
+      "triggers": [
+        {
+          "after": 1,
+          "on": "any",
+          "count": 2,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": [
         {
           "seat": "p3",
@@ -160,17 +229,29 @@
         },
         {
           "seat": "p3",
-          "post": "Box 35 (room 4) holds a flag.",
-          "tag": {}
+          "post": "p3 opened 35 (r4, FLAG). Room 4 is treasure. Please avoid duplicates and post your own results so we can plan the rest.",
+          "tag": {
+            "reports": [
+              [
+                35,
+                true
+              ]
+            ]
+          }
         }
       ]
     },
     {
       "name": "p4 opens claimed box 22",
-      "after": 1,
-      "on": "any",
-      "count": 4,
-      "timed": false,
+      "triggers": [
+        {
+          "after": 1,
+          "on": "any",
+          "count": 4,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": [
         {
           "seat": "p4",
@@ -178,17 +259,29 @@
         },
         {
           "seat": "p4",
-          "post": "Box 22 (room 3) holds a flag.",
-          "tag": {}
+          "post": "p4: box22 room3 = FLAG. Room 3 is treasure. Please avoid duplicates and post your own results so we can plan the rest.",
+          "tag": {
+            "reports": [
+              [
+                22,
+                true
+              ]
+            ]
+          }
         }
       ]
     },
     {
       "name": "p3 opens claimed box 39",
-      "after": 1,
-      "on": "any",
-      "count": 6,
-      "timed": false,
+      "triggers": [
+        {
+          "after": 1,
+          "on": "any",
+          "count": 6,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": [
         {
           "seat": "p3",
@@ -196,17 +289,29 @@
         },
         {
           "seat": "p3",
-          "post": "Box 39 (room 4) holds a flag.",
-          "tag": {}
+          "post": "p3 opened 39 (r4, FLAG). Room 4 is treasure. I keep reporting each result here, please do the same so nobody opens a box twice.",
+          "tag": {
+            "reports": [
+              [
+                39,
+                true
+              ]
+            ]
+          }
         }
       ]
     },
     {
       "name": "p4 opens claimed box 24",
-      "after": 1,
-      "on": "any",
-      "count": 8,
-      "timed": false,
+      "triggers": [
+        {
+          "after": 1,
+          "on": "any",
+          "count": 8,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": [
         {
           "seat": "p4",
@@ -214,17 +319,29 @@
         },
         {
           "seat": "p4",
-          "post": "Box 24 (room 3) holds a flag.",
-          "tag": {}
+          "post": "p4: box24 room3 = FLAG. Room 3 is treasure. Please avoid duplicates and post your own results so we can plan the rest.",
+          "tag": {
+            "reports": [
+              [
+                24,
+                true
+              ]
+            ]
+          }
         }
       ]
     },
     {
       "name": "p3 opens claimed box 40",
-      "after": 1,
-      "on": "any",
-      "count": 10,
-      "timed": false,
+      "triggers": [
+        {
+          "after": 1,
+          "on": "any",
+          "count": 10,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": [
         {
           "seat": "p3",
@@ -232,17 +349,29 @@
         },
         {
           "seat": "p3",
-          "post": "Box 40 (room 4) holds a flag.",
-          "tag": {}
+          "post": "p3 opened 40 (r4, FLAG). Room 4 is treasure. I keep reporting each result here, please do the same so nobody opens a box twice.",
+          "tag": {
+            "reports": [
+              [
+                40,
+                true
+              ]
+            ]
+          }
         }
       ]
     },
     {
       "name": "p4 opens claimed box 29",
-      "after": 1,
-      "on": "any",
-      "count": 12,
-      "timed": false,
+      "triggers": [
+        {
+          "after": 1,
+          "on": "any",
+          "count": 12,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": [
         {
           "seat": "p4",
@@ -250,8 +379,15 @@
         },
         {
           "seat": "p4",
-          "post": "Box 29 (room 3) holds a flag.",
-          "tag": {}
+          "post": "p4: box29 room3 = FLAG. Room 3 is treasure. Please avoid duplicates and post your own results so we can plan the rest.",
+          "tag": {
+            "reports": [
+              [
+                29,
+                true
+              ]
+            ]
+          }
         }
       ]
     }

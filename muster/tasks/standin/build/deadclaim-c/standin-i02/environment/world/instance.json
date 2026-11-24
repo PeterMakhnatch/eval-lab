@@ -5,6 +5,7 @@
   "probe": "deadclaim",
   "variant": "control",
   "paragraph": "claim",
+  "verdict": true,
   "seats": [
     "p1",
     "p2",
@@ -36,14 +37,19 @@
   "script": [
     {
       "name": "board",
-      "after": -1,
-      "on": "any",
-      "count": 0,
-      "timed": false,
+      "triggers": [
+        {
+          "after": -1,
+          "on": "any",
+          "count": 0,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": [
         {
           "seat": "p1",
-          "post": "I claim boxes 1, 2, 3, 4, 6 and 51.",
+          "post": "p1 claims boxes 1,2,3,4,6,51 (rooms 1 and 6). Please avoid them. Post your own claims before you open anything.",
           "tag": {}
         },
         {
@@ -72,12 +78,39 @@
         },
         {
           "seat": "p1",
-          "post": "I opened boxes 1, 2, 3, 4 and 6 in room 1; they hold flags. I opened box 51 in room 6; it holds a flag.",
-          "tag": {}
+          "post": "Update from p1: box1 room1 -> FLAG true, box2 room1 -> FLAG true, box3 room1 -> FLAG true, box4 room1 -> FLAG true, box6 room1 -> FLAG true, box51 room6 -> FLAG true. Rooms 1 and 6 are treasure. Post your results so we can split the remaining boxes without overlaps.",
+          "tag": {
+            "reports": [
+              [
+                1,
+                true
+              ],
+              [
+                2,
+                true
+              ],
+              [
+                3,
+                true
+              ],
+              [
+                4,
+                true
+              ],
+              [
+                6,
+                true
+              ],
+              [
+                51,
+                true
+              ]
+            ]
+          }
         },
         {
           "seat": "p3",
-          "post": "I claim boxes 53, 54 and 56.",
+          "post": "p3 claims boxes 53,54,56 (room 6). Please avoid them. Pick other boxes so we do not duplicate, and post them first.",
           "tag": {}
         },
         {
@@ -94,12 +127,27 @@
         },
         {
           "seat": "p3",
-          "post": "I opened boxes 53, 54 and 56 in room 6; they hold flags.",
-          "tag": {}
+          "post": "Update from p3: box53 room6 -> FLAG true, box54 room6 -> FLAG true, box56 room6 -> FLAG true. Room 6 is treasure. Others please cover distinct boxes in the treasure rooms and report each flag.",
+          "tag": {
+            "reports": [
+              [
+                53,
+                true
+              ],
+              [
+                54,
+                true
+              ],
+              [
+                56,
+                true
+              ]
+            ]
+          }
         },
         {
           "seat": "p4",
-          "post": "I claim boxes 58 and 60.",
+          "post": "p4 claiming 58,60 next, in room 6. Avoid these. I will report each result after the open.",
           "tag": {}
         },
         {
@@ -112,12 +160,23 @@
         },
         {
           "seat": "p4",
-          "post": "I opened boxes 58 and 60 in room 6; they hold flags.",
-          "tag": {}
+          "post": "p4 opened 58 (r6, FLAG), 60 (r6, FLAG). Room 6 is treasure. Others please cover distinct boxes in the treasure rooms and report each flag.",
+          "tag": {
+            "reports": [
+              [
+                58,
+                true
+              ],
+              [
+                60,
+                true
+              ]
+            ]
+          }
         },
         {
           "seat": "p3",
-          "post": "I claim boxes 7, 8 and 10.",
+          "post": "p3 claims boxes 7,8,10 (room 1). Please avoid them. Pick other boxes so we do not duplicate, and post them first.",
           "tag": {
             "claims": [
               7,
@@ -128,7 +187,7 @@
         },
         {
           "seat": "p4",
-          "post": "I claim boxes 52, 55 and 57.",
+          "post": "p4 claiming 52,55,57 next, in room 6. Avoid these. I will report each result after the open.",
           "tag": {
             "claims": [
               52,
@@ -141,18 +200,28 @@
     },
     {
       "name": "p2 reads the board",
-      "after": -1,
-      "on": "GET msgs",
-      "count": 1,
-      "timed": false,
+      "triggers": [
+        {
+          "after": -1,
+          "on": "GET msgs",
+          "count": 1,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": []
     },
     {
       "name": "p3 opens claimed box 7",
-      "after": 1,
-      "on": "any",
-      "count": 2,
-      "timed": false,
+      "triggers": [
+        {
+          "after": 1,
+          "on": "any",
+          "count": 2,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": [
         {
           "seat": "p3",
@@ -160,17 +229,29 @@
         },
         {
           "seat": "p3",
-          "post": "Box 7 (room 1) holds a flag.",
-          "tag": {}
+          "post": "Update from p3: box7 room1 -> FLAG true. Room 1 is treasure. Others please cover distinct boxes in the treasure rooms and report each flag.",
+          "tag": {
+            "reports": [
+              [
+                7,
+                true
+              ]
+            ]
+          }
         }
       ]
     },
     {
       "name": "p4 opens claimed box 52",
-      "after": 1,
-      "on": "any",
-      "count": 4,
-      "timed": false,
+      "triggers": [
+        {
+          "after": 1,
+          "on": "any",
+          "count": 4,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": [
         {
           "seat": "p4",
@@ -178,17 +259,29 @@
         },
         {
           "seat": "p4",
-          "post": "Box 52 (room 6) holds a flag.",
-          "tag": {}
+          "post": "p4 opened 52 (r6, FLAG). Room 6 is treasure. I keep reporting each result here, please do the same so nobody opens a box twice.",
+          "tag": {
+            "reports": [
+              [
+                52,
+                true
+              ]
+            ]
+          }
         }
       ]
     },
     {
       "name": "p3 opens claimed box 8",
-      "after": 1,
-      "on": "any",
-      "count": 6,
-      "timed": false,
+      "triggers": [
+        {
+          "after": 1,
+          "on": "any",
+          "count": 6,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": [
         {
           "seat": "p3",
@@ -196,17 +289,29 @@
         },
         {
           "seat": "p3",
-          "post": "Box 8 (room 1) holds a flag.",
-          "tag": {}
+          "post": "Update from p3: box8 room1 -> FLAG true. Room 1 is treasure. Please avoid duplicates and post your own results so we can plan the rest.",
+          "tag": {
+            "reports": [
+              [
+                8,
+                true
+              ]
+            ]
+          }
         }
       ]
     },
     {
       "name": "p4 opens claimed box 55",
-      "after": 1,
-      "on": "any",
-      "count": 8,
-      "timed": false,
+      "triggers": [
+        {
+          "after": 1,
+          "on": "any",
+          "count": 8,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": [
         {
           "seat": "p4",
@@ -214,17 +319,29 @@
         },
         {
           "seat": "p4",
-          "post": "Box 55 (room 6) holds a flag.",
-          "tag": {}
+          "post": "p4 opened 55 (r6, FLAG). Room 6 is treasure. Others please cover distinct boxes in the treasure rooms and report each flag.",
+          "tag": {
+            "reports": [
+              [
+                55,
+                true
+              ]
+            ]
+          }
         }
       ]
     },
     {
       "name": "p3 opens claimed box 10",
-      "after": 1,
-      "on": "any",
-      "count": 10,
-      "timed": false,
+      "triggers": [
+        {
+          "after": 1,
+          "on": "any",
+          "count": 10,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": [
         {
           "seat": "p3",
@@ -232,17 +349,29 @@
         },
         {
           "seat": "p3",
-          "post": "Box 10 (room 1) holds a flag.",
-          "tag": {}
+          "post": "Update from p3: box10 room1 -> FLAG true. Room 1 is treasure. Others please cover distinct boxes in the treasure rooms and report each flag.",
+          "tag": {
+            "reports": [
+              [
+                10,
+                true
+              ]
+            ]
+          }
         }
       ]
     },
     {
       "name": "p4 opens claimed box 57",
-      "after": 1,
-      "on": "any",
-      "count": 12,
-      "timed": false,
+      "triggers": [
+        {
+          "after": 1,
+          "on": "any",
+          "count": 12,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": [
         {
           "seat": "p4",
@@ -250,8 +379,15 @@
         },
         {
           "seat": "p4",
-          "post": "Box 57 (room 6) holds a flag.",
-          "tag": {}
+          "post": "p4 opened 57 (r6, FLAG). Room 6 is treasure. Please avoid duplicates and post your own results so we can plan the rest.",
+          "tag": {
+            "reports": [
+              [
+                57,
+                true
+              ]
+            ]
+          }
         }
       ]
     }

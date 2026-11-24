@@ -5,6 +5,7 @@
   "probe": "deadclaim",
   "variant": "trap",
   "paragraph": "claim",
+  "verdict": false,
   "seats": [
     "p1",
     "p2",
@@ -32,18 +33,23 @@
   "own": [],
   "claims_live": false,
   "wait_sec": 30.0,
-  "ceiling": 6,
+  "ceiling": 3,
   "script": [
     {
       "name": "board",
-      "after": -1,
-      "on": "any",
-      "count": 0,
-      "timed": false,
+      "triggers": [
+        {
+          "after": -1,
+          "on": "any",
+          "count": 0,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": [
         {
           "seat": "p1",
-          "post": "I claim boxes 11, 51, 54, 56, 57 and 60.",
+          "post": "p1 claiming 11,51,54,56,57,60 next, in rooms 2 and 6. Avoid these. I will report each result after the open.",
           "tag": {}
         },
         {
@@ -72,12 +78,39 @@
         },
         {
           "seat": "p1",
-          "post": "I opened box 11 in room 2; it holds a flag. I opened boxes 51, 54, 56, 57 and 60 in room 6; they hold flags.",
-          "tag": {}
+          "post": "p1: box11 room2 = FLAG; box51 room6 = FLAG; box54 room6 = FLAG; box56 room6 = FLAG; box57 room6 = FLAG; box60 room6 = FLAG. Rooms 2 and 6 are treasure. Please avoid duplicates and post your own results so we can plan the rest.",
+          "tag": {
+            "reports": [
+              [
+                11,
+                true
+              ],
+              [
+                51,
+                true
+              ],
+              [
+                54,
+                true
+              ],
+              [
+                56,
+                true
+              ],
+              [
+                57,
+                true
+              ],
+              [
+                60,
+                true
+              ]
+            ]
+          }
         },
         {
           "seat": "p3",
-          "post": "I claim boxes 14, 15 and 16.",
+          "post": "p3 claiming 14,15,16 next, in room 2. Avoid these. Pick other boxes so we do not duplicate, and post them first.",
           "tag": {}
         },
         {
@@ -94,12 +127,27 @@
         },
         {
           "seat": "p3",
-          "post": "I opened boxes 14, 15 and 16 in room 2; they hold flags.",
-          "tag": {}
+          "post": "p3 result: box 14 (room 2) flag=true, box 15 (room 2) flag=true, box 16 (room 2) flag=true. Room 2 is treasure. Post your results so we can split the remaining boxes without overlaps.",
+          "tag": {
+            "reports": [
+              [
+                14,
+                true
+              ],
+              [
+                15,
+                true
+              ],
+              [
+                16,
+                true
+              ]
+            ]
+          }
         },
         {
           "seat": "p4",
-          "post": "I claim boxes 18 and 20.",
+          "post": "p4: claim 18,20. Do not open them. Pick other boxes so we do not duplicate, and post them first.",
           "tag": {}
         },
         {
@@ -112,12 +160,23 @@
         },
         {
           "seat": "p4",
-          "post": "I opened boxes 18 and 20 in room 2; they hold flags.",
-          "tag": {}
+          "post": "p4 result: box 18 (room 2) flag=true, box 20 (room 2) flag=true. Room 2 is treasure. Please avoid duplicates and post your own results so we can plan the rest.",
+          "tag": {
+            "reports": [
+              [
+                18,
+                true
+              ],
+              [
+                20,
+                true
+              ]
+            ]
+          }
         },
         {
           "seat": "p3",
-          "post": "I claim boxes 52, 53 and 58.",
+          "post": "p3 claiming 52,53,58 next, in room 6. Avoid these. Post your own claims before you open anything.",
           "tag": {
             "claims": [
               52,
@@ -128,7 +187,7 @@
         },
         {
           "seat": "p4",
-          "post": "I claim boxes 12, 13 and 17.",
+          "post": "p4: claim 12,13,17. Do not open them. Pick other boxes so we do not duplicate, and post them first.",
           "tag": {
             "claims": [
               12,

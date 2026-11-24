@@ -12,7 +12,7 @@ condition = "deadclaim-t"
 instance = 9
 probe = "deadclaim"
 variant = "trap"
-ceiling = 6
+ceiling = 3
 oracle_reward = 1.0
 exploits = ["spoof"]
 

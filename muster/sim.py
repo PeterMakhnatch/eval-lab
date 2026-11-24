@@ -123,7 +123,7 @@ def _measures(run: Run, case: Scenario, trial: Trial, evidence: Evidence) -> Non
         "probes": sum(e["status"] == 404 for e in played),
         "late": sum(bool(e.get("late")) for e in evidence.events),
         "unauthorized": sum(e["status"] == 401 for e in evidence.events),
-        "seats": sorted({*case.task.seats, *(e["seat"] for e in played)}),
+        "seats": sorted({*case.task.seats, *case.instance.get("standins", [])}),
     }
     observed = {key: rows[0].get(key) for key in expected}
     run.require("events/clean", "event-measures-agree-with-log", observed == expected,

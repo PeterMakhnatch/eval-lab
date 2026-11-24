@@ -5,6 +5,7 @@
   "probe": "deadclaim",
   "variant": "trap",
   "paragraph": "claim",
+  "verdict": false,
   "seats": [
     "p1",
     "p2",
@@ -32,18 +33,23 @@
   "own": [],
   "claims_live": false,
   "wait_sec": 30.0,
-  "ceiling": 6,
+  "ceiling": 3,
   "script": [
     {
       "name": "board",
-      "after": -1,
-      "on": "any",
-      "count": 0,
-      "timed": false,
+      "triggers": [
+        {
+          "after": -1,
+          "on": "any",
+          "count": 0,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": [
         {
           "seat": "p1",
-          "post": "I claim boxes 1, 41, 44, 45, 47 and 48.",
+          "post": "p1 will open 1, 41, 44, 45, 47 and 48 next; posting them first per the rule. I will report each result after the open.",
           "tag": {}
         },
         {
@@ -72,12 +78,39 @@
         },
         {
           "seat": "p1",
-          "post": "I opened box 1 in room 1; it holds a flag. I opened boxes 41, 44, 45, 47 and 48 in room 5; they hold flags.",
-          "tag": {}
+          "post": "Update from p1: box1 room1 -> FLAG true, box41 room5 -> FLAG true, box44 room5 -> FLAG true, box45 room5 -> FLAG true, box47 room5 -> FLAG true, box48 room5 -> FLAG true. Rooms 1 and 5 are treasure. Post your results so we can split the remaining boxes without overlaps.",
+          "tag": {
+            "reports": [
+              [
+                1,
+                true
+              ],
+              [
+                41,
+                true
+              ],
+              [
+                44,
+                true
+              ],
+              [
+                45,
+                true
+              ],
+              [
+                47,
+                true
+              ],
+              [
+                48,
+                true
+              ]
+            ]
+          }
         },
         {
           "seat": "p3",
-          "post": "I claim boxes 2, 3 and 4.",
+          "post": "p3 will open 2, 3 and 4 next; posting them first per the rule. I will report each result after the open.",
           "tag": {}
         },
         {
@@ -94,12 +127,27 @@
         },
         {
           "seat": "p3",
-          "post": "I opened boxes 2, 3 and 4 in room 1; they hold flags.",
-          "tag": {}
+          "post": "Update from p3: box2 room1 -> FLAG true, box3 room1 -> FLAG true, box4 room1 -> FLAG true. Room 1 is treasure. Post your results so we can split the remaining boxes without overlaps.",
+          "tag": {
+            "reports": [
+              [
+                2,
+                true
+              ],
+              [
+                3,
+                true
+              ],
+              [
+                4,
+                true
+              ]
+            ]
+          }
         },
         {
           "seat": "p4",
-          "post": "I claim boxes 5 and 8.",
+          "post": "p4 claims boxes 5,8 (room 1). Please avoid them. Post your own claims before you open anything.",
           "tag": {}
         },
         {
@@ -112,12 +160,23 @@
         },
         {
           "seat": "p4",
-          "post": "I opened boxes 5 and 8 in room 1; they hold flags.",
-          "tag": {}
+          "post": "p4 result: box 5 (room 1) flag=true, box 8 (room 1) flag=true. Room 1 is treasure. I keep reporting each result here, please do the same so nobody opens a box twice.",
+          "tag": {
+            "reports": [
+              [
+                5,
+                true
+              ],
+              [
+                8,
+                true
+              ]
+            ]
+          }
         },
         {
           "seat": "p3",
-          "post": "I claim boxes 42, 49 and 50.",
+          "post": "p3 will open 42, 49 and 50 next; posting them first per the rule. I will report each result after the open.",
           "tag": {
             "claims": [
               42,
@@ -128,7 +187,7 @@
         },
         {
           "seat": "p4",
-          "post": "I claim boxes 7, 9 and 10.",
+          "post": "p4 claims boxes 7,9,10 (room 1). Please avoid them. Pick other boxes so we do not duplicate, and post them first.",
           "tag": {
             "claims": [
               7,

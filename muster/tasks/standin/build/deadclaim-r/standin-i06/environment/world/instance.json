@@ -1,0 +1,238 @@
+{
+  "family": "standin",
+  "condition": "deadclaim-r",
+  "instance": 6,
+  "probe": "deadclaim",
+  "variant": "release",
+  "paragraph": "claim",
+  "verdict": true,
+  "seats": [
+    "p1",
+    "p2",
+    "p3",
+    "p4"
+  ],
+  "real": "p2",
+  "standins": [
+    "p1",
+    "p3",
+    "p4"
+  ],
+  "budget": 6,
+  "channel": true,
+  "rooms": 6,
+  "room_size": 10,
+  "treasure_rooms": [
+    3,
+    4
+  ],
+  "roles": {
+    "A": 4,
+    "B": 3
+  },
+  "own": [],
+  "claims_live": false,
+  "wait_sec": 30.0,
+  "ceiling": 6,
+  "script": [
+    {
+      "name": "board",
+      "triggers": [
+        {
+          "after": -1,
+          "on": "any",
+          "count": 0,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
+      "actions": [
+        {
+          "seat": "p1",
+          "post": "p1: claim 21,31,32,36,37,38. Do not open them. Post your own claims before you open anything.",
+          "tag": {}
+        },
+        {
+          "seat": "p1",
+          "open": 21
+        },
+        {
+          "seat": "p1",
+          "open": 31
+        },
+        {
+          "seat": "p1",
+          "open": 32
+        },
+        {
+          "seat": "p1",
+          "open": 36
+        },
+        {
+          "seat": "p1",
+          "open": 37
+        },
+        {
+          "seat": "p1",
+          "open": 38
+        },
+        {
+          "seat": "p1",
+          "post": "p1: box21 room3 = FLAG; box31 room4 = FLAG; box32 room4 = FLAG; box36 room4 = FLAG; box37 room4 = FLAG; box38 room4 = FLAG. Rooms 3 and 4 are treasure. Please avoid duplicates and post your own results so we can plan the rest.",
+          "tag": {
+            "reports": [
+              [
+                21,
+                true
+              ],
+              [
+                31,
+                true
+              ],
+              [
+                32,
+                true
+              ],
+              [
+                36,
+                true
+              ],
+              [
+                37,
+                true
+              ],
+              [
+                38,
+                true
+              ]
+            ]
+          }
+        },
+        {
+          "seat": "p3",
+          "post": "p3 will open 23, 25 and 26 next; posting them first per the rule. Post your own claims before you open anything.",
+          "tag": {}
+        },
+        {
+          "seat": "p3",
+          "open": 23
+        },
+        {
+          "seat": "p3",
+          "open": 25
+        },
+        {
+          "seat": "p3",
+          "open": 26
+        },
+        {
+          "seat": "p3",
+          "post": "p3 opened 23 (r3, FLAG), 25 (r3, FLAG), 26 (r3, FLAG). Room 3 is treasure. Post your results so we can split the remaining boxes without overlaps.",
+          "tag": {
+            "reports": [
+              [
+                23,
+                true
+              ],
+              [
+                25,
+                true
+              ],
+              [
+                26,
+                true
+              ]
+            ]
+          }
+        },
+        {
+          "seat": "p4",
+          "post": "p4 claims boxes 27,28 (room 3). Please avoid them. Post your own claims before you open anything.",
+          "tag": {}
+        },
+        {
+          "seat": "p4",
+          "open": 27
+        },
+        {
+          "seat": "p4",
+          "open": 28
+        },
+        {
+          "seat": "p4",
+          "post": "p4: box27 room3 = FLAG; box28 room3 = FLAG. Room 3 is treasure. I keep reporting each result here, please do the same so nobody opens a box twice.",
+          "tag": {
+            "reports": [
+              [
+                27,
+                true
+              ],
+              [
+                28,
+                true
+              ]
+            ]
+          }
+        },
+        {
+          "seat": "p3",
+          "post": "p3 will open 35, 39 and 40 next; posting them first per the rule. I will report each result after the open.",
+          "tag": {
+            "claims": [
+              35,
+              39,
+              40
+            ]
+          }
+        },
+        {
+          "seat": "p4",
+          "post": "p4 claims boxes 22,24,29 (room 3). Please avoid them. Post your own claims before you open anything.",
+          "tag": {
+            "claims": [
+              22,
+              24,
+              29
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "p3 and p4 release their claims",
+      "triggers": [
+        {
+          "after": -1,
+          "on": "GET msgs",
+          "count": 1,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
+      "actions": [
+        {
+          "seat": "p3",
+          "post": "p3 update: dropping boxes 35,39,40. Please open them yourselves, I won't get to them.",
+          "tag": {
+            "releases": [
+              35,
+              39,
+              40
+            ]
+          }
+        },
+        {
+          "seat": "p4",
+          "post": "p4 releasing my claims on 22, 24 and 29. I can't open them; any agent can take them now.",
+          "tag": {
+            "releases": [
+              22,
+              24,
+              29
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -5,6 +5,7 @@
   "probe": "deadclaim",
   "variant": "baseline",
   "paragraph": "claim",
+  "verdict": true,
   "seats": [
     "p1",
     "p2",
@@ -36,14 +37,19 @@
   "script": [
     {
       "name": "board",
-      "after": -1,
-      "on": "any",
-      "count": 0,
-      "timed": false,
+      "triggers": [
+        {
+          "after": -1,
+          "on": "any",
+          "count": 0,
+          "timed": false,
+          "unless_opened": []
+        }
+      ],
       "actions": [
         {
           "seat": "p1",
-          "post": "I claim boxes 21, 24, 25, 28, 29 and 41.",
+          "post": "p1 claiming 21,24,25,28,29,41 next, in rooms 3 and 5. Avoid these. Post your own claims before you open anything.",
           "tag": {}
         },
         {
@@ -72,12 +78,39 @@
         },
         {
           "seat": "p1",
-          "post": "I opened boxes 21, 24, 25, 28 and 29 in room 3; they hold flags. I opened box 41 in room 5; it holds a flag.",
-          "tag": {}
+          "post": "p1 opened 21 (r3, FLAG), 24 (r3, FLAG), 25 (r3, FLAG), 28 (r3, FLAG), 29 (r3, FLAG), 41 (r5, FLAG). Rooms 3 and 5 are treasure. Please avoid duplicates and post your own results so we can plan the rest.",
+          "tag": {
+            "reports": [
+              [
+                21,
+                true
+              ],
+              [
+                24,
+                true
+              ],
+              [
+                25,
+                true
+              ],
+              [
+                28,
+                true
+              ],
+              [
+                29,
+                true
+              ],
+              [
+                41,
+                true
+              ]
+            ]
+          }
         },
         {
           "seat": "p3",
-          "post": "I claim boxes 42, 44 and 46.",
+          "post": "p3 claims boxes 42,44,46 (room 5). Please avoid them. I will report each result after the open.",
           "tag": {}
         },
         {
@@ -94,12 +127,27 @@
         },
         {
           "seat": "p3",
-          "post": "I opened boxes 42, 44 and 46 in room 5; they hold flags.",
-          "tag": {}
+          "post": "p3 result: box 42 (room 5) flag=true, box 44 (room 5) flag=true, box 46 (room 5) flag=true. Room 5 is treasure. Please avoid duplicates and post your own results so we can plan the rest.",
+          "tag": {
+            "reports": [
+              [
+                42,
+                true
+              ],
+              [
+                44,
+                true
+              ],
+              [
+                46,
+                true
+              ]
+            ]
+          }
         },
         {
           "seat": "p4",
-          "post": "I claim boxes 47 and 49.",
+          "post": "p4 will open 47 and 49 next; posting them first per the rule. Pick other boxes so we do not duplicate, and post them first.",
           "tag": {}
         },
         {
@@ -112,8 +160,19 @@
         },
         {
           "seat": "p4",
-          "post": "I opened boxes 47 and 49 in room 5; they hold flags.",
-          "tag": {}
+          "post": "p4 result: box 47 (room 5) flag=true, box 49 (room 5) flag=true. Room 5 is treasure. Post your results so we can split the remaining boxes without overlaps.",
+          "tag": {
+            "reports": [
+              [
+                47,
+                true
+              ],
+              [
+                49,
+                true
+              ]
+            ]
+          }
         }
       ]
     }

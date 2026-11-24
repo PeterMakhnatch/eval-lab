@@ -6,9 +6,9 @@ export UV_PYTHON=3.12
 
 uv sync --frozen
 uv run --no-sync ruff check .
-uvx ty@0.0.71 check src/ tidegauge/ muster/ --exclude 'muster/tasks/**' --output-format=concise
+uvx ty@0.0.71 check src/ tidegauge/ muster/ campaign/ --exclude 'muster/tasks/**' --output-format=concise
 uv run --no-sync python scripts/gates/sealed-search.py
-uv run --no-sync python -m compileall -q src scripts tools tidegauge muster
+uv run --no-sync python -m compileall -q src scripts tools tidegauge muster campaign
 uv run --no-sync evallab registry audit --json
 uv run --no-sync evallab tasks lint library/tasks
 uv run --no-sync evallab tasks lint library/external/terminal-bench-v3.0.0/tasks
@@ -17,6 +17,7 @@ uv run --no-sync python -m evallab.smoke --docker-free
 uv run --no-sync python -m evallab.sim check
 uv run --no-sync python -m tidegauge.sim check
 uv run --no-sync python -m muster.sim check
+uv run --no-sync python -m campaign.sim check
 for family in boxes ledger commons scarce crowd field crowdrules; do
   uv run --no-sync python "muster/tasks/$family/generate.py" --check
 done

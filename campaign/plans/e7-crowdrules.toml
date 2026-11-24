@@ -1,0 +1,135 @@
+schema = "campaign-plan/v1"
+id = "e7-crowdrules"
+output_root = "~/Developer/muster-runs/e7/scored"
+state_root = "~/Developer/muster-runs/e7/campaign-state"
+max_trials_at_once = 8
+
+[command]
+argv = [
+  "keys", "run", "--", "uv", "run", "--no-sync", "muster", "run", "{tasks}",
+  "--roster", "~/Developer/muster-runs/e5/rosters/t2-or-flash-deepinfra.json",
+  "--attempts", "{attempts}", "--concurrency", "{concurrency}", "--out", "{out}",
+]
+cwd = "~/Developer/eval-lab/.worktrees/fable-e5-run"
+env = { MUSTER_HARBOR = "{harbor}" }
+
+[harbor]
+program = "~/Developer/harbor-multiagent-muster/.venv/bin/harbor"
+run_args = [
+  "--env", "daytona", "--override-cpus", "2", "--override-memory-mb", "4096",
+  "--ek", "dind_snapshot=muster-dind-mirror-v1",
+]
+
+[money]
+provider = "openrouter"
+probe = [
+  "sh", "-c",
+  '''keys run -- sh -c 'curl -s -m 30 https://openrouter.ai/api/v1/credits -H "Authorization: Bearer $OPENROUTER_API_KEY"' | python3 -c 'import json,sys; d=json.load(sys.stdin)["data"]; print(round(d["total_credits"]-d["total_usage"],2))' ''',
+]
+probe_timeout_seconds = 60
+floor_usd = 1.00
+cap_usd = 12.00
+cap_roots = [
+  "~/Developer/muster-runs/e5/scored",
+  "~/Developer/muster-runs/e5/pilot",
+  "~/Developer/muster-runs/e5/route-pilot",
+  "~/Developer/muster-runs/e6/scored",
+  "~/Developer/muster-runs/e6/pilot",
+  "~/Developer/muster-runs/e7/scored",
+  "~/Developer/muster-runs/e7/pilot",
+]
+unknown_seat_usd = 0.02
+ledger = "~/Developer/muster-runs/e5/spend-ledger.jsonl"
+
+[watch]
+poll_seconds = 20
+max_arm_minutes = 90
+stop_grace_seconds = 30
+stop_file = "~/Developer/muster-runs/e7/STOP"
+no_reward_streak = 3
+
+[rerun]
+detector = ["python3", "~/Developer/muster-runs/stalled.py", "{arm_dir}"]
+detector_timeout_seconds = 300
+
+[[arms]]
+name = "solo-24"
+tasks = "~/Developer/muster-runs/e5/tasks/crowd/solo-24"
+attempts = 2
+reserve_usd = 0.05
+rerun_reserve_usd = 0.05
+expected_usd = 0.05
+
+[[arms]]
+name = "zones-8"
+tasks = "~/Developer/muster-runs/e7/tasks/crowdrules/zones-8"
+attempts = 2
+reserve_usd = 1.10
+rerun_reserve_usd = 0.50
+expected_usd = 0.60
+
+[[arms]]
+name = "chief-8"
+tasks = "~/Developer/muster-runs/e7/tasks/crowdrules/chief-8"
+attempts = 2
+reserve_usd = 1.10
+rerun_reserve_usd = 0.50
+expected_usd = 0.60
+
+[[arms]]
+name = "zones-4"
+tasks = "~/Developer/muster-runs/e7/tasks/crowdrules/zones-4"
+attempts = 2
+reserve_usd = 0.50
+rerun_reserve_usd = 0.25
+expected_usd = 0.35
+
+[[arms]]
+name = "chief-4"
+tasks = "~/Developer/muster-runs/e7/tasks/crowdrules/chief-4"
+attempts = 2
+reserve_usd = 0.50
+rerun_reserve_usd = 0.25
+expected_usd = 0.35
+
+[[arms]]
+name = "team-8"
+tasks = "~/Developer/muster-runs/e7/tasks/crowdrules/team-8"
+attempts = 2
+reserve_usd = 1.10
+rerun_reserve_usd = 0.50
+expected_usd = 0.60
+
+[[arms]]
+name = "share-8"
+tasks = "~/Developer/muster-runs/e7/tasks/crowdrules/share-8"
+attempts = 2
+reserve_usd = 1.10
+rerun_reserve_usd = 0.50
+expected_usd = 0.60
+
+[[arms]]
+name = "team-4"
+tasks = "~/Developer/muster-runs/e7/tasks/crowdrules/team-4"
+attempts = 2
+reserve_usd = 0.50
+rerun_reserve_usd = 0.25
+expected_usd = 0.35
+
+[[arms]]
+name = "share-4"
+tasks = "~/Developer/muster-runs/e7/tasks/crowdrules/share-4"
+attempts = 2
+reserve_usd = 0.50
+rerun_reserve_usd = 0.25
+expected_usd = 0.35
+
+[[lanes]]
+name = "a"
+concurrency = 4
+arms = ["solo-24", "zones-8", "chief-8", "zones-4", "chief-4"]
+
+[[lanes]]
+name = "b"
+concurrency = 4
+arms = ["team-8", "share-8", "team-4", "share-4"]

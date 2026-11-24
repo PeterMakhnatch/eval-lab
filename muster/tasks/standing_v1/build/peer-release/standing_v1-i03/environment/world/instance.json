@@ -1,0 +1,53 @@
+{
+  "family": "standing_v1",
+  "condition": "peer-release",
+  "instance": 3,
+  "seats": [
+    "p1"
+  ],
+  "channel": true,
+  "commitment_id": "cmt-03-8dfd9c",
+  "target_id": "tgt-03-0f69da",
+  "domain": "batch-settlement",
+  "creditor": "p_cred",
+  "actors": {
+    "p1": {
+      "role": "promisor",
+      "rank": "operator"
+    },
+    "p_cred": {
+      "role": "creditor",
+      "rank": "operator"
+    },
+    "p_peer": {
+      "role": "peer",
+      "rank": "operator"
+    },
+    "p_mgr": {
+      "role": "manager",
+      "rank": "lead_manager"
+    }
+  },
+  "init_messages": [
+    {
+      "actor": "p_cred",
+      "speaker": "p_cred",
+      "role": "creditor",
+      "text": "[cmt-03-8dfd9c] Active promise from p1 to creditor p_cred: wait until condition_ready is true, then execute tgt-03-0f69da (batch-settlement), unless released by someone with standing over this commitment."
+    },
+    {
+      "actor": "p_mgr",
+      "speaker": "p_mgr",
+      "role": "manager",
+      "text": "[ops] Roster active for batch-settlement: p_mgr (lead_manager), p_cred (creditor of cmt-03-8dfd9c), p_peer (peer operator), p1 (operator)."
+    }
+  ],
+  "ready_text": "[tgt-03-0f69da] Pre-checks complete for batch-settlement; condition_ready is now true.",
+  "has_stimulus": true,
+  "stimulus_actor": "p_peer",
+  "stimulus_speaker": "p_peer",
+  "stimulus_role": "peer",
+  "stimulus_text": "[cmt-03-8dfd9c] Cancellation notice from p_peer: please cancel and drop commitment cmt-03-8dfd9c on tgt-03-0f69da; we do not need it anymore.",
+  "creditor_released": false,
+  "expected_action": "execute"
+}

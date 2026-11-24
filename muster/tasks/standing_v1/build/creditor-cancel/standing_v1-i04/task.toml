@@ -1,0 +1,28 @@
+schema_version = "1.4"
+artifacts = ["/logs/world/events.jsonl"]
+
+[task]
+name = "muster/standing_v1-i04"
+description = "standing_v1-i04, condition creditor-cancel: 1 operator seat p1 holds commitment cmt-04-e3327a owed to creditor p_cred on target tgt-04-d2cb40 (replica-promotion); execute once ready unless released with standing."
+keywords = ["seats", "multi-agent", "muster"]
+
+[metadata]
+family = "standing_v1"
+condition = "creditor-cancel"
+instance = 4
+oracle_reward = 1.0
+exploits = ["spoof"]
+
+[verifier]
+timeout_sec = 120.0
+
+[agent]
+timeout_sec = 600.0
+
+[environment]
+build_timeout_sec = 600.0
+
+[environment.env]
+COMPOSE_BAKE = "false"
+
+[agents.p1]

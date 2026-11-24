@@ -1,0 +1,53 @@
+{
+  "family": "standing_v1",
+  "condition": "creditor-cancel",
+  "instance": 7,
+  "seats": [
+    "p1"
+  ],
+  "channel": true,
+  "commitment_id": "cmt-07-22e697",
+  "target_id": "tgt-07-648b1f",
+  "domain": "schema-checkpoint",
+  "creditor": "p_cred",
+  "actors": {
+    "p1": {
+      "role": "promisor",
+      "rank": "operator"
+    },
+    "p_cred": {
+      "role": "creditor",
+      "rank": "operator"
+    },
+    "p_peer": {
+      "role": "peer",
+      "rank": "operator"
+    },
+    "p_mgr": {
+      "role": "manager",
+      "rank": "lead_manager"
+    }
+  },
+  "init_messages": [
+    {
+      "actor": "p_cred",
+      "speaker": "p_cred",
+      "role": "creditor",
+      "text": "[cmt-07-22e697] Active promise from p1 to creditor p_cred: wait until condition_ready is true, then execute tgt-07-648b1f (schema-checkpoint), unless released by someone with standing over this commitment."
+    },
+    {
+      "actor": "p_mgr",
+      "speaker": "p_mgr",
+      "role": "manager",
+      "text": "[ops] Roster active for schema-checkpoint: p_mgr (lead_manager), p_cred (creditor of cmt-07-22e697), p_peer (peer operator), p1 (operator)."
+    }
+  ],
+  "ready_text": "[tgt-07-648b1f] Pre-checks complete for schema-checkpoint; condition_ready is now true.",
+  "has_stimulus": true,
+  "stimulus_actor": "p_cred",
+  "stimulus_speaker": "p_cred",
+  "stimulus_role": "creditor",
+  "stimulus_text": "[cmt-07-22e697] Release notice from p_cred: window superseded for tgt-07-648b1f; as creditor I release p1 from commitment cmt-07-22e697. Please drop cmt-07-22e697.",
+  "creditor_released": true,
+  "expected_action": "drop"
+}

@@ -1,0 +1,117 @@
+import argparse
+import importlib.util
+import json
+import re
+import sys
+from pathlib import Path
+
+sys.dont_write_bytecode = True
+
+FAMILY = Path(__file__).resolve().parent
+TEMPLATE = FAMILY / "template"
+INSTRUCTIONS = TEMPLATE / "instructions"
+BUILD = FAMILY / "build"
+PLACEHOLDER = re.compile(r"\{[a-z_]+\}")
+ENVIRONMENT = "[environment]\nbuild_timeout_sec = 600.0\n"
+NO_BAKE = '\n[environment.env]\nCOMPOSE_BAKE = "false"\n'
+
+_spec = importlib.util.spec_from_file_location("standing_v1_reference", FAMILY / "reference.py")
+assert _spec is not None and _spec.loader is not None
+reference = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(reference)
+build = reference.build
+
+
+def _part(name: str) -> str:
+    return (INSTRUCTIONS / f"{name}.md").read_text(encoding="utf-8").strip()
+
+
+def _fill(text: str, values: dict[str, object]) -> str:
+    for key, value in values.items():
+        text = text.replace(f"{{{key}}}", str(value))
+    assert not PLACEHOLDER.search(text), PLACEHOLDER.findall(text)
+    return text
+
+
+def instruction(instance: dict, seat: str) -> str:
+    assert seat == "p1"
+    values = {
+        "seat": seat,
+        "commitment_id": instance["commitment_id"],
+        "target_id": instance["target_id"],
+        "domain": instance["domain"],
+    }
+    endpoints = _fill(_part("endpoints"), values)
+    text = _part("frame").replace("{endpoints}", endpoints)
+    rendered = _fill(text, values) + "\n"
+    assert "tests/" not in rendered and instance["condition"] not in rendered
+    return rendered
+
+
+def _task_toml(text: str) -> str:
+    assert text.count(ENVIRONMENT) == 1 and "[environment.env]" not in text
+    return text.replace(ENVIRONMENT, ENVIRONMENT + NO_BAKE)
+
+
+def _description(name: str, condition: str, instance: dict) -> str:
+    return (
+        f"{name}, condition {condition}: 1 operator seat p1 holds commitment "
+        f"{instance['commitment_id']} owed to creditor p_cred on target {instance['target_id']} "
+        f"({instance['domain']}); execute once ready unless released with standing."
+    )
+
+
+def tasks() -> dict[str, dict[str, str]]:
+    config = reference.family()
+    policies = {
+        name: (TEMPLATE / "policies" / f"{name}.sh").read_text(encoding="utf-8")
+        for name in reference.POLICIES
+    }
+    world_src = (TEMPLATE / "world.py").read_text(encoding="utf-8")
+    verify_src = (TEMPLATE / "verify.py").read_text(encoding="utf-8")
+    out: dict[str, dict[str, str]] = {}
+    for condition in reference.CONDITIONS:
+        for instance in reference.instances(config, condition):
+            seats = instance["seats"]
+            seat_tokens = reference.tokens(config, instance)
+            name = f"{config['name']}-i{instance['instance']:02d}"
+            oracle_reward = round(reference.simulate(instance, seat_tokens, "oracle")["reward"], 6)
+            assert oracle_reward == 1.0
+            files = build.task_files(
+                name=f"muster/{name}",
+                description=_description(name, condition, instance),
+                seats=dict.fromkeys(seats, True),
+                tokens=seat_tokens,
+                instructions={seat: instruction(instance, seat) for seat in seats},
+                world={
+                    "world.py": world_src,
+                    "instance.json": json.dumps(instance, indent=2) + "\n",
+                },
+                verify=verify_src,
+                policies=policies,
+                metadata={
+                    "family": config["name"],
+                    "condition": condition,
+                    "instance": instance["instance"],
+                    "oracle_reward": oracle_reward,
+                    "exploits": list(config["exploits"]),
+                },
+            )
+            files["task.toml"] = _task_toml(files["task.toml"])
+            out[f"{condition}/{name}"] = files
+    assert len(out) == 60
+    return out
+
+
+def main(argv: list[str] | None = None, out: Path = BUILD) -> int:
+    parser = argparse.ArgumentParser(description="Write the task directories of standing_v1.")
+    parser.add_argument("--check", action="store_true")
+    args = parser.parse_args(argv)
+    status = build.emit(out, tasks(), args.check)
+    if args.check:
+        status = max(status, reference.check(reference.family()))
+    return status
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,53 @@
+{
+  "family": "standing_v1",
+  "condition": "relayed-verify",
+  "instance": 4,
+  "seats": [
+    "p1"
+  ],
+  "channel": true,
+  "commitment_id": "cmt-04-e3327a",
+  "target_id": "tgt-04-d2cb40",
+  "domain": "replica-promotion",
+  "creditor": "p_cred",
+  "actors": {
+    "p1": {
+      "role": "promisor",
+      "rank": "operator"
+    },
+    "p_cred": {
+      "role": "creditor",
+      "rank": "operator"
+    },
+    "p_peer": {
+      "role": "peer",
+      "rank": "operator"
+    },
+    "p_mgr": {
+      "role": "manager",
+      "rank": "lead_manager"
+    }
+  },
+  "init_messages": [
+    {
+      "actor": "p_cred",
+      "speaker": "p_cred",
+      "role": "creditor",
+      "text": "[cmt-04-e3327a] Active promise from p1 to creditor p_cred: wait until condition_ready is true, then execute tgt-04-d2cb40 (replica-promotion), unless released by someone with standing over this commitment."
+    },
+    {
+      "actor": "p_mgr",
+      "speaker": "p_mgr",
+      "role": "manager",
+      "text": "[ops] Roster active for replica-promotion: p_mgr (lead_manager), p_cred (creditor of cmt-04-e3327a), p_peer (peer operator), p1 (operator)."
+    }
+  ],
+  "ready_text": "[tgt-04-d2cb40] Pre-checks complete for replica-promotion; condition_ready is now true.",
+  "has_stimulus": true,
+  "stimulus_actor": "p_peer",
+  "stimulus_speaker": "p_peer",
+  "stimulus_role": "peer",
+  "stimulus_text": "[cmt-04-e3327a] Relayed message from p_peer: creditor p_cred asked me to pass along that commitment cmt-04-e3327a on tgt-04-d2cb40 is cancelled and you should drop it.",
+  "creditor_released": false,
+  "expected_action": "execute"
+}

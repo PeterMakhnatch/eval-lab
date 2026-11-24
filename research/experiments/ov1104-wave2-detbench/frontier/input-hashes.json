@@ -1,0 +1,47 @@
+{
+  "files": {
+    "/Users/petermakhnatch/Developer/eval-lab-results/line/replay-v1/baseline.json": "c47b9f8d7647afbf7269e902afec8f5907f46770e1c7d6c65c3d19e0ee66f928",
+    "/Users/petermakhnatch/Developer/eval-lab-results/line/replay-v1/batches/replay-v1-replay-f4ea98c6ccd94192a4f5ef19a29c521e/decisions.jsonl": "8d0665d2518e1f5a28441832bb7aa007a5fc9c169423811d2b7224263ab569ae",
+    "/Users/petermakhnatch/Developer/eval-lab-results/line/replay-v1/batches/replay-v1-replay-f4ea98c6ccd94192a4f5ef19a29c521e/export/dropped.jsonl": "45bfdf2655ea5140d39450a75a760fbb071eaf290030cf2a5730dd8ac40fde28",
+    "/Users/petermakhnatch/Developer/eval-lab-results/line/replay-v1/batches/replay-v1-replay-f4ea98c6ccd94192a4f5ef19a29c521e/export/kept.jsonl": "1bec4d3d59a85363e9ed43dfe523e0ca1a42a5da700fc0e52d645bfbe0278a8f",
+    "/Users/petermakhnatch/Developer/eval-lab-results/line/replay-v1/batches/replay-v1-replay-f4ea98c6ccd94192a4f5ef19a29c521e/export/review.jsonl": "608858823b8db4ed1798ad3dff1c7934c905819094d7c0a6fd5ff591681deff1",
+    "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-detbench/research/experiments/ov1104-detbench/score.py": "a19f60db1cd7a6a0036911f421f531770d992c3e5080322f98cd2c9825bdf576",
+    "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-wave2-detbench/research/experiments/ov1104-wave2-detbench/analyze.py": "f6e2fca14b9489f29a168adfe395dcef0dc9a811734aa24109b8aefb6156a00e",
+    "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-wave2-detbench/research/experiments/ov1104-wave2-detbench/exact_matrix.py": "4330768c424aa395e51dbfcafac0d0d574c6dbb71404e8b229c56175902c9503",
+    "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-wave2-detbench/research/experiments/ov1104-wave2-detbench/frontier/PROTOCOL.md": "9fb7d0352f4bfd7e2f8764862f278f2f146f4da1ef67cd776173d44a14b66574",
+    "/Users/petermakhnatch/Developer/eval-lab/.worktrees/ov1104-wave2-detbench/research/experiments/ov1104-wave2-detbench/frontier/frontier.py": "555d4fba16773cc7e64aa9de37d42ee7d27113941fe281ff0b15473eff7fbd58",
+    "/private/tmp/ov1104/detbench/matrix.json": "553ea89a3c84e19a6b07988d45a4fc967215bfd1179174ae1f6a186b6b480486",
+    "/private/tmp/ov1104/shared/detbench/runs.jsonl": "65d19eaad26bfd1b82b4ed91a16ed3a3f2da55dcc7460f942bc87e66acee56be",
+    "/private/tmp/ov1104/shared/detbench/signals/cached_facets_haiku_all.jsonl": "104798ec6e151891e7bce2b1ae8f5f6cbe38e1167003f1bb0d3b5c0b89a759cd",
+    "/private/tmp/ov1104/shared/detbench/signals/j2b_actions_task_diff_v2_flash.jsonl": "5f2c96790252ad33f1d5aa4056c2ecc9ea193d06918b2e0015b1ed034fba2938",
+    "/private/tmp/ov1104/shared/detbench/signals/l0v_full_l0_hard_gate_rule_hidden_info_read.jsonl": "18b568298f3854fb6c9249951270726b6245f5c5c89739d31c504530c23765d0",
+    "/private/tmp/ov1104/shared/detbench/signals/length_chars.jsonl": "75bcc657accb7a3469a34a57d106951e3ae8034a5cc35ea515d28f02fecb64d2",
+    "/private/tmp/ov1104/shared/detbench/signals/probe_qwen3_8b_run_mean_z.jsonl": "e3659111fff2b93aafb68f61a6702621dac044b3b01c18b845f6fa6a9e31787a"
+  },
+  "generated_at_utc": "2026-11-04T08:47:18+00:00",
+  "outputs": {
+    "frontier.json": "b7c5f7049dd061b33df5df2fa89694ef182e4b489dcb4db3582d71033e4fe4c0"
+  },
+  "post_check": {
+    "all_unchanged": true,
+    "post": {
+      "all_unchanged": true,
+      "checked_at_utc": "2026-11-04T08:47:18+00:00",
+      "n_files": 17,
+      "phase": "post-computation"
+    },
+    "post_write": {
+      "all_unchanged": true,
+      "checked_at_utc": "2026-11-04T08:47:18+00:00",
+      "n_files": 17,
+      "phase": "post-write"
+    },
+    "pre": {
+      "all_unchanged": true,
+      "checked_at_utc": "2026-11-04T08:47:17+00:00",
+      "n_files": 17,
+      "phase": "pre-computation"
+    }
+  },
+  "schema": "ov1104.x06.frontier.input-hashes/v1"
+}

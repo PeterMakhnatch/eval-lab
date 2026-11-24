@@ -1,0 +1,65 @@
+{
+  "accuse_budget": 3,
+  "channel": true,
+  "condition": "no-history-anchor",
+  "family": "trustcal_v1",
+  "final_probe": {
+    "answer": null,
+    "clue": "[DATA CORRUPTED / MISSING]",
+    "operand_a": null,
+    "operand_b": null,
+    "operator": null,
+    "solvable": false
+  },
+  "final_round": 6,
+  "instance": 9,
+  "peer_rounds": 1,
+  "round6_msgs": [
+    {
+      "from": "s_reliable",
+      "text": "[round 6] peer rounds complete; inspect /final_probe directly"
+    },
+    {
+      "from": "s_suspect",
+      "text": "[round 6] peer rounds complete; inspect /final_probe directly"
+    },
+    {
+      "from": "s_peer",
+      "text": "[round 6] peer rounds complete; inspect /final_probe directly"
+    }
+  ],
+  "rounds": [
+    {
+      "batch_id": "B-09-R1",
+      "peers": {
+        "s_peer": {
+          "audit_open": true,
+          "claimed_value": 84795,
+          "item": "shard_r1_per"
+        },
+        "s_reliable": {
+          "audit_open": true,
+          "claimed_value": 84795,
+          "item": "shard_r1_rel"
+        },
+        "s_suspect": {
+          "audit_open": true,
+          "claimed_value": 84795,
+          "item": "shard_r1_sus"
+        }
+      },
+      "round": 1,
+      "router_digest_mod97": 17,
+      "true_value": 84795
+    }
+  ],
+  "seats": [
+    "p1"
+  ],
+  "teammates": [
+    "s_reliable",
+    "s_suspect",
+    "s_peer"
+  ],
+  "verify_coins": 2
+}

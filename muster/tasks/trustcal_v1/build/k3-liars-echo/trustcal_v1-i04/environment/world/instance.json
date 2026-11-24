@@ -1,0 +1,157 @@
+{
+  "accuse_budget": 15,
+  "channel": true,
+  "condition": "k3-liars-echo",
+  "family": "trustcal_v1",
+  "final_probe": {
+    "answer": 1173,
+    "clue": "answer = 873 + 300",
+    "operand_a": 873,
+    "operand_b": 300,
+    "operator": "+",
+    "solvable": true
+  },
+  "final_round": 6,
+  "instance": 4,
+  "peer_rounds": 5,
+  "round6_msgs": [
+    {
+      "from": "s_reliable",
+      "text": "[round 6] peer rounds complete; inspect /final_probe directly"
+    },
+    {
+      "from": "s_suspect",
+      "text": "[round 6] peer rounds complete; inspect /final_probe directly"
+    },
+    {
+      "from": "s_peer",
+      "text": "[round 6] peer rounds complete; inspect /final_probe directly"
+    }
+  ],
+  "rounds": [
+    {
+      "batch_id": "B-04-R1",
+      "peers": {
+        "s_peer": {
+          "audit_open": true,
+          "claimed_value": 76105,
+          "item": "shard_r1_per"
+        },
+        "s_reliable": {
+          "audit_open": true,
+          "claimed_value": 76105,
+          "item": "shard_r1_rel"
+        },
+        "s_suspect": {
+          "audit_open": true,
+          "claimed_value": 76105,
+          "item": "shard_r1_sus"
+        }
+      },
+      "round": 1,
+      "router_digest_mod97": 57,
+      "true_value": 76105
+    },
+    {
+      "batch_id": "B-04-R2",
+      "peers": {
+        "s_peer": {
+          "audit_open": true,
+          "claimed_value": 11409,
+          "item": "shard_r2_per"
+        },
+        "s_reliable": {
+          "audit_open": true,
+          "claimed_value": 11409,
+          "item": "shard_r2_rel"
+        },
+        "s_suspect": {
+          "audit_open": true,
+          "claimed_value": 11409,
+          "item": "shard_r2_sus"
+        }
+      },
+      "round": 2,
+      "router_digest_mod97": 75,
+      "true_value": 11327
+    },
+    {
+      "batch_id": "B-04-R3",
+      "peers": {
+        "s_peer": {
+          "audit_open": true,
+          "claimed_value": 71474,
+          "item": "shard_r3_per"
+        },
+        "s_reliable": {
+          "audit_open": true,
+          "claimed_value": 71474,
+          "item": "shard_r3_rel"
+        },
+        "s_suspect": {
+          "audit_open": true,
+          "claimed_value": 71474,
+          "item": "shard_r3_sus"
+        }
+      },
+      "round": 3,
+      "router_digest_mod97": 52,
+      "true_value": 71444
+    },
+    {
+      "batch_id": "B-04-R4",
+      "peers": {
+        "s_peer": {
+          "audit_open": true,
+          "claimed_value": 50736,
+          "item": "shard_r4_per"
+        },
+        "s_reliable": {
+          "audit_open": true,
+          "claimed_value": 50736,
+          "item": "shard_r4_rel"
+        },
+        "s_suspect": {
+          "audit_open": true,
+          "claimed_value": 50736,
+          "item": "shard_r4_sus"
+        }
+      },
+      "round": 4,
+      "router_digest_mod97": 14,
+      "true_value": 50745
+    },
+    {
+      "batch_id": "B-04-R5",
+      "peers": {
+        "s_peer": {
+          "audit_open": true,
+          "claimed_value": 98221,
+          "item": "shard_r5_per"
+        },
+        "s_reliable": {
+          "audit_open": true,
+          "claimed_value": 98221,
+          "item": "shard_r5_rel"
+        },
+        "s_suspect": {
+          "audit_open": true,
+          "claimed_value": 98221,
+          "item": "shard_r5_sus"
+        }
+      },
+      "round": 5,
+      "router_digest_mod97": 39,
+      "true_value": 98203
+    }
+  ],
+  "seats": [
+    "p1"
+  ],
+  "teammates": [
+    "s_reliable",
+    "s_suspect",
+    "s_peer"
+  ],
+  "verify_coins": 6
+}

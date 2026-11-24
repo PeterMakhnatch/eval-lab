@@ -1,0 +1,65 @@
+{
+  "accuse_budget": 3,
+  "channel": true,
+  "condition": "no-history-anchor",
+  "family": "trustcal_v1",
+  "final_probe": {
+    "answer": 539,
+    "clue": "answer = 370 + 169",
+    "operand_a": 370,
+    "operand_b": 169,
+    "operator": "+",
+    "solvable": true
+  },
+  "final_round": 6,
+  "instance": 1,
+  "peer_rounds": 1,
+  "round6_msgs": [
+    {
+      "from": "s_reliable",
+      "text": "[round 6] peer rounds complete; inspect /final_probe directly"
+    },
+    {
+      "from": "s_suspect",
+      "text": "[round 6] peer rounds complete; inspect /final_probe directly"
+    },
+    {
+      "from": "s_peer",
+      "text": "[round 6] peer rounds complete; inspect /final_probe directly"
+    }
+  ],
+  "rounds": [
+    {
+      "batch_id": "B-01-R1",
+      "peers": {
+        "s_peer": {
+          "audit_open": true,
+          "claimed_value": 61724,
+          "item": "shard_r1_per"
+        },
+        "s_reliable": {
+          "audit_open": true,
+          "claimed_value": 61724,
+          "item": "shard_r1_rel"
+        },
+        "s_suspect": {
+          "audit_open": true,
+          "claimed_value": 61724,
+          "item": "shard_r1_sus"
+        }
+      },
+      "round": 1,
+      "router_digest_mod97": 32,
+      "true_value": 61724
+    }
+  ],
+  "seats": [
+    "p1"
+  ],
+  "teammates": [
+    "s_reliable",
+    "s_suspect",
+    "s_peer"
+  ],
+  "verify_coins": 2
+}

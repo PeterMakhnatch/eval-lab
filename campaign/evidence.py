@@ -151,27 +151,33 @@ def _agent_cost(result: Any) -> float | None:
     return cost if cost is not None and cost >= 0 else None
 
 
-def _counts_tokens(counters: Any) -> bool:
+def _count_tokens(counters: Any) -> float:
     if not isinstance(counters, dict):
-        return False
+        return 0.0
+    total = 0.0
     for field in TOKEN_FIELDS:
         count = _number(counters.get(field))
         if count is not None and count > 0:
-            return True
-    return False
+            total += count
+    return total
+
+
+def _token_count(result: Any) -> float:
+    agent = result.get("agent_result") if isinstance(result, dict) else None
+    if not isinstance(agent, dict):
+        return 0.0
+    direct = _count_tokens(agent)
+    if direct:
+        return direct
+    usage = agent.get("model_usage")
+    if not isinstance(usage, dict):
+        return 0.0
+    assert len(usage) <= MAX_TRIALS
+    return sum((_count_tokens(counters) for counters in usage.values()), 0.0)
 
 
 def _positive_tokens(result: Any) -> bool:
-    agent = result.get("agent_result") if isinstance(result, dict) else None
-    if not isinstance(agent, dict):
-        return False
-    if _counts_tokens(agent):
-        return True
-    usage = agent.get("model_usage")
-    if not isinstance(usage, dict):
-        return False
-    assert len(usage) <= MAX_TRIALS
-    return any(_counts_tokens(counters) for counters in usage.values())
+    return _token_count(result) > 0
 
 
 def _has_model_info(result: Any) -> bool:
@@ -189,6 +195,52 @@ def _seat_shows_model_use(seat: Any) -> bool:
 def _configured_model(agent: Any) -> bool:
     model = agent.get("model_name") if isinstance(agent, dict) else None
     return isinstance(model, str) and bool(model)
+
+
+def _model_name(result: dict[str, Any], configured: Any, free_models: frozenset[str]) -> str | None:
+    info = result.get("agent_info")
+    model = info.get("model_info") if isinstance(info, dict) else None
+    if isinstance(model, dict):
+        provider = model.get("provider")
+        for field in ("name", "model_name"):
+            name = model.get(field)
+            if isinstance(name, str) and name:
+                if name in free_models:
+                    return name
+                if (isinstance(provider, str) and _configured_model(configured)
+                        and configured["model_name"] == f"{provider}/{name}"):
+                    return configured["model_name"]
+                return name
+    return configured["model_name"] if _configured_model(configured) else None
+
+
+def _unpriced_model(result: dict[str, Any], tokens: float, configured: Any, free_models: frozenset[str]) -> str | None:
+    usage = result["agent_result"].get("model_usage")
+    if isinstance(usage, dict):
+        assert len(usage) <= MAX_TRIALS
+        named_tokens = 0.0
+        for name, counters in usage.items():
+            count = _count_tokens(counters)
+            if not count:
+                continue
+            if name not in free_models:
+                return name or _model_name(result, configured, free_models) or "an unnamed model"
+            named_tokens += count
+        if named_tokens >= tokens:
+            return None
+    name = _model_name(result, configured, free_models)
+    return None if name in free_models else name or "an unnamed model"
+
+
+def _zero_cost_problem(
+    result: dict[str, Any], tokens: float, configured: Any, free_models: frozenset[str],
+) -> str | None:
+    assert tokens > 0
+    name = _unpriced_model(result, tokens, configured, free_models)
+    if name is None:
+        return None
+    count = int(tokens) if tokens.is_integer() else tokens
+    return f"cost 0.0 with {count} tokens: no price for {name if name.isprintable() else repr(name)}?"
 
 
 def _entries(collection: list[Any] | dict[str, Any]) -> Iterator[tuple[str | None, Any]]:
@@ -220,6 +272,16 @@ def _absent_model_participants(participants: Any, seats: list[Any] | dict[str, A
     return absent
 
 
+def _participants_by_seat(participants: Any) -> dict[str, Any]:
+    configured: dict[str, Any] = {}
+    if isinstance(participants, list | dict):
+        for key, entry in _entries(participants):
+            name = _seat_name(entry) or key
+            if name and _configured_model(entry):
+                configured[name] = entry
+    return configured
+
+
 def _team_cost_unknown(result: dict[str, Any]) -> bool:
     if _raw_agent_cost(result) is not None or _has_model_info(result) or _positive_tokens(result):
         return True
@@ -240,7 +302,33 @@ def _unknown(totals: Counter[str], seats: int) -> None:
         totals["seats_without_cost"] += seats
 
 
-def _result_cost(path: Path, totals: Counter[str], problems: list[str], expected_seats: int) -> tuple[float, bool]:
+def _seat_costs(
+    path: Path, seats: list[Any] | dict[str, Any], participants: Any, problems: list[str], free_models: frozenset[str],
+) -> tuple[int, int, float]:
+    known, unknown, subtotal = 0, 0, 0.0
+    configured = None
+    for key, seat in _entries(seats):
+        cost = _agent_cost(seat)
+        if cost == 0 and (tokens := _token_count(seat)):
+            assert isinstance(seat, dict)
+            if configured is None:
+                configured = _participants_by_seat(participants)
+            problem = _zero_cost_problem(seat, tokens, configured.get(_seat_name(seat) or key or ""), free_models)
+            if problem is not None:
+                problems.append(f"{path}: {problem}")
+                unknown += 1
+                continue
+        if cost is not None:
+            known += 1
+            subtotal += cost
+        elif _seat_shows_model_use(seat):
+            unknown += 1
+    return known, unknown, subtotal
+
+
+def _result_cost(
+    path: Path, totals: Counter[str], problems: list[str], expected_seats: int, free_models: frozenset[str],
+) -> tuple[float, bool]:
     result = read_json(path)
     if not isinstance(result, dict):
         if "__" in path.parent.name and path.exists():
@@ -256,19 +344,19 @@ def _result_cost(path: Path, totals: Counter[str], problems: list[str], expected
     participants = config.get("participants") if isinstance(config, dict) else None
     configured = len(participants) if isinstance(participants, list | dict) else 0
     if not isinstance(seats, list | dict) or not seats:
+        if team == 0 and (tokens := _token_count(result)):
+            agent = config.get("agent") if isinstance(config, dict) else None
+            problem = _zero_cost_problem(result, tokens, agent, free_models)
+            if problem is not None:
+                problems.append(f"{path}: {problem}")
+                _unknown(totals, expected_seats)
+                return 0.0, True
         if team is not None:
             return team, True
         _unknown(totals, expected_seats if _team_cost_unknown(result) else 0)
         return 0.0, True
     totals["seats"] += len(seats)
-    known, unknown, subtotal = 0, 0, 0.0
-    for _, seat in _entries(seats):
-        cost = _agent_cost(seat)
-        if cost is not None:
-            known += 1
-            subtotal += cost
-        elif _seat_shows_model_use(seat):
-            unknown += 1
+    known, unknown, subtotal = _seat_costs(path, seats, participants, problems, free_models)
     _unknown(totals, unknown + _absent_model_participants(participants, seats))
     missing = max(len(seats), configured) - known
     if team is None:
@@ -301,6 +389,7 @@ def distinct_roots(roots: tuple[Path, ...] | list[Path]) -> list[Path]:
 
 def scan_cost(
     roots: tuple[Path, ...] | list[Path], walk: Walk = _os_walk, *, expected_seats: int = 1,
+    free_models: frozenset[str] = frozenset(),
 ) -> Cost:
     assert expected_seats >= 1
     totals: Counter[str] = Counter()
@@ -314,7 +403,9 @@ def scan_cost(
             dirnames.sort()
             if "result.json" not in filenames:
                 continue
-            amount, is_trial_result = _result_cost(Path(dirpath) / "result.json", totals, problems, expected_seats)
+            amount, is_trial_result = _result_cost(
+                Path(dirpath) / "result.json", totals, problems, expected_seats, free_models,
+            )
             recorded += amount
             if is_trial_result:
                 dirnames[:] = []

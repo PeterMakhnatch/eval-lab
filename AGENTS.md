@@ -42,6 +42,7 @@ On demand:
   Set `money.key_env` to `OPENROUTER_KEY_<LANE>`, start `command.argv` and `money.probe` with `keys run --`, and read `OPENROUTER_API_KEY` in the account probe; the runner builds the required limit probe and refuses `money.key_limit_probe` in a keyed plan. The shim sets the arm's initial environment; it does not isolate the key store from code that runs as the same user.
   `campaign spend ROOTS.toml` contacts no provider by default; add `--probe-keys` to read OpenRouter counters for the `key_env` names in the roots file. Its trials without a cost record split into "No model (scripted or never ran)" and "Model use without a cost record" by the cap rule in `campaign/evidence.py`.
   Cap scans count missing costs only for seats with evidence of model use or absent participants with configured models, and use `money.expected_seats` (default 1) when a result without seats has no numeric cost and shows model use or gives no agent information; pass probe credentials through standard input, not command arguments.
+  Cap scans also reserve for a zero cost with positive tokens unless the model name matches an exact entry in `money.free_models`.
 
 ## Execution and spend
 

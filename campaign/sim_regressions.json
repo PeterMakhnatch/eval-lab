@@ -103,5 +103,12 @@
     "invariant": "keyenv-spend-shared-no-lane-remainder",
     "detail": "per-lane rows show cost, but no provider figures or remainder",
     "known": false
+  },
+  {
+    "seed": 1124009,
+    "step": "cost/result-shapes",
+    "invariant": "cap-zero-with-tokens-needs-price",
+    "detail": "zero-seat-tokens",
+    "known": false
   }
 ]

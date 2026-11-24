@@ -445,6 +445,7 @@ class Runner:
         try:
             actual = evidence.scan_cost(
                 [folder] if folder.exists() else [], self.system.walk, expected_seats=self.plan.expected_seats,
+                free_models=self.plan.free_models,
             ).record()
         except OSError as error:
             actual = {"error": f"cannot read {folder}: {error}"}
@@ -514,6 +515,7 @@ class Runner:
             cost = evidence.scan_cost(
                 [root for root in self.plan.cap_roots if root.is_dir()], self.system.walk,
                 expected_seats=self.plan.expected_seats,
+                free_models=self.plan.free_models,
             )
         except OSError as error:
             raise Stop("cap-root", f"cannot read the cap roots: {error}") from error

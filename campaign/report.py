@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import re
 import shlex
@@ -189,6 +190,7 @@ def check(plan: Plan, now: datetime, funds: tuple[Funds | None, str]) -> tuple[l
         f"money: floor ${plan.floor_usd:.2f}, cap ${plan.cap_usd:.2f} (each unknown seat counts "
         f"${plan.unknown_seat_usd:.4f}; {plan.expected_seats} seats if the trial has no seat count), "
         f"ledger {plan.ledger}, provider {plan.provider}",
+        f"money.free_models: {json.dumps(sorted(plan.free_models))}",
         f"cap roots: {' '.join(str(root) for root in plan.cap_roots)}",
         *_foreign_lines(plan, problems, now),
         *_funds_lines(plan, funds, problems),
@@ -242,7 +244,7 @@ def arm_status(plan: Plan, name: str, state: dict[str, ledger.ArmLedger]) -> dic
         unmeasured["not-started"] = planned - main["started"]
     merged = _merge_counts([main, *reruns.values()])
     cost = evidence.scan_cost([folder for folder in [plan.output_root / name, *folders] if folder.is_dir()],
-                              expected_seats=plan.expected_seats)
+                              expected_seats=plan.expected_seats, free_models=plan.free_models)
     outs = [name, *reruns]
     return {
         "arm": name, "lane": plan.lane_of(name).name, "pilot": arm.pilot, "planned": planned,
@@ -264,7 +266,7 @@ def status(plan: Plan) -> dict[str, Any]:
         state = ledger.state(plan.ledger, plan.id)
         arms = [arm_status(plan, name, state) for lane in plan.lanes for name in lane.arms]
         cost = evidence.scan_cost([root for root in plan.cap_roots if root.is_dir()],
-                                  expected_seats=plan.expected_seats)
+                                  expected_seats=plan.expected_seats, free_models=plan.free_models)
     except (ledger.LedgerError, OSError) as error:
         raise PlanError(str(error)) from error
     missing = [str(root) for root in plan.cap_roots if not root.is_dir() and root != plan.output_root]

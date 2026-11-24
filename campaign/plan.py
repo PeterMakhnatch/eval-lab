@@ -25,6 +25,7 @@ RERUN_TAG = ".r1-m"
 MIN_STOP_GRACE_SECONDS = 180
 MAX_BALANCE_USD = 100_000.0
 DEFAULT_FOREIGN_WINDOW_HOURS = 6.0
+MAX_FREE_MODELS = 32
 DIRECT_COMMANDS = frozenset(("uv", "muster", "python", "python3"))
 KEYENV_SCRIPT = Path(keyenv.__file__).resolve()
 KEYPROBE_SCRIPT = KEYENV_SCRIPT.with_name("keyprobe.py")
@@ -75,6 +76,7 @@ class Plan:
     cap_roots: tuple[Path, ...]
     unknown_seat_usd: float
     expected_seats: int
+    free_models: frozenset[str]
     ledger: Path
     foreign_reserve_window_hours: float
     poll_seconds: float
@@ -292,10 +294,22 @@ def _harbor(data: Any) -> tuple[Path, tuple[str, ...]]:
     return _path(table, "program", "harbor"), tuple(run_args)
 
 
+def _free_models(value: Any) -> frozenset[str]:
+    if not isinstance(value, list) or len(value) > MAX_FREE_MODELS:
+        raise PlanError(f"money.free_models must be a list of at most {MAX_FREE_MODELS} model names")
+    for name in value:
+        if not isinstance(name, str) or not name or name != name.strip() or not name.isprintable():
+            raise PlanError("money.free_models names must be non-empty printable strings without outer spaces")
+    models = frozenset(value)
+    if len(models) != len(value):
+        raise PlanError("money.free_models must not repeat a model name")
+    return models
+
+
 def _money(data: Any) -> dict[str, Any]:
     required = {"provider", "probe", "probe_timeout_seconds", "floor_usd", "cap_usd", "cap_roots",
                 "unknown_seat_usd", "ledger"}
-    optional = {"foreign_reserve_window_hours", "key_limit_probe", "expected_seats", "key_env"}
+    optional = {"foreign_reserve_window_hours", "key_limit_probe", "expected_seats", "free_models", "key_env"}
     table = _keys(data, "money", required, optional)
     key_env = table.get("key_env")
     if "key_env" in table and not keyenv.valid_name(key_env):
@@ -316,6 +330,7 @@ def _money(data: Any) -> dict[str, Any]:
         "cap_roots": tuple(_path_value(root, "money.cap_roots") for root in roots),
         "unknown_seat_usd": _number(table, "unknown_seat_usd", "money", 0.0001, 1_000),
         "expected_seats": _int(table, "expected_seats", "money", 1, 4096) if "expected_seats" in table else 1,
+        "free_models": _free_models(table.get("free_models", [])),
         "ledger": _path(table, "ledger", "money"),
         "foreign_reserve_window_hours": (
             _number(table, "foreign_reserve_window_hours", "money", 0.1, 720)

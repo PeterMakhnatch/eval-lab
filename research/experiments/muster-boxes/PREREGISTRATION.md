@@ -466,3 +466,23 @@ block, and `analysis/crowd_rules.py` for obedience)
   With 10 instances, a difference of about 10 to 13 points has 80% power at 0.05 / 3. The expected gain of
   `chief-8` (11 points) is near that size, so "not resolved" is a likely result for it.
 - The 30-turn cap counts reads. A rule that makes seats wait (`chief`, `zones`) can end a seat with opens left.
+
+## Amendment 10a (9:26 PM ET, 2026-11-23, before any scored E7 trial): a model call that does not return
+
+Written after E6 ended and while the 3 pilot trials of E7 run. No scored E7 trial exists. The pilot results
+are not known.
+
+- OBSERVED in E6: the first 8 trials of `team-8` started together at 00:08:02Z. 14 of their 64 seats made 2
+  to 4 steps, got no model response after 00:08:55Z to 00:09:00Z, and ended at the 600 s limit with
+  `AgentTimeoutError`. 6 trials have such a seat. No other E6 arm and no E5 arm has one. This is a fault of the
+  model route, not a behaviour of the team.
+- Rule for E7: a seat is "stalled" when it ends with `AgentTimeoutError` and its trajectory has no step in the
+  last 300 s of the agent phase (`muster-runs/stalled.py`, sha256 `3dffc70332e44489`). A terminus-2 command
+  cannot be silent that long, so the seat was waiting for a model response.
+- A trial with a stalled seat is unmeasured. It runs again once, in `<arm>.r1`, after the lanes end, like a
+  trial that failed before a model call. The report gives the count for each arm. Every contrast is also
+  reported with the stalled trials counted with their rewards.
+- A seat that reaches the 600 s limit while it still makes steps is not stalled. Its trial counts.
+- E6 does not change: its trials count as Amendment 8 says. The E6 report names the 6 trials and gives the
+  primary tests without them as a check after the result.
+- Nothing else changes.

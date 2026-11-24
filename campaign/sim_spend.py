@@ -52,8 +52,12 @@ MUTATIONS = {
     "copy-twice": "spend-copy-once",
     "add-fallback": "spend-fallback-not-added",
     "missing-zero": "spend-unknown-not-zero",
+    "unknown-all": "spend-scripted-not-unknown",
 }
 LANES = ("calls", "seats", "settle")
+SHAPES = ("scripted", "never-ran", "absent", "tokens", "team-cost", "no-way", "scripted-team")
+TRACE_TOKENS = {"trajectory.total_prompt_tokens": 1000, "trajectory.total_completion_tokens": 100,
+                "trajectory.total_cached_tokens": 0}
 LIST_PRICE = "token-list-price"
 REPORTED = "provider-reported"
 DELTA = "shared-key-delta"
@@ -99,7 +103,9 @@ class TrialSpec:
 @dataclass
 class Truth:
     charges: list[Charge] = field(default_factory=list)
-    trials: list[tuple[datetime, bool, bool]] = field(default_factory=list)
+    trials: list[tuple[datetime, str, bool, str]] = field(default_factory=list)
+    details: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    tokens: dict[tuple[str, str], dict[str, int]] = field(default_factory=dict)
     calls: list[tuple[datetime, bool]] = field(default_factory=list)
     settles: list[tuple[datetime, int]] = field(default_factory=list)
     distractors: dict[str, tuple[Decimal, ...]] = field(default_factory=dict)
@@ -228,6 +234,10 @@ class Fixture:
         start = _harbor_time(spec.time - timedelta(minutes=20), self.rng)
         finish = _harbor_time(spec.time, self.rng)
         seats = [self._seat_record(seat, start, finish) for seat in spec.seats]
+        for seat, record in zip(spec.seats, seats, strict=True):
+            counts = {f"result.{name}": count for name, count in (record["agent_result"] or {}).items()
+                      if name.startswith("n_")}
+            self.truth.tokens[spec.name, seat.name] = counts | (TRACE_TOKENS if seat.trace else {})
         first = spec.seats[0]
         body: dict[str, Any] = {
             "schema_version": 1, "id": spec.ident, "task_name": "sim-task", "trial_name": spec.name,
@@ -266,17 +276,70 @@ class Fixture:
         return specs
 
     def _record_trial(self, spec: TrialSpec, bucket: str) -> None:
-        known = False
+        missing = []
         for seat in spec.seats:
             usd = seat.result if seat.result is not None else seat.trajectory
             if usd is not None:
-                known = True
                 self.truth.charges.append(Charge(bucket, _route(seat.provider, seat.model), LIST_PRICE, usd, spec.time))
-        self.truth.trials.append((spec.time, known, bucket == "duplicates"))
+            else:
+                missing.append({"seat": seat.name if spec.multi else None, "route": _route(seat.provider, seat.model),
+                                "model": seat.model, "tokens": self.truth.tokens[spec.name, seat.name]})
+        known = len(missing) < len(spec.seats)
+        self.truth.trials.append((spec.time, "known" if known else "model-use", bucket == "duplicates", spec.name))
+        if not known:
+            self.truth.details[spec.name] = missing
         if bucket == "seats":
             extra = tuple(s.trajectory for s in spec.seats if s.result is not None and s.trajectory is not None)
             self.truth.distractors[spec.ident] = extra
             self.truth.distractors[spec.name] = extra
+
+    def _shaped(self, folder: Path, shape: str) -> None:
+        when, usd, name = self.when(), self.usd(), f"sim-task__s-{shape}"
+        start, finish = _harbor_time(when - timedelta(minutes=20), self.rng), _harbor_time(when, self.rng)
+        kind, fields, details = self._shape(shape, {"started_at": start, "finished_at": finish}, usd)
+        body: dict[str, Any] = {
+            "schema_version": 1, "id": self.ident(), "task_name": "sim-task", "trial_name": name, "source": None,
+            "config": {"agent": {}}, "agent_info": None, "agent_result": None, "exception_info": None,
+            "started_at": start, "finished_at": finish, "verifier_result": {"rewards": {"reward": 0.0}},
+        }
+        self.put(folder / name / "result.json", json.dumps(body | fields))
+        if kind == "known":
+            self.truth.charges.append(Charge("seats", "direct", LIST_PRICE, usd, when))
+        self.truth.trials.append((when, kind, False, name))
+        if kind == "model-use":
+            self.truth.details[name] = details
+
+    def _shape(self, shape: str, ran: dict[str, str], usd: Decimal) -> tuple[str, dict[str, Any], list[dict[str, Any]]]:
+        tokens = {"n_input_tokens": self.rng.randrange(1, 9000), "n_cache_tokens": 0,
+                  "n_output_tokens": self.rng.randrange(1, 900)}
+        zero = dict.fromkeys(tokens, 0)
+        oracle = {"name": "oracle", "version": "1", "model_info": None}
+        model = {"name": "terminus-2", "version": "1", "model_info": {"name": OR_MODEL, "provider": "openrouter"}}
+        scripted = {"seat": "p1", "agent_info": oracle, "agent_result": zero, "agent_execution": ran}
+        idle = {"seat": "p2", "agent_info": model, "agent_result": None, "agent_execution": None}
+        roster = [{"seat": "p1", "name": "oracle", "model_name": None},
+                  {"seat": "p2", "name": "terminus-2", "model_name": OR_MODEL, "model_api_key_name": "OPENROUTER_API_KEY"}]
+        unnamed = {"seat": None, "route": "unknown", "model": None}
+        if shape == "scripted":
+            return "no-model", {"seat_results": [scripted, scripted | {"seat": "p2"}],
+                                "config": {"agent": {"name": "oracle"}, "participants": roster[:1]}}, []
+        if shape == "never-ran":
+            return "no-model", {"seat_results": [scripted, idle], "config": {"agent": {}, "participants": roster}}, []
+        if shape == "absent":
+            return "model-use", {"seat_results": [scripted], "config": {"agent": {}, "participants": roster}}, [
+                {"seat": "p2", "route": "openrouter", "model": OR_MODEL, "tokens": {}}]
+        if shape == "tokens":
+            return "model-use", {"agent_info": {"name": "terminus-2", "version": "1"}, "agent_result": tokens,
+                                 "config": {"agent": {"name": "terminus-2"}}}, [
+                unnamed | {"tokens": {f"result.{key}": value for key, value in tokens.items()}}]
+        if shape == "team-cost":
+            info = {"name": "terminus-2", "version": "1", "model_info": {"name": DIRECT_MODEL, "provider": "deepseek"}}
+            return "known", {"agent_info": info, "agent_result": tokens | {"cost_usd": float(usd)},
+                             "config": {"agent": {"name": "terminus-2", "model_name": DIRECT_MODEL}}}, []
+        if shape == "no-way":
+            return "model-use", {}, [unnamed | {"tokens": {}}]
+        assert shape == "scripted-team", shape
+        return "no-model", {"agent_info": oracle, "agent_result": zero, "config": {"agent": {"name": "oracle"}}}, []
 
     def _harbor(self) -> None:
         seats, copies = self.path("seats"), self.path("copies")
@@ -292,6 +355,8 @@ class Fixture:
                          (Seat("agent", OR_MODEL, "openrouter", self.usd(), None, False),), False)
         self.write_trial(seats / "job-1" / "fixtures" / fake.name, fake)
         self.write_trial(seats / "job-1" / "scratch-t9", replace(fake, ident=self.ident(), name="sim-task__t9"))
+        for shape in SHAPES:
+            self._shaped(seats / "job-1", shape)
         self.put(seats / "job-1" / "result.json", json.dumps({
             "id": self.ident(), "schema_version": 1, "started_at": _harbor_time(INSTANTS[1], self.rng),
             "finished_at": _harbor_time(INSTANTS[2], self.rng), "updated_at": None, "n_total_trials": len(specs),
@@ -416,8 +481,8 @@ def _check_lanes(run: Checks, fixture: Fixture, result: dict[str, Any], window: 
         run.check(got == want, "spend-lane-sum", f"{lane}: {_shown(got)}; want {_shown(want)}")
         run.check(DELTA not in {source for _, source in got}, "spend-delta-not-added", f"{lane} has a delta source")
     seats = lanes.get("seats", {})
-    owned = [(t, known) for t, known, dup in fixture.truth.trials if not dup and _inside(t, window)]
-    copies = [t for t, _, dup in fixture.truth.trials if dup and _inside(t, window)]
+    owned = [(t, kind) for t, kind, dup, _ in fixture.truth.trials if not dup and _inside(t, window)]
+    copies = [t for t, _, dup, _ in fixture.truth.trials if dup and _inside(t, window)]
     duplicates = result["duplicates"]
     want_dup = _money([c for c in fixture.truth.charges if c.bucket == "duplicates" and _inside(c.time, window)])
     run.check(seats.get("trials") == len(owned) and duplicates["trials"] == len(copies)
@@ -430,12 +495,52 @@ def _check_lanes(run: Checks, fixture: Fixture, result: dict[str, Any], window: 
     run.check(got_total == want_total, "spend-fallback-not-added",
               f"seats total {format(got_total, 'f')}, want {format(want_total, 'f')} "
               "(a trajectory total is a fallback, never a second charge)")
-    unknown = sum(not known for _, known in owned)
-    share = unknown / len(owned) if owned else None
-    run.check(seats.get("unknown_trials") == unknown and seats.get("unknown_share") == share,
-              "spend-unknown-not-zero",
-              f"unknown trials {seats.get('unknown_trials')} share {seats.get('unknown_share')}; want {unknown} {share}")
+    _check_unknown(run, fixture, result, window)
     _check_counts(run, fixture, lanes, duplicates, window)
+
+
+def _split(rows: list[tuple[datetime, str, bool, str]], dup: bool, window: Window) -> dict[str, set[str]]:
+    kinds: dict[str, set[str]] = {"known": set(), "no-model": set(), "model-use": set()}
+    for time, kind, copied, name in rows:
+        if copied == dup and _inside(time, window):
+            kinds[kind].add(name)
+    return kinds
+
+
+def _seat_view(seats: list[dict[str, Any]]) -> list[tuple[str, str, str, str]]:
+    return sorted((str(s["seat"]), str(s["route"]), str(s["model"]), json.dumps(s["tokens"], sort_keys=True))
+                  for s in seats)
+
+
+def _check_unknown(run: Checks, fixture: Fixture, result: dict[str, Any], window: Window) -> None:
+    seats, duplicates = _rows(result, "lanes").get("seats", {}), result["duplicates"]
+    owned, copies = _split(fixture.truth.trials, False, window), _split(fixture.truth.trials, True, window)
+    lanes = _rows(result, "lanes").values()
+    totals = all(result[key] == sum(row[key] for row in lanes)
+                 for key in ("trials", "no_model_trials", "model_use_without_cost_trials"))
+    for label, row, kinds in (("seats", seats, owned), ("duplicates", duplicates, copies)):
+        old = len(kinds["no-model"]) + len(kinds["model-use"])
+        got = (row.get("no_model_trials"), row.get("model_use_without_cost_trials"))
+        run.check(got[0] is not None and got[1] is not None and got[0] + got[1] == old and totals,
+                  "spend-unknown-not-zero", f"{label}: no model {got[0]} + model use {got[1]}; want sum {old}")
+    groups = {lane["lane"]: lane for lane in result["model_use_without_cost"]}
+    records = {Path(record["path"]).name: record for record in groups.get("seats", {}).get("records", [])}
+    leaked = sorted(owned["no-model"] & set(records))
+    run.check(not leaked and seats.get("no_model_trials") == len(owned["no-model"]), "spend-scripted-not-unknown",
+              f"no-model trials listed as unknown {leaked}; no model {seats.get('no_model_trials')} "
+              f"want {len(owned['no-model'])}")
+    lost = sorted(owned["model-use"] - set(records))
+    run.check(not lost and seats.get("model_use_without_cost_trials") == len(records), "spend-model-not-scripted",
+              f"model-use trials missing from the list {lost}; count {seats.get('model_use_without_cost_trials')} "
+              f"listed {len(records)}")
+    wrong = sorted(name for name in owned["model-use"] & set(records)
+                   if _seat_view(records[name]["seats"]) != _seat_view(fixture.truth.details[name]))
+    run.check(not wrong and set(groups) <= {"seats"}, "spend-missing-details",
+              f"seat, model or token counts differ for {wrong}; lanes {sorted(groups)}")
+    shown = spend.text(result)
+    run.check("Model use without a cost record" in shown and all(
+        f"{lane}: {group['trials']} trials" in shown for lane, group in groups.items()), "spend-text-unknown",
+        f"lanes {sorted(groups)}")
 
 
 def _check_counts(run: Checks, fixture: Fixture, lanes: dict[str, dict[str, Any]], duplicates: dict[str, Any],
@@ -597,6 +702,10 @@ def inject(name: str | None, distractors: dict[str, tuple[Decimal, ...]]) -> Ite
     assert name is None or name in MUTATIONS
     if name is None:
         yield
+        return
+    if name == "unknown-all":
+        with _swapped(spend, "_model_use", lambda uses: True):
+            yield
         return
     if name == "copy-twice":
         add_trial = spend.Summary.add_trial

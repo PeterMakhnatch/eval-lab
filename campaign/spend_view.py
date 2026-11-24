@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 from campaign.spend_types import ROUTES
 
 ET = ZoneInfo('America/New_York')
+MAX_EXAMPLES = 5
 
 
 def _usd(value: str) -> str:
@@ -32,25 +33,49 @@ def _et(stamp: str | None) -> str:
     return datetime.fromisoformat(stamp).astimezone(ET).isoformat()
 
 
-def _unknown(count: int, share: float | None) -> str:
+def _share(count: int, share: float | None) -> str:
     return '-' if share is None else f'{count} ({share:.2%})'
 
 
 def _lanes(result: dict[str, Any]) -> list[str]:
     rows = [
         [row['lane'], *_routes(row), str(row['trials']), str(row['calls']), str(row['settlements']),
-         str(row['settled_trials']), _unknown(row['unknown_trials'], row['unknown_share']),
+         str(row['settled_trials']), str(row['no_model_trials']) if row['trials'] else '-',
+         _share(row['model_use_without_cost_trials'], row['model_use_without_cost_share']),
          _et(row['first']), _et(row['last'])]
         for row in result['lanes']
     ]
     return _table(('Lane', 'OpenRouter USD', 'Direct USD', 'Unknown route USD', 'Trials', 'Calls',
-                   'Settlements', 'Settled trial count', 'Unknown trial cost', 'First ET', 'Last ET'), rows)
+                   'Settlements', 'Settled trial count', 'No model (scripted or never ran)',
+                   'Model use without a cost record', 'First ET', 'Last ET'), rows)
+
+
+def _tokens(tokens: dict[str, int]) -> str:
+    return ', '.join(f'{name} {count}' for name, count in sorted(tokens.items())) or '-'
+
+
+def _missing(result: dict[str, Any]) -> list[str]:
+    lanes = result['model_use_without_cost']
+    if not lanes:
+        return ['', 'Model use without a cost record: none.']
+    lines = [
+        '', 'Model use without a cost record (no price applied; token counts are as recorded):',
+        *_table(('Lane', 'Route', 'Model', 'Seats', 'Seats with token counts', 'Token counts'),
+                [[lane['lane'], row['route'], row['model'] or '-', str(row['seats']), str(row['seats_with_tokens']),
+                  _tokens(row['tokens'])] for lane in lanes for row in lane['models']]),
+    ]
+    for lane in lanes:
+        lines.append(f"{lane['lane']}: {lane['trials']} trials; first {MAX_EXAMPLES} paths in sort order:")
+        lines.extend(f"  {row['path']}" for row in lane['records'][:MAX_EXAMPLES])
+    return lines
 
 
 def _details(result: dict[str, Any]) -> list[str]:
     duplicate = result['duplicates']
     lines = [
-        '', f"Trials without a cost record: {_unknown(result['unknown_trials'], result['unknown_share'])}",
+        '', f"Trials with model use and no cost record: "
+        f"{_share(result['model_use_without_cost_trials'], result['model_use_without_cost_share'])}. "
+        f"Trials with no model (scripted or never ran): {result['no_model_trials']}.",
         f"Duplicates removed: {duplicate['trials']} trials; {duplicate['calls']} calls; "
         f"{duplicate['settlements']} settlements. Discarded records by route and source:",
         *_table(('OpenRouter USD', 'Direct USD', 'Unknown route USD'), [_routes(duplicate)]),
@@ -73,6 +98,8 @@ def _reconciliation(result: dict[str, Any]) -> list[str]:
         'Assumptions: UTC calendar day, Monday-start UTC week, UTC calendar month, and cumulative key usage.',
         'Recorded amounts use the supplied roots and date filter. Only the OpenRouter route counts.',
         'The route does not prove which API key paid. Remainder = provider counter minus recorded USD.',
+        f"{result['model_use_without_cost_trials']} trials in the filter show model use without a cost record; "
+        'the remainder can include their cost.',
         *_table(
             ('Window', 'Start UTC', 'Provider-reported counter', 'Recorded USD', 'Recorded by source', 'Remainder USD'),
             [[row['window'], row['start'] or '-', _usd(row['counter_usd']), _usd(row['recorded_usd']),
@@ -107,7 +134,9 @@ def text(result: dict[str, Any]) -> str:
         f"Record filter: since {result['since'] or 'unbounded'} (inclusive), "
         f"until {result['until'] or 'unbounded'} (exclusive), at UTC midnight.",
         'Harbor dates use seat finish time when available, then trial finish or start. Times without an offset use UTC.',
-        'A dash means no record, not zero. Unknown trial cost means no seat has a cost record in the filter.',
+        'A dash means no record, not zero. Trial counts use only trials with no cost record in the filter: '
+        '"No model" trials have scripted seats or model seats that never ran and cost $0; '
+        '"Model use without a cost record" trials show model use (the cap rule) and their cost is unknown.',
         'USD is split by source: provider-reported, token-list-price, and shared-key-delta.',
         'Only the top-model ranking and reconciliation combine provider-reported and token-list-price costs.',
         '', *_lanes(result),
@@ -124,7 +153,7 @@ def text(result: dict[str, Any]) -> str:
         '', 'Top 25 models by combined recorded USD:',
         *_table(('Model', 'Combined USD', 'OpenRouter USD', 'Direct USD', 'Unknown route USD'),
                 [[row['model'], _usd(row['recorded_usd']), *_routes(row)] for row in result['top_models']]),
-        *_details(result), *_reconciliation(result),
+        *_missing(result), *_details(result), *_reconciliation(result),
         *(_key_reconciliation(result['key_reconciliation']) if 'key_reconciliation' in result else []),
         '', f"Input problems: {len(result['problems'])}",
         *(f'problem: {problem}' for problem in result['problems']),

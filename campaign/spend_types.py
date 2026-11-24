@@ -68,10 +68,22 @@ class Entry:
 
 
 @dataclass(frozen=True)
+class MissingUse:
+    time: datetime
+    seat: str | None
+    route: str
+    model: str | None
+    reason: str
+    tokens: tuple[tuple[str, int], ...]
+
+
+@dataclass(frozen=True)
 class Trial:
     identity: tuple[str, datetime]
     time: datetime
     entries: tuple[Entry, ...]
+    path: Path
+    missing_use: tuple[MissingUse, ...]
 
 
 @dataclass(frozen=True)
@@ -122,9 +134,13 @@ def model_route(model: object, provider: object) -> tuple[str, str]:
     return ('unknown' if namespace in ('?', 'unknown') else 'direct'), name
 
 
-def problem(root: Root, path: Path, reason: str, line: int | None = None) -> str:
+def shown_path(path: Path) -> str:
     shown = TOKEN.sub('[redacted]', str(path))
-    shown = ''.join(char if char.isprintable() else '?' for char in shown)[:500]
+    return ''.join(char if char.isprintable() else '?' for char in shown)[:500]
+
+
+def problem(root: Root, path: Path, reason: str, line: int | None = None) -> str:
+    shown = shown_path(path)
     location = f'{shown}:{line}' if line is not None else shown
     return f'{safe(root.label)}: {location}: {reason}'
 

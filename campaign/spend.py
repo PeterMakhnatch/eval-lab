@@ -11,7 +11,17 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from campaign import keyenv, spend_harbor, spend_keys, spend_ledgers
-from campaign.spend_types import KINDS, ROUTES, SOURCES, Entry, Root, Trial, safe
+from campaign.spend_types import (
+    KINDS,
+    ROUTES,
+    SOURCES,
+    Entry,
+    MissingUse,
+    Root,
+    Trial,
+    safe,
+    shown_path,
+)
 from campaign.spend_view import text as text
 
 MAX_ROOT_BYTES = 1_000_000
@@ -151,7 +161,8 @@ class Lane:
     calls: int = 0
     settlements: int = 0
     settled_trials: int = 0
-    unknown_trials: int = 0
+    no_model_trials: int = 0
+    model_use_trials: int = 0
     first: datetime | None = None
     last: datetime | None = None
 
@@ -164,11 +175,50 @@ class Lane:
         return {
             'lane': label, 'routes': self.spend.routes(), 'trials': self.trials, 'calls': self.calls,
             'settlements': self.settlements, 'settled_trials': self.settled_trials,
-            'unknown_trials': self.unknown_trials,
-            'unknown_share': self.unknown_trials / self.trials if self.trials else None,
+            'no_model_trials': self.no_model_trials,
+            'model_use_without_cost_trials': self.model_use_trials,
+            'model_use_without_cost_share': self.model_use_trials / self.trials if self.trials else None,
             'first': self.first.isoformat() if self.first else None,
             'last': self.last.isoformat() if self.last else None,
         }
+
+
+def _model_use(uses: tuple[MissingUse, ...]) -> bool:
+    return bool(uses)
+
+
+def _missing_row(label: str, trial: Trial, uses: tuple[MissingUse, ...]) -> dict[str, Any]:
+    return {
+        'lane': label, 'path': shown_path(trial.path), 'time': trial.time.isoformat(),
+        'seats': [{'seat': use.seat, 'route': use.route, 'model': use.model, 'reason': use.reason,
+                   'tokens': dict(use.tokens)} for use in uses],
+    }
+
+
+def _missing_models(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    models: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in rows:
+        for seat in row['seats']:
+            item = models.setdefault((seat['route'], seat['model'] or ''), {
+                'route': seat['route'], 'model': seat['model'], 'seats': 0, 'seats_with_tokens': 0, 'tokens': {},
+            })
+            item['seats'] += 1
+            item['seats_with_tokens'] += bool(seat['tokens'])
+            for name, count in seat['tokens'].items():
+                item['tokens'][name] = item['tokens'].get(name, 0) + count
+    return [models[key] for key in sorted(models)]
+
+
+def _missing_lanes(missing: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    lanes: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in missing:
+        lanes[row['lane']].append(row)
+    found: list[dict[str, Any]] = []
+    for lane, rows in sorted(lanes.items()):
+        rows.sort(key=lambda row: (row['path'], row['time']))
+        found.append({'lane': lane, 'trials': len(rows), 'models': _missing_models(rows), 'records': rows})
+    assert sum(item['trials'] for item in found) == len(missing)
+    return found
 
 
 class Summary:
@@ -186,6 +236,7 @@ class Summary:
         self.models: dict[str, Spend] = defaultdict(Spend)
         self.duplicates = Lane()
         self.excluded: list[dict[str, Any]] = []
+        self.missing: list[dict[str, Any]] = []
 
     def contains(self, stamp: datetime) -> bool:
         return (self.lower is None or self.lower <= stamp) and (self.upper is None or stamp < self.upper)
@@ -214,7 +265,13 @@ class Summary:
         lane = self.duplicates if duplicate else self.lanes[label]
         lane.trials += 1
         if not any(entry.usd is not None for entry in entries):
-            lane.unknown_trials += 1
+            uses = tuple(use for use in trial.missing_use if self.contains(use.time))
+            if _model_use(uses):
+                lane.model_use_trials += 1
+                if not duplicate:
+                    self.missing.append(_missing_row(label, trial, uses))
+            else:
+                lane.no_model_trials += 1
         for entry in entries:
             if duplicate:
                 lane.add(entry)
@@ -240,9 +297,14 @@ class Summary:
     def result(self, problems: list[str], usage: tuple[Decimal, Decimal, Decimal, Decimal] | None) -> dict[str, Any]:
         lanes = [lane.row(label) for label, lane in sorted(self.lanes.items())]
         trials = sum(lane['trials'] for lane in lanes)
-        unknown = sum(lane['unknown_trials'] for lane in lanes)
+        no_model = sum(lane['no_model_trials'] for lane in lanes)
+        unknown = sum(lane['model_use_without_cost_trials'] for lane in lanes)
+        assert unknown == len(self.missing)
         return {
-            'lanes': lanes, 'trials': trials, 'unknown_trials': unknown, 'unknown_share': unknown / trials if trials else None,
+            'lanes': lanes, 'trials': trials, 'no_model_trials': no_model,
+            'model_use_without_cost_trials': unknown,
+            'model_use_without_cost_share': unknown / trials if trials else None,
+            'model_use_without_cost': _missing_lanes(self.missing),
             'total': {'routes': self.total.routes()},
             'days': {
                 zone: [{'date': day, 'lane': lane, 'model': model, 'routes': spend.routes()}

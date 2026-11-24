@@ -9,10 +9,12 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+from campaign import evidence
 from campaign.spend_types import (
     ROUTES,
     SOURCES,
     Entry,
+    MissingUse,
     Root,
     Trial,
     amount,
@@ -20,6 +22,7 @@ from campaign.spend_types import (
     mapping,
     model_route,
     problem,
+    safe,
     stamp,
 )
 
@@ -30,6 +33,9 @@ DEFAULT_SOURCE = "token-list-price"
 OPENROUTER = "openrouter"
 OPENROUTER_KEY = "OPENROUTER_API_KEY"
 TRIAL_PARTS = frozenset({"agent", "seats", "steps"})
+TRAJECTORY_TOKENS = ("total_prompt_tokens", "total_cached_tokens", "total_completion_tokens")
+MAX_TOKENS = 10**15
+Tokens = tuple[tuple[str, int], ...]
 
 
 @dataclass(frozen=True)
@@ -127,8 +133,92 @@ def _trial(at: Located, record: dict[str, Any]) -> Trial | None:
         if any(context.result.get("cost_usd") is not None for context in contexts):
             at.flag("trial with cost but without started_at or finished_at")
         return None
-    entries = tuple(_entry(at, context, moment) for context in contexts)
-    return Trial((name, started or moment), moment, entries)
+    built = [_entry(at, context, moment) for context in contexts]
+    entries = tuple(entry for entry, _ in built)
+    missing = _missing_use(at, record, contexts, built, moment)
+    return Trial((name, started or moment), moment, entries, at.path.parent, missing)
+
+
+def _missing_use(at: Located, record: dict[str, Any], contexts: list[Context],
+                 built: list[tuple[Entry, Tokens]], moment: datetime) -> tuple[MissingUse, ...]:
+    assert len(contexts) == len(built) and built
+    seats = record.get("seat_results")
+    if not seats:
+        entry, traced = built[0]
+        if any(found.usd is not None for found, _ in built) or not evidence._team_cost_unknown(record):
+            return ()
+        tokens = _result_tokens(mapping(record.get("agent_result"))) + traced
+        return (MissingUse(moment, None, entry.route, _model(entry), _team_reason(record), tokens),)
+    assert isinstance(seats, list) and len(seats) == len(built)
+    found = [
+        MissingUse(entry.time, _seat_label(seat.get("seat")), entry.route, _model(entry), _seat_reason(seat),
+                   _result_tokens(context.result) + traced)
+        for seat, context, (entry, traced) in zip(seats, contexts, built, strict=True)
+        if entry.usd is None and evidence._seat_shows_model_use(seat)
+    ]
+    config = mapping(record.get("config"))
+    participants = config.get("participants")
+    for participant in participants if isinstance(participants, list) else []:
+        if evidence._absent_model_participants([participant], seats):
+            agent = mapping(participant)
+            name = _text(agent.get("model_name"))
+            context = Context({}, {}, agent, mapping(config.get("agent")), {}, None)
+            route, label = model_route(_prefixed(at.root, name), _provider(at.root, context, name))
+            found.append(MissingUse(moment, _seat_label(agent.get("seat")), route, None if label == "?" else label,
+                                    "configured model without a seat result", ()))
+    assert len(found) <= 2 * MAX_CONTEXTS
+    return tuple(found)
+
+
+def _model(entry: Entry) -> str | None:
+    return None if entry.model == "?" else entry.model
+
+
+def _seat_label(value: Any) -> str | None:
+    return None if _text(value) is None else safe(value)
+
+
+def _seat_reason(seat: dict[str, Any]) -> str:
+    assert evidence._seat_shows_model_use(seat)
+    if evidence._raw_agent_cost(seat) is not None:
+        return "cost_usd is not a valid amount"
+    if evidence._positive_tokens(seat):
+        return "positive token count"
+    return "model info on a seat that ran"
+
+
+def _team_reason(record: dict[str, Any]) -> str:
+    assert evidence._team_cost_unknown(record)
+    if evidence._raw_agent_cost(record) is not None:
+        return "cost_usd is not a valid amount"
+    if evidence._has_model_info(record):
+        return "model info"
+    if evidence._positive_tokens(record):
+        return "positive token count"
+    if evidence._configured_model(mapping(record.get("config")).get("agent")):
+        return "configured model"
+    return "no agent information"
+
+
+def _count(value: Any) -> int | None:
+    return value if type(value) is int and 0 <= value < MAX_TOKENS else None
+
+
+def _counted(prefix: str, counters: dict[str, Any], names: tuple[str, ...]) -> Tokens:
+    found = ((name, _count(counters.get(name))) for name in names)
+    return tuple((f"{prefix}.{name}", count) for name, count in found if count is not None)
+
+
+def _result_tokens(result: dict[str, Any]) -> Tokens:
+    found = _counted("result", result, evidence.TOKEN_FIELDS)
+    usage = result.get("model_usage")
+    if not isinstance(usage, dict) or not usage or len(usage) > MAX_CONTEXTS:
+        return found
+    sums: dict[str, int] = {}
+    for counters in usage.values():
+        for name, count in _counted("model_usage", mapping(counters), evidence.TOKEN_FIELDS):
+            sums[name] = sums.get(name, 0) + count
+    return found + tuple(sums.items())
 
 
 def _contexts(at: Located, record: dict[str, Any]) -> list[Context] | None:
@@ -206,7 +296,7 @@ def _step_contexts(
     return found
 
 
-def _entry(at: Located, context: Context, moment: datetime) -> Entry:
+def _entry(at: Located, context: Context, moment: datetime) -> tuple[Entry, Tokens]:
     source = at.root.cost_source or DEFAULT_SOURCE
     raw = context.result.get("cost_usd")
     usd = amount(raw)
@@ -215,14 +305,15 @@ def _entry(at: Located, context: Context, moment: datetime) -> Entry:
     channel = "result"
     model = (_text(context.model_info.get("name")) or _text(context.model_info.get("model_name"))
              or _text(context.agent.get("model_name")))
+    traced: Tokens = ()
     if raw is None and context.trajectory is not None:
-        usd, named = _trajectory(at, context.trajectory)
+        usd, named, traced = _trajectory(at, context.trajectory)
         channel = "trajectory" if usd is not None else channel
         model = model or named
     executed = _time(at, context.execution.get("finished_at"), "malformed seat finished_at")
     route, label = model_route(_prefixed(at.root, model), _provider(at.root, context, model))
     assert route in ROUTES, route
-    return Entry(executed or moment, route, label, usd, source, channel)
+    return Entry(executed or moment, route, label, usd, source, channel), traced
 
 
 def _provider(root: Root, context: Context, model: str | None) -> str | None:
@@ -239,17 +330,18 @@ def _provider(root: Root, context: Context, model: str | None) -> str | None:
     return OPENROUTER if key == OPENROUTER_KEY else None
 
 
-def _trajectory(at: Located, path: Path) -> tuple[Decimal | None, str | None]:
+def _trajectory(at: Located, path: Path) -> tuple[Decimal | None, str | None, Tokens]:
     found = Located(at.root, path, at.problems)
     data = _load(found, MAX_TRAJECTORY_BYTES, optional=True)
     if data is None:
-        return None, None
+        return None, None, ()
     named = _text(mapping(data.get("agent")).get("model_name"))
-    raw = mapping(data.get("final_metrics")).get("total_cost_usd")
+    metrics = mapping(data.get("final_metrics"))
+    raw = metrics.get("total_cost_usd")
     usd = amount(raw)
     if raw is not None and usd is None:
         found.flag("malformed final_metrics.total_cost_usd")
-    return usd, named
+    return usd, named, _counted("trajectory", metrics, TRAJECTORY_TOKENS)
 
 
 def _prefixed(root: Root, model: str | None) -> str | None:

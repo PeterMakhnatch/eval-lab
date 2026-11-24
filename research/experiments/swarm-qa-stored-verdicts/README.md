@@ -147,11 +147,11 @@ Both Flash calls flag 2/75 TR-A controls. Each flags 2 more alone. Both clear 69
 |---|---|
 | TR | `~/Developer/trace-review/evals/{split,scores,v2-scores,policy,v2-policy}.json` and `ablations/2026-11-15-field-order/{scores,dry-run}.json` under that folder |
 | DT1 | `~/.local/state/evallab-prod-live/run-atlas/comparisons/{cm20-deepseek,cm19}/` and `~/Developer/research-context/bridge/2026-10-29-ds-squad/raw/DT-1/receipts/` |
-| DT1 Opus receipt | `~/Developer/eval-lab/.worktrees/fable-map/research/evidence/runs/cm19-opus-windows-20261028/results/result.json` |
+| DT1 Opus receipt | `research/evidence/runs/cm19-opus-windows-20261028/results/result.json` in this repository (the reader takes it from the primary checkout `~/Developer/eval-lab`) |
 | RA | `~/.local/state/evallab-prod-live/run-atlas/comparisons/ra6-readers/` |
 | MIX | `~/Developer/eval-lab-results/2026-10-24/cross-model-swarm-bench/` |
-| Label methods | `research/experiments/{ev1110-gold-grow/RESULT.md,ev1105-goodfire/README.md}`, `research/answer-keys/cheatbench-actions-v1/README.md`, and `src/evallab/gold/seed.py` in the `fable-map` worktree |
-| Worker and audit | `/tmp/fable-day/swarmqa/report.md`; `/tmp/fable-day/swarmqa-audit/{report.md,recount.txt}` |
+| Label methods | `research/experiments/{ev1110-gold-grow/RESULT.md,ev1105-goodfire/README.md}`, `research/answer-keys/cheatbench-actions-v1/README.md`, and `src/evallab/gold/seed.py` in this repository |
+| Worker and audit | `~/Developer/muster-runs/day-2026-11-24/swarm-qa/report.md` and `audit/{auditor-report.md,recount.txt}` in that folder |
 
 Run from the study worktree. The reader does not write to the inputs. The output lists the SHA-256 of each input file. Missing files produce a problem list and a nonzero exit.
 

@@ -13,7 +13,7 @@ ATLAS = '.local/state/evallab-prod-live/run-atlas/comparisons'
 DEEP = f'{ATLAS}/cm20-deepseek'
 OPUS = f'{ATLAS}/cm19'
 DT_RECEIPTS = 'Developer/research-context/bridge/2026-10-29-ds-squad/raw/DT-1/receipts'
-OPUS_RESULT = ('Developer/eval-lab/.worktrees/fable-map/research/evidence/runs/'
+OPUS_RESULT = ('Developer/eval-lab/research/evidence/runs/'
                'cm19-opus-windows-20261028/results/result.json')
 RA = f'{ATLAS}/ra6-readers'
 MIX = 'Developer/eval-lab-results/2026-10-24/cross-model-swarm-bench'

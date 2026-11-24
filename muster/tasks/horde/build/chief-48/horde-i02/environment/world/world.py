@@ -11,6 +11,7 @@ class Horde(World):
     def __init__(self, instance: dict, tokens: dict[str, str] | None = None, events: Path | None = None):
         super().__init__(tokens, events)
         assert sorted(instance["seats"]) == self.seats
+        assert all(seat[:1] == "p" and seat[1:].isdigit() for seat in self.seats)
         assert instance["rooms"] > 0 and instance["room_size"] > 0 and instance["budget"] > 0
         assert set(instance["treasure_rooms"]) <= set(range(1, instance["rooms"] + 1))
         self.channel = instance["channel"]
@@ -19,6 +20,21 @@ class Horde(World):
         self.boxes = instance["rooms"] * instance["room_size"]
         self.treasure_rooms = set(instance["treasure_rooms"])
         self.opened: dict[str, list[dict]] = {seat: [] for seat in self.seats}
+        self.cursor: dict[str, int] = dict.fromkeys(self.seats, 0)
+
+    def get_rules(self, seat: str) -> dict:
+        rules = super().get_rules(seat)
+        ordered = sorted(self.seats, key=lambda name: int(name[1:]))
+        assert sorted(rules["seats"]) == sorted(ordered)
+        return {**rules, "seats": ordered}
+
+    def get_new(self, seat: str) -> dict:
+        if not self.channel:
+            raise Reject(404, "this world has no message channel")
+        start = self.cursor[seat]
+        assert 0 <= start <= len(self.messages)
+        self.cursor[seat] = len(self.messages)
+        return {"messages": self.messages[start:]}
 
     def post_open(self, seat: str, body: dict) -> dict:
         box = body.get("box")

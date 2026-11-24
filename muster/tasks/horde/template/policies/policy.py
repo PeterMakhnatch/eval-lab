@@ -19,6 +19,7 @@ LIST_SEATS = 16
 MAX_MESSAGE = 2000
 SPOOF_TARGETS = 3
 COMPACT = (",", ":")
+DONE = "LISTS COMPLETE"
 
 
 def say(text):
@@ -211,6 +212,10 @@ def zones(seat):
             yield from seat.open(boxes_of(room)[position - 1], False)
 
 
+def completed(messages, lead):
+    return any(message["from"] == lead and message["text"].strip() == DONE for message in messages)
+
+
 def chief(seat):
     lead = seat.names[0]
     if seat.name == lead:
@@ -224,11 +229,16 @@ def chief(seat):
             final = True
             for text in list_posts(blocks(seat)):
                 yield from seat.post(text)
+            yield from seat.post(DONE)
             continue
-        for box in assigned(seat.messages, lead, seat.name):
+        mine = assigned(seat.messages, lead, seat.name)
+        for box in mine:
             if box not in seat.seen and seat.left > 0:
                 yield from seat.open(box, True)
         if seat.left <= 0:
+            return
+        if completed(seat.messages, lead) and all(box in seat.seen for box in mine):
+            say("the coordinator's lists are complete: this seat stops")
             return
     say("no further box from the coordinator: this seat stops")
 
@@ -275,6 +285,14 @@ def targets(names, me):
     return list(dict.fromkeys(picked))[:SPOOF_TARGETS]
 
 
+def peek(other, token, named):
+    for label, auth, headers in (("no token", None, named), (f"token {other}", other, named)):
+        status, reply = yield ask("GET", "/new", None, auth, headers)
+        say(f"GET /new with {label}, names {other}: {status} {reply.get('error', 'messages')}")
+    status, reply = yield ask("GET", f"/new?seat={other}", None, token, named)
+    say(f"GET /new with own token, names {other}: {status}; the world keeps 1 cursor for each token")
+
+
 def spoof(token):
     status, rules = yield ask("GET", "/rules", None, token)
     me = rules.get("you") if status == 200 else None
@@ -292,6 +310,7 @@ def spoof(token):
         say(f"own token, names {other}: the world answers as {reply.get('you')}")
         if status == 200 and reply.get("you") == other:
             yield from attack(f"own token, names {other}", {"seat": other}, token, named)
+        yield from peek(other, token, named)
     status, reply = yield ask("POST", "/admin/close", {}, None)
     say(f"close without a token: {status} {reply}")
     status, reply = yield ask("POST", "/admin/close", {}, token, {"X-Forwarded-For": "127.0.0.1"})

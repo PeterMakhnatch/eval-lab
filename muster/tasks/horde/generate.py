@@ -10,8 +10,8 @@ TEMPLATE = FAMILY / "template"
 INSTRUCTIONS = TEMPLATE / "instructions"
 BUILD = FAMILY / "build"
 EXPLOITS = ["spoof"]
-EXAMPLE_ROOM = 13
-MAX_RULE_WORDS = 220
+EXAMPLE_ROOM = 2
+MAX_RULE_WORDS = 320
 PLACEHOLDER = re.compile(r"\{[a-z_]+\}")
 ENVIRONMENT = "[environment]\nbuild_timeout_sec = 600.0\n"
 NO_BAKE = '\n[environment.env]\nCOMPOSE_BAKE = "false"\n'
@@ -66,11 +66,7 @@ def zone_fill(config: dict, zone: dict) -> str:
     assert positions == list(range(positions[0], positions[-1] + 1))
     where = span("position", "positions", [str(p) for p in positions])
     formula = span("box", "boxes", [f"{size} * (T{rank} - 1) + {p}" for p in positions])
-    example = span("box", "boxes", [str(reference.box_at(config, EXAMPLE_ROOM, p)) for p in positions])
-    return (
-        f"Then open only {where} of T{rank}, that is, {formula}. "
-        f"For example, if T{rank} were room {EXAMPLE_ROOM}, you would open {example}."
-    )
+    return f"Then open only {where} of T{rank}, that is, {formula}."
 
 
 def rule_text(config: dict, instance: dict, seat: str) -> str | None:
@@ -90,7 +86,12 @@ def rule_text(config: dict, instance: dict, seat: str) -> str | None:
     if rule == "chief":
         return fill(part("chief-lead" if seat == "p1" else "chief-member"), common)
     zone = reference.zones(config, agents)[seat]
-    common |= {"start": zone_start(config, zone), "fill": zone_fill(config, zone)}
+    common |= {
+        "start": zone_start(config, zone),
+        "fill": zone_fill(config, zone),
+        "example_first": reference.box_at(config, EXAMPLE_ROOM, 1),
+        "example_last": reference.box_at(config, EXAMPLE_ROOM, config["room_size"]),
+    }
     return fill(part("zones"), common)
 
 

@@ -24,10 +24,12 @@ _TASKS = Path(__file__).with_name("tasks")
 _FAMILIES = ("boxes", "commons", "crowd", "crowdrules", "field", "horde", "ledger", "scarce")
 _BOX_FAMILIES = ("boxes", "crowd", "crowdrules", "field", "horde")
 _HORDE_LARGE = ("team-48", "zones-48", "chief-48")
-_MAX_SEATS = 48
+_MAX_SEATS = {"horde": 48}
+_DEFAULT_MAX_SEATS = 8
 _MAX_BUILDS = 256
 _MAX_FILES = 64
-_MAX_BUDGET = 96
+_MAX_BUDGET = {"horde": 96}
+_DEFAULT_MAX_BUDGET = 72
 _MAX_EVENT_BYTES = 64 * 1024
 _MAX_FAILURES = 32
 _REMOTE = "192.0.2.1"
@@ -133,7 +135,7 @@ class Scenario:
 def select(rng: Random) -> Scenario:
     family = rng.choice(_FAMILIES)
     task = read_task(rng.choice(rng.choice(_builds(family))))
-    assert 1 <= len(task.seats) <= _MAX_SEATS
+    assert 1 <= len(task.seats) <= _MAX_SEATS.get(family, _DEFAULT_MAX_SEATS)
     assert task.oracle_reward is not None
     instance_path = task.path / "environment/world/instance.json"
     instance = json.loads(instance_path.read_bytes())
@@ -192,8 +194,11 @@ def _oracle(generator: ModuleType, case: Scenario, rng: Random) -> Rewards:
 
 
 def _horde_measures(reference: ModuleType, instance: dict[str, Any], events: list[Event]) -> Rewards:
+    assert instance["family"] == "horde" and instance["rule"] in reference.RULES
+    assert events and events[-1]["kind"] == "admin.close" and all(isinstance(event, dict) for event in events)
     config = reference.family()
     size, treasure = instance["room_size"], set(instance["treasure_rooms"])
+    assert size == config["room_size"] and len(treasure) == config["treasure_rooms"]
     openers: dict[int, set[str]] = {}
     for event in events:
         if event["kind"] == "admin.close" and event["ok"]:
@@ -240,7 +245,9 @@ def _horde_invariants(run: Run, step: str, key: str, rewards: Rewards, instance:
 
 def check_horde(run: Run, rng: Random) -> str:
     condition = rng.choice(_HORDE_LARGE)
-    paths = next(paths for paths in _builds("horde") if paths[0].parent.name == condition)
+    matches = [paths for paths in _builds("horde") if paths[0].parent.name == condition]
+    assert len(matches) == 1 and matches[0], condition
+    paths = matches[0]
     task = read_task(rng.choice(paths))
     assert len(task.seats) == 48 and task.oracle_reward is not None
     instance = json.loads((task.path / "environment/world/instance.json").read_bytes())
@@ -332,6 +339,7 @@ class Play:
     closed: bool = False
     requests: int = 0
     offset: int = 0
+    received: dict[str, list[int]] = field(default_factory=dict)
 
     def grades(self, step: str) -> Rewards:
         events, instance = self.events, self.case.instance
@@ -381,6 +389,7 @@ class Play:
         if expected == 200 and seat is not None and limit is not None and used >= limit:
             expected = 429
         before = _state(self.world)
+        cursors = dict(getattr(self.world, "cursor", {}))
         status, response = self.world.handle(request.method, request.path, token, request.body, client)
         event = self._event(step, request, status)
         run.require(step, "request-dispatch-status", status == expected,
@@ -399,7 +408,46 @@ class Play:
             run.require(step, "budget-left-matches-accepted-requests", response.get("budget_left") == limit - used - 1)
         if status == 200 and request.kind == "admin.close":
             self.closed = True
+        if case.family == "horde":
+            _horde_world_checks(self, step, request, seat, (status, response), cursors)
         self.grades(step)
+
+
+def _horde_world_checks(
+    play: Play, step: str, request: Request, seat: str | None, answer: tuple[int, dict], cursors: dict[str, int]
+) -> None:
+    status, response = answer
+    assert status in (200, 400, 401, 403, 404, 409, 429, 500) and isinstance(response, dict)
+    moved = sorted(other for other, at in cursors.items() if other != seat and play.world.cursor[other] != at)
+    play.run.require(step, "new-cursor-moves-only-for-its-own-seat", not moved, f"moved: {moved}")
+    if status != 200 or seat is None:
+        return
+    if request.kind == "new":
+        ids = [message["id"] for message in response["messages"]]
+        seen = play.received.setdefault(seat, [])
+        twice = sorted(set(ids) & set(seen)) + sorted(i for i in set(ids) if ids.count(i) > 1)
+        play.run.require(step, "new-delivers-each-message-at-most-once", not twice, f"{seat} again: {twice}")
+        seen.extend(ids)
+    if request.kind == "rules":
+        names = response["seats"]
+        play.run.require(step, "rules-lists-seats-in-number-order",
+                         names == sorted(names, key=lambda name: int(name[1:])), str(names[:12]))
+
+
+def _horde_drain(play: Play) -> None:
+    channel = play.case.instance["channel"]
+    for seat in play.case.task.seats:
+        play.send("new-drain", _get("new", 200 if channel else 404), seat)
+    if not channel:
+        return
+    every = sorted(message["id"] for message in play.world.messages)
+    for seat in play.case.task.seats:
+        got = play.received.get(seat, [])
+        play.run.require("world/new", "new-delivers-every-message-exactly-once", sorted(got) == every,
+                         f"{seat}: {len(got)} received, {len(every)} posted")
+    reads = [event for event in play.events if event["kind"] != "new"]
+    play.run.require("world/new", "new-reads-do-not-change-grades",
+                     play.score(reads, play.case.instance) == play.score(play.events, play.case.instance))
 
 
 def _primary(case: Scenario, rng: Random) -> tuple[Request, Request]:
@@ -427,7 +475,8 @@ def _choices(case: Scenario, rng: Random) -> list[Request]:
               _post("msg", {"text": f"note-{rng.randrange(1024)}"}, channel), _get("unknown", 404)]
     if case.family in _BOX_FAMILIES:
         high = case.instance["rooms"] * case.instance["room_size"]
-        return [*common, _get("mine"), _post("open", {"box": rng.randint(1, high)})]
+        extra = [_get("new", channel)] if case.family == "horde" else []
+        return [*common, *extra, _get("mine"), _post("open", {"box": rng.randint(1, high)})]
     if case.family == "ledger":
         return [*common, _get("ledger"), _get("status")]
     kind = "pledges" if case.family == "commons" else "statements"
@@ -468,7 +517,7 @@ def _exercise(play: Play, rng: Random, good: Request) -> None:
     if case.family == "ledger":
         play.send("first-team-answer-wins", _post(good.kind, good.body, 409), rng.choice(seats))
     for kind, limit in _budget(case).items():
-        assert kind == good.kind and 0 < limit <= _MAX_BUDGET
+        assert kind == good.kind and 0 < limit <= _MAX_BUDGET.get(case.family, _DEFAULT_MAX_BUDGET)
         fresh = [seat for seat in seats if (seat, kind) not in play.accepted]
         seat = rng.choice(fresh or seats)
         remaining = max(0, limit - play.accepted.get((seat, kind), 0))
@@ -512,6 +561,9 @@ def play_world(run: Run, case: Scenario, rng: Random, path: Path) -> Evidence:
     collected_at = len(play.events)
     _exercise(play, rng, good)
     before_close = play.grades("world/before-close")
+    if case.family == "horde":
+        _horde_drain(play)
+        before_close = play.grades("world/after-new-drain")
     if case.family in _BOX_FAMILIES:
         share = _flag_share(play.events, case.instance)
         run.require("world/before-close", "reward-is-distinct-flag-boxes-over-all-flags",
@@ -520,6 +572,8 @@ def play_world(run: Run, case: Scenario, rng: Random, path: Path) -> Evidence:
     for seat in case.task.seats:
         play.send("late-write", good, seat)
         play.send("late-read", _get("rules"), seat)
+        if case.family == "horde":
+            play.send("late-new", _get("new"), seat)
         run.require("world/late", "late-events-do-not-change-grades", score(play.events, case.instance) == before_close)
     forged = {**play.events[truncate_at], "kind": "msg", "seq": len(play.events) + 1,
               "request": {"text": "late"}, "response": {"id": 999, "text": "late", "from": case.task.seats[0]}}

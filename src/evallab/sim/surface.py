@@ -5,6 +5,8 @@ from random import Random
 from typing import Any
 
 from evallab.package_anatomy import (
+    _FILE_EXTENSIONS,
+    _IDENT_STOP,
     instruction_cues,
     instruction_mismatch,
     reference_patch_surface,
@@ -20,7 +22,8 @@ _CONSONANTS = "bcdfghjkmnpqrvwxz"
 _KINDS = ("function", "flag", "file", "class", "name")
 _WEIGHTS = {"function": 3, "flag": 3, "file": 2, "class": 2, "name": 1}
 _CONSTRAINT_BONUS = 2
-_FUNCTION_STYLES = ("snake", "camel", "call", "qualified")
+_FUNCTION_STYLES = ("snake", "camel", "call", "qualified", "method")
+_METHOD_OWNER = "Mod"
 _FILE_STYLES = ("flat", "nested", "dotfile")
 _DOTFILE_STEM = "rc"
 _DOTFILE_SUFFIX = "example"
@@ -113,6 +116,16 @@ class _Cue:
     variant: bool
 
     @property
+    def method(self) -> str:
+        count = int(self.token[-3:])
+        base = len(_CONSONANTS)
+        assert 0 < count < base**2
+        digits = _CONSONANTS[count // base] + _CONSONANTS[count % base]
+        short = self.token[1 : 2 + self.variant] + digits
+        assert 3 <= len(short) <= 4 and short.isalpha() and short.islower()
+        return short
+
+    @property
     def symbol(self) -> str:
         if self.kind == "function":
             return {
@@ -120,6 +133,7 @@ class _Cue:
                 "camel": f"go{self.token.capitalize()}",
                 "call": self.token,
                 "qualified": f"{self.token}_go",
+                "method": self.method,
             }[self.style]
         if self.kind == "flag":
             return f"--{self.token}-{self.suffix}"
@@ -152,6 +166,8 @@ class _Cue:
             return f"{self.symbol}()"
         if self.style == "qualified":
             return f"`mod.{self.symbol}`"
+        if self.style == "method":
+            return f"`{_METHOD_OWNER}.{self.symbol}(value)`"
         return f"`{self.symbol}`"
 
     @property
@@ -170,6 +186,8 @@ class _Cue:
         shape = f"{self.kind}:{self.style}"
         if self.style == "dotfile":
             shape += ":suffixed" if self.variant else ":bare"
+        if self.style == "method":
+            shape += f":{self.symbol}"
         return f"{shape}:{self.weight}"
 
     @property
@@ -269,6 +287,7 @@ def _cue(rng: Random, names: _Names) -> _Cue:
         variant=_flag(rng),
     )
     assert cue.kind in _WEIGHTS and len(cue.symbol) >= 3
+    assert cue.style != "method" or cue.symbol not in _IDENT_STOP | _FILE_EXTENSIONS
     assert len(cue.sentence) > _SENTENCE_CAP or not cue.long
     return cue
 

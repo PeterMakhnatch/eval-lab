@@ -117,5 +117,12 @@
     "seed": 496,
     "step": 181,
     "subsystem": "anatomy-hypotheses"
+  },
+  {
+    "found_at_utc": "2026-11-24T23:56:30.187350+00:00",
+    "invariant": "surface_cue_count",
+    "seed": 600265707894282302,
+    "step": 160,
+    "subsystem": "instruction-patch-surface"
   }
 ]

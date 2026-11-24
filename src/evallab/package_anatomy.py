@@ -1138,7 +1138,8 @@ def instruction_cues(instruction: str) -> list[dict[str, Any]]:
             for token in _CUE_TOKEN.findall(span):
                 token = token if token.startswith("--") else token.rstrip(".-/")
                 token = token[1:] if token.startswith(".") and not _dot_file(token) else token
-                symbol = token.rsplit(".", 1)[-1] if (not token.startswith((".", "-")) and "/" not in token and token.count(".") >= 1 and not re.search(r"\.[a-z]{1,4}$", token)) else token
+                qualified = not token.startswith((".", "-")) and "/" not in token and token.count(".") >= 1
+                symbol = token.rsplit(".", 1)[-1] if qualified and token.rsplit(".", 1)[-1].lower() not in _FILE_EXTENSIONS else token
                 if len(symbol) < 3 or symbol.lower() in _IDENT_STOP or symbol.isdigit():
                     continue
                 kind = _symbol_kind(symbol, raw)

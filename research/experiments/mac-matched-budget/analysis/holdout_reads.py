@@ -26,12 +26,22 @@ OPS = {
     "read_notes", "eat", "recharge", "start_build", "stop", "admit", "turn_away", "quarantine",
     "assign",
 }
+MUTATION_OPS = OPS - POST_OPS - {"read_notes"}
 XY = {"chop", "quarry", "forage", "fish", "search", "pickup", "shoot", "move_to"}
 ACTIVITY = {"chop", "quarry", "forage", "fish", "search", "pickup", "shoot", "attack", "ask", "examine", "admit", "turn_away", "quarantine", "start_build", "build", "repair", "patch", "guard", "assign", "move_to", "withdraw", "deposit", "craft", "cook"}
 SHARED_WORK = {"chop", "quarry", "forage", "fish", "search", "pickup", "ask", "examine", "admit", "turn_away", "quarantine", "start_build"}
 TIERS = r"campfire|palisade|storehouse|watchtower|workshop|garden|infirmary|stone_wall|forge|generator|radio_mast|helipad"
 RESOURCE = r"chop(?:ping)?|quarry(?:ing)?|forag(?:e|ing)|fish(?:ing)?|search(?:ing)?"
 COORD = r"\(?\s*(\d{1,2})\s*,\s*(\d{1,2})\s*\)?"
+ANNOUNCEMENT_OPS = {"chop", "quarry", "forage", "fish", "search", "build", "start_build"}
+ASSIGN_NOTICE = re.compile(r"\b(\w+) is set to (\w+)\b", re.I)
+ASK_NOTICE = re.compile(r"\b(?:i'll|i will) ask about ([^.!?;]+)", re.I)
+TILE = re.compile(r"\((\d+),\s*(\d+)\)")
+TILE_DONE = {"Chopped": "chop", "Quarried": "quarry", "Picked": "forage", "Pulled": "search"}
+TILE_FAILURE_OPS = {*TILE_DONE.values(), "fish"}
+TERMINAL_BY_KEY = {"chop", "quarry", "forage", "ask", "examine"}
+IMMEDIATE_WORK = {"admit", "turn_away", "quarantine", "assign", "start_build"}
+REPEAT_EVIDENCE = ("rule does not cover", "no post", "posted not delivered", "arrived with the order", "delivered same step", "in-context", UNKNOWN)
 ANNOUNCE = re.compile(rf"(?:^|[.!?]\s+|:\s+|,\s+)(?:i(?: am|'m| will)\s+)?({RESOURCE}|taking the trees)\b[^.!?;]{{0,45}}?{COORD}(?=\s|[.,;!?]|$)(?!\s*[-–]\d)", re.I)
 BUILD = re.compile(rf"\b(?:i(?: am|'m) (?:now )?building|joining|started|starting|opened) (?:the )?({TIERS})\b", re.I)
 REQUEST_BUILD = re.compile(rf"\b(?:please build|build tier) (?:the )?({TIERS})\b", re.I)
@@ -87,6 +97,8 @@ class Seat:
     deliveries: dict[str, list[dict]] = field(default_factory=lambda: defaultdict(list))
     start: float = 0.0
     end: float = 0.0
+    full_result_action_steps: set[int] = field(default_factory=set)
+    events: dict[int, dict] = field(default_factory=dict)
 
 
 @dataclass
@@ -378,6 +390,15 @@ def endpoint_result(item):
     return None
 
 
+def has_full_action_result(items):
+    return any(
+        isinstance(row, dict) and row.get("ok") is True
+        and row.get("op") in MUTATION_OPS
+        for item in items if endpoint_result(item) == "act" and isinstance(item["results"], list)
+        for row in item["results"]
+    )
+
+
 def action_results(items, acts, call):
     if call.blocked:
         return [False] * len(acts)
@@ -479,6 +500,8 @@ def action_rows(call, ref, results, seat, trial):
                 match_post(seat, trial, call, action_ref, i, order, status)
             elif name != "read_notes":
                 action = new_action(seat, action_ref, i + 1, name, order, status, trial)
+                if name == "assign":
+                    action["job"] = order.get("job", UNKNOWN)
                 if name == "start_build" and isinstance(result, list) and i < len(result) and isinstance(result[i], dict):
                     action["started"] = result[i].get("started", UNKNOWN)
                 out.append(action)
@@ -521,6 +544,9 @@ def observe(seat, call, ref, items, trial):
                 existing.add(record["seq"])
         if record.get("kind") == "done" and isinstance(record.get("text"), str) and type(record.get("t")) is int:
             seat.completions.append({"t": record["t"], "text": record["text"], "seq": record.get("seq", UNKNOWN), **ref})
+        seq = record.get("seq")
+        if type(seq) is int and type(record.get("t")) is int and "kind" in record:
+            seat.events.setdefault(seq, {**record, "observed_in": ref})
     endpoints = {}
     for mid, seqs in sorted(hits.items()):
         endpoints[mid] = read_via(call, items, mid, seqs, trial)
@@ -608,10 +634,13 @@ def load_seat(trial, slot, name):
     for call in trajectory_calls(steps, sessions):
         ref = base_ref(call, seat, trial.start)
         items = fragments(call.result)
+        if has_full_action_result(items):
+            seat.full_result_action_steps.add(call.step)
         ids = observe(seat, call, ref, items, trial)
         results = action_results(items, [spec for spec in call.specs if spec.endpoint == "act"], call)
         seat.calls.extend(call_rows(call, ref, items, ids, results))
         seat.actions.extend(action_rows(call, ref, results, seat, trial))
+    resolve_outcomes(seat, trial)
     return seat
 
 
@@ -698,12 +727,113 @@ def game_wall(minute, trial):
     header = trial.replay[0][1]
     return (minute - header["start_minute"]) * header["real_sec_per_day"] / header["day_minutes"]
 
+def terminal_key(event):
+    kind, text = event["kind"], event.get("text", "")
+    tile = TILE.search(text)
+    coords = f"{tile[1]},{tile[2]}" if tile else None
+    if kind == "order_failed":
+        op = event.get("op")
+        return op, coords if op in TILE_FAILURE_OPS else None
+    if kind == "stranger_says":
+        return "ask", f"{event['stranger']}/{event['topic']}"
+    if kind == "done":
+        if text.startswith("You examined "):
+            return "examine", event.get("stranger")
+        if text.startswith("Deposited "):
+            return "deposit", None
+        if text.startswith("Picked up "):
+            return "pickup", None
+        if text in {"Caught a fish.", "Nothing bit."}:
+            return "fish", None
+        op = TILE_DONE.get(text.partition(" ")[0])
+        if op:
+            return op, coords
+    return None, None
 
-def latency(post, seat, receipt):
+
+def replacement_epochs(actions):
+    reset, pending = None, []
+    for action in sorted(actions, key=bounded_sort):
+        op, acceptance = action["op"], action["acceptance"]
+        if acceptance == "refused":
+            continue
+        if op in {"stop", "replace", UNKNOWN}:
+            yield reset, pending, action
+            reset, pending = action, []
+        elif op in IMMEDIATE_WORK:
+            if acceptance == "accepted":
+                action["outcome"] = {"status": "done", "evidence": "accepted immediate operation"}
+        else:
+            pending.append(action)
+    yield reset, pending, None
+
+
+def resolve_epoch(reset, pending, clear, events):
+    if not pending:
+        return
+    start = reset["issued_s"] if reset and reset["issued_s"] != UNKNOWN else float("-inf")
+    end = clear["returned_s"] if clear and clear["returned_s"] != UNKNOWN else float("inf")
+    window = [(wall, event) for wall, event in events if start - 1 < wall < end + 1]
+    unresolved = defaultdict(list)
+    for action in pending:
+        unresolved[action["op"]].append(action)
+    ambiguous = set()
+    death_seen = False
+    for wall, event in window:
+        if event["kind"] == "died":
+            death_seen = True
+            continue
+        op, target = terminal_key(event)
+        if death_seen or op in ambiguous:
+            continue
+        candidates = [a for a in unresolved.get(op, ()) if (target is None or target == a["target"]) and (a["issued_s"] == UNKNOWN or a["issued_s"] < wall + 1)]
+        if not candidates:
+            continue
+        action = candidates[0]
+        ref = event["observed_in"]
+        if (
+            action["acceptance"] != "accepted" or action["returned_s"] == UNKNOWN or action["returned_s"] + 1 >= wall
+            or reset and (reset["returned_s"] == UNKNOWN or reset["returned_s"] + 1 >= wall or reset["acceptance"] != "accepted")
+            or clear and not (definitely_before(ref, clear) or clear["issued_s"] != UNKNOWN and wall < clear["issued_s"] - 1)
+            or any(a["target"] != action["target"] for a in candidates)
+        ):
+            ambiguous.add(op)
+            continue
+        action["outcome"] = {"status": "failed" if event["kind"] == "order_failed" else "done", "message": event["text"], "event_seq": event["seq"], "observed_in": ref}
+        unresolved[op].remove(action)
+    if not clear or clear["op"] != "replace" or clear["acceptance"] != "accepted" or clear["returned_s"] == UNKNOWN:
+        return
+    for op in TERMINAL_BY_KEY - ambiguous:
+        for action in unresolved[op]:
+            if action["acceptance"] == "accepted" and definitely_before(action, clear) and covers_cancel_window(action, clear, events):
+                action["outcome"] = {"status": "cancelled", "evidence": "cancelled by own replace", "cancelled_by": clear}
+
+
+def covers_cancel_window(action, clear, events):
+    if action["issued_s"] == UNKNOWN:
+        return False
+    before = [event["seq"] for wall, event in events if wall < action["issued_s"] - 1]
+    after = [event["seq"] for wall, event in events if wall > clear["returned_s"] + 1]
+    if not before or not after:
+        return False
+    first, last = max(before), min(after)
+    window = [event for _, event in events if first <= event["seq"] <= last]
+    return len(window) == last - first + 1 and all(event["kind"] != "died" for event in window)
+
+
+def resolve_outcomes(seat, trial):
+    events = [(game_wall(event["t"], trial), event) for _, event in sorted(seat.events.items())]
+    assert len(events) <= LIMIT and len(seat.actions) <= LIMIT
+    for reset, pending, clear in replacement_epochs(seat.actions):
+        resolve_epoch(reset, pending, clear, events)
+
+
+def latency(post, seat, receipt, start):
     sent = post["sent_s"]
     if not receipt or receipt["returned_s"] == UNKNOWN:
         return {"seconds_to_first_visible_result": UNKNOWN, "actions_before_delivery": UNKNOWN, "confirmed_actions_before_delivery": UNKNOWN, "acted_before_delivery": UNKNOWN}
     returned = receipt["returned_s"]
+    native_return = stamp(receipt["session"]["tool_result"]["utc"])
     before = 0
     ambiguous = False
     for a in seat.actions:
@@ -716,7 +846,7 @@ def latency(post, seat, receipt):
             before += 1
         else:
             ambiguous = True
-    return {"seconds_to_first_visible_result": round(max(0.0, returned - sent), 3), "actions_before_delivery": UNKNOWN if ambiguous else before, "confirmed_actions_before_delivery": before, "acted_before_delivery": True if before else UNKNOWN if ambiguous else False}
+    return {"seconds_to_first_visible_result": round(max(0.0, native_return - (start + sent)), 6), "actions_before_delivery": UNKNOWN if ambiguous else before, "confirmed_actions_before_delivery": before, "acted_before_delivery": True if before else UNKNOWN if ambiguous else False}
 
 
 def message_rows(trial, seats, seconds):
@@ -727,14 +857,17 @@ def message_rows(trial, seats, seconds):
             if name == sender.name:
                 continue
             receipts = seat.deliveries.get(post["id"], [])
-            first = min(receipts, key=lambda r: (r["step"], r["returned_s"] if r["returned_s"] != UNKNOWN else float("inf"))) if receipts else None
+            first = min(receipts, key=lambda r: (r["returned_s"] if r["returned_s"] != UNKNOWN else float("inf"), r["step"])) if receipts else None
+            issued = first["issued_s"] if first else UNKNOWN
             reachable = name in post["game_recipients"]
             status = "delivered" if first else "not game-routed" if not reachable and post["channel"] != "noticeboard" else UNKNOWN
             yield {
                 **post, "sender_slot": sender.slot, "sender_tool": own or UNKNOWN, "receiver": name, "receiver_slot": seat.slot, "receiver_trajectory": str(seat.path),
                 "game_routed": reachable if post["channel"] != "noticeboard" else UNKNOWN, "delivery": status,
                 "first_delivery": first or UNKNOWN, "all_deliveries": receipts,
-                **latency(post, seat, first), "announced_targets": announcements(post["text"]),
+                "holding_call_started_before_send": issued < post["sent_s"] if issued != UNKNOWN else UNKNOWN,
+                "holding_call_started_by_send_within_clock_margin": issued <= post["sent_s"] + 0.1 if issued != UNKNOWN else UNKNOWN,
+                **latency(post, seat, first, trial.start), "announced_targets": announcements(post["text"]),
                 "requests": [request_result(post, seat, first, op, target, trial, seconds) for op, target in requests(post["text"])],
             }
 
@@ -745,13 +878,35 @@ def definitely_before(a, b):
     return a["returned_s"] != UNKNOWN and b["issued_s"] != UNKNOWN and a["returned_s"] < b["issued_s"]
 
 
-def announcement_evidence(first, second, messages):
+def named_same_result(first, second, post, names):
+    text = post["text"].casefold()
+    op, target = second["op"], second["target"]
+    if op == "assign":
+        return any(
+            names.get(m[1]) == target and m[2] == first.get("job") == second.get("job")
+            for m in ASSIGN_NOTICE.finditer(text)
+        )
+    if op != "ask" or not (match := ASK_NOTICE.search(text)):
+        return False
+    stranger, topic = target.split("/", 1)
+    mentioned = {identity for name, identity in names.items() if re.search(rf"\b{re.escape(name)}\b", text)}
+    topic_text = {"arms": "arms", "where_from": "where she came from"}.get(topic)
+    return mentioned == {stranger} and topic_text is not None and bool(re.search(rf"\b{topic_text}\b", match[1]))
+
+
+def announcement_evidence(first, second, messages, names):
     key = (second["op"], second["target"])
-    matching = [p for p in messages if p["sender"] == first["seat"] and p["receiver"] == second["seat"] and key in p["announced_targets"]]
     before, unclear = [], []
-    for p in matching:
+    for p in messages:
+        if p["sender"] != first["seat"] or p["receiver"] != second["seat"]:
+            continue
         receipt = p["first_delivery"]
-        if receipt != UNKNOWN and receipt["step"] < second["step"]:
+        same_call = receipt != UNKNOWN and receipt["call_id"] == second["call_id"]
+        if same_call and (key in p["announced_targets"] or named_same_result(first, second, p, names)):
+            before.append(("arrived with the order", p))
+        elif key not in p["announced_targets"]:
+            continue
+        elif receipt != UNKNOWN and receipt["step"] < second["step"]:
             before.append(("in-context", p))
         elif receipt != UNKNOWN and receipt["step"] == second["step"]:
             before.append(("delivered same step", p))
@@ -759,18 +914,24 @@ def announcement_evidence(first, second, messages):
             before.append(("posted not delivered", p))
         elif second["returned_s"] == UNKNOWN or p["sent_s"] - 1 <= second["returned_s"]:
             unclear.append(p)
-    for evidence in ("in-context", "delivered same step", "posted not delivered"):
+    for evidence in ("arrived with the order", "in-context", "delivered same step", "posted not delivered"):
         candidates = [p for label, p in before if label == evidence]
         if candidates:
             return evidence, [p["id"] for p in candidates]
+    if not announcement_rule_covers(second):
+        return "rule does not cover", []
     return (UNKNOWN, [p["id"] for p in unclear]) if unclear else ("no post", [])
+
+
+def announcement_rule_covers(order):
+    return order["op"] in ANNOUNCEMENT_OPS
 
 
 def bounded_sort(a):
     return (a["issued_s"] if a["issued_s"] != UNKNOWN else float("inf"), a["seat"], a["step"], a["act_index"], -1 if a["op_index"] == UNKNOWN else a["op_index"])
 
 
-def duplicates(seats, messages):
+def duplicates(seats, messages, names):
     history = defaultdict(dict)
     candidates = sorted((a for s in seats.values() for a in s.actions if a["acceptance"] != "refused" and a["target"] != UNKNOWN and a["op"] in ACTIVITY), key=bounded_sort)
     for second in candidates:
@@ -780,9 +941,17 @@ def duplicates(seats, messages):
         if peer_orders:
             first = next((a for a in peer_orders if a["acceptance"] == "accepted" and definitely_before(a, second)), peer_orders[0])
             order_known = definitely_before(first, second)
-            evidence, ids = announcement_evidence(first, second, messages) if order_known else (UNKNOWN, [])
+            evidence, ids = announcement_evidence(first, second, messages, names) if order_known else (UNKNOWN, [])
             gap = [round(second["issued_s"] - first["returned_s"], 3), round(second["returned_s"] - first["issued_s"], 3)] if order_known and first["issued_s"] != UNKNOWN and second["returned_s"] != UNKNOWN else UNKNOWN
-            yield {"first": first, "second": second, "order": "confirmed" if order_known else UNKNOWN, "accepted_pair": first["acceptance"] == second["acceptance"] == "accepted", "shared_work_subset": second["op"] in SHARED_WORK, "gap_bounds_s": gap, "announcement_evidence": evidence, "announcement_ids": ids}
+            yield {
+                "first": first, "second": second, "order": "confirmed" if order_known else UNKNOWN,
+                "accepted_pair": first["acceptance"] == second["acceptance"] == "accepted",
+                "shared_work_subset": second["op"] in SHARED_WORK, "gap_bounds_s": gap,
+                "announcement_rule_covers": announcement_rule_covers(second),
+                "announcement_evidence": evidence, "announcement_ids": ids,
+                "first_outcome": first.get("outcome", {"status": UNKNOWN}),
+                "repeat_outcome": second.get("outcome", {"status": UNKNOWN}),
+            }
         prior.setdefault(second["seat"], []).append(second)
 
 
@@ -796,6 +965,22 @@ def proxy_seat(trial, name):
         "first_utc": rows[0][1].get("ts", UNKNOWN) if rows else UNKNOWN,
         "last_utc": rows[-1][1].get("ts", UNKNOWN) if rows else UNKNOWN,
         "success_usd": round(sum(costs), 9) if costs and all(isinstance(c, int | float) for c in costs) else UNKNOWN,
+    }
+
+
+def action_step_metrics(seat):
+    acts = sorted(seat.full_result_action_steps)
+    reads = {c["step"] for c in seat.calls if c["endpoint"] == "events" and c["receipt"] == "confirmed"}
+    pairs = list(zip(acts, acts[1:], strict=False))
+    fresh = sum(any(lo < r < hi for r in reads) for lo, hi in pairs)
+    assert 0 <= fresh <= len(pairs)
+    return {
+        "full_result_action_steps": len(acts),
+        "confirmed_events_read_steps": len(reads),
+        "confirmed_events_read_steps_before_first_action_step": sum(r < acts[0] for r in reads) if acts else UNKNOWN,
+        "confirmed_events_read_steps_between_first_and_last_action_steps": sum(acts[0] < r < acts[-1] for r in reads) if acts else UNKNOWN,
+        "later_full_result_action_steps": len(pairs),
+        "later_full_result_action_steps_with_events_read": fresh,
     }
 
 
@@ -827,22 +1012,13 @@ def read_metrics(seat):
         one_batch = False
     elif len(verified) == len(reads) == 1 and not possible and reads[0]["multiplicity"] == 1:
         one_batch = bool(first and confirmed_steps[0] < first == last)
-    fresh = uncertain = previous = 0
-    for step, n in sorted(counts.items()):
-        lower = max((s for s in possible if previous < s < step), default=previous)
-        if any(lower < s < step for s in confirmed_steps) and not possible[step]:
-            fresh += 1
-        elif any(previous < s < step for s in observed_steps):
-            uncertain += 1
-        previous = step
-        assert n > 0
     return {
+        **action_step_metrics(seat),
         "seat_seconds": round(seat.end - seat.start, 3), "confirmed_reads": len(verified), "unknown_read_receipts": len(reads) - len(verified),
         "dynamic_read_sites": sum(c["multiplicity"] == UNKNOWN for c in reads), "read_steps": len(confirmed_steps),
         "accepted_actions": len(actions), "unknown_action_receipts": len(possible_actions), "refused_orders": sum(a["acceptance"] == "refused" for a in seat.actions),
         "target_keyed_actions": sum(a["op"] in ACTIVITY and a["target"] != UNKNOWN for a in actions),
         "shared_work_target_keyed_actions": sum(a["op"] in SHARED_WORK and a["target"] != UNKNOWN for a in actions),
-        "fresh": fresh, "fresh_unknown": uncertain,
         "read_gaps": gaps, "uncertain_read_gaps": gaps.count(UNKNOWN),
         "one_read_then_single_mutation_step": one_batch,
         "confirmed_read_before_first_mutation_step": first_order_read,
@@ -858,12 +1034,46 @@ def distribution(values):
     return {"n": len(values), "median": median(values) if values else UNKNOWN, "max": max(values) if values else UNKNOWN}
 
 
+def lag_distribution(values):
+    elapsed = distribution(values)
+    for key in ("median", "max"):
+        if elapsed[key] != UNKNOWN:
+            elapsed[key] = round(elapsed[key], 3)
+    return elapsed
+
+
+def delivery_metrics(messages):
+    routed = [m for m in messages if m["game_routed"] is True]
+    known_lags = [m["seconds_to_first_visible_result"] for m in routed if m["seconds_to_first_visible_result"] != UNKNOWN]
+    reached = [m for m in routed if m["delivery"] == "delivered"]
+    assert len(known_lags) <= len(reached) <= len(routed) <= len(messages)
+    return {
+        "posts": len(messages),
+        "game_routed_posts": len(routed),
+        "routed_posts_in_receiver_results": len(reached),
+        "posts_unrouted_and_not_in_receiver_results": sum(m["delivery"] == "not game-routed" for m in messages),
+        "first_result_endpoints": dict(Counter(m["first_delivery"]["read_via"] for m in reached)),
+        "routed_delivery_lag_seconds": lag_distribution(known_lags),
+        "routed_posts_with_lag_at_most_seconds": {f"{seconds:g}": sum(lag <= seconds for lag in known_lags) for seconds in (0.3, 1, 5)},
+        "routed_holding_calls_started_before_send": sum(m["holding_call_started_before_send"] is True for m in reached),
+        "routed_holding_calls_started_by_send_within_0_1_s_margin": sum(m["holding_call_started_by_send_within_clock_margin"] is True for m in reached),
+        "routed_holding_calls_start_unknown": sum(m["holding_call_started_before_send"] == UNKNOWN for m in reached),
+    }
+
+
 def summarize(metrics, messages, collisions):
     counts = Counter()
-    sum_fields = ("seat_seconds", "confirmed_reads", "unknown_read_receipts", "dynamic_read_sites", "read_steps", "accepted_actions", "unknown_action_receipts", "refused_orders", "target_keyed_actions", "shared_work_target_keyed_actions", "fresh", "fresh_unknown", "uncertain_read_gaps", "observations", "message_bearing_result_calls")
+    sum_fields = (
+        "seat_seconds", "confirmed_reads", "unknown_read_receipts", "dynamic_read_sites", "read_steps",
+        "accepted_actions", "unknown_action_receipts", "refused_orders", "target_keyed_actions",
+        "shared_work_target_keyed_actions", "full_result_action_steps", "confirmed_events_read_steps",
+        "later_full_result_action_steps", "later_full_result_action_steps_with_events_read",
+        "uncertain_read_gaps", "observations", "message_bearing_result_calls",
+    )
     for m in metrics:
         for key in sum_fields:
             counts[key] += m[key]
+    later_steps = counts["later_full_result_action_steps"]
     delivered = [m for m in messages if m["delivery"] == "delivered"]
     asks = [r for p in messages if p["game_routed"] is not False for r in p["requests"]]
     confirmed = [c for c in collisions if c["order"] == "confirmed" and c["accepted_pair"]]
@@ -871,15 +1081,18 @@ def summarize(metrics, messages, collisions):
     return {
         **counts, "seat_seconds": round(counts["seat_seconds"], 3), "agents": len(metrics),
         "confirmed_reads_per_10m_lower_bound": round(600 * counts["confirmed_reads"] / counts["seat_seconds"], 3),
-        "fresh_share_among_confirmed_actions_lower_bound": counts["fresh"] / counts["accepted_actions"] if counts["accepted_actions"] else UNKNOWN,
+        "events_read_share_of_later_full_result_action_steps": counts["later_full_result_action_steps_with_events_read"] / later_steps if later_steps else UNKNOWN,
+        "seats_with_events_read_before_first_full_result_action_step": sum(isinstance(n := m["confirmed_events_read_steps_before_first_action_step"], int) and n > 0 for m in metrics),
+        "seats_with_events_read_between_first_and_last_full_result_action_steps": sum(isinstance(n := m["confirmed_events_read_steps_between_first_and_last_action_steps"], int) and n > 0 for m in metrics),
         "actions_strictly_between_confirmed_read_steps": distribution([g for m in metrics for g in m["read_gaps"]]),
         "largest_mutation_step": distribution([m["largest_mutation_step"] for m in metrics]),
         "one_read_then_single_mutation_step": dict(Counter(str(m["one_read_then_single_mutation_step"]).lower() for m in metrics)),
         "confirmed_read_before_first_mutation_step": dict(Counter(str(m["confirmed_read_before_first_mutation_step"]).lower() for m in metrics)),
         "no_read_between_first_and_last": dict(Counter(str(m["no_read_between_first_and_last"]).lower() for m in metrics)),
         "message_receiver_pairs": len(messages), "game_routed_pairs": sum(m["game_routed"] is True for m in messages), "delivery": dict(Counter(m["delivery"] for m in messages)),
-        "delivery_seconds": distribution([m["seconds_to_first_visible_result"] for m in delivered]),
+        "delivery_seconds": lag_distribution([m["seconds_to_first_visible_result"] for m in delivered]),
         "actions_before_delivery": distribution([m["actions_before_delivery"] for m in delivered]),
+        "post_delivery": delivery_metrics(messages),
         "acted_before_delivery": dict(Counter(str(m["acted_before_delivery"]).lower() for m in messages)),
         "request_pairs": len(asks), "requests_accepted_in_window": sum(r["accepted_order_within_window"] is True for r in asks),
         "requests_done_in_window": sum(r["done_within_window"] is True for r in asks),
@@ -890,6 +1103,8 @@ def summarize(metrics, messages, collisions):
         "shared_work_repeats": len(shared),
         "shared_work_repeat_evidence": dict(Counter(r["announcement_evidence"] for r in shared)),
         "repeat_evidence": dict(Counter(r["announcement_evidence"] for r in confirmed)),
+        "repeats_outside_announcement_rule": sum(not r["announcement_rule_covers"] for r in confirmed),
+        "repeat_outcomes": dict(Counter(r["repeat_outcome"]["status"] for r in confirmed)),
         "shared_work_repeat_gap_within_15_seconds": sum(r["gap_bounds_s"] != UNKNOWN and r["gap_bounds_s"][1] <= 15 for r in shared),
         "shared_work_repeat_gap_unknown_at_15_seconds": sum(r["gap_bounds_s"] == UNKNOWN or r["gap_bounds_s"][0] <= 15 < r["gap_bounds_s"][1] for r in shared),
     }
@@ -899,7 +1114,8 @@ def analyze(path, arm, seconds):
     trial = read_trial(path, arm)
     seats = {name: load_seat(trial, slot, name) for slot, name in sorted(trial.aliases.items())}
     messages = list(message_rows(trial, seats, seconds))
-    collisions = list(duplicates(seats, messages))
+    assert len(messages) == len(trial.posts), path
+    collisions = list(duplicates(seats, messages, trial.names))
     metrics = {s.slot: read_metrics(s) for s in seats.values()}
     agents = {}
     for s in seats.values():
@@ -947,13 +1163,14 @@ METHOD = {
         "proxy-usage.jsonl": "agent, model, ts, status, usd; no message evidence",
     },
     "importer": "Direct stdlib read. The local Bespoke adapter normalizes harness seats, proxy and ATIF, but its board parser covers harness traffic and may infer fetched IDs. This reader needs exact game payloads, game logs and tool receipt bounds.",
-    "reads": "Explicit board read = events or read_notes. Status/look/act can return heard but do not count as explicit reads. Confirmed calls in loops count once per site. Gap distributions use consecutive confirmed read steps. They exclude boundary steps and gaps with unknown internal receipts. The first action counts as fresh only if a read is on an earlier step. Same-step reads get no credit. Rates use recorded seat time.",
+    "reads": "Read rates use confirmed events and read_notes per recorded seat time. A loop counts once per confirmed site. The action-step share uses later steps with a full act result showing at least one accepted mutation. Projected or clipped act results and standalone replace receipts do not qualify. Count a confirmed events result only on a step strictly between those action steps. Events returns game progress as well as messages.",
     "actions": "Mutating non-message ops include queued orders, wait/stop and replace; acknowledgments do not establish completion. Refused orders do not count. Bash is parsed statically and projections or missing results can leave order acceptance or read count unknown.",
     "target": "Same op and exact API target: x,y for terrain; place ID for named search; stranger ID and topic for ask; person ID for decisions; tier for construction; side for wall work; helper ID for assignment; item (or all) for stock; named or coordinate destination for move. Pickup also keeps the item selector. No alias between a place and a coordinate. Same-target movement, stock, or parallel building need not be waste. Shared-work subset is terrain resource work, search/pickup, interviews or decisions and start_build.",
-    "duplicates": "One row per later matching order, anchored to the first provably earlier accepted peer order when available. Acceptance and server order are separate. Order is provable across seats only when tool intervals do not overlap. No post = no mechanically matching logged announcement before the repeat, not proof of no peer text. Posted not delivered = no tool result with earlier or same-step evidence, not a server receipt verdict.",
-    "announcements": "First-person or sentence-initial concrete terrain verb with coordinates (also 'taking the trees'), and explicit build/start verbs with tier. No unrestricted text, intent or broad map areas. Announcements may precede or follow the first action.",
+    "duplicates": "One row per later matching order, anchored to the first provably earlier accepted peer order when available. Order is provable across seats only when tool intervals do not overlap. Rule does not cover = the primary pattern cannot match the operation and there is no same-call exception. No post = the primary pattern covers the operation but finds no prior match. Posted not delivered = no earlier or same-step match in a tool result.",
+    "announcements": "The primary pattern matches a concrete terrain verb with coordinates or an explicit build verb with tier. Count its coverage separately. Arrived with the order = first delivery and order share a tool call ID. In that case also match 'NAME is set to JOB' for assign with matching jobs, or 'I will/I’ll ask about' plus 'arms' or 'where she came from' and one unambiguous stranger name for ask. A different call on the same ATIF step is not the same result.",
+    "outcomes": "Accepted immediate operations are done. Queue outcomes use distinct receiver events and FIFO for compatible accepted orders within a queue epoch. Keep uncertain matches unknown. A later accepted replace clears the current and queued orders. Infer cancellation for supported operations that emit a terminal event only when contiguous event evidence spans issue through replace, with no death or compatible terminal event for the pending order.",
     "requests": "Exact 'please' + resource verb + tile, 'please build' or 'build tier' + tier, 'start_build' + listed tier, or 'please [bring wood to stockpile|deposit wood]' including a coordinated deposit clause. Count per teammate per matched target from send time. Accepted order and completion are separate. A completion requires a matching receiver done event or the instant start_build acknowledgment. No individual build completion is inferred from a team state.",
-    "timing": "UTC offsets relative to board holdout_start and rounded game wall seconds; allow 1 s at clock joins. Delivery lag measures first visible tool result end, not when survivor hears. Actions in same step or with overlapping bounds can make exact action lag unknown. No proxy timestamps are used as delivery times.",
+    "timing": "UTC offsets start at board holdout_start. Lag ends at the first visible result, not at model attention. The holding-call recount allows 0.1 s for game send timestamps, which are logged to 0.1 s. The strict count uses the recorded timestamps without that margin. Allow 1 s when matching replay game time to order bounds.",
 }
 
 
@@ -968,7 +1185,8 @@ def collect(root, minutes):
     for arm in ARMS:
         selected = [t for t in trials if t["arm"] == arm]
         arms[arm] = summarize([m for t in selected for m in t.pop("seat_measure_inputs")], [m for t in selected for m in t["message_rows"]], [c for t in selected for c in t["duplicate_rows"]])
-    return {"root": str(root), "request_minutes": minutes, "method": METHOD, "arms": arms, "trials": trials}
+    pooled = delivery_metrics([m for t in trials if t["arm"] in {"team", "guard"} for m in t["message_rows"]])
+    return {"root": str(root), "request_minutes": minutes, "method": METHOD, "arms": arms, "pooled_post_delivery": pooled, "trials": trials}
 
 
 def row(label, m):
@@ -980,7 +1198,7 @@ def row(label, m):
         str(m["confirmed_reads_per_10m_lower_bound"]),
         f"{m['unknown_read_receipts']}/{m['dynamic_read_sites']}",
         f"{gaps['median']}/{gaps['max']}/{gaps['n']} (+{m['uncertain_read_gaps']}?)",
-        f"{m['fresh']}/{m['accepted_actions']} (+{m['fresh_unknown']}?)", str(m["unknown_action_receipts"]),
+        f"{m['later_full_result_action_steps_with_events_read']}/{m['later_full_result_action_steps']}", str(m["unknown_action_receipts"]),
         f"{delivery}/{m['message_receiver_pairs']} ({unknown}?)",
         f"{m['requests_done_in_window']}/{m['request_pairs']} ({m['requests_done_unknown']}?)",
         f"{m['confirmed_cross_seat_repeats']}/{m['target_keyed_actions']} (+{m['repeat_candidates_unknown']}?)",
@@ -988,7 +1206,6 @@ def row(label, m):
 
 
 def evidence_row(label, m):
-    buckets = ("no post", "posted not delivered", "delivered same step", "in-context", UNKNOWN)
     elapsed = m["delivery_seconds"]
     actions = m["actions_before_delivery"]
     acted = m["acted_before_delivery"]
@@ -998,16 +1215,17 @@ def evidence_row(label, m):
         "/".join(str(acted.get(k, 0)) for k in ("true", "false", UNKNOWN)),
         f"{m['requests_accepted_in_window']}/{m['request_pairs']}",
         str(m["request_windows_censored"]),
-        "/".join(str(m["repeat_evidence"].get(k, 0)) for k in buckets),
-        "/".join(str(m["shared_work_repeat_evidence"].get(k, 0)) for k in buckets),
+        str(m["repeats_outside_announcement_rule"]),
+        "/".join(str(m["repeat_evidence"].get(k, 0)) for k in REPEAT_EVIDENCE),
+        "/".join(str(m["shared_work_repeat_evidence"].get(k, 0)) for k in REPEAT_EVIDENCE),
     ]
 
 
 def print_table(rows):
-    header = ["Scope", "Seats", "Reads/seat-s", "Reads/10m", "Read?/loop", "Gap med/max/n", "Fresh/actions", "Ops?", "Visible/msgs", "Done/reqs", "Repeats/keyed"]
+    header = ["Scope", "Seats", "Reads/seat-s", "Reads/10m", "Read?/loop", "Gap med/max/n", "Events read/later action steps", "Ops?", "Visible/msgs", "Done/reqs", "Repeats/keyed"]
     print_rows(header, [row(label, m) for label, m in rows])
     print()
-    header = ["Scope", "Lag s med/max/n", "Ops before med/max/n", "Acted yes/no/?", "Accepted/reqs", "Censored", "Repeat evidence*", "Shared work*"]
+    header = ["Scope", "Lag s med/max/n", "Ops before med/max/n", "Acted yes/no/?", "Accepted/reqs", "Censored", "Outside primary rule", "Repeat evidence*", "Shared work*"]
     print_rows(header, [evidence_row(label, m) for label, m in rows])
 
 
@@ -1015,6 +1233,22 @@ def print_rows(header, rendered):
     widths = [max(map(len, column)) for column in zip(header, *rendered, strict=True)]
     for values in [header, ["-" * width for width in widths], *rendered]:
         print("  ".join(value.ljust(width) for value, width in zip(values, widths, strict=True)).rstrip())
+
+
+def print_delivery(summary):
+    lag = summary["routed_delivery_lag_seconds"]
+    if not lag["n"]:
+        print("\nNo timed routed posts in team or guard.")
+        return
+    routed = summary["game_routed_posts"]
+    print(f"\nTeam + guard: {summary['routed_posts_in_receiver_results']}/{routed} routed posts in a receiver result.")
+    print(f"No teammate reached: {summary['posts_unrouted_and_not_in_receiver_results']}/{summary['posts']} posts.")
+    print(f"Pooled lag: median {lag['median']:.3f} s, max {lag['max']:.3f} s, {lag['n']}/{routed} timed routed posts.")
+    for seconds, count in summary["routed_posts_with_lag_at_most_seconds"].items():
+        print(f"Within {seconds} s: {count}/{routed}.")
+    inflight = summary["routed_holding_calls_started_by_send_within_0_1_s_margin"]
+    strict = summary["routed_holding_calls_started_before_send"]
+    print(f"Holding call started by send: {inflight}/{routed} with the 0.1 s clock margin; {strict}/{routed} strictly before.")
 
 
 def print_text(report, detailed):
@@ -1026,9 +1260,10 @@ def print_text(report, detailed):
         else:
             print(f"{label}: {text}")
     print(f"Request window: {report['request_minutes']:g} wall minutes from the post.")
-    print("* Repeat evidence order: no post / posted not delivered / delivered same step / in-context / unknown.")
+    print(f"* Repeat evidence order: {' / '.join(REPEAT_EVIDENCE)}.")
     print("? marks an unknown count, not a negative result.")
     print("See --json --trials for all timelines, evidence, and raw file references.")
+    print_delivery(report["pooled_post_delivery"])
     print("\nArm totals")
     print_table(list(report["arms"].items()))
     for trial in report["trials"]:

@@ -20,9 +20,19 @@ from typing import Any, TypedDict
 
 from campaign import evidence, fill, ledger, report
 from campaign.plan import RERUN_TAG, Plan, PlanError, base_arm, load, parse, sha256_file
-from campaign.runner import TERMINAL, UNSTOPPED, EventLog, Runner, Stop, expand_first_run
+from campaign.runner import (
+    LOCK_NOTE_SECONDS,
+    LOCK_RETRY_SECONDS,
+    TERMINAL,
+    UNSTOPPED,
+    EventLog,
+    Runner,
+    Stop,
+    expand_first_run,
+)
 from campaign.sim_fixture import (
     BASE,
+    FOREIGN_ODD_MICRO,
     FOREIGN_WINDOW_SECONDS,
     FOREIGN_YOUNG_AGE,
     FOREIGN_YOUNG_MICRO,
@@ -94,6 +104,7 @@ class Proc:
     terminal: Counter[str] = field(default_factory=Counter)
     reasons: dict[str, str] = field(default_factory=dict)
     stopping: dict[str, str] = field(default_factory=dict)
+    lock_notes: int = 0
 
 
 Mutation = Callable[[dict[str, Any]], None]
@@ -221,7 +232,7 @@ class Sim:
         self.frozen = 0.0
         self.plans: dict[Path, Plan] = {}
         self.flag_since: dict[str, float] = {}
-        self.ticking = 0
+        self.in_tick: set[int] = set()
         self.side_tick_at = 0.0
         self.world.sleep_hook = self._sleep_hook
 
@@ -298,6 +309,8 @@ class Sim:
         plan = proc.runner.plan
         self.events[str(plan.state_root)] += 1
         saved, self.run.step = self.run.step, f"{self.phase}/{kind.lower()}/{reason or 'done'}"
+        if kind == "WAIT" and reason == "money-lock":
+            proc.lock_notes += 1
         if kind == "STOPPING":
             self._judge(proc, event)
             proc.stopping[lane] = reason
@@ -368,9 +381,15 @@ class Sim:
             other = self.plan(path)
             if other.id != plan.id:
                 held += _open_in_window(plan.ledger, other.id, self.world.t, "")
-        if self.case.foreign_lines and self.world.t < FOREIGN_WINDOW_SECONDS - FOREIGN_YOUNG_AGE:
-            held += usd(FOREIGN_YOUNG_MICRO)
-        return held
+        return held + self._foreign_truth()
+
+    def _foreign_truth(self) -> float:
+        if not self.case.foreign_lines or self.world.t >= FOREIGN_WINDOW_SECONDS - FOREIGN_YOUNG_AGE:
+            return 0.0
+        total = FOREIGN_YOUNG_MICRO
+        if self.case.foreign_lines == "odd":
+            total += FOREIGN_ODD_MICRO + max(arm.reserve_micro for arm in self.case.arms)
+        return usd(total)
 
     def _balance_low(self, proc: Proc, before: str) -> bool:
         plan = proc.runner.plan
@@ -508,10 +527,12 @@ class Sim:
         return [job for job in self.alive_jobs()
                 if job.owner in live and job.owner in self.world.live_owners and not job.abandoned]
 
-    def _term_checks(self, slack: float) -> None:
+    def _term_checks(self, step_start: float | None) -> None:
         watched = self._watched()
+        slack = self.case.poll + self.plan().probe_timeout_seconds + 1
         for name, since in sorted(self.flag_since.items()):
-            if self.world.t < since + slack:
+            due = (step_start is not None and since <= step_start) or self.world.t >= since + slack
+            if not due:
                 continue
             owner = int(name.split(":")[1]) if name.startswith("streak:") else 0
             late = [job.out.name for job in watched
@@ -521,17 +542,49 @@ class Sim:
 
     def _sleep_hook(self) -> None:
         saved, self.run.step = self.run.step, f"{self.phase}/inside-a-wait"
+        waiting = self.world.hold_end(self.world.t) is not None
+        if self.phase == "run" and self.case.stop_in_lock_wait and waiting and "stop" not in self.fired:
+            self.fired.add("stop")
+            self.plan().stop_file.write_text("operator during a lock wait\n", encoding="utf-8")
         self._observe()
-        self._term_checks(self.case.poll + 1)
+        self._term_checks(None)
         self.run.step = saved
         if self.world.t < self.side_tick_at:
             return
         self.side_tick_at = self.world.t + self.case.poll
         for proc in list(self.procs.values()):
-            if proc.owner in (self.ticking, self.interrupting) or proc.done or proc.killed:
-                continue
-            if not proc.runner.tick():
-                self.finish_proc(proc)
+            self._tick(proc)
+
+    def _tick(self, proc: Proc) -> None:
+        if proc.done or proc.killed or proc.owner in self.in_tick or proc.owner == self.interrupting:
+            return
+        self.in_tick.add(proc.owner)
+        mark, notes = len(self.world.lock_attempts), proc.lock_notes
+        try:
+            alive = proc.runner.tick()
+        finally:
+            self.in_tick.discard(proc.owner)
+        self._lock_liveness(proc, mark, notes)
+        if not alive:
+            self.finish_proc(proc)
+
+    def _lock_liveness(self, proc: Proc, mark: int, notes: int) -> None:
+        attempts = [item for item in self.world.lock_attempts[mark:] if item[0] == proc.owner]
+        fails = [item for item in attempts if not item[2]]
+        if not fails:
+            return
+        first = fails[0][1]
+        saved, self.run.step = self.run.step, f"{self.phase}/money-lock"
+        if any(item[1] - first >= LOCK_NOTE_SECONDS for item in fails):
+            self.run.check(proc.lock_notes > notes, "money-lock-wait-line", f"owner {proc.owner} waited silently")
+        won = any(item[2] and item[1] >= first for item in attempts)
+        end = self.world.hold_end(first)
+        if not won and end is not None and all(item[3] for item in fails):
+            limit = proc.runner.plan.probe_timeout_seconds
+            self.run.check(end + LOCK_RETRY_SECONDS > first + limit, "money-lock-liveness",
+                           f"owner {proc.owner} gave up at {first:.1f} s; the lock was free at {end:.1f} s, "
+                           f"within {limit:.0f} s")
+        self.run.step = saved
 
     def _muster_grace(self, job: FakeJob) -> bool:
         if job.first_term_at is None or not job.top_alive_at_term or job.unstoppable:
@@ -557,7 +610,8 @@ class Sim:
             self.run.check(self._muster_grace(job), "gone-within-muster-grace",
                            f"{job.out.name} runs {world.t - (job.first_term_at or 0):.0f} s after 1 TERM")
         self.run.check(not world.bad_signals, "never-signal-others", repr(world.bad_signals[:3]))
-        limit = plan.max_arm_minutes * 60 + 2 * STOP_GRACE + 2 * self.case.poll + self.frozen
+        limit = (plan.max_arm_minutes * 60 + 2 * STOP_GRACE + 2 * self.case.poll + plan.probe_timeout_seconds
+                 + self.frozen)
         for job in self._watched():
             self.run.check(world.t - job.started < limit, "watchdog", f"{job.out.name}")
 
@@ -626,8 +680,8 @@ class Sim:
 
     def _probe_hook(self, owner: int) -> None:
         for proc in list(self.procs.values()):
-            if proc.owner != owner and not proc.done and not proc.killed and not proc.runner.tick():
-                self.finish_proc(proc)
+            if proc.owner != owner:
+                self._tick(proc)
 
     def _quiet(self) -> bool:
         procs = all(proc.done or proc.killed for proc in self.procs.values())
@@ -639,13 +693,11 @@ class Sim:
                 self._faults()
             self._second_terms()
             self._observe()
+            step_start = self.world.t
             for proc in list(self.procs.values()):
-                self.ticking = proc.owner
-                if not proc.done and not proc.killed and not proc.runner.tick():
-                    self.finish_proc(proc)
-            self.ticking = 0
+                self._tick(proc)
             self.run.step = f"{self.phase}/watch"
-            self._term_checks(0)
+            self._term_checks(step_start)
             self._process_checks()
             self._operator()
             self._resume()
@@ -680,10 +732,16 @@ def _purity(sim: Sim) -> None:
     untouched = not plan.state_root.exists() and before == after and not sim.world.calls
     sim.run.check(untouched, "check-writes-nothing", repr(sim.world.calls))
     if sim.case.foreign_lines:
-        shown = any(line.strip().startswith("night team-8: $0.30") for line in lines)
-        hidden = not any(line.strip().startswith(("e7 old-1", "night done-1", "night elsewhere", "night void-1"))
-                         for line in lines)
-        sim.run.check(shown and hidden, "check-shows-foreign-reserves", repr(lines))
+        shown = ["night team-8: $0.30"]
+        if sim.case.foreign_lines == "odd":
+            shown += ["- run-arm-1: $0.20", "night np-1: $0.10", "night case-1: $0.15", "night str-1: $"]
+        missing = [want for want in shown if not any(line.strip().startswith(want) for line in lines)]
+        guessed = sim.case.foreign_lines != "odd" or any("str-1" in line and "not a number" in line for line in lines)
+        hidden = ("e7 old-1", "night done-1", "night elsewhere", "night void-1", "- run-arm-2")
+        shown_hidden = [line for line in lines if line.strip().startswith(hidden)]
+        total = f"total ${sim._foreign_truth():.2f} in "
+        sim.run.check(not missing and guessed and not shown_hidden and any(total in line for line in lines),
+                      "check-shows-foreign-reserves", f"missing {missing}, hidden shown {shown_hidden}, want {total}")
 
 
 def _files(folder: Path) -> list[str]:

@@ -48,6 +48,7 @@ class ForeignReserve:
     arm: str
     reserved_usd: float
     ts_utc: str
+    guessed: bool
 
 
 def append(path: Path, record: dict[str, Any]) -> None:
@@ -113,13 +114,18 @@ def _stamp(text: Any) -> datetime | None:
     return stamp if stamp.tzinfo is not None else stamp.replace(tzinfo=UTC)
 
 
+def _number(value: Any) -> float | None:
+    valid = not isinstance(value, bool) and isinstance(value, int | float) and math.isfinite(value) and value >= 0
+    return float(value) if valid else None
+
+
 def _foreign_lines(path: Path, campaign: str) -> tuple[dict[Key, list[dict[str, Any]]], Counter[Key]]:
     reserves: dict[Key, list[dict[str, Any]]] = {}
     settles: Counter[Key] = Counter()
     for _, item in _lines(path):
-        writer = item.get("campaign") or item.get("experiment")
-        if not isinstance(writer, str) or item.get("campaign") == campaign:
+        if item.get("campaign") == campaign:
             continue
+        writer = str(item.get("campaign") or item.get("experiment") or "-")
         event, arm = item.get("event"), item.get("arm")
         if event == "void" and isinstance(item.get("arms"), list):
             for name in item["arms"]:
@@ -134,19 +140,27 @@ def _foreign_lines(path: Path, campaign: str) -> tuple[dict[Key, list[dict[str, 
     return reserves, settles
 
 
-def foreign_open(path: Path, campaign: str, provider: str, now: datetime, window_hours: float) -> list[ForeignReserve]:
-    assert window_hours > 0 and now.tzinfo is not None
+def _same_provider(value: Any, provider: str) -> bool:
+    return not isinstance(value, str) or not value.strip() or value.strip().casefold() == provider.casefold()
+
+
+def foreign_open(
+    path: Path, campaign: str, provider: str, now: datetime, window_hours: float, unknown_usd: float
+) -> list[ForeignReserve]:
+    assert window_hours > 0 and now.tzinfo is not None and unknown_usd > 0
     reserves, settles = _foreign_lines(path, campaign)
     oldest = now - timedelta(hours=window_hours)
     found = []
     for key, items in sorted(reserves.items()):
         for item in items[settles[key]:]:
-            if item.get("provider") != provider:
+            if not _same_provider(item.get("provider"), provider):
                 continue
             stamp = _stamp(item.get("ts_utc"))
             if stamp is not None and stamp <= oldest:
                 continue
-            found.append(ForeignReserve(key[0], key[1], _amount(item.get("reserved_usd")), str(item.get("ts_utc"))))
+            amount = _number(item.get("reserved_usd"))
+            found.append(ForeignReserve(key[0], key[1], unknown_usd if amount is None else amount,
+                                        str(item.get("ts_utc")), amount is None))
     return found
 
 

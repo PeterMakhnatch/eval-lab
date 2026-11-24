@@ -49,6 +49,8 @@ class System(Protocol):
 
     def signal_group(self, pgid: int, number: int) -> None: ...
 
+    def signal_process(self, pid: int, number: int) -> None: ...
+
     def alive(self, pid: int) -> bool: ...
 
     def start_time(self, pid: int) -> str | None: ...
@@ -114,6 +116,11 @@ class RealSystem:
         assert pgid > 1 and pgid != os.getpgrp()
         with contextlib.suppress(ProcessLookupError):
             os.killpg(pgid, number)
+
+    def signal_process(self, pid: int, number: int) -> None:
+        assert pid > 1 and pid != os.getpid()
+        with contextlib.suppress(ProcessLookupError):
+            os.kill(pid, number)
 
     def alive(self, pid: int) -> bool:
         assert pid > 0

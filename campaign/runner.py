@@ -21,6 +21,8 @@ TERMINAL = ("STOP", "DONE")
 UNSTOPPED = ("harbor-alive", "orphan", "lane-held")
 GLOBAL = ("stop-file", "cap", "cap-root", "streak", "interrupted", "crash", "tick-limit")
 WAIT_NOTE_SECONDS = 60.0
+LOCK_RETRY_SECONDS = 0.5
+LOCK_NOTE_SECONDS = 5.0
 MUSTER_FORM = "muster"
 HARBOR_FORM = "harbor"
 
@@ -337,6 +339,14 @@ class Runner:
         except OSError:
             return
 
+    def _signal_process(self, pid: int, number: int) -> None:
+        if pid <= 1 or pid in self.protected:
+            return
+        try:
+            self.system.signal_process(pid, number)
+        except OSError:
+            return
+
     def _state(self) -> dict[str, ledger.ArmLedger]:
         try:
             return ledger.state(self.plan.ledger, self.plan.id)
@@ -445,7 +455,7 @@ class Runner:
         assert now is not None
         try:
             foreign = ledger.foreign_open(self.plan.ledger, self.plan.id, self.plan.provider, now,
-                                          self.plan.foreign_reserve_window_hours)
+                                          self.plan.foreign_reserve_window_hours, self.plan.largest_reserve_usd())
         except ledger.LedgerError as error:
             raise Stop("ledger", str(error)) from error
         return own, sum(item.reserved_usd for item in foreign)
@@ -512,15 +522,36 @@ class Runner:
     def money_lock(self) -> Path:
         return self.plan.ledger.with_name(self.plan.ledger.name + ".lock")
 
+    def _take_money_lock(self, run: LaneRun, lock: Path) -> bool:
+        started = self.system.now()
+        rounds = math.ceil(self.plan.probe_timeout_seconds / LOCK_RETRY_SECONDS)
+        noted = False
+        for index in range(rounds + 1):
+            try:
+                if self.system.try_lock(lock, self.owner):
+                    return True
+            except OSError as error:
+                raise Stop("money-lock", f"cannot lock {lock}: {error.strerror}") from error
+            waited = self.system.now() - started
+            if waited >= LOCK_NOTE_SECONDS and not noted:
+                noted = True
+                self.say("WAIT", run.lane.name, f"money lock {lock} is busy for {waited:.0f} s; another runner "
+                                                f"checks the balance; waiting up to "
+                                                f"{self.plan.probe_timeout_seconds:.0f} s", "money-lock")
+            if index < rounds:
+                self.system.sleep(LOCK_RETRY_SECONDS)
+        self.say("WAIT", run.lane.name, f"money lock {lock} stayed busy for {self.plan.probe_timeout_seconds:.0f} s; "
+                                        "trying again at the next poll", "money-lock")
+        return False
+
     def _start_locked(self, run: LaneRun, step: Step) -> bool:
         lock = self.money_lock()
-        try:
-            if not self.system.try_lock(lock, self.owner):
-                return False
-        except OSError as error:
-            raise Stop("money-lock", f"cannot lock {lock}: {error.strerror}") from error
+        if not self._take_money_lock(run, lock):
+            return False
         try:
             balance = self._gate_balance(step)
+            self._gate_common()
+            self._gate_cost()
             self._start(run, step, balance)
         finally:
             self.system.unlock(lock, self.owner)
@@ -598,7 +629,7 @@ class Runner:
     def _term(self, job: Job) -> None:
         if not job.termed:
             job.termed = True
-            self._signal(job.pid, signal.SIGTERM)
+            self._signal_process(job.pid, signal.SIGTERM)
 
     def _term_harbor(self, job: Job, listing: Listing) -> None:
         for pid, pgid, _, kind in listing:

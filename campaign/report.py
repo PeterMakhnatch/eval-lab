@@ -69,13 +69,26 @@ def _foreign_lines(plan: Plan, problems: list[str], now: datetime) -> list[str]:
     head = (f"money lock {plan.ledger.name}.lock beside the ledger; open reserves of other writers in the ledger "
             f"(provider {plan.provider}, younger than {window:g} h) count against the balance:")
     try:
-        found = ledger.foreign_open(plan.ledger, plan.id, plan.provider, now, window)
+        found = ledger.foreign_open(plan.ledger, plan.id, plan.provider, now, window, plan.largest_reserve_usd())
     except ledger.LedgerError as error:
         problems.append(str(error))
         return [head, "  unreadable"]
-    shown = [f"  {item.writer} {item.arm}: ${item.reserved_usd:.2f} since {item.ts_utc}" for item in found[:32]]
+    shown = [f"  {item.writer} {item.arm}: ${item.reserved_usd:.2f} since {item.ts_utc}"
+             + (" (amount is not a number; counted as the largest reserve of this plan)" if item.guessed else "")
+             for item in found[:32]]
     total = sum(item.reserved_usd for item in found)
     return [head, *(shown or ["  none"]), f"  total ${total:.2f} in {len(found)} open reserves"]
+
+
+def _rules() -> list[str]:
+    return [
+        "rules for a paid run:",
+        "  1. every other writer of this ledger writes 'experiment' and 'provider' in each reserve line",
+        "  2. floor_usd covers the next reserve of every bash lane that runs beside this plan (they take no lock)",
+        "  3. cap_usd = charged cost under the cap roots now (campaign status) + the budget of this run",
+        "  4. start each runner with nohup; never kill a runner that prints STOPPING or WAIT",
+        "  5. after a harbor-alive line, run its commands, then check `daytona sandbox list`",
+    ]
 
 
 def check(plan: Plan, now: datetime) -> tuple[list[str], list[str]]:
@@ -105,6 +118,7 @@ def check(plan: Plan, now: datetime) -> tuple[list[str], list[str]]:
         *_arm_lines(plan, problems),
         f"expected ${sum(arm.expected_usd for arm in plan.arms):.2f}; reserves "
         f"${sum(arm.reserve_usd for arm in plan.arms):.2f}",
+        *_rules(),
     ]
     return lines, problems
 

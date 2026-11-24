@@ -83,6 +83,11 @@ class Plan:
         assert len(found) == 1, name
         return found[0]
 
+    def largest_reserve_usd(self) -> float:
+        largest = max(max(arm.reserve_usd, arm.rerun_reserve_usd) for arm in self.arms)
+        assert largest > 0
+        return largest
+
     def lane_of(self, arm: str) -> Lane:
         found = [lane for lane in self.lanes if arm in lane.arms]
         assert len(found) == 1, arm

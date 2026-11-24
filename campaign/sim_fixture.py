@@ -29,6 +29,7 @@ RANK = {"top-death": 0, "harbor": 1, "trial": 2}
 FOREIGN_WINDOW_SECONDS = 6 * 3600
 FOREIGN_YOUNG_AGE = 3601
 FOREIGN_YOUNG_MICRO = 300_000
+FOREIGN_ODD_MICRO = 450_000
 TWIN_SUFFIX = "-twin"
 
 
@@ -106,7 +107,10 @@ class Scenario:
     ps_fail_rate: float
     operator_second_term: bool
     twin: bool
-    foreign_lines: bool
+    foreign_lines: str
+    uv_top: bool
+    lock_hold: tuple[float, float, float] | None
+    stop_in_lock_wait: bool
 
     def arm(self, name: str) -> ArmSpec:
         found = [arm for arm in self.arms if arm.name == name]
@@ -142,15 +146,25 @@ def _faults(rng: Random) -> tuple[tuple[str, float], ...]:
             ("unknown-cost", 0.05), ("unreadable", 0.05))
 
 
+def _lock_hold(rng: Random) -> tuple[float, float, float] | None:
+    roll = rng.random()
+    if roll < 0.3:
+        return -0.25, rng.choice((2.0, 8.0, 12.0)), 20.0
+    if roll < 0.4:
+        return rng.uniform(0, 1500), 45.0, 0.0
+    return None
+
+
 def _process_faults(rng: Random) -> dict[str, Any]:
     harsh = rng.random() < 0.5
+    twin = rng.random() < 0.3
     return {
         "cleanups": (0.0, 8.0, 60.0, 400.0) if harsh else (0.0, 2.0),
         "ignore_term_rate": 0.25 if harsh else 0.0,
         "hangs": (0.0, 0.0, 90.0, math.inf) if harsh else (0.0,),
         "top_death_rate": 0.2 if harsh else 0.0,
         "unstoppable_rate": 0.08 if harsh else 0.0,
-        "concurrent_probe": rng.random() < 0.5,
+        "concurrent_probe": twin or rng.random() < 0.5,
         "closed_output_after": rng.choice((0, 0, 0, 2, 5)),
         "interrupt_at": rng.uniform(1, 2000) if rng.random() < 0.2 else None,
         "ledger_breaks": rng.random() < 0.3,
@@ -162,8 +176,11 @@ def _process_faults(rng: Random) -> dict[str, Any]:
         "churn": rng.random() < 0.3,
         "ps_fail_rate": rng.choice((0.0, 0.0, 0.0, 0.05)),
         "operator_second_term": rng.random() < 0.15,
-        "twin": rng.random() < 0.3,
-        "foreign_lines": rng.random() < 0.35,
+        "twin": twin,
+        "foreign_lines": rng.choice(("", "", "basic", "odd")),
+        "uv_top": rng.random() < 0.5,
+        "lock_hold": _lock_hold(rng),
+        "stop_in_lock_wait": rng.random() < 0.3,
     }
 
 
@@ -257,7 +274,20 @@ def plan_data(case: Scenario, root: Path, twin: bool = False) -> dict[str, Any]:
     return data
 
 
-def _foreign_ledger(path: Path) -> None:
+def _odd_foreign_lines(young: str) -> list[dict[str, Any]]:
+    return [
+        {"ts_utc": young, "event": "reserve", "arm": "run-arm-1", "provider": "sim", "reserved_usd": 0.2},
+        {"ts_utc": young, "event": "reserve", "arm": "run-arm-2", "provider": "sim", "reserved_usd": 3.0},
+        {"ts_utc": young, "event": "settle", "arm": "run-arm-2", "status": "ended"},
+        {"ts_utc": young, "event": "reserve", "experiment": "night", "arm": "np-1", "reserved_usd": 0.1},
+        {"ts_utc": young, "event": "reserve", "experiment": "night", "arm": "case-1", "provider": "SIM",
+         "reserved_usd": 0.15},
+        {"ts_utc": young, "event": "reserve", "experiment": "night", "arm": "str-1", "provider": "sim",
+         "reserved_usd": "1.5"},
+    ]
+
+
+def _foreign_ledger(path: Path, odd: bool) -> None:
     young, old = iso(-FOREIGN_YOUNG_AGE, precise=False), iso(-8 * 3600, precise=False)
     lines = [
         {"ts_utc": young, "event": "reserve", "experiment": "night", "arm": "team-8", "provider": "sim",
@@ -272,7 +302,7 @@ def _foreign_ledger(path: Path) -> None:
         {"ts_utc": young, "event": "reserve", "experiment": "night", "arm": "void-1", "provider": "sim",
          "reserved_usd": 2.0},
         {"ts_utc": young, "event": "void", "experiment": "night", "arms": ["void-1"], "reason": "test"},
-    ]
+    ] + (_odd_foreign_lines(young) if odd else [])
     path.write_text("".join(json.dumps(line) + "\n" for line in lines), encoding="utf-8")
 
 
@@ -295,7 +325,7 @@ def write_supply(case: Scenario, root: Path) -> None:
         (root / "out").mkdir()
         (root / f"out{TWIN_SUFFIX}").mkdir()
     if case.foreign_lines:
-        _foreign_ledger(root / "ledger" / "spend.jsonl")
+        _foreign_ledger(root / "ledger" / "spend.jsonl", case.foreign_lines == "odd")
 
 
 class BrokenStream:
@@ -456,6 +486,7 @@ class World:
         self.bad_signals: list[str] = []
         self.ps_failed_at: float | None = None
         self.churned = 0
+        self.lock_attempts: list[tuple[int, float, bool, bool]] = []
 
     def now(self) -> float:
         return self.t
@@ -464,6 +495,9 @@ class World:
         return iso(self.t, precise=False)
 
     def sleep(self, seconds: float) -> None:
+        assert seconds > 0
+        if self.in_probe_hook:
+            return
         self.advance(seconds)
         if self.sleep_hook is not None and not self.in_sleep_hook:
             self.in_sleep_hook = True
@@ -565,7 +599,7 @@ class World:
             self.spawn_hook(argv, owner)
         log.open("xb").close()
         pid = self.next_pid
-        self.next_pid += 4
+        self.next_pid += 6
         job = self._job(pid, owner, argv)
         out.mkdir(parents=True)
         self.jobs[pid] = job
@@ -602,6 +636,26 @@ class World:
     def _protected_group(self, pgid: int) -> bool:
         return pgid in (SHELL_PID, OTHER_PID) or pgid in self.live_owners or pgid in self.strays
 
+    def _deliver_term(self, job: FakeJob, deliveries: int) -> None:
+        for _ in range(deliveries):
+            job.runner_terms += 1
+            if job.first_term_at is None:
+                job.first_term_at, job.top_alive_at_term = self.t, job.top_alive
+            self._signal_top(job, signal.SIGTERM)
+
+    def signal_process(self, pid: int, number: int) -> None:
+        assert pid > 1 and number in (signal.SIGTERM, signal.SIGKILL)
+        if self._protected_group(pid):
+            self.bad_signals.append(f"signal {number} to process {pid} at {self.t:.0f}")
+            return
+        job = self.jobs.get(pid)
+        if job is None:
+            return
+        if number == signal.SIGTERM:
+            self._deliver_term(job, 1)
+        else:
+            self._signal_top(job, number)
+
     def signal_group(self, pgid: int, number: int) -> None:
         assert pgid > 1 and number in (signal.SIGTERM, signal.SIGKILL)
         if self._protected_group(pgid):
@@ -612,10 +666,9 @@ class World:
             return
         if pgid == job.pid:
             if number == signal.SIGTERM:
-                job.runner_terms += 1
-                if job.first_term_at is None:
-                    job.first_term_at, job.top_alive_at_term = self.t, job.top_alive
-            self._signal_top(job, number)
+                self._deliver_term(job, 2 if self.case.uv_top else 1)
+            else:
+                self._signal_top(job, number)
             return
         if job.unstoppable:
             raise PermissionError(1, "Operation not permitted")
@@ -666,8 +719,12 @@ class World:
         rows += [(pid, 1, pid, "sleep 1000") for pid in sorted(self.others)]
         for job in self.jobs.values():
             if job.top_alive:
-                rows.append((job.pid, job.owner, job.pid, f"python3 fake-muster {job.out.parent} --attempts 2 "
-                                                          f"--concurrency 2 --out {job.out}"))
+                muster = f"python3 fake-muster {job.out.parent} --attempts 2 --concurrency 2 --out {job.out}"
+                if self.case.uv_top:
+                    rows.append((job.pid, job.owner, job.pid, f"uv run --no-sync {muster}"))
+                    rows.append((job.pid + 4, job.pid, job.pid, muster))
+                else:
+                    rows.append((job.pid, job.owner, job.pid, muster))
             if job.harbor_alive:
                 parent = job.pid if job.top_alive else 1
                 rows.append((job.harbor_pid, parent, job.harbor_pid,
@@ -684,10 +741,26 @@ class World:
                 self.churned += 1
                 (Path(dirpath) / f"churn-{self.churned}" / "tmp").mkdir(parents=True)
 
+    def hold_end(self, at: float) -> float | None:
+        hold = self.case.lock_hold
+        if hold is None or at < hold[0]:
+            return None
+        start, duration, period = hold
+        since = (at - start) % period if period else at - start
+        return at - since + duration if since < duration else None
+
+    def _external_hold(self, path: Path) -> bool:
+        return path.name.endswith(".jsonl.lock") and self.hold_end(self.t) is not None
+
     def try_lock(self, path: Path, owner: int) -> bool:
         assert owner in self.live_owners
         holder = self.locks.get(path)
-        if holder is not None and holder in self.live_owners:
+        external = self._external_hold(path)
+        busy = external or (holder is not None and holder in self.live_owners)
+        if path.name.endswith(".jsonl.lock"):
+            only_external = external and (holder is None or holder not in self.live_owners)
+            self.lock_attempts.append((owner, self.t, not busy, only_external))
+        if busy:
             return False
         self.locks[path] = owner
         return True

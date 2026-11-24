@@ -12,7 +12,21 @@ Times are New York time (ET). Newest entry first. Each entry says what is done a
 
 ## 2026-11-24
 
-**7:10 AM. A number check of the landed texts by the 2 auditors: 6 numbers and 9 sentences are corrected.**
+**7:20 AM. End of the night session.**
+- `campaign`: the round for the fifth review is on `main` (`f9e67cf74`, 7:18 AM). The balance gate counts
+  each reserve that was open before or after the 2 probes; `run` and `fill` refuse a compound shell
+  wrapper; `check` prints 9 rules. This round has no review. Still open: a paid run, and a stop with a
+  real Harbor on Daytona.
+- The entry below first said "7:10 AM" and "6 numbers and 9 sentences". Its commit was at 7:08:56 AM
+  (`dc907e65a` on `main` at 7:12 AM). By the auditors' own lists the check found 7 number mismatches (6 in
+  the files of this folder), 8 sentences that no source supports or that are wrong, and 8 places where 2
+  texts differ.
+- State at the end: Eval Lab worktrees of this lane: only `fable-e5-run` (the pinned E5 runner). 0 Daytona
+  sandboxes. Library: `research-context` `72b23620` and a last commit for the `campaign` hash. Night
+  report source: `muster-runs/reports/2026-11-24-muster-night-report.md`. Night money: $8.89 of $10.
+- First steps of the next session: read the 5:45 AM entry (the API key limit) and `standin-v2-design.md`.
+
+**7:09 AM. A number check of the landed texts by the 2 auditors; the wrong numbers and sentences are corrected.**
 - Cause: the step join had refuted 3 of my sentences. So the E9 auditor and the E8 auditor compared every
   number and factual sentence about E8, E8b and E9 in F27 to F30, `RESULTS.md`, the library file and the
   night report with the stored outputs. All numbers of the registered tests match.

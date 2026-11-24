@@ -96,5 +96,19 @@
     "seed": 494,
     "step": 191,
     "subsystem": "anatomy-hypotheses"
+  },
+  {
+    "found_at_utc": "2026-11-24T21:49:28.970615+00:00",
+    "invariant": "rigor_chain_tests_without_assertion",
+    "seed": 4926018401919578092,
+    "step": 156,
+    "subsystem": "test-suite-rigor"
+  },
+  {
+    "found_at_utc": "2026-11-24T21:49:31.729213+00:00",
+    "invariant": "rigor_chain_tests_without_assertion",
+    "seed": 7565751090143165638,
+    "step": 152,
+    "subsystem": "test-suite-rigor"
   }
 ]

@@ -973,6 +973,30 @@ def _ast_function_counts(func: ast.AST, counts: Counts, helpers: frozenset[str] 
             counts.randomized_or_property += 1
 
 
+def _helper_names(tree: ast.AST) -> set[str]:
+    functions = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and not node.name.startswith("test")
+    ]
+    calls = {
+        id(node): {_call_name(n) for n in ast.walk(node) if isinstance(n, ast.Call)} for node in functions
+    }
+    helpers = {
+        node.name
+        for node in functions
+        if "fail" in calls[id(node)] or any(isinstance(n, ast.Assert) for n in ast.walk(node))
+    }
+    for _ in range(len(functions) + 1):
+        grown = helpers | {node.name for node in functions if calls[id(node)] & helpers}
+        if grown == helpers:
+            break
+        helpers = grown
+    assert all(node.name in helpers for node in functions if calls[id(node)] & helpers)
+    assert len(helpers) <= len(functions)
+    return helpers
+
+
 def _py_counts(source: TestSource) -> Counts | None:
     if not source.path.split(":")[-1].endswith(".py"):
         return None
@@ -981,12 +1005,7 @@ def _py_counts(source: TestSource) -> Counts | None:
     except (SyntaxError, ValueError):
         return None
     counts = Counts(files=1, mode_ast_files=1)
-    helpers = {
-        node.name
-        for node in ast.walk(tree)
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and not node.name.startswith("test")
-        and any(isinstance(n, ast.Assert) for n in ast.walk(node))
-    }
+    helpers = _helper_names(tree)
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith("test"):
             counts.tests += 1

@@ -20,6 +20,14 @@ _PYTEST_PATH = "tests/test_generated.py"
 _UNITTEST_PATH = "tests/test_generated_unittest.py"
 _BROKEN_PATH = "tests/test_broken_syntax.py"
 _FRAGMENT_PATH = "tests/test_patch_fragment.py"
+_CHAIN_PATH = "tests/test_helper_chains.py"
+_CHAIN_KINDS = ("assert", "fail", "plain")
+_CHAIN_BODIES = {
+    "assert": ("assert value",),
+    "fail": ("if not value:", '    pytest.fail("value is false")'),
+    "plain": ("value = bool(value)",),
+}
+_MAX_CHAINS = 8
 _INSTRUCTION = "Run the generated checks and report every failure.\n"
 _COUNT_FIELDS = (
     "files",
@@ -71,6 +79,17 @@ class _TestCase:
     name: str
     shapes: tuple[_Shape, ...]
     negative_name: bool
+
+
+@dataclass(frozen=True, slots=True)
+class _Chain:
+    index: int
+    kinds: tuple[str, ...]
+    cycle: bool
+
+    @property
+    def reaches(self) -> bool:
+        return any(kind != "plain" for kind in self.kinds)
 
 
 _PYTEST_SHAPES = (
@@ -248,6 +267,58 @@ def _expected_files(counts: Counts, path: str, mode: str) -> dict[str, object]:
     return {"file": path, "mode": mode, "tests": counts.tests, "assertions": counts.assertions}
 
 
+def _chain_plan(rng: Random) -> list[_Chain]:
+    count = rng.randint(4, _MAX_CHAINS)
+    chains: list[_Chain] = []
+    for index in range(count):
+        length = rng.randint(1, 3)
+        kinds = [rng.choice(_CHAIN_KINDS) for _ in range(length)]
+        if index == 0:
+            kinds = ["plain"] * rng.randint(1, 2) + [rng.choice(("assert", "fail"))]
+        elif index == 1:
+            kinds = ["plain"] * length
+        elif index == 2:
+            kinds = ["plain"] * (length - 1) + ["fail"]
+        assert 1 <= len(kinds) <= 3 and set(kinds) <= set(_CHAIN_KINDS)
+        chains.append(_Chain(index, tuple(kinds), rng.random() < 0.25))
+    assert chains[0].reaches and chains[0].kinds[0] == "plain"
+    assert not chains[1].reaches and "assert" not in chains[2].kinds
+    return chains
+
+
+def _render_chains(rng: Random, chains: list[_Chain]) -> str:
+    assert 1 <= len(chains) <= _MAX_CHAINS
+    blocks: list[list[str]] = []
+    for chain in chains:
+        last = len(chain.kinds) - 1
+        for position, kind in enumerate(chain.kinds):
+            block = [f"def link_{chain.index}_{position}(value):"]
+            block.extend(f"    {line}" for line in _CHAIN_BODIES[kind])
+            if position < last:
+                block.append(f"    link_{chain.index}_{position + 1}(value)")
+            elif chain.cycle:
+                block.append(f"    link_{chain.index}_0(value)")
+            blocks.append(block)
+        blocks.append([f"def test_chain_{chain.index}():", f"    link_{chain.index}_0(True)"])
+    rng.shuffle(blocks)
+    lines = ["import pytest", ""]
+    for block in blocks:
+        lines.extend([*block, ""])
+    return "\n".join(lines)
+
+
+def _chain_tally(chains: list[_Chain]) -> Counts:
+    reaching = sum(chain.reaches for chain in chains)
+    assert 0 < reaching < len(chains) <= _MAX_CHAINS
+    return Counts(
+        files=1,
+        tests=len(chains),
+        assertions=reaching,
+        tests_without_assertion=len(chains) - reaching,
+        mode_ast_files=1,
+    )
+
+
 class RigorSimulation:
     def __init__(self, sim: Simulation, root: Path) -> None:
         assert sim.step + _STEP_BUDGET <= STEP_LIMIT
@@ -261,6 +332,7 @@ class RigorSimulation:
     def run(self) -> None:
         self.check_ast()
         self.check_regex_fallback()
+        self.check_chains()
         self.sim.require(self.sim.step - self.start_step <= _STEP_BUDGET, "rigor_step_budget")
 
     def _require_counts(self, actual: object, expected: Counts, prefix: str) -> None:
@@ -375,3 +447,25 @@ class RigorSimulation:
             ],
             "rigor_regex_test_files",
         )
+
+    def check_chains(self) -> None:
+        sim = self.sim
+        rng = Random(f"rigor-helper-chains:{sim.seed}")
+        chains = _chain_plan(rng)
+        expected = _chain_tally(chains)
+        source = _source(_CHAIN_PATH, _render_chains(rng, chains))
+        sim.note(
+            step=sim.step,
+            subsystem=sim.subsystem,
+            action="rigor-helper-chains",
+            chains=["/".join(chain.kinds) + ("/cycle" if chain.cycle else "") for chain in chains],
+            without=expected.tests_without_assertion,
+        )
+        counts = _py_counts(source)
+        sim.require(counts is not None, "rigor_chain_parses")
+        assert counts is not None
+        sim.require(
+            counts.tests_without_assertion == expected.tests_without_assertion,
+            "rigor_chain_tests_without_assertion",
+        )
+        self._require_counts(asdict(counts), expected, "rigor_chain_counts")

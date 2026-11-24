@@ -2,7 +2,7 @@
 
 Written 2026-11-21 for Peter, updated 2026-11-23 with E5 to E7 and 2026-11-24 with E8, E8b and E9. OBSERVED
 means a run or a file shows it. INFERRED means our reasoning. Each number comes from `FINDINGS.md` (F11 to
-F29) and the dated entries in `LOG.md`, both
+F30) and the dated entries in `LOG.md`, both
 in this folder. Run outputs stay outside Git, in `muster-runs/`. Paths written before 2026-11-21 refer to the
 old muster repository: `docs/` and `experiments/` are now this folder, `tasks/` is `muster/tasks/`.
 
@@ -407,6 +407,10 @@ recomputed the numbers before this text. Details: F27.
 - OBSERVED: the obedience of `chief-48` is not measured under the registered rule (the parser reads the
   coordinator's list for 79.7% of the opens; the limit is 80%). Of the opens that it reads, 528 of 534 follow
   the list.
+- OBSERVED, after the result (F30, not pre-registered): in the team of 48 without a rule, 256 of the 306
+  repeats come within 15 s after another agent opened the same box, and 265 are on positions 1 to 3 of a
+  room. A report of the box existed before the repeat in 103 cases, and the repeating agent had read it in
+  11. The agents choose the same boxes in the same moment, before a report can be read.
 - INFERRED: the repeat loss of E5 continues to 48 agents, and 1 paragraph that fixes who opens what removes
   it. Limits: only 1 team size for each rule; `zones` puts the solution into the prompt; 7 layouts with 1
   trial each; 1 model, 1 harness, 1 night.

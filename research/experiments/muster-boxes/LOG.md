@@ -12,6 +12,23 @@ Times are New York time (ET). Newest entry first. Each entry says what is done a
 
 ## 2026-11-24
 
+**6:10 AM. A look at the E9 repeats (F30); `campaign` reads the key limit; a design note for `standin` v2.**
+- `seat_codes.py` counts `GET /new` as a read (`7fb9e8dc4`; E5 to E7 output byte-identical). On E9: 256 of
+  the 306 repeats of `team-48` come within 15 s after the first open of the box; a report existed before
+  103 of them and was read before 11. The E9 auditor recomputed all values and asked for 2 definitions in
+  the text and for "collisions on the same boxes" in place of "races". Not pre-registered.
+- `campaign`: the key-limit gate is on `main` (`1a7abf7c8`): a start needs the smaller of the account
+  credits and the key's remaining limit. A fourth review says "go with rules" and found that the example
+  probe fails open for 1 response shape and that a probe output can reach a log line; a last fix round is
+  in work. No paid campaign has run.
+- The OpenRouter API key was at $0.00 of its limit at 5:57 AM (usage $100.01); the account held $6.91.
+- `standin` v2: a design note by the builder (`muster-runs/night-2026-11-24/standin-v2-design.md`), revised
+  after an independent review that found 6 cells true or false by construction. First wave: a step join of
+  world events and agent steps, a wait probe without a timer, and a ladder of list rules; about $5.40 for
+  2 models. Nothing is built.
+- Worktrees `fable-campaign`, `-campaign2`, `-campaign3`, `fable-horde`, `fable-night-run` and
+  `fable-standin` are removed, with their merged branches. 0 Daytona sandboxes exist.
+
 **5:45 AM. E8 and E8b are audited and written (F28, F29). The OpenRouter API key is at its own limit.**
 - E8 audit: its own scorer agrees with all 220 `reward.json` files and with every number of the analysis.
   It changed the meaning of 3 results, and F28 uses its wording: a `stale-t` failure is 1 read and then a

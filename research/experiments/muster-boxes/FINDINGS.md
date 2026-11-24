@@ -1147,3 +1147,45 @@ of the 4 traps, 1 harness, thinking off); "Haiku is worse at the stale-read trap
 layouts differ); "the probe family does not discriminate between models" (low power, and the cells that
 ran are at the floor and the ceiling for both models); "E8b replicates E8" (tests 1 and 2 have the sign of
 E8 and pass, test 2 by 1 trial; tests 3 and 4 did not run).
+
+## F30. E9, a look at the repeats after the result: at 48 agents most repeats hit the same low-numbered boxes within 15 s, before any report of the box was read (2026-11-24, no trial)
+
+Not pre-registered: a description of the stored E9 trials with `analysis/seat_codes.py` at `7fb9e8dc4`. The
+script now counts `GET /new` as a read, by the posts that the call returned; its E5 to E7 output is
+byte-identical. The E9 auditor recomputed every number below with its own code. Files:
+`muster-runs/night-2026-11-24/e9/analysis/seat-codes.txt` and `seat-codes.json`.
+
+OBSERVED:
+- **Repeats:** `team-8` 115, `team-16` 216, `team-48` 306 (7 trials each). All are opens of a box that
+  another agent opened first.
+- **`team-48`, the time since the first open of the box:** 135 repeats come under 5 s after it, 121 from 5
+  to 15 s, 50 from 15 to 60 s and 0 later. So 256 of 306 (84%) come within 15 s.
+- **`team-48`, the reports:** the first opener had posted a report of the box before the repeat in 103 of
+  306 cases, and the repeating agent had read that report in 11 of them. So 295 of 306 repeats (96%) come
+  with no report yet (203) or with a report that the agent had not read (92).
+- **The repeats are on the same boxes:** 265 of 306 are on positions 1 to 3 of a room (99, 97 and 69), and
+  235 of 306 are flag boxes.
+- **The age of the view does not separate repeats from first opens.** The median time from an agent's last
+  read to its open is 10.0 s for repeats and 9.1 s for first opens of a box at 48 agents (13.0 and 13.4 s
+  at 8 agents; 12.9 and 12.5 s at 16).
+- **Every team agent reads before its first open, but often an empty board.** 220 of the 362 `GET /msgs`
+  reads of `team-48` returned 0 posts. A first open before any read that returned 1 or more posts: 20 of
+  56 agents (8 agents), 36 of 112 (16) and 56 of 336 (48).
+- **Reads between opens.** Agents with no read between their first and their last open: 7 of 56, 30 of 112
+  and 168 of 336. The opens for each agent fall at the same time (12, 6, 2), so part of this growth is
+  mechanical. Opens with a read by the same agent since its previous open (a first open counts when any
+  read came before it): 133 of 643, 249 of 672 and 504 of 672.
+- **The share of repeats of a box that a post named and the agent had not read does not grow with the team
+  size:** 59 of 115, 131 of 216 and 169 of 306. The frozen box pattern of the script misses several post
+  forms (for example "box 151 room 16 flag false"), so these counts are too low.
+- **Rule arms.** `zones-48` has 16 repeats: 14 are an agent p(n+1) on a box that agent p(n) opened first (1
+  position off in the plan). `chief-48` has 14: 12 are in `horde-i05`, where p1 posted 2 lists that give
+  the same boxes to different agents.
+
+INFERRED. At 48 agents with 2 opens each, the agents choose the same low-numbered boxes of a treasure room
+in the same 15 s window, before a report of those boxes can be read. This is the collision of F15 and F20 at
+a larger size, and it is the situation that the `stale` probe of E8 makes on purpose: a change between an
+agent's read and its opens. "Race" is too strong as a cause: with 2 opens for each agent and many reads of
+an empty board, "no report existed or was read" holds almost by construction. Limits: the report rule (a
+post with a room and a result word counts for every box of the room; plans and intents do not count), no
+check of the codes against readers on E9, 7 trials for each arm, 1 model.

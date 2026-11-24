@@ -22,6 +22,7 @@ _WEIGHTS = {"function": 3, "flag": 3, "file": 2, "class": 2, "name": 1}
 _CONSTRAINT_BONUS = 2
 _FUNCTION_STYLES = ("snake", "camel", "call", "qualified")
 _FILE_STYLES = ("flat", "nested", "dotfile")
+_DOTFILE_STEM = "rc"
 _DOTFILE_SUFFIX = "example"
 _FLAG_SUFFIXES = ("on", "only", "strict", "never")
 _EXTENSIONS = ("py", "json", "toml", "yaml", "csv", "sh")
@@ -124,7 +125,8 @@ class _Cue:
             return f"--{self.token}-{self.suffix}"
         if self.kind == "file":
             if self.style == "dotfile":
-                return f".{self.token}.{_DOTFILE_SUFFIX}" if self.variant else f".{self.token}"
+                name = f".{self.token}{_DOTFILE_STEM}"
+                return f"{name}.{_DOTFILE_SUFFIX}" if self.variant else name
             return f"data/{self.reference}" if self.style == "nested" else self.reference
         return self.token.capitalize() if self.kind == "class" else self.token
 

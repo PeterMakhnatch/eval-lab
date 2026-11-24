@@ -1051,10 +1051,26 @@ def _test_sources(package: Package) -> tuple[list[TestSource], list[str], list[P
     return sources, scripts, patch_files
 
 
+_FILE_EXTENSIONS = frozenset(("py", "js", "ts", "rs", "go", "json", "toml", "yaml", "yml", "md", "txt", "csv", "sh", "cfg", "ini"))
+_DOT_FILE_STEM = re.compile(
+    r"env|git\w*|docker\w*|npm\w*|yarn\w*|\w*rc|\w*ignore|editorconfig|venv|virtualenv|cache|config|local|ssh|aws|kube"
+    r"|vscode|idea|github|gitlab\w*|circleci|devcontainer|husky|nvmrc|htaccess|netrc|pgpass|pypirc|profile|bash_\w+|zsh\w*"
+    r"|pylint\w*|flake8|coveragerc|mypy\w*|pytest\w*|ruff\w*|tox|prettier\w*|eslint\w*|babel\w*|terraform\w*|DS_Store",
+    re.I,
+)
+
+
+def _dot_file(token: str) -> bool:
+    assert token.startswith(".") and len(token) > 1
+    segments = token[1:].split(".")
+    named = _DOT_FILE_STEM.fullmatch(segments[0]) is not None
+    return named or "/" in token or "-" in token or len(segments) > 1 and segments[-1].lower() in _FILE_EXTENSIONS
+
+
 def _symbol_kind(token: str, span: str) -> str:
     if token.startswith("-"):
         return "flag"
-    if token.startswith(".") or "/" in token or re.search(r"\.\w{1,5}$", token) and token.rsplit(".", 1)[-1].lower() in {"py", "js", "ts", "rs", "go", "json", "toml", "yaml", "yml", "md", "txt", "csv", "sh", "cfg", "ini"}:
+    if token.startswith(".") or "/" in token or re.search(r"\.\w{1,5}$", token) and token.rsplit(".", 1)[-1].lower() in _FILE_EXTENSIONS:
         return "file"
     if re.match(r"^[A-Z][A-Za-z0-9]+$", token):
         return "class"
@@ -1068,11 +1084,6 @@ _MENTION = re.compile(
     r"`[^`\n]*`|(?<![\w-])--[a-z][\w-]+|(?<![\w/.])[\w./-]+\.(?:py|js|ts|rs|go|json|toml|ya?ml|csv|sh|cfg|ini)\b"
 )
 _CUE_TOKEN = re.compile(r"--[a-z][\w-]+|(?<![\w.])\.[A-Za-z_][\w./-]*+(?!\()|[A-Za-z_][\w./-]*")
-_BARE_EXTENSION = re.compile(
-    r"\.(?:py|js|ts|tsx|jsx|rs|go|rb|java|c|h|cpp|json|jsonl|toml|ya?ml|md|txt|csv|tsv|sh|cfg|ini|html?|xml|sql|log|lock"
-    r"|parquet|png|jpe?g|gif|svg|pdf|zip|gz|tar|ipynb|wasm|so|bin|out|exe)",
-    re.I,
-)
 
 
 def instruction_cues(instruction: str) -> list[dict[str, Any]]:
@@ -1087,9 +1098,8 @@ def instruction_cues(instruction: str) -> list[dict[str, Any]]:
         for span, raw in spans:
             for token in _CUE_TOKEN.findall(span):
                 token = token if token.startswith("--") else token.rstrip(".-/")
-                token = token[1:] if _BARE_EXTENSION.fullmatch(token) else token
-                dot_file = token.startswith(".")
-                symbol = token.rsplit(".", 1)[-1] if (not dot_file and not token.startswith("-") and "/" not in token and token.count(".") >= 1 and not re.search(r"\.[a-z]{1,4}$", token)) else token
+                token = token[1:] if token.startswith(".") and not _dot_file(token) else token
+                symbol = token.rsplit(".", 1)[-1] if (not token.startswith((".", "-")) and "/" not in token and token.count(".") >= 1 and not re.search(r"\.[a-z]{1,4}$", token)) else token
                 if len(symbol) < 3 or symbol.lower() in _IDENT_STOP or symbol.isdigit():
                     continue
                 kind = _symbol_kind(symbol, raw)

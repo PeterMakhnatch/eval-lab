@@ -76,6 +76,21 @@ COST_FIELDS = (
     ("tokens_cache", "n_cache_tokens"),
 )
 RUN_SUMS = ("trial_exception", "seat_exceptions", "zero_calls", "zero_calls_unknown")
+READ_KINDS = (("msgs", "GET"), ("new", "GET"))
+MESSAGE_KINDS = (("msg", "POST"), *READ_KINDS)
+WIDE_SEATS = 8
+TOP_POSTERS = 3
+SEAT_NAME = re.compile(r"p([1-9][0-9]*)")
+
+
+def seat_number(seat: str) -> int:
+    match = SEAT_NAME.fullmatch(seat)
+    assert match, seat
+    return int(match.group(1))
+
+
+def poster_order(item: tuple[str, object]) -> int:
+    return 0 if item[0] == "none" else seat_number(item[0])
 
 
 def parse_arm(text: str, total: int | None, per_seat: int | None) -> dict:
@@ -255,9 +270,15 @@ def note_message(e: dict, chan: dict, c: Counter) -> None:
         text = e["response"]["text"]
         chan["posts"].append((e["seq"], seat, e["response"]["id"], mentioned(text)))
         return
+    assert (e["kind"], e["method"]) in READ_KINDS, (e["seq"], e["kind"])
     c["reads"] += 1
     chan["last_read"][seat] = e["seq"]
     seen = chan["seen"].setdefault(seat, {})
+    if e["kind"] == "new":
+        c["reads_new"] += 1
+        for post in chan["posts"]:
+            seen.setdefault(post[2], e["t"])
+        return
     for m in e["response"].get("messages", []):
         seen.setdefault(m["id"], e["t"])
 
@@ -273,7 +294,7 @@ def walk(events: list[dict], budget: int) -> tuple[Counter, dict[str, int], set[
     for e in events:
         seat, kind, method = e["seat"], e["kind"], e["method"]
         posted, read = state.get(seat, (False, False))
-        if (kind, method) in (("msg", "POST"), ("msgs", "GET")):
+        if (kind, method) in MESSAGE_KINDS:
             note_message(e, chan, c)
             state[seat] = (posted or method == "POST", read or method == "GET")
         elif kind == "open" and method == "POST":
@@ -297,6 +318,8 @@ def walk(events: list[dict], budget: int) -> tuple[Counter, dict[str, int], set[
     assert c["opens"] == c["flags"] + c["empty"] + c["repeats"] and c["flags"] == len(flag_boxes)
     assert c["repeats"] == sum(c[key] for key in SPLIT_KEYS)
     assert c["repeats"] == c["repeat_own"] + sum(c[key] for key in BOX_SPLIT_KEYS)
+    assert c["reads_new"] <= c["reads"] and sum(used.values()) == c["opens"]
+    chan["used"] = used
     return c, first_box, flag_boxes, len(first), chan
 
 
@@ -368,7 +391,7 @@ def field_measures(events: list[dict], seats: list[str], size: int) -> dict:
         if kind == "msg" and e["method"] == "POST":
             for room in called_rooms(e["response"]["text"], visited[seat], size):
                 calls.setdefault(room, []).append((seat, e["seq"]))
-        elif kind == "msgs" and e["method"] == "GET":
+        elif (kind, e["method"]) in READ_KINDS:
             last_read[seat] = e["seq"]
         elif kind == "open" and e["method"] == "POST":
             box, room, flag = e["response"]["box"], e["response"]["room"], e["response"]["flag"]
@@ -395,7 +418,7 @@ def field_measures(events: list[dict], seats: list[str], size: int) -> dict:
 def trial_row(trial: Path, arm: dict, cfg: dict) -> dict:
     result = json.loads((trial / "result.json").read_text())
     assert isinstance(result, dict) and isinstance(result.get("seat_results"), list), trial
-    seats = sorted(item["seat"] for item in result["seat_results"])
+    seats = sorted((item["seat"] for item in result["seat_results"]), key=seat_number)
     assert len(seats) == arm["seats"], (trial, seats, arm["label"])
     row = {"instance": trial.name.split("__", 1)[0], "trial": trial.name, **usage(result)}
     row |= run_info(trial, result, seats, cfg["cap"])
@@ -413,6 +436,8 @@ def trial_row(trial: Path, arm: dict, cfg: dict) -> dict:
     unused = row["budget"] - c["opens"]
     assert unused >= 0, trial
     row.update({key: c[key] for key in ("opens", "flags", "empty", "repeats", "messages", "reads")})
+    row["reads_new"] = c["reads_new"]
+    row["seats_left"] = sum(1 for seat in seats if chan["used"][seat] < arm["budget"])
     row.update({key: c[key] if channel else None for key in (*SPLIT_KEYS, *BOX_SPLIT_KEYS)})
     row["msgs_per_seat"] = c["messages"] / len(seats)
     has_msgs = channel and c["messages"] > 0
@@ -459,7 +484,7 @@ def first_boxes(rows: list[dict]) -> dict[str, dict]:
         for seat, box in r["first_box"].items():
             counts.setdefault(seat, Counter())[box] += 1
     out = {}
-    for seat, counter in sorted(counts.items()):
+    for seat, counter in sorted(counts.items(), key=poster_order):
         box, n = max(counter.items(), key=lambda item: (item[1], -item[0]))
         out[seat] = {"box": box, "share": n / sum(counter.values())}
     return out
@@ -469,7 +494,26 @@ def first_posters(rows: list[dict]) -> dict[str, float] | None:
     posters = [r["first_poster"] for r in rows if r["first_poster"] is not None]
     if not posters:
         return None
-    return {seat: n / len(posters) for seat, n in sorted(Counter(posters).items())}
+    return {
+        seat: n / len(posters) for seat, n in sorted(Counter(posters).items(), key=poster_order)
+    }
+
+
+def scout_first(rows: list[dict], k: int, cfg: dict) -> dict:
+    rooms, size = cfg["boxes"] // cfg["room_size"], cfg["room_size"]
+    assert k > 0 and rooms * size == cfg["boxes"]
+    hits, seat_trials = 0, 0
+    for r in rows:
+        for seat, box in r["first_box"].items():
+            n = seat_number(seat)
+            assert 1 <= n <= k, (seat, k)
+            scouts = {
+                (room - 1) * size + 1 for room in range(1, rooms + 1) if (room - 1) % k == n - 1
+            }
+            seat_trials += bool(scouts)
+            hits += box in scouts
+    share = hits / seat_trials if seat_trials else None
+    return {"hits": hits, "seat_trials": seat_trials, "share": share}
 
 
 def run_measures(rows: list[dict]) -> dict:
@@ -507,6 +551,8 @@ def summarize(arm: dict, rows: list[dict], cfg: dict) -> dict:
     out |= run_measures(rows)
     out["first_box_by_seat"] = first_boxes(scored)
     out["first_poster"] = first_posters(scored)
+    if arm["seats"] > WIDE_SEATS:
+        out["first_box_scout"] = scout_first(scored, arm["seats"], cfg)
     out["reference"] = cfg["reference"].get(arm["label"])
     if cfg["per_seat"] is not None:
         out |= {key: mean_of(scored, key) for key in FIELD_KEYS}
@@ -945,14 +991,30 @@ def spec_table(title: str, items: list[dict], first: str, columns: tuple) -> str
     return table(title, headers, rows)
 
 
+def wide_seat_text(a: dict) -> tuple[str | None, str | None]:
+    scout = a["first_box_scout"]
+    boxes = None
+    if scout["seat_trials"]:
+        boxes = f"scout box first {scout['hits']}/{scout['seat_trials']} seat-trials"
+        boxes += f" ({scout['share']:.2f})"
+    posters = a["first_poster"]
+    if not posters:
+        return boxes, None
+    top = sorted(posters.items(), key=lambda item: (-item[1], poster_order(item)))[:TOP_POSTERS]
+    return boxes, f"top {len(top)}: " + " ".join(f"{s}:{v:.2f}" for s, v in top)
+
+
 def seat_text(a: dict) -> dict:
     boxes = " ".join(f"{s}:{v['box']}@{v['share']:.2f}" for s, v in a["first_box_by_seat"].items())
     posters = a["first_poster"]
     reference = a["reference"]
+    poster_text = " ".join(f"{s}:{v:.2f}" for s, v in posters.items()) if posters else None
+    if a["seats"] > WIDE_SEATS:
+        boxes, poster_text = wide_seat_text(a)
     return {
         "label": a["label"],
         "firstBoxBySeat": boxes or None,
-        "firstPoster": " ".join(f"{s}:{v:.2f}" for s, v in posters.items()) if posters else None,
+        "firstPoster": poster_text,
         "reference": " ".join(f"{p}:{v:.3f}" for p, v in reference.items()) if reference else None,
     }
 

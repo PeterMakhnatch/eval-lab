@@ -908,7 +908,7 @@ folders of `e8/final/`; the output starts with the definitions that it uses)
 - 1 model, 1 harness, 10 layouts, 10 or 20 trials for each cell, 1 synthetic search task. A second model is
   needed before a pass rate can be called a property of a model.
 
-## Amendment 12a (5:16 AM ET, 2026-11-24, before any `standin` trial with the second model): E8b, the 4 primary contrasts of E8 with Claude Haiku 5.5
+## Amendment 12a (5:14 AM ET, 2026-11-24, before any `standin` trial with the second model): E8b, the 4 primary contrasts of E8 with Claude Haiku 5.5
 
 Written after the E8 trials with DeepSeek V4.1 Flash ended. I know the E8 numbers of the registered analysis
 (`e8/analysis/e8.txt`, not yet audited): 220 of 220 trials measured; `probe_pass` is 10% in `stale-t`, 20%

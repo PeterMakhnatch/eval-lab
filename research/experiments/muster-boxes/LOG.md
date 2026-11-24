@@ -12,7 +12,7 @@ Times are New York time (ET). Newest entry first. Each entry says what is done a
 
 ## 2026-11-24
 
-**5:16 AM. E8 ended; E8b (a second model, Claude Haiku 5.5) is pre-registered (Amendment 12a).**
+**5:14 AM. E8 ended; E8b (a second model, Claude Haiku 5.5) is pre-registered (Amendment 12a).**
 - E8: both first commands ended at 4:58 AM; before the second commands `night_money.py` showed $1.76 left
   (the rule needs $0.90), the watcher ran and no stop file existed (`e8/gates.log`; the gate of 4:24 AM is
   in that file too, written after the fact). The last cell ended at 5:08 AM. 220 of 220 trials are

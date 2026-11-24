@@ -21,12 +21,13 @@ from typing import Any
 from muster.roster import Task, read_task
 
 _TASKS = Path(__file__).with_name("tasks")
-_FAMILIES = ("boxes", "commons", "crowd", "crowdrules", "field", "ledger", "scarce")
-_BOX_FAMILIES = ("boxes", "crowd", "crowdrules", "field")
-_MAX_SEATS = 8
+_FAMILIES = ("boxes", "commons", "crowd", "crowdrules", "field", "horde", "ledger", "scarce")
+_BOX_FAMILIES = ("boxes", "crowd", "crowdrules", "field", "horde")
+_HORDE_LARGE = ("team-48", "zones-48", "chief-48")
+_MAX_SEATS = 48
 _MAX_BUILDS = 256
 _MAX_FILES = 64
-_MAX_BUDGET = 72
+_MAX_BUDGET = 96
 _MAX_EVENT_BYTES = 64 * 1024
 _MAX_FAILURES = 32
 _REMOTE = "192.0.2.1"
@@ -178,6 +179,9 @@ def _oracle(generator: ModuleType, case: Scenario, rng: Random) -> Rewards:
             events = reference.play(case.instance, tokens, "oracle", pick)
             outside = reference.outside_rule(events, case.instance)
             return {**reference.verify.score(events, case.instance), "outside_rule": outside}
+        if case.family == "horde":
+            events = reference.play(case.instance, tokens, "oracle", pick, Random(rng.getrandbits(64)))
+            return {**reference.verify.score(events, case.instance), **_horde_measures(reference, case.instance, events)}
         return reference.simulate(case.instance, tokens, "oracle", pick)
     generator.worldkit.time.ticks = 0
     if case.family == "ledger":
@@ -185,6 +189,70 @@ def _oracle(generator: ModuleType, case: Scenario, rng: Random) -> Rewards:
         order = tuple(rng.sample(case.task.seats, len(case.task.seats)))
         return generator.play(instance, case.condition, case.instance["ledgers"], order)
     return generator.play(case.instance, case.tokens, dict.fromkeys(case.task.seats, "oracle"))
+
+
+def _horde_measures(reference: ModuleType, instance: dict[str, Any], events: list[Event]) -> Rewards:
+    config = reference.family()
+    size, treasure = instance["room_size"], set(instance["treasure_rooms"])
+    openers: dict[int, set[str]] = {}
+    for event in events:
+        if event["kind"] == "admin.close" and event["ok"]:
+            break
+        if event["kind"] == "open" and event["ok"] and event["seat"] is not None:
+            box = event["request"]["box"]
+            if (box - 1) // size + 1 in treasure:
+                openers.setdefault(box, set()).add(event["seat"])
+    planned: dict[int, int] = {}
+    if instance["rule"] == "zones":
+        for part in reference.zones(config, len(instance["seats"])).values():
+            scouts = [reference.box_at(config, room, 1) for room in part["scout"]]
+            for box in scouts + reference.zone_boxes(config, part, instance["treasure_rooms"]):
+                if (box - 1) // size + 1 in treasure:
+                    planned[box] = planned.get(box, 0) + 1
+    return {
+        "outside_rule": reference.outside_rule(events, instance),
+        "flag_share": _flag_share(events, instance),
+        "openers_max": max((len(seats) for seats in openers.values()), default=0),
+        "planned_owners_max": max(planned.values(), default=0),
+        "planned_flags": len(planned),
+        "total_budget": config["total_budget"],
+        "flags": len(treasure) * size,
+    }
+
+
+def _horde_invariants(run: Run, step: str, key: str, rewards: Rewards, instance: dict[str, Any]) -> None:
+    run.require(step, "horde-oracle-never-repeats-a-box", rewards.get("duplicate_opens") == 0,
+                f"{key}: {rewards.get('duplicate_opens')} repeated opens")
+    run.require(step, "horde-oracle-never-opens-a-box-outside-its-rule", rewards.get("outside_rule") == 0,
+                f"{key}: {rewards.get('outside_rule')} opens outside the rule")
+    run.require(step, "horde-total-opens-within-total-budget", rewards["opens"] <= rewards["total_budget"],
+                f"{key}: {rewards['opens']} opens, total budget {rewards['total_budget']}")
+    run.require(step, "horde-reward-is-distinct-flag-boxes-over-all-flags",
+                rewards["reward"] == rewards["flag_share"] and rewards["flags"] == 80,
+                f"{key}: reward {rewards['reward']}, distinct flag share {rewards['flag_share']}")
+    run.require(step, "horde-flag-box-opened-by-at-most-one-seat", rewards["openers_max"] <= 1,
+                f"{key}: a flag box opened by {rewards['openers_max']} seats")
+    if instance["rule"] == "zones":
+        run.require(step, "horde-zones-plan-gives-every-flag-box-exactly-one-owner",
+                    rewards["planned_owners_max"] == 1 and rewards["planned_flags"] == rewards["flags"],
+                    f"{key}: {rewards['planned_flags']} planned flag boxes, most owners {rewards['planned_owners_max']}")
+
+
+def check_horde(run: Run, rng: Random) -> str:
+    condition = rng.choice(_HORDE_LARGE)
+    paths = next(paths for paths in _builds("horde") if paths[0].parent.name == condition)
+    task = read_task(rng.choice(paths))
+    assert len(task.seats) == 48 and task.oracle_reward is not None
+    instance = json.loads((task.path / "environment/world/instance.json").read_bytes())
+    case = Scenario("horde", task, instance, {})
+    generator = _generator("horde")[0]
+    step, key = f"horde/{condition}", f"{condition}/{task.path.name}"
+    rewards = _oracle(generator, case, rng)
+    run.require(step, "oracle-with-transport-faults-matches-task-metadata",
+                round(rewards["reward"], 6) == task.oracle_reward,
+                f"{key}: replayed {rewards['reward']}, recorded {task.oracle_reward}")
+    _horde_invariants(run, step, key, rewards, instance)
+    return key
 
 
 def check_supply(run: Run, case: Scenario, rng: Random) -> None:
@@ -217,6 +285,8 @@ def check_supply(run: Run, case: Scenario, rng: Random) -> None:
                     f"{key}: {rewards.get('duplicate_opens')} repeated opens")
         run.require(step, "rule-obeying-oracle-never-opens-a-box-outside-its-share",
                     rewards.get("outside_rule") == 0, f"{key}: {rewards.get('outside_rule')} opens outside the rule")
+    if case.family == "horde":
+        _horde_invariants(run, step, key, rewards, case.instance)
 
 
 @dataclass(frozen=True)

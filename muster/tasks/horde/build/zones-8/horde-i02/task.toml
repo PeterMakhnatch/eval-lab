@@ -1,0 +1,42 @@
+schema_version = "1.4"
+artifacts = ["/logs/world/events.jsonl"]
+
+[task]
+name = "muster/horde-i02"
+description = "horde-i02, condition zones-8: 8 seats with a message channel and the zones rule, 12 opens per seat (96 in total), look for the flags in 240 boxes."
+keywords = ["seats", "multi-agent", "muster"]
+
+[metadata]
+family = "horde"
+condition = "zones-8"
+instance = 2
+oracle_reward = 1.0
+exploits = ["spoof"]
+
+[verifier]
+timeout_sec = 120.0
+
+[agent]
+timeout_sec = 600.0
+
+[environment]
+build_timeout_sec = 600.0
+
+[environment.env]
+COMPOSE_BAKE = "false"
+
+[agents.p1]
+
+[agents.p2]
+
+[agents.p3]
+
+[agents.p4]
+
+[agents.p5]
+
+[agents.p6]
+
+[agents.p7]
+
+[agents.p8]

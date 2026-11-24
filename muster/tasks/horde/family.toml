@@ -1,0 +1,340 @@
+# The horde family (v1). muster/tasks/horde/generate.py builds the tasks from this file and from template/.
+# muster/tasks/horde/reference.py writes the [reference] tables; generate.py --check refuses other numbers.
+
+name = "horde"
+description = """
+The field world (240 boxes in 24 rooms of 10, 8 treasure rooms, 80 flags, message channel on) at a fixed \
+total of 96 opens, with 1 to 48 agents. solo-96: 1 agent with all 96 opens. For k = 8, 16, 32, 48 with 12, \
+6, 3, 2 opens for each agent: team-k has the plain field team text; zones-k adds a fixed plan by seat \
+number (who scouts which room, and which positions of which treasure room each agent opens once the 8 \
+treasure rooms are known); chief-k makes p1 the coordinator who posts a scouting list (each room exactly \
+once) and a treasure list. The instances i01 to i10 have the treasure rooms of field-i01 to field-i10.\
+"""
+seed = "horde-v1"
+layout_seed = "field-v1"
+instances = 10
+rooms = 24
+room_size = 10
+treasure_rooms = 8
+total_budget = 96
+
+[policies]
+oracle = "The best play that obeys the condition's rule; it reaches 1.0 in every condition. solo-96: scan the rooms from room 1 with 1 box each, stay in a treasure room until it is empty, stop after the 8th treasure room (16 empty first boxes + 80 flags = 96 opens). team-k: seat n scouts the first box of the rooms r with (r - 1) mod k = n - 1 and posts each result as JSON {room, box, flag}; when all 24 rooms are on the board, every seat cuts the 72 closed treasure boxes into blocks by opens left in seat order and opens its own block. zones-k: the plan of reference.py (the same scouts; then seat n opens its positions of the treasure room of rank ((n - 1) mod 8) + 1). chief-k: p1 posts the scouting list (the team-k scouts) and, when all 24 rooms are on the board, the block list, at most 16 seats in each post; every seat opens every box that any list of p1 gives it and posts each result."
+sequential = "Identical agents: every seat plays the solo-96 scan from room 1 with its own opens and ignores the channel, so all seats open the same boxes."
+random = "Every seat opens distinct boxes in a pseudo-random order seeded by its token, until its opens run out. It ignores the rule."
+spoof = "Exploit attempt, not a legal policy: opens without a token, with guessed tokens, with the names of up to 3 other seats in the token, body or header, and a close from a seat. A sound world refuses all of it: reward 0."
+
+[conditions.solo-96]
+agents = 1
+rule = "solo"
+
+[conditions.team-8]
+agents = 8
+rule = "team"
+
+[conditions.zones-8]
+agents = 8
+rule = "zones"
+
+[conditions.chief-8]
+agents = 8
+rule = "chief"
+
+[conditions.team-16]
+agents = 16
+rule = "team"
+
+[conditions.zones-16]
+agents = 16
+rule = "zones"
+
+[conditions.chief-16]
+agents = 16
+rule = "chief"
+
+[conditions.team-32]
+agents = 32
+rule = "team"
+
+[conditions.zones-32]
+agents = 32
+rule = "zones"
+
+[conditions.chief-32]
+agents = 32
+rule = "chief"
+
+[conditions.team-48]
+agents = 48
+rule = "team"
+
+[conditions.zones-48]
+agents = 48
+rule = "zones"
+
+[conditions.chief-48]
+agents = 48
+rule = "chief"
+
+# Reference scores: the team reward when every seat plays the policy, as mean, min and max over the
+# 10 instances. Computed by reference.py --write; never typed.
+
+[reference.solo-96.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.solo-96.sequential]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.solo-96.random]
+mean = 0.42125
+min = 0.3625
+max = 0.4875
+
+[reference.solo-96.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-8.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.team-8.sequential]
+mean = 0.115
+min = 0.025
+max = 0.1375
+
+[reference.team-8.random]
+mean = 0.3475
+min = 0.3125
+max = 0.425
+
+[reference.team-8.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.zones-8.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.zones-8.sequential]
+mean = 0.115
+min = 0.025
+max = 0.1375
+
+[reference.zones-8.random]
+mean = 0.3475
+min = 0.3125
+max = 0.425
+
+[reference.zones-8.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.chief-8.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.chief-8.sequential]
+mean = 0.115
+min = 0.025
+max = 0.1375
+
+[reference.chief-8.random]
+mean = 0.3475
+min = 0.3125
+max = 0.425
+
+[reference.chief-8.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-16.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.team-16.sequential]
+mean = 0.05375
+min = 0.0
+max = 0.075
+
+[reference.team-16.random]
+mean = 0.35125
+min = 0.25
+max = 0.45
+
+[reference.team-16.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.zones-16.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.zones-16.sequential]
+mean = 0.05375
+min = 0.0
+max = 0.075
+
+[reference.zones-16.random]
+mean = 0.35125
+min = 0.25
+max = 0.45
+
+[reference.zones-16.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.chief-16.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.chief-16.sequential]
+mean = 0.05375
+min = 0.0
+max = 0.075
+
+[reference.chief-16.random]
+mean = 0.35125
+min = 0.25
+max = 0.45
+
+[reference.chief-16.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-32.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.team-32.sequential]
+mean = 0.02125
+min = 0.0
+max = 0.0375
+
+[reference.team-32.random]
+mean = 0.34125
+min = 0.2375
+max = 0.425
+
+[reference.team-32.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.zones-32.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.zones-32.sequential]
+mean = 0.02125
+min = 0.0
+max = 0.0375
+
+[reference.zones-32.random]
+mean = 0.34125
+min = 0.2375
+max = 0.425
+
+[reference.zones-32.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.chief-32.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.chief-32.sequential]
+mean = 0.02125
+min = 0.0
+max = 0.0375
+
+[reference.chief-32.random]
+mean = 0.34125
+min = 0.2375
+max = 0.425
+
+[reference.chief-32.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-48.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.team-48.sequential]
+mean = 0.0125
+min = 0.0
+max = 0.025
+
+[reference.team-48.random]
+mean = 0.3325
+min = 0.2375
+max = 0.45
+
+[reference.team-48.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.zones-48.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.zones-48.sequential]
+mean = 0.0125
+min = 0.0
+max = 0.025
+
+[reference.zones-48.random]
+mean = 0.3325
+min = 0.2375
+max = 0.45
+
+[reference.zones-48.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.chief-48.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.chief-48.sequential]
+mean = 0.0125
+min = 0.0
+max = 0.025
+
+[reference.chief-48.random]
+mean = 0.3325
+min = 0.2375
+max = 0.45
+
+[reference.chief-48.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0

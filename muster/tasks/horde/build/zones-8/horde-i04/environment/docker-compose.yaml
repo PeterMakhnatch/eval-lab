@@ -1,0 +1,128 @@
+x-seat: &seat
+  build: ./seat
+  user: agent
+  working_dir: /home/agent
+  command: ["sleep", "infinity"]
+  init: true
+  depends_on:
+    main:
+      condition: service_healthy
+
+services:
+  main:
+    command: ["python3", "/world/world.py"]
+    environment:
+      SEAT_TOKENS: "{\"21bd592f519e6d9414de0b83bf3f8655\": \"p3\", \"543da2bb2daeda784bd524ef92d9cf20\": \"p1\", \"55b92ce1eeb8dc1039cad8c1ac2cb083\": \"p6\", \"7716cdc148594d662749fe5ac3ec539e\": \"p8\", \"b341226375195e0f79135f8aa87aa79e\": \"p7\", \"b67154f732c4cf9a1b409e20e772db83\": \"p4\", \"eadfb8760a3cd2466e690bade1e2ffe7\": \"p5\", \"fae7acb085c4128c7b1c85cf6414597d\": \"p2\"}"
+    networks:
+      p1-world:
+        aliases: [world]
+      p2-world:
+        aliases: [world]
+      p3-world:
+        aliases: [world]
+      p4-world:
+        aliases: [world]
+      p5-world:
+        aliases: [world]
+      p6-world:
+        aliases: [world]
+      p7-world:
+        aliases: [world]
+      p8-world:
+        aliases: [world]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=2)"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+      start_period: 2s
+  p1:
+    <<: *seat
+    networks: [p1-world]
+    environment:
+      SEAT: "p1"
+      SEAT_TOKEN: "543da2bb2daeda784bd524ef92d9cf20"
+      WORLD: "http://world:8080"
+  p2:
+    <<: *seat
+    networks: [p2-world]
+    environment:
+      SEAT: "p2"
+      SEAT_TOKEN: "fae7acb085c4128c7b1c85cf6414597d"
+      WORLD: "http://world:8080"
+  p3:
+    <<: *seat
+    networks: [p3-world]
+    environment:
+      SEAT: "p3"
+      SEAT_TOKEN: "21bd592f519e6d9414de0b83bf3f8655"
+      WORLD: "http://world:8080"
+  p4:
+    <<: *seat
+    networks: [p4-world]
+    environment:
+      SEAT: "p4"
+      SEAT_TOKEN: "b67154f732c4cf9a1b409e20e772db83"
+      WORLD: "http://world:8080"
+  p5:
+    <<: *seat
+    networks: [p5-world]
+    environment:
+      SEAT: "p5"
+      SEAT_TOKEN: "eadfb8760a3cd2466e690bade1e2ffe7"
+      WORLD: "http://world:8080"
+  p6:
+    <<: *seat
+    networks: [p6-world]
+    environment:
+      SEAT: "p6"
+      SEAT_TOKEN: "55b92ce1eeb8dc1039cad8c1ac2cb083"
+      WORLD: "http://world:8080"
+  p7:
+    <<: *seat
+    networks: [p7-world]
+    environment:
+      SEAT: "p7"
+      SEAT_TOKEN: "b341226375195e0f79135f8aa87aa79e"
+      WORLD: "http://world:8080"
+  p8:
+    <<: *seat
+    networks: [p8-world]
+    environment:
+      SEAT: "p8"
+      SEAT_TOKEN: "7716cdc148594d662749fe5ac3ec539e"
+      WORLD: "http://world:8080"
+
+networks:
+  p1-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p2-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p3-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p4-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p5-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p6-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p7-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p8-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true

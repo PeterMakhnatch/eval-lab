@@ -1,0 +1,28 @@
+schema_version = "1.4"
+artifacts = ["/logs/world/events.jsonl"]
+
+[task]
+name = "muster/horde-i01"
+description = "horde-i01, condition solo-96: 1 seat without a message channel and the solo rule, 96 opens per seat (96 in total), look for the flags in 240 boxes."
+keywords = ["seats", "multi-agent", "muster"]
+
+[metadata]
+family = "horde"
+condition = "solo-96"
+instance = 1
+oracle_reward = 1.0
+exploits = ["spoof"]
+
+[verifier]
+timeout_sec = 120.0
+
+[agent]
+timeout_sec = 600.0
+
+[environment]
+build_timeout_sec = 600.0
+
+[environment.env]
+COMPOSE_BAKE = "false"
+
+[agents.p1]

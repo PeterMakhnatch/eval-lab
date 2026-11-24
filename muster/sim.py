@@ -19,6 +19,7 @@ from muster.sim_fixture import (
     Scenario,
     Trial,
     Violation,
+    check_horde,
     check_supply,
     play_world,
     select,
@@ -33,6 +34,7 @@ _MAX_REGRESSIONS = 512
 _MAX_SEED = 2**64 - 1
 _DEFAULT_HUNT_SEED = 261121
 _MAX_HUNT_SEEDS = 1_000_000
+_HORDE_PERIOD = 8
 
 
 @dataclass(frozen=True)
@@ -289,6 +291,9 @@ def _run_seed(seed: int) -> Run:
                     _trial(run, case, root, evidence)
             with run.section("roster"):
                 _rosters(run, case, root, rng)
+    if seed % _HORDE_PERIOD == 0:
+        with run.section("horde"):
+            check_horde(run, Random(f"horde/{seed}"))
     return run
 
 

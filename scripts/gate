@@ -18,6 +18,6 @@ uv run --no-sync python -m evallab.sim check
 uv run --no-sync python -m tidegauge.sim check
 uv run --no-sync python -m muster.sim check
 uv run --no-sync python -m campaign.sim check
-for family in boxes ledger commons scarce crowd field crowdrules; do
+for family in boxes ledger commons scarce crowd field crowdrules horde; do
   uv run --no-sync python "muster/tasks/$family/generate.py" --check
 done

@@ -1,0 +1,30 @@
+{
+  "family": "horde",
+  "condition": "zones-8",
+  "instance": 10,
+  "seats": [
+    "p1",
+    "p2",
+    "p3",
+    "p4",
+    "p5",
+    "p6",
+    "p7",
+    "p8"
+  ],
+  "budget": 12,
+  "channel": true,
+  "rule": "zones",
+  "rooms": 24,
+  "room_size": 10,
+  "treasure_rooms": [
+    11,
+    12,
+    16,
+    17,
+    20,
+    22,
+    23,
+    24
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "family": "horde",
+  "condition": "solo-96",
+  "instance": 6,
+  "seats": [
+    "p1"
+  ],
+  "budget": 96,
+  "channel": false,
+  "rule": "solo",
+  "rooms": 24,
+  "room_size": 10,
+  "treasure_rooms": [
+    5,
+    8,
+    13,
+    17,
+    19,
+    21,
+    23,
+    24
+  ]
+}

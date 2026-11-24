@@ -1,0 +1,648 @@
+x-seat: &seat
+  build: ./seat
+  user: agent
+  working_dir: /home/agent
+  command: ["sleep", "infinity"]
+  init: true
+  depends_on:
+    main:
+      condition: service_healthy
+
+services:
+  main:
+    command: ["python3", "/world/world.py"]
+    environment:
+      SEAT_TOKENS: "{\"0135a9237aee18f5d37e95df460d8294\": \"p47\", \"0b8f282b558d20bd8ed234cb8ca6944f\": \"p4\", \"0bb4adaf6e2795e08369765451007b72\": \"p48\", \"1008580f199edd03350bdb3f05133541\": \"p38\", \"1d9774c7978b3f7ce5335f08daaca66e\": \"p21\", \"32f8b4f54233ec60a0e24aa35b8f0e98\": \"p36\", \"37b6c5cfe41571184b771258d781f17e\": \"p9\", \"48a8f5ed6c87af5561b027a772ccb78a\": \"p18\", \"4a157ad77fb4a0ce3186f14f4521cffe\": \"p32\", \"4e5e3a14f8180c9ee2488614c1752328\": \"p40\", \"5302c85f4c662d233c41765196019f1c\": \"p29\", \"544dc611c690b08c273430db6385683e\": \"p46\", \"55e7a2adeb47139c8eca8394d446e695\": \"p15\", \"60317082f352bf4b1ebb97c99eef1597\": \"p35\", \"77299082df3ebffe9ff47ed7ca702109\": \"p22\", \"789e07ad958c6e17437f8d2beddcf95d\": \"p42\", \"7a353ab00673b2a5bda80a94dcadea8f\": \"p6\", \"86f0ca5d8704d49737270c9e8185c1b6\": \"p26\", \"89bc9f115c7c7d41ba8886bfd2590f29\": \"p16\", \"89fb3f3e43c475485635c709996100fe\": \"p41\", \"8ba6da6e90acb27ce889ff6050060bdb\": \"p31\", \"8cb52cc3c914a75bca02fa8c290be4c1\": \"p5\", \"9bbbd715262beb932671455c2c6c1b2b\": \"p7\", \"9dce704792254702c29aaeebf95b0b6a\": \"p44\", \"a34e2c5f9e31b35f2a51eed32cedc8b8\": \"p45\", \"abad3c2ddbe424ecb932a18dfdac0e25\": \"p13\", \"b01d87d103788f6b8065f008fcd863af\": \"p11\", \"b1c0bed2b7a8b9225debac0222194ae7\": \"p10\", \"b26ec52c4f33eec1dd98607873851316\": \"p23\", \"c3255351e934a8790470696076d26022\": \"p20\", \"c7c8e1746997e59c168d438863207f56\": \"p17\", \"cc766479a4dfb682a29256ef0ccfbe4f\": \"p33\", \"d100a785cf74764e3e6316734437579e\": \"p2\", \"d29bf3242fd5c147749ce41a62c0a2ea\": \"p19\", \"d52c6d2dab9d2f68aeb719e336362bfa\": \"p30\", \"d6959c37e5f82884dceaa074ad9b502b\": \"p24\", \"d729b4a5c8a29558b67544812a1262dc\": \"p1\", \"d8461503c14c2f1dfa0fe616d180402b\": \"p28\", \"db5cdd86ade423bb53d34eff6ae2b38a\": \"p12\", \"dc36c519ee7cfcd884dfb91ca1d4e2c1\": \"p8\", \"dcbc6b5e3b52928e9e25979824f2dd3f\": \"p34\", \"e8e48b3066b23cea0544e61a8b16e772\": \"p14\", \"efda256d709ab1936102cf39c07b85dc\": \"p3\", \"f1de8c3d133696409469e6c51d91094a\": \"p39\", \"f50117635446b1802576d09984a8933e\": \"p27\", \"f63203ec73f9c06f67aae9d19e0be290\": \"p25\", \"f8690122cbafc7d56947d08ba768020f\": \"p37\", \"fb612a2a2a8c1cedaa8e48f88b6c748a\": \"p43\"}"
+    networks:
+      p1-world:
+        aliases: [world]
+      p2-world:
+        aliases: [world]
+      p3-world:
+        aliases: [world]
+      p4-world:
+        aliases: [world]
+      p5-world:
+        aliases: [world]
+      p6-world:
+        aliases: [world]
+      p7-world:
+        aliases: [world]
+      p8-world:
+        aliases: [world]
+      p9-world:
+        aliases: [world]
+      p10-world:
+        aliases: [world]
+      p11-world:
+        aliases: [world]
+      p12-world:
+        aliases: [world]
+      p13-world:
+        aliases: [world]
+      p14-world:
+        aliases: [world]
+      p15-world:
+        aliases: [world]
+      p16-world:
+        aliases: [world]
+      p17-world:
+        aliases: [world]
+      p18-world:
+        aliases: [world]
+      p19-world:
+        aliases: [world]
+      p20-world:
+        aliases: [world]
+      p21-world:
+        aliases: [world]
+      p22-world:
+        aliases: [world]
+      p23-world:
+        aliases: [world]
+      p24-world:
+        aliases: [world]
+      p25-world:
+        aliases: [world]
+      p26-world:
+        aliases: [world]
+      p27-world:
+        aliases: [world]
+      p28-world:
+        aliases: [world]
+      p29-world:
+        aliases: [world]
+      p30-world:
+        aliases: [world]
+      p31-world:
+        aliases: [world]
+      p32-world:
+        aliases: [world]
+      p33-world:
+        aliases: [world]
+      p34-world:
+        aliases: [world]
+      p35-world:
+        aliases: [world]
+      p36-world:
+        aliases: [world]
+      p37-world:
+        aliases: [world]
+      p38-world:
+        aliases: [world]
+      p39-world:
+        aliases: [world]
+      p40-world:
+        aliases: [world]
+      p41-world:
+        aliases: [world]
+      p42-world:
+        aliases: [world]
+      p43-world:
+        aliases: [world]
+      p44-world:
+        aliases: [world]
+      p45-world:
+        aliases: [world]
+      p46-world:
+        aliases: [world]
+      p47-world:
+        aliases: [world]
+      p48-world:
+        aliases: [world]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=2)"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+      start_period: 2s
+  p1:
+    <<: *seat
+    networks: [p1-world]
+    environment:
+      SEAT: "p1"
+      SEAT_TOKEN: "d729b4a5c8a29558b67544812a1262dc"
+      WORLD: "http://world:8080"
+  p2:
+    <<: *seat
+    networks: [p2-world]
+    environment:
+      SEAT: "p2"
+      SEAT_TOKEN: "d100a785cf74764e3e6316734437579e"
+      WORLD: "http://world:8080"
+  p3:
+    <<: *seat
+    networks: [p3-world]
+    environment:
+      SEAT: "p3"
+      SEAT_TOKEN: "efda256d709ab1936102cf39c07b85dc"
+      WORLD: "http://world:8080"
+  p4:
+    <<: *seat
+    networks: [p4-world]
+    environment:
+      SEAT: "p4"
+      SEAT_TOKEN: "0b8f282b558d20bd8ed234cb8ca6944f"
+      WORLD: "http://world:8080"
+  p5:
+    <<: *seat
+    networks: [p5-world]
+    environment:
+      SEAT: "p5"
+      SEAT_TOKEN: "8cb52cc3c914a75bca02fa8c290be4c1"
+      WORLD: "http://world:8080"
+  p6:
+    <<: *seat
+    networks: [p6-world]
+    environment:
+      SEAT: "p6"
+      SEAT_TOKEN: "7a353ab00673b2a5bda80a94dcadea8f"
+      WORLD: "http://world:8080"
+  p7:
+    <<: *seat
+    networks: [p7-world]
+    environment:
+      SEAT: "p7"
+      SEAT_TOKEN: "9bbbd715262beb932671455c2c6c1b2b"
+      WORLD: "http://world:8080"
+  p8:
+    <<: *seat
+    networks: [p8-world]
+    environment:
+      SEAT: "p8"
+      SEAT_TOKEN: "dc36c519ee7cfcd884dfb91ca1d4e2c1"
+      WORLD: "http://world:8080"
+  p9:
+    <<: *seat
+    networks: [p9-world]
+    environment:
+      SEAT: "p9"
+      SEAT_TOKEN: "37b6c5cfe41571184b771258d781f17e"
+      WORLD: "http://world:8080"
+  p10:
+    <<: *seat
+    networks: [p10-world]
+    environment:
+      SEAT: "p10"
+      SEAT_TOKEN: "b1c0bed2b7a8b9225debac0222194ae7"
+      WORLD: "http://world:8080"
+  p11:
+    <<: *seat
+    networks: [p11-world]
+    environment:
+      SEAT: "p11"
+      SEAT_TOKEN: "b01d87d103788f6b8065f008fcd863af"
+      WORLD: "http://world:8080"
+  p12:
+    <<: *seat
+    networks: [p12-world]
+    environment:
+      SEAT: "p12"
+      SEAT_TOKEN: "db5cdd86ade423bb53d34eff6ae2b38a"
+      WORLD: "http://world:8080"
+  p13:
+    <<: *seat
+    networks: [p13-world]
+    environment:
+      SEAT: "p13"
+      SEAT_TOKEN: "abad3c2ddbe424ecb932a18dfdac0e25"
+      WORLD: "http://world:8080"
+  p14:
+    <<: *seat
+    networks: [p14-world]
+    environment:
+      SEAT: "p14"
+      SEAT_TOKEN: "e8e48b3066b23cea0544e61a8b16e772"
+      WORLD: "http://world:8080"
+  p15:
+    <<: *seat
+    networks: [p15-world]
+    environment:
+      SEAT: "p15"
+      SEAT_TOKEN: "55e7a2adeb47139c8eca8394d446e695"
+      WORLD: "http://world:8080"
+  p16:
+    <<: *seat
+    networks: [p16-world]
+    environment:
+      SEAT: "p16"
+      SEAT_TOKEN: "89bc9f115c7c7d41ba8886bfd2590f29"
+      WORLD: "http://world:8080"
+  p17:
+    <<: *seat
+    networks: [p17-world]
+    environment:
+      SEAT: "p17"
+      SEAT_TOKEN: "c7c8e1746997e59c168d438863207f56"
+      WORLD: "http://world:8080"
+  p18:
+    <<: *seat
+    networks: [p18-world]
+    environment:
+      SEAT: "p18"
+      SEAT_TOKEN: "48a8f5ed6c87af5561b027a772ccb78a"
+      WORLD: "http://world:8080"
+  p19:
+    <<: *seat
+    networks: [p19-world]
+    environment:
+      SEAT: "p19"
+      SEAT_TOKEN: "d29bf3242fd5c147749ce41a62c0a2ea"
+      WORLD: "http://world:8080"
+  p20:
+    <<: *seat
+    networks: [p20-world]
+    environment:
+      SEAT: "p20"
+      SEAT_TOKEN: "c3255351e934a8790470696076d26022"
+      WORLD: "http://world:8080"
+  p21:
+    <<: *seat
+    networks: [p21-world]
+    environment:
+      SEAT: "p21"
+      SEAT_TOKEN: "1d9774c7978b3f7ce5335f08daaca66e"
+      WORLD: "http://world:8080"
+  p22:
+    <<: *seat
+    networks: [p22-world]
+    environment:
+      SEAT: "p22"
+      SEAT_TOKEN: "77299082df3ebffe9ff47ed7ca702109"
+      WORLD: "http://world:8080"
+  p23:
+    <<: *seat
+    networks: [p23-world]
+    environment:
+      SEAT: "p23"
+      SEAT_TOKEN: "b26ec52c4f33eec1dd98607873851316"
+      WORLD: "http://world:8080"
+  p24:
+    <<: *seat
+    networks: [p24-world]
+    environment:
+      SEAT: "p24"
+      SEAT_TOKEN: "d6959c37e5f82884dceaa074ad9b502b"
+      WORLD: "http://world:8080"
+  p25:
+    <<: *seat
+    networks: [p25-world]
+    environment:
+      SEAT: "p25"
+      SEAT_TOKEN: "f63203ec73f9c06f67aae9d19e0be290"
+      WORLD: "http://world:8080"
+  p26:
+    <<: *seat
+    networks: [p26-world]
+    environment:
+      SEAT: "p26"
+      SEAT_TOKEN: "86f0ca5d8704d49737270c9e8185c1b6"
+      WORLD: "http://world:8080"
+  p27:
+    <<: *seat
+    networks: [p27-world]
+    environment:
+      SEAT: "p27"
+      SEAT_TOKEN: "f50117635446b1802576d09984a8933e"
+      WORLD: "http://world:8080"
+  p28:
+    <<: *seat
+    networks: [p28-world]
+    environment:
+      SEAT: "p28"
+      SEAT_TOKEN: "d8461503c14c2f1dfa0fe616d180402b"
+      WORLD: "http://world:8080"
+  p29:
+    <<: *seat
+    networks: [p29-world]
+    environment:
+      SEAT: "p29"
+      SEAT_TOKEN: "5302c85f4c662d233c41765196019f1c"
+      WORLD: "http://world:8080"
+  p30:
+    <<: *seat
+    networks: [p30-world]
+    environment:
+      SEAT: "p30"
+      SEAT_TOKEN: "d52c6d2dab9d2f68aeb719e336362bfa"
+      WORLD: "http://world:8080"
+  p31:
+    <<: *seat
+    networks: [p31-world]
+    environment:
+      SEAT: "p31"
+      SEAT_TOKEN: "8ba6da6e90acb27ce889ff6050060bdb"
+      WORLD: "http://world:8080"
+  p32:
+    <<: *seat
+    networks: [p32-world]
+    environment:
+      SEAT: "p32"
+      SEAT_TOKEN: "4a157ad77fb4a0ce3186f14f4521cffe"
+      WORLD: "http://world:8080"
+  p33:
+    <<: *seat
+    networks: [p33-world]
+    environment:
+      SEAT: "p33"
+      SEAT_TOKEN: "cc766479a4dfb682a29256ef0ccfbe4f"
+      WORLD: "http://world:8080"
+  p34:
+    <<: *seat
+    networks: [p34-world]
+    environment:
+      SEAT: "p34"
+      SEAT_TOKEN: "dcbc6b5e3b52928e9e25979824f2dd3f"
+      WORLD: "http://world:8080"
+  p35:
+    <<: *seat
+    networks: [p35-world]
+    environment:
+      SEAT: "p35"
+      SEAT_TOKEN: "60317082f352bf4b1ebb97c99eef1597"
+      WORLD: "http://world:8080"
+  p36:
+    <<: *seat
+    networks: [p36-world]
+    environment:
+      SEAT: "p36"
+      SEAT_TOKEN: "32f8b4f54233ec60a0e24aa35b8f0e98"
+      WORLD: "http://world:8080"
+  p37:
+    <<: *seat
+    networks: [p37-world]
+    environment:
+      SEAT: "p37"
+      SEAT_TOKEN: "f8690122cbafc7d56947d08ba768020f"
+      WORLD: "http://world:8080"
+  p38:
+    <<: *seat
+    networks: [p38-world]
+    environment:
+      SEAT: "p38"
+      SEAT_TOKEN: "1008580f199edd03350bdb3f05133541"
+      WORLD: "http://world:8080"
+  p39:
+    <<: *seat
+    networks: [p39-world]
+    environment:
+      SEAT: "p39"
+      SEAT_TOKEN: "f1de8c3d133696409469e6c51d91094a"
+      WORLD: "http://world:8080"
+  p40:
+    <<: *seat
+    networks: [p40-world]
+    environment:
+      SEAT: "p40"
+      SEAT_TOKEN: "4e5e3a14f8180c9ee2488614c1752328"
+      WORLD: "http://world:8080"
+  p41:
+    <<: *seat
+    networks: [p41-world]
+    environment:
+      SEAT: "p41"
+      SEAT_TOKEN: "89fb3f3e43c475485635c709996100fe"
+      WORLD: "http://world:8080"
+  p42:
+    <<: *seat
+    networks: [p42-world]
+    environment:
+      SEAT: "p42"
+      SEAT_TOKEN: "789e07ad958c6e17437f8d2beddcf95d"
+      WORLD: "http://world:8080"
+  p43:
+    <<: *seat
+    networks: [p43-world]
+    environment:
+      SEAT: "p43"
+      SEAT_TOKEN: "fb612a2a2a8c1cedaa8e48f88b6c748a"
+      WORLD: "http://world:8080"
+  p44:
+    <<: *seat
+    networks: [p44-world]
+    environment:
+      SEAT: "p44"
+      SEAT_TOKEN: "9dce704792254702c29aaeebf95b0b6a"
+      WORLD: "http://world:8080"
+  p45:
+    <<: *seat
+    networks: [p45-world]
+    environment:
+      SEAT: "p45"
+      SEAT_TOKEN: "a34e2c5f9e31b35f2a51eed32cedc8b8"
+      WORLD: "http://world:8080"
+  p46:
+    <<: *seat
+    networks: [p46-world]
+    environment:
+      SEAT: "p46"
+      SEAT_TOKEN: "544dc611c690b08c273430db6385683e"
+      WORLD: "http://world:8080"
+  p47:
+    <<: *seat
+    networks: [p47-world]
+    environment:
+      SEAT: "p47"
+      SEAT_TOKEN: "0135a9237aee18f5d37e95df460d8294"
+      WORLD: "http://world:8080"
+  p48:
+    <<: *seat
+    networks: [p48-world]
+    environment:
+      SEAT: "p48"
+      SEAT_TOKEN: "0bb4adaf6e2795e08369765451007b72"
+      WORLD: "http://world:8080"
+
+networks:
+  p1-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p2-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p3-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p4-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p5-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p6-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p7-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p8-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p9-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p10-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p11-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p12-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p13-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p14-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p15-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p16-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p17-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p18-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p19-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p20-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p21-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p22-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p23-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p24-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p25-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p26-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p27-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p28-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p29-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p30-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p31-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p32-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p33-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p34-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p35-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p36-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p37-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p38-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p39-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p40-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p41-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p42-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p43-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p44-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p45-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p46-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p47-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p48-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true

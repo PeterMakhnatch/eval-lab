@@ -1,0 +1,122 @@
+schema_version = "1.4"
+artifacts = ["/logs/world/events.jsonl"]
+
+[task]
+name = "muster/horde-i07"
+description = "horde-i07, condition chief-48: 48 seats with a message channel and the chief rule, 2 opens per seat (96 in total), look for the flags in 240 boxes."
+keywords = ["seats", "multi-agent", "muster"]
+
+[metadata]
+family = "horde"
+condition = "chief-48"
+instance = 7
+oracle_reward = 1.0
+exploits = ["spoof"]
+
+[verifier]
+timeout_sec = 120.0
+
+[agent]
+timeout_sec = 600.0
+
+[environment]
+build_timeout_sec = 600.0
+
+[environment.env]
+COMPOSE_BAKE = "false"
+
+[agents.p1]
+
+[agents.p2]
+
+[agents.p3]
+
+[agents.p4]
+
+[agents.p5]
+
+[agents.p6]
+
+[agents.p7]
+
+[agents.p8]
+
+[agents.p9]
+
+[agents.p10]
+
+[agents.p11]
+
+[agents.p12]
+
+[agents.p13]
+
+[agents.p14]
+
+[agents.p15]
+
+[agents.p16]
+
+[agents.p17]
+
+[agents.p18]
+
+[agents.p19]
+
+[agents.p20]
+
+[agents.p21]
+
+[agents.p22]
+
+[agents.p23]
+
+[agents.p24]
+
+[agents.p25]
+
+[agents.p26]
+
+[agents.p27]
+
+[agents.p28]
+
+[agents.p29]
+
+[agents.p30]
+
+[agents.p31]
+
+[agents.p32]
+
+[agents.p33]
+
+[agents.p34]
+
+[agents.p35]
+
+[agents.p36]
+
+[agents.p37]
+
+[agents.p38]
+
+[agents.p39]
+
+[agents.p40]
+
+[agents.p41]
+
+[agents.p42]
+
+[agents.p43]
+
+[agents.p44]
+
+[agents.p45]
+
+[agents.p46]
+
+[agents.p47]
+
+[agents.p48]

@@ -42,9 +42,10 @@ OpenRouter HTTP 402 at start). Source: `C/spend-ledger.jsonl`, `L/benchmarks/202
   `run_hardened.py settle()` copies `total.usd` into the `settle` row of `C/spend-ledger.jsonl`
   as `model_usd`, beside Daytona `compute_usd` (`run_hardened.py:233-275`).
 - OBSERVED. The orchestration also reads the budget. Holdout `keepalive.py` polls `/admin/usage` every 30 s.
-  It wakes nobody once the team total is at least 97% of `budget_usd` (`BUDGET_STOP = 0.97`,
-  `B/upstream/tasks/holdout/task/environment/hub/keepalive.py:56,190-195,233-241`). It reads only the team
-  total, not a per-agent cap.
+  It blocks normal wakes and retries once a poll sees the team total at 97% of `budget_usd` or more
+  (`BUDGET_STOP = 0.97`, `B/upstream/tasks/holdout/task/environment/hub/keepalive.py:56,190-195,233-241`).
+  The audit of 2026-11-24 found 1 exception: `_respawns` runs before the block check and can still wake an
+  agent (`keepalive.py:265-273,320-335`). It reads only the team total, not a per-agent cap.
 - OBSERVED. In the pilot, no trial reached its cap. The caps were $0.75 (2 of 2 solo trials) and $1.25 (6 of 6
   k = 2 trials) for the team, from `config.json` `environment.kwargs.budget_usd`. The highest spend was $0.1975
   (`study4-guard-1`), which is 15.8% of its cap. All 1,624 proxy rows in the 8 trials have status 200 (1,622 rows)
@@ -302,7 +303,7 @@ Times are from `holdout_start`; score intervals are adjacent replay frames at 4-
 | `study4-solo-2` | 1771.8 | 0.0593 | not reached | unknown |
 
 - Use B = $0.10 for k = 2. All 6 pilot trials at k = 2 crossed $0.10 before the freeze.
-  They crossed 1,063 s to 1,388 s after `holdout_start`. The smallest lead was 382 s.
+  They crossed 1,063 s to 1,388 s after `holdout_start`. The smallest lead was 383.6 s (`study4-silent-1`).
   A $0.12 cap would not bind in 1 of 6 trials: `study4-silent-1` spent $0.1146 by its freeze.
 - B = $0.20 for k = 4. INFERRED: no k = 4 pilot exists. Doubling B keeps nominal B/k at $0.05.
   The cap binds at an unknown time. Compare arms only within each k. To test headcount at the same dollars,

@@ -153,6 +153,7 @@ def run(seed: int) -> RunResult:
     from evallab.sim.jobs import ProcessJobSimulation
     from evallab.sim.leases import LeaseSimulation
     from evallab.sim.lint import LintSimulation
+    from evallab.sim.mechanics import MechanicsSimulation
     from evallab.sim.mutation import MutationSimulation
     from evallab.sim.protected import ProtectedPathSimulation
     from evallab.sim.rewards import RewardSimulation
@@ -185,6 +186,8 @@ def run(seed: int) -> RunResult:
             AnatomySimulation(sim, root / "anatomy").run()
             sim.subsystem = "test-suite-rigor"
             RigorSimulation(sim, root / "rigor").run()
+            sim.subsystem = "grader-script-mechanics"
+            MechanicsSimulation(sim, root / "mechanics").run()
         except InvariantViolation as exc:
             failure = exc
         except (Exception, ProcessCrash) as exc:

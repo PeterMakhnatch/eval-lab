@@ -21,7 +21,8 @@ _KINDS = ("function", "flag", "file", "class", "name")
 _WEIGHTS = {"function": 3, "flag": 3, "file": 2, "class": 2, "name": 1}
 _CONSTRAINT_BONUS = 2
 _FUNCTION_STYLES = ("snake", "camel", "call", "qualified")
-_FILE_STYLES = ("flat", "nested")
+_FILE_STYLES = ("flat", "nested", "dotfile")
+_DOTFILE_SUFFIX = "example"
 _FLAG_SUFFIXES = ("on", "only", "strict", "never")
 _EXTENSIONS = ("py", "json", "toml", "yaml", "csv", "sh")
 _CONSTRAINT_WORDS = (
@@ -122,12 +123,14 @@ class _Cue:
         if self.kind == "flag":
             return f"--{self.token}-{self.suffix}"
         if self.kind == "file":
+            if self.style == "dotfile":
+                return f".{self.token}.{_DOTFILE_SUFFIX}" if self.variant else f".{self.token}"
             return f"data/{self.reference}" if self.style == "nested" else self.reference
         return self.token.capitalize() if self.kind == "class" else self.token
 
     @property
     def reference(self) -> str:
-        if self.kind == "file":
+        if self.kind == "file" and self.style != "dotfile":
             return f"{self.token}.{self.extension}"
         return self.symbol
 
@@ -139,6 +142,8 @@ class _Cue:
 
     @property
     def mention(self) -> str:
+        if self.kind == "file" and self.style == "dotfile":
+            return f"`{self.symbol}`"
         if self.kind in ("flag", "file"):
             return self.symbol
         if self.style == "call":
@@ -153,6 +158,17 @@ class _Cue:
         if self.constraint_word is None:
             return f"See {self.mention} in the guide{tail}."
         return f"The tool {self.constraint_word} use {self.mention}{tail}."
+
+    @property
+    def weight(self) -> int:
+        return _WEIGHTS[self.kind] + _CONSTRAINT_BONUS * (self.constraint_word is not None)
+
+    @property
+    def plan(self) -> str:
+        shape = f"{self.kind}:{self.style}"
+        if self.style == "dotfile":
+            shape += ":suffixed" if self.variant else ":bare"
+        return f"{shape}:{self.weight}"
 
     @property
     def expected(self) -> dict[str, Any]:
@@ -429,7 +445,7 @@ class SurfaceSimulation:
         expected = [cue.expected for cue in instruction.cues]
         sim.begin(
             "surface-cues",
-            cues=[f"{cue.kind}:{cue.style}" for cue in instruction.cues],
+            cues=[cue.plan for cue in instruction.cues],
             decoy=instruction.decoy,
             newline=instruction.newline,
         )
@@ -445,17 +461,13 @@ class SurfaceSimulation:
 
     def _check_mismatch(self, instruction: _Instruction, tests: str) -> None:
         sim = self.sim
-        expected = [
-            {
-                **cue.expected,
-                "weight": _WEIGHTS[cue.kind]
-                + _CONSTRAINT_BONUS * (cue.constraint_word is not None),
-            }
-            for cue in instruction.cues
-            if not cue.present
-        ]
+        expected = [{**cue.expected, "weight": cue.weight} for cue in instruction.cues if not cue.present]
         expected.sort(key=lambda row: (-row["weight"], row["symbol"]))
-        sim.begin("surface-mismatch", absent=len(expected))
+        sim.begin(
+            "surface-mismatch",
+            absent=len(expected),
+            weights=[f"{row['kind']}:{row['weight']}" for row in expected],
+        )
         result = instruction_mismatch(instruction.text, tests)
         sim.require(
             [row["symbol"] for row in result] == [row["symbol"] for row in expected],

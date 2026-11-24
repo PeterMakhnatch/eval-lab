@@ -68,5 +68,19 @@
     "seed": 31,
     "step": 161,
     "subsystem": "instruction-patch-surface"
+  },
+  {
+    "found_at_utc": "2026-11-24T14:10:00+00:00",
+    "invariant": "surface_cue_symbol",
+    "seed": 14,
+    "step": 160,
+    "subsystem": "instruction-patch-surface"
+  },
+  {
+    "found_at_utc": "2026-11-24T14:10:00+00:00",
+    "invariant": "surface_cue_count",
+    "seed": 21,
+    "step": 161,
+    "subsystem": "instruction-patch-surface"
   }
 ]

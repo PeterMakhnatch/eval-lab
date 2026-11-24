@@ -1054,7 +1054,7 @@ def _test_sources(package: Package) -> tuple[list[TestSource], list[str], list[P
 def _symbol_kind(token: str, span: str) -> str:
     if token.startswith("-"):
         return "flag"
-    if "/" in token or re.search(r"\.\w{1,5}$", token) and token.rsplit(".", 1)[-1].lower() in {"py", "js", "ts", "rs", "go", "json", "toml", "yaml", "yml", "md", "txt", "csv", "sh", "cfg", "ini"}:
+    if token.startswith(".") or "/" in token or re.search(r"\.\w{1,5}$", token) and token.rsplit(".", 1)[-1].lower() in {"py", "js", "ts", "rs", "go", "json", "toml", "yaml", "yml", "md", "txt", "csv", "sh", "cfg", "ini"}:
         return "file"
     if re.match(r"^[A-Z][A-Za-z0-9]+$", token):
         return "class"
@@ -1066,6 +1066,12 @@ def _symbol_kind(token: str, span: str) -> str:
 _CONSTRAINT = re.compile(r"\b(?:must|should|shall|raise[sd]?|reject\w*|error|invalid|exactly|at least|at most|never|only|exit(?:s)?\s+(?:non-?zero|with)|return[s]?)\b", re.I)
 _MENTION = re.compile(
     r"`[^`\n]*`|(?<![\w-])--[a-z][\w-]+|(?<![\w/.])[\w./-]+\.(?:py|js|ts|rs|go|json|toml|ya?ml|csv|sh|cfg|ini)\b"
+)
+_CUE_TOKEN = re.compile(r"--[a-z][\w-]+|(?<![\w.])\.[A-Za-z_][\w./-]*+(?!\()|[A-Za-z_][\w./-]*")
+_BARE_EXTENSION = re.compile(
+    r"\.(?:py|js|ts|tsx|jsx|rs|go|rb|java|c|h|cpp|json|jsonl|toml|ya?ml|md|txt|csv|tsv|sh|cfg|ini|html?|xml|sql|log|lock"
+    r"|parquet|png|jpe?g|gif|svg|pdf|zip|gz|tar|ipynb|wasm|so|bin|out|exe)",
+    re.I,
 )
 
 
@@ -1079,9 +1085,11 @@ def instruction_cues(instruction: str) -> list[dict[str, Any]]:
         spans += [(m.group(0), m.group(0)) for m in re.finditer(r"(?<![\w-])--[a-z][\w-]+", sentence)]
         spans += [(m.group(0), m.group(0)) for m in re.finditer(r"(?<![\w/.])[\w./-]+\.(?:py|js|ts|rs|go|json|toml|ya?ml|csv|sh|cfg|ini)\b", sentence)]
         for span, raw in spans:
-            for token in re.findall(r"--[a-z][\w-]+|[A-Za-z_][\w./-]*", span):
-                token = token if token.startswith("--") else token.strip(".-/")
-                symbol = token.rsplit(".", 1)[-1] if (not token.startswith("-") and "/" not in token and token.count(".") >= 1 and not re.search(r"\.[a-z]{1,4}$", token)) else token
+            for token in _CUE_TOKEN.findall(span):
+                token = token if token.startswith("--") else token.rstrip(".-/")
+                token = token[1:] if _BARE_EXTENSION.fullmatch(token) else token
+                dot_file = token.startswith(".")
+                symbol = token.rsplit(".", 1)[-1] if (not dot_file and not token.startswith("-") and "/" not in token and token.count(".") >= 1 and not re.search(r"\.[a-z]{1,4}$", token)) else token
                 if len(symbol) < 3 or symbol.lower() in _IDENT_STOP or symbol.isdigit():
                     continue
                 kind = _symbol_kind(symbol, raw)

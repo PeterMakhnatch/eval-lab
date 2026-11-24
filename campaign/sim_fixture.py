@@ -273,7 +273,7 @@ def plan_data(case: Scenario, root: Path, twin: bool = False) -> dict[str, Any]:
         "schema": "campaign-plan/v1", "id": f"sim-{case.seed % 100_000}{suffix}",
         "output_root": str(root / f"out{suffix}"), "state_root": str(root / f"state{suffix}"),
         "max_trials_at_once": case.total,
-        "command": {"argv": ["fake-harbor", "{tasks}", "--out", "{out}", "{attempts}", "{concurrency}", "{harbor}"],
+        "command": {"argv": ["muster", "{tasks}", "--out", "{out}", "{attempts}", "{concurrency}", "{harbor}"],
                     "cwd": str(root), "env": {"FAKE_ARM": "{arm}"}},
         "harbor": {"program": str(root / "bin" / "harbor"), "run_args": ["--env", "sim", "--ek", "snap=sim-v1"]},
         "money": {"provider": "sim", "probe": ["fake-balance"], "probe_timeout_seconds": 30,
@@ -662,7 +662,7 @@ class World:
         assert owner in self.live_owners and cwd == self.root
         self.calls.append(argv[0])
         out = Path(argv[3])
-        assert argv[0] == "fake-harbor" and argv[2] == "--out" and env == {"FAKE_ARM": out.name}, (argv, env)
+        assert argv[0] == "muster" and argv[2] == "--out" and env == {"FAKE_ARM": out.name}, (argv, env)
         if out.name == self.case.spawn_fail_arm and out.name not in self.failed_spawns:
             self.failed_spawns.add(out.name)
             raise OSError("simulated failure to start the trial command")

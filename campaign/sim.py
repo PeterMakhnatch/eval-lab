@@ -12,7 +12,7 @@ import sys
 import time
 from collections import Counter
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from random import Random
 from tempfile import TemporaryDirectory
@@ -29,6 +29,7 @@ from campaign.runner import (
     Runner,
     Stop,
     expand_first_run,
+    first_run_step,
     read_funds,
 )
 from campaign.sim_fixture import (
@@ -63,6 +64,7 @@ _FIXED_SEEDS = range(128)
 _MAX_REGRESSIONS = 512
 _MAX_SEED = 2**64 - 1
 _DEFAULT_HUNT_SEED = 1_124_007
+_RESERVE_UNION_SEED = 1_124_008
 _MAX_HUNT_SEEDS = 1_000_000
 _MAX_STEPS = 4000
 _MAX_RESUMES = 12
@@ -178,13 +180,28 @@ _WRAPPER_CASES = (
     (("env", "A=1", "nohup", "bash", "-lc", "muster run && true"), True),
     (("keys", "run", "--", "env", "-i", "B=2", "/bin/zsh", "-ec", "a | b"), True),
     (("sh", "-c", "a\nb"), True),
-    (("/bin/sh", "-c", "exec python3 muster.py --out {out}"), False),
+    (("/bin/sh", "-c", "exec python3 muster.py --out {out}"), True),
     (("python3", "-c", "import a; a.run()"), False),
-    (("nohup", "sh", "x.sh;"), False),
+    (("nohup", "sh", "x.sh;"), True),
     (("sh", "-e", "-c", "a; b"), True),
     (("bash", "-c", "muster run & wait"), True),
     (("sh", "-c", "(exec muster run)"), True),
-    (("sh", "-e", "x.sh", "-c", "a; b"), False),
+    (("sh", "-e", "x.sh", "-c", "a; b"), True),
+    (("sh", "-c", "exec uv run muster > log 2>&1"), True),
+    (("bash", "--norc", "-c", "a;b"), True),
+    (("bash", "-o", "pipefail", "-c", "a;b"), True),
+    (("env", "-u", "X", "sh", "-c", "a;b"), True),
+    (("env", "-S", "sh -c a;b", "uv"), True),
+    (("env", "-u", "uv"), True),
+    (("env", "A=1", "-i", "uv"), True),
+    (("keys", "run", "uv"), True),
+    (("nohup", "time", "uv"), True),
+    (("nohup",), True),
+    (("env", "-i", "-u", "X", "A=1", "nohup", "/opt/build (1)/uv", "run", "muster"), False),
+    (("/usr/bin/env", "-iuX", "--", "A=1", "/bin/python"), False),
+    (("env", "--ignore-environment", "--unset=X", "muster"), False),
+    (("env", "--unset", "X", "keys", "run", "--", "muster"), False),
+    (("muster", "--out", "/runs/run (1)"), False),
 )
 
 
@@ -981,6 +998,44 @@ def _run_phases(sim: Sim) -> None:
     sim.stop_lines()
 
 
+def _reserve_union(run: Run, case: Scenario, plan: Plan, root: Path) -> None:
+    run.step = "money/foreign-reserve-union"
+    lane = plan.lanes[0]
+    step = first_run_step(plan, lane.arms[0])
+    for opens in (False, True):
+        union = 3 if opens else 2
+        need = plan.floor_usd + step.reserve_usd + union
+        for cents in (-1, 0, 1):
+            path = root / f"union-{union}-{cents}.jsonl"
+            record = {"ts_utc": iso(0), "experiment": "bash", "provider": plan.provider}
+            for arm in ("a", "b"):
+                ledger.append(path, {**record, "event": "reserve", "arm": arm, "reserved_usd": 1.0})
+            balance = round((need + cents / 100) * 1_000_000)
+            steady = replace(case, probe_mode="steady", balance_micro=balance, probe_seconds=0)
+            world = World(steady, root, Random(run.seed))
+            world.probe_start_hook = _change_foreign_reserves(path, record, opens)
+            runner = Runner(replace(plan, ledger=path, key_limit_probe=()), world, SHELL_PID,
+                            lambda _: None, [lane], expand_first_run)
+            reason = ""
+            try:
+                runner._gate_balance(step)
+            except Stop as stop:
+                reason = stop.reason
+            want = "balance-low" if cents < 0 else ""
+            run.check(reason == want, "foreign-reserve-union-balance",
+                      f"union ${union:.2f}, balance relative to need {cents:+d} cent: {reason or 'admit'}")
+
+
+def _change_foreign_reserves(path: Path, record: dict[str, Any], opens: bool) -> Callable[[int], None]:
+    def change(owner: int) -> None:
+        assert owner == SHELL_PID
+        ledger.append(path, {**record, "event": "settle", "arm": "a"})
+        if opens:
+            ledger.append(path, {**record, "event": "reserve", "arm": "c", "reserved_usd": 1.0})
+
+    return change
+
+
 def _run_seed(seed: int) -> Run:
     assert 0 <= seed <= _MAX_SEED
     run, rng, case = Run(seed), Random(seed), scenario(seed)
@@ -994,6 +1049,8 @@ def _run_seed(seed: int) -> Run:
         if case.twin:
             (root / f"plan{TWIN_SUFFIX}.toml").write_text(toml_text(plan_data(case, root, True)), encoding="utf-8")
         sim = Sim(run, case, root)
+        if seed == _RESERVE_UNION_SEED:
+            _reserve_union(run, case, sim.plan(), root)
         _purity(sim)
         _run_phases(sim)
         _ledger_end(sim)

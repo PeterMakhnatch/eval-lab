@@ -49,6 +49,7 @@ class ForeignReserve:
     reserved_usd: float
     ts_utc: str
     guessed: bool
+    line_number: int
 
 
 def append(path: Path, record: dict[str, Any]) -> None:
@@ -119,10 +120,10 @@ def _number(value: Any) -> float | None:
     return float(value) if valid else None
 
 
-def _foreign_lines(path: Path, campaign: str) -> tuple[dict[Key, list[dict[str, Any]]], Counter[Key]]:
-    reserves: dict[Key, list[dict[str, Any]]] = {}
+def _foreign_lines(path: Path, campaign: str) -> tuple[dict[Key, list[tuple[int, dict[str, Any]]]], Counter[Key]]:
+    reserves: dict[Key, list[tuple[int, dict[str, Any]]]] = {}
     settles: Counter[Key] = Counter()
-    for _, item in _lines(path):
+    for number, item in _lines(path):
         if item.get("campaign") == campaign:
             continue
         writer = str(item.get("campaign") or item.get("experiment") or "-")
@@ -134,7 +135,7 @@ def _foreign_lines(path: Path, campaign: str) -> tuple[dict[Key, list[dict[str, 
         if not isinstance(arm, str):
             continue
         if event == "reserve":
-            reserves.setdefault((writer, arm), []).append(item)
+            reserves.setdefault((writer, arm), []).append((number, item))
         elif event == "settle":
             settles[(writer, arm)] += 1
     return reserves, settles
@@ -152,7 +153,7 @@ def foreign_open(
     oldest = now - timedelta(hours=window_hours)
     found = []
     for key, items in sorted(reserves.items()):
-        for item in items[settles[key]:]:
+        for number, item in items[settles[key]:]:
             if not _same_provider(item.get("provider"), provider):
                 continue
             stamp = _stamp(item.get("ts_utc"))
@@ -160,7 +161,7 @@ def foreign_open(
                 continue
             amount = _number(item.get("reserved_usd"))
             found.append(ForeignReserve(key[0], key[1], unknown_usd if amount is None else amount,
-                                        str(item.get("ts_utc")), amount is None))
+                                        str(item.get("ts_utc")), amount is None, number))
     return found
 
 

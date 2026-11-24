@@ -19,5 +19,19 @@
     "invariant": "stop-reason-is-true",
     "detail": "balance-low in lane l2 before l2-arm0",
     "known": false
+  },
+  {
+    "seed": 1124008,
+    "step": "money/foreign-reserve-union",
+    "invariant": "foreign-reserve-union-balance",
+    "detail": "union $2.00, balance relative to need +0 cent: balance-low",
+    "known": false
+  },
+  {
+    "seed": 1124008,
+    "step": "examples",
+    "invariant": "wrapper-shape",
+    "detail": "('env', '-u', 'X', 'sh', '-c', 'a;b')",
+    "known": false
   }
 ]

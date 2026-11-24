@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shlex
 from collections import Counter
 from datetime import datetime
@@ -11,8 +12,8 @@ from campaign import evidence, fill, ledger
 from campaign.plan import Plan, PlanError, arm_command, render
 from campaign.runner import Funds, Stop
 
-SHELLS = frozenset(("sh", "bash", "zsh", "dash", "ksh"))
-SHELL_JOINERS = (";", "&", "|", "(", "\n")
+DIRECT_COMMANDS = frozenset(("uv", "muster", "python", "python3"))
+ENV_SHORT_FLAGS = re.compile(r"-[iv]*(?:u(.*))?")
 
 
 def _lane_lines(plan: Plan) -> list[str]:
@@ -43,45 +44,56 @@ def _arm_lines(plan: Plan, problems: list[str]) -> list[str]:
     return lines
 
 
-def _after_prefixes(argv: tuple[str, ...]) -> int:
-    index, after_env = 0, False
-    for _ in range(len(argv)):
+def _env_command(argv: tuple[str, ...], index: int) -> int | None:
+    for _ in range(index, len(argv)):
         if index >= len(argv):
-            return index
+            break
         word = argv[index]
-        name = Path(word).name
-        if name == "keys" and argv[index + 1:index + 3] == ("run", "--"):
-            index, after_env = index + 3, False
-        elif name in ("nohup", "env"):
-            index, after_env = index + 1, name == "env"
-        elif after_env and ("=" in word or word.startswith("-")):
+        if word == "--":
+            index += 1
+            break
+        if not word.startswith("-"):
+            break
+        short = ENV_SHORT_FLAGS.fullmatch(word)
+        if word == "--unset" or (short is not None and short[1] == ""):
+            if index + 1 >= len(argv):
+                return None
+            index += 2
+        elif word == "--ignore-environment" or word.startswith("--unset=") or short is not None:
             index += 1
         else:
-            return index
-    return index
-
-
-def _shell_script(argv: tuple[str, ...], index: int) -> tuple[str, str] | None:
-    if index >= len(argv) or Path(argv[index]).name not in SHELLS:
-        return None
-    flags: list[str] = []
-    for position in range(index + 1, len(argv) - 1):
-        word = argv[position]
-        if not word.startswith("-") or word == "--":
             return None
-        flags.append(word)
-        if "c" in word[1:]:
-            return " ".join(flags), argv[position + 1]
+    for candidate in range(index, len(argv)):
+        if "=" not in argv[candidate]:
+            return candidate
     return None
 
 
+def _direct_command(argv: tuple[str, ...]) -> str:
+    index = 0
+    for _ in argv:
+        if index == len(argv):
+            break
+        name = Path(argv[index]).name
+        if name == "keys" and argv[index + 1:index + 3] == ("run", "--"):
+            index += 3
+        elif name == "nohup":
+            index += 1
+        elif name == "env":
+            next_index = _env_command(argv, index + 1)
+            if next_index is None:
+                break
+            index = next_index
+        else:
+            return name
+    return ""
+
+
 def wrapper_problem(argv: tuple[str, ...]) -> str:
-    found = _shell_script(argv, _after_prefixes(argv))
-    if found is None or not any(joiner in found[1] for joiner in SHELL_JOINERS):
+    if _direct_command(argv) in DIRECT_COMMANDS:
         return ""
-    return (f"command.argv runs {Path(argv[_after_prefixes(argv)]).name} {found[0]} with a script that joins "
-            "commands (';', '&', '|', '(' or a newline); that shell may not pass TERM on, so the arm would run "
-            "until the KILL after stop_grace_seconds; start the arm directly (keys run -- uv run ...)")
+    return ("command.argv must start uv, muster, python or python3 after optional keys run --, env or nohup; "
+            "shells and unsupported wrappers can prevent TERM from reaching the arm")
 
 
 def _place_problems(plan: Plan) -> list[str]:
@@ -136,7 +148,8 @@ def _rules() -> list[str]:
         "  3. cap_usd = charged cost under the cap roots now (campaign status) + the budget of this run",
         "  4. start each runner with nohup; never kill a runner that prints STOPPING or WAIT",
         "  5. after a harbor-alive line, run its commands, then check `daytona sandbox list`",
-        "  6. keep command.argv starting with `keys run -- uv run ...`; do not wrap it in `sh -c '...; ...'`",
+        "  6. start uv, muster, python or python3 directly after optional keys run --, env or nohup; "
+        "do not use a shell wrapper",
         "  7. the API key can have its own spend limit below the account credits; set key_limit_probe so the "
         "smaller number gates each start",
         "  8. run `campaign check PLAN` with network access just before `run`, and start only if it exits 0",

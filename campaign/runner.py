@@ -493,9 +493,10 @@ class Runner:
                                           self.plan.foreign_reserve_window_hours, self.plan.largest_reserve_usd())
         except ledger.LedgerError as error:
             raise Stop("ledger", str(error)) from error
-        for index, item in enumerate(foreign):
-            key = ("foreign", f"{item.writer} {item.arm} {item.ts_utc} {index}")
-            items[key] = items.get(key, 0.0) + item.reserved_usd
+        for item in foreign:
+            key = ("foreign", str(item.line_number))
+            assert key not in items, key
+            items[key] = item.reserved_usd
         return items
 
     def _charged(self) -> float:

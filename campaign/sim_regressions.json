@@ -7,6 +7,13 @@
     "known": false
   },
   {
+    "seed": 17202047028777897598,
+    "step": "fill/money-lock",
+    "invariant": "money-lock-wait-line",
+    "detail": "owner 1002 waited silently",
+    "known": false
+  },
+  {
     "seed": 11023865144473682854,
     "step": "run/stop/balance-low",
     "invariant": "stop-reason-is-true",

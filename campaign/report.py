@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from campaign import evidence, fill, ledger
-from campaign.plan import Plan, PlanError, arm_command
+from campaign.plan import Plan, PlanError, arm_command, render
 from campaign.runner import Stop
 
 
@@ -53,6 +53,16 @@ def _place_problems(plan: Plan) -> list[str]:
     return problems
 
 
+def _rerun_form(plan: Plan) -> str:
+    values = {
+        "tasks": str(plan.state_root / "fill-tasks" / "<arm>.r1" / "m<missing>"),
+        "out": str(plan.output_root / "<arm>.r1-m<missing>"), "arm": "<arm>.r1-m<missing>",
+        "attempts": "<missing>", "concurrency": "<lane concurrency>",
+        "harbor": str(plan.wrapper_path()), "out_root": str(plan.output_root),
+    }
+    return shlex.join(render(arg, values) for arg in plan.argv)
+
+
 def check(plan: Plan) -> tuple[list[str], list[str]]:
     problems = _place_problems(plan)
     lines = [
@@ -69,6 +79,8 @@ def check(plan: Plan) -> tuple[list[str], list[str]]:
         f"{plan.no_reward_streak} finished trials in a row without a reward",
         "rerun: 1 round into <arm>.r1-m<missing>; detector: "
         + (shlex.join(plan.detector) if plan.detector else "none"),
+        f"rerun form: $ {_rerun_form(plan)}",
+        "environment: run passes the whole environment of the caller to each arm, plus the env lines below",
         f"harbor wrapper {plan.wrapper_path()}: 'run ARGS' becomes "
         f"{shlex.join([str(plan.harbor_program), 'run', 'ARGS', *plan.harbor_run_args])}",
         "order:",
@@ -106,7 +118,7 @@ def arm_status(plan: Plan, name: str, state: dict[str, ledger.ArmLedger]) -> dic
     if planned > main["started"]:
         unmeasured["not-started"] = planned - main["started"]
     merged = _merge_counts([main, *reruns.values()])
-    cost = evidence.scan_cost([plan.output_root / name, *folders])
+    cost = evidence.scan_cost([folder for folder in [plan.output_root / name, *folders] if folder.is_dir()])
     outs = [name, *reruns]
     return {
         "arm": name, "lane": plan.lane_of(name).name, "pilot": arm.pilot, "planned": planned,
@@ -125,15 +137,16 @@ def arm_status(plan: Plan, name: str, state: dict[str, ledger.ArmLedger]) -> dic
 def status(plan: Plan) -> dict[str, Any]:
     try:
         state = ledger.state(plan.ledger, plan.id)
-    except ledger.LedgerError as error:
+        arms = [arm_status(plan, name, state) for lane in plan.lanes for name in lane.arms]
+        cost = evidence.scan_cost([root for root in plan.cap_roots if root.is_dir()])
+    except (ledger.LedgerError, OSError) as error:
         raise PlanError(str(error)) from error
-    arms = [arm_status(plan, name, state) for lane in plan.lanes for name in lane.arms]
-    cost = evidence.scan_cost(plan.cap_roots)
+    missing = [str(root) for root in plan.cap_roots if not root.is_dir() and root != plan.output_root]
     return {
         "campaign": plan.id, "plan_sha256": plan.sha256, "arms": arms,
         "cap": {"cap_usd": plan.cap_usd, "charged_usd": cost.charged(plan.unknown_seat_usd),
                 "recorded_usd": cost.recorded_usd, "seats_without_cost": cost.seats_without_cost,
-                "unreadable_results": cost.unreadable_results},
+                "unreadable_results": cost.unreadable_results, "missing_roots": missing},
         "stop_file": plan.stop_file.exists(),
         "open_reservations": sorted(out for out, item in state.items() if item.open),
     }
@@ -161,7 +174,8 @@ def status_text(report: dict[str, Any]) -> str:
                      f"rewards with reruns {row['with_reward_all']}, detector listed {row['detected']}")
     cap = report["cap"]
     lines.append(f"cap: charged ${cap['charged_usd']:.4f} of ${cap['cap_usd']:.2f} "
-                 f"(recorded ${cap['recorded_usd']:.4f}, {cap['seats_without_cost']} seats without a cost)")
+                 f"(recorded ${cap['recorded_usd']:.4f}, {cap['seats_without_cost']} seats without a cost)"
+                 + (f"; missing cap roots: {', '.join(cap['missing_roots'])}" if cap["missing_roots"] else ""))
     lines.append(f"STOP file present: {report['stop_file']}; open reservations: "
                  f"{', '.join(report['open_reservations']) or 'none'}")
     return "\n".join(lines) + "\n"
@@ -184,14 +198,19 @@ def merge(plan: Plan, dest: Path) -> dict[str, int]:
         raise PlanError(f"{taken[0]} exists; merge into a new DEST")
     linked: dict[str, int] = {}
     sets = {name: _detected(plan, name) for name in names}
-    for name in names:
-        found = sets[name]
-        out = dest / name
-        out.mkdir(parents=True)
-        folders = [plan.output_root / name, *evidence.rerun_folders(plan.output_root, name)]
-        for folder in folders:
-            for trial in evidence.trial_dirs(folder):
-                if evidence.failure_kind(trial, found) is None:
-                    (out / trial.name).symlink_to(trial)
-        linked[name] = sum(1 for _ in out.iterdir())
+    try:
+        for name in names:
+            linked[name] = _link_arm(plan, name, sets[name], dest / name)
+    except OSError as error:
+        raise PlanError(f"cannot write {dest}: {error}; DEST may hold a partial merge; remove it") from error
     return linked
+
+
+def _link_arm(plan: Plan, name: str, found: frozenset[str], out: Path) -> int:
+    out.mkdir(parents=True)
+    folders = [plan.output_root / name, *evidence.rerun_folders(plan.output_root, name)]
+    for folder in folders:
+        for trial in evidence.trial_dirs(folder):
+            if evidence.failure_kind(trial, found) is None:
+                (out / trial.name).symlink_to(trial)
+    return sum(1 for _ in out.iterdir())

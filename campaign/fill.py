@@ -25,15 +25,26 @@ def load_record(plan: Plan, arm: str) -> dict[str, Any] | None:
     shaped = (
         isinstance(record, dict) and record.get("arm") == arm
         and isinstance(record.get("detected"), list) and isinstance(record.get("groups"), list)
+        and all(isinstance(name, str) for name in record["detected"]) and len(record["groups"]) <= 1000
     )
     if not shaped:
         raise Stop("fill-record", f"{path} is damaged; repair it by hand")
     assert isinstance(record, dict)
     for group in record["groups"]:
-        ok = isinstance(group, dict) and isinstance(group.get("out"), str) and type(group.get("attempts")) is int
-        if not ok or not group["out"].startswith(f"{arm}{RERUN_TAG}"):
-            raise Stop("fill-record", f"{path} holds a damaged group")
+        if not _group_ok(group, arm):
+            raise Stop("fill-record", f"{path} holds a damaged group; repair it by hand")
     return record
+
+
+def _group_ok(group: Any, arm: str) -> bool:
+    if not isinstance(group, dict) or not isinstance(group.get("out"), str):
+        return False
+    attempts, tasks, instances = group.get("attempts"), group.get("tasks"), group.get("instances")
+    return (
+        group["out"] == f"{arm}{RERUN_TAG}{attempts}" and type(attempts) is int and attempts >= 1
+        and isinstance(tasks, str) and tasks.startswith("/") and isinstance(instances, list)
+        and all(isinstance(name, str) for name in instances)
+    )
 
 
 def detected(plan: Plan, arm: str) -> frozenset[str]:
@@ -115,7 +126,8 @@ def eligible(plan: Plan, arm: Arm) -> str:
         raise Stop("ledger", str(error)) from error
     if state is not None and state.open:
         return "its first run has no settle line yet"
-    if state is None and not (plan.output_root / arm.name).exists():
+    never = state is None or all(status == "spawn-failed" for status in state.statuses)
+    if never and not (plan.output_root / arm.name).exists():
         return "its first run has not started"
     return ""
 

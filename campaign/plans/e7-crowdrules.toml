@@ -44,7 +44,7 @@ ledger = "~/Developer/muster-runs/e5/spend-ledger.jsonl"
 [watch]
 poll_seconds = 20
 max_arm_minutes = 90
-stop_grace_seconds = 30
+stop_grace_seconds = 180
 stop_file = "~/Developer/muster-runs/e7/STOP"
 no_reward_streak = 3
 

@@ -19,6 +19,8 @@ MAX_ARMS = 256
 MAX_LANES = 32
 MAX_PLAN_BYTES = 1_000_000
 RERUN_TAG = ".r1-m"
+MIN_STOP_GRACE_SECONDS = 180
+MAX_BALANCE_USD = 100_000.0
 
 
 class PlanError(Exception):
@@ -287,7 +289,7 @@ def _watch(data: Any) -> dict[str, Any]:
     return {
         "poll_seconds": _number(table, "poll_seconds", "watch", 1, 600),
         "max_arm_minutes": _number(table, "max_arm_minutes", "watch", 1, 1440),
-        "stop_grace_seconds": _number(table, "stop_grace_seconds", "watch", 1, 600),
+        "stop_grace_seconds": _number(table, "stop_grace_seconds", "watch", MIN_STOP_GRACE_SECONDS, 1800),
         "stop_file": _path(table, "stop_file", "watch"),
         "no_reward_streak": _int(table, "no_reward_streak", "watch", 1, 100),
     }
@@ -345,6 +347,7 @@ def _tables(data: dict[str, Any], key: str, limit: int) -> list[Any]:
 
 
 def _inside(child: Path, parent: Path) -> bool:
+    child, parent = Path(os.path.realpath(child)), Path(os.path.realpath(parent))
     return child == parent or parent in child.parents
 
 

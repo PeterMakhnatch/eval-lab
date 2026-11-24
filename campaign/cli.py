@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import signal
@@ -12,7 +13,7 @@ from typing import Any
 
 from campaign import __version__, fill, report
 from campaign.plan import Plan, PlanError, load
-from campaign.runner import Expand, Runner, Stop, drive, expand_first_run
+from campaign.runner import EventLog, Expand, Runner, Stop, drive, expand_first_run
 from campaign.system import RealSystem
 
 DESCRIPTION = """\
@@ -26,15 +27,20 @@ merge   link every trial with a reward, first runs and reruns, under DEST/<arm>
 """
 
 
-def _print_event(event: dict[str, str]) -> None:
-    from datetime import UTC, datetime
-
-    stamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-    print(f"{stamp} {event['kind']} lane {event['lane']}: {event['text']}", flush=True)
-
-
 def _raise_interrupt(signum: int, frame: FrameType | None) -> None:
     raise KeyboardInterrupt
+
+
+def _ignore_signals() -> None:
+    for number in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
+        signal.signal(number, signal.SIG_IGN)
+
+
+def _silence_stdout() -> None:
+    with contextlib.suppress(OSError, ValueError):
+        devnull = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(devnull, sys.stdout.fileno())
+        os.close(devnull)
 
 
 def _lanes(plan: Plan, name: str | None) -> list:
@@ -42,24 +48,27 @@ def _lanes(plan: Plan, name: str | None) -> list:
 
 
 def _drive(plan: Plan, lane: str | None, expand: Expand) -> int:
-    print(f"plan {plan.path} sha256 {plan.sha256}", flush=True)
-    runner = Runner(plan, RealSystem(), os.getpid(), _print_event, _lanes(plan, lane), expand)
-    previous = signal.signal(signal.SIGTERM, _raise_interrupt)
+    system = RealSystem()
+    events = EventLog(sys.stdout, plan.state_root / "campaign.log", system.utc)
+    events.write(f"{system.utc()} PLAN {plan.path} sha256 {plan.sha256} runner pid {os.getpid()}")
+    runner = Runner(plan, system, os.getpid(), events, _lanes(plan, lane), expand)
+    previous = {number: signal.signal(number, _raise_interrupt) for number in (signal.SIGTERM, signal.SIGHUP)}
     try:
         return drive(runner)
     except KeyboardInterrupt:
-        signal.signal(signal.SIGTERM, signal.SIG_IGN)
-        signal.signal(signal.SIGINT, signal.SIG_IGN)
-        runner.interrupt("interrupted", "the runner got a signal; running arms were stopped")
+        _ignore_signals()
+        runner.interrupt("interrupted", "the runner got a TERM, HUP or INT signal")
         return 130
-    except BaseException:
-        signal.signal(signal.SIGTERM, signal.SIG_IGN)
-        signal.signal(signal.SIGINT, signal.SIG_IGN)
-        runner.interrupt("crash", "the runner failed; running arms were stopped")
+    except BaseException as error:
+        _ignore_signals()
+        runner.interrupt("crash", f"the runner failed: {error!r}")
         raise
     finally:
-        signal.signal(signal.SIGTERM, previous)
+        for number, handler in previous.items():
+            signal.signal(number, handler)
         signal.signal(signal.SIGINT, signal.default_int_handler)
+        if events.stream_failed:
+            _silence_stdout()
 
 
 def cmd_check(args: argparse.Namespace) -> int:

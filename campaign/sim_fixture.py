@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import math
+import signal
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -8,13 +10,19 @@ from pathlib import Path
 from random import Random
 from typing import Any
 
+from campaign.system import command_matches
+
 BASE = datetime(2026, 11, 24, tzinfo=UTC)
 MICRO = 1_000_000
 REWARDED = frozenset({"ok", "stalled", "unknown-cost"})
 FAULT_KINDS = ("ok", "pull-limit", "stalled", "no-reward", "unknown-cost", "unreadable", "slow")
-PROBE_MODES = ("steady", "steady", "steady", "dead", "flaky", "poor", "falling")
+PROBE_MODES = ("steady", "steady", "steady", "dead", "flaky", "poor", "falling", "tight", "tight")
 MAX_JOB_EVENTS = 100_000
-SIGTERM_EXIT = -15
+MUSTER_GRACE = 120.0
+STOP_GRACE = 180
+OTHER_PID = 4242
+OTHER_START = "Mon Nov 23 09:00:00 2026"
+RANK = {"top-death": 0, "harbor": 1, "trial": 2}
 
 
 def iso(seconds: float, precise: bool = True) -> str:
@@ -73,6 +81,18 @@ class Scenario:
     spawn_fail_arm: str
     clears_stop: bool
     second_fill: bool
+    cleanups: tuple[float, ...]
+    ignore_term_rate: float
+    hangs: tuple[float, ...]
+    top_death_rate: float
+    unstoppable_rate: float
+    concurrent_probe: bool
+    closed_output_after: int
+    interrupt_at: float | None
+    ledger_breaks: bool
+    pid_reuse: str
+    cap_root_missing_at: float | None
+    operator_top_only: bool
 
     def arm(self, name: str) -> ArmSpec:
         found = [arm for arm in self.arms if arm.name == name]
@@ -108,6 +128,24 @@ def _faults(rng: Random) -> tuple[tuple[str, float], ...]:
             ("unknown-cost", 0.05), ("unreadable", 0.05))
 
 
+def _process_faults(rng: Random) -> dict[str, Any]:
+    harsh = rng.random() < 0.5
+    return {
+        "cleanups": (0.0, 8.0, 60.0, 400.0) if harsh else (0.0, 2.0),
+        "ignore_term_rate": 0.25 if harsh else 0.0,
+        "hangs": (0.0, 0.0, 90.0, math.inf) if harsh else (0.0,),
+        "top_death_rate": 0.2 if harsh else 0.0,
+        "unstoppable_rate": 0.08 if harsh else 0.0,
+        "concurrent_probe": rng.random() < 0.5,
+        "closed_output_after": rng.choice((0, 0, 0, 2, 5)),
+        "interrupt_at": rng.uniform(1, 2000) if rng.random() < 0.2 else None,
+        "ledger_breaks": rng.random() < 0.3,
+        "pid_reuse": rng.choice(("", "", "", "start", "nostart")),
+        "cap_root_missing_at": rng.uniform(0, 1500) if rng.random() < 0.08 else None,
+        "operator_top_only": rng.random() < 0.6,
+    }
+
+
 def scenario(seed: int) -> Scenario:
     assert 0 <= seed < 2**64
     rng = Random(seed)
@@ -116,7 +154,8 @@ def scenario(seed: int) -> Scenario:
     preexisting = rng.choice((0, 1_000_000, 5_000_000))
     probe_mode = rng.choice(PROBE_MODES)
     floor = rng.choice((0, 1_000_000, 2_000_000))
-    balance = floor + (300_000 if probe_mode == "poor" else rng.choice((3_000_000, 20_000_000)))
+    gap = {"poor": 300_000, "tight": 1_200_000}.get(probe_mode)
+    balance = floor + (gap if gap is not None else rng.choice((3_000_000, 20_000_000)))
     return Scenario(
         seed=seed, lanes=lanes, arms=arms, total=at_once + rng.randint(0, 2), floor_micro=floor,
         cap_micro=preexisting + rng.choice((150_000, 600_000, 2_000_000, 50_000_000)),
@@ -132,20 +171,25 @@ def scenario(seed: int) -> Scenario:
         duplicate=rng.random() < 0.2, per_lane_runners=rng.random() < 0.4,
         spawn_fail_arm=rng.choice([arm.name for arm in arms]) if rng.random() < 0.06 else "",
         clears_stop=rng.random() < 0.7, second_fill=rng.random() < 0.5,
+        **_process_faults(rng),
     )
 
 
-def _toml_value(value: Any) -> str:
+def _toml_scalar(value: Any) -> str:
     if isinstance(value, bool):
         return "true" if value else "false"
     if isinstance(value, int | float):
         return repr(value)
-    if isinstance(value, str):
-        return json.dumps(value)
+    assert isinstance(value, str)
+    return json.dumps(value)
+
+
+def _toml_value(value: Any) -> str:
     if isinstance(value, list):
-        return "[" + ", ".join(_toml_value(item) for item in value) + "]"
-    assert isinstance(value, dict)
-    return "{ " + ", ".join(f"{key} = {_toml_value(item)}" for key, item in value.items()) + " }"
+        return "[" + ", ".join(_toml_scalar(item) for item in value) + "]"
+    if isinstance(value, dict):
+        return "{ " + ", ".join(f"{key} = {_toml_scalar(item)}" for key, item in value.items()) + " }"
+    return _toml_scalar(value)
 
 
 def toml_text(data: dict[str, Any]) -> str:
@@ -174,8 +218,8 @@ def plan_data(case: Scenario, root: Path) -> dict[str, Any]:
                   "floor_usd": usd(case.floor_micro), "cap_usd": usd(case.cap_micro),
                   "cap_roots": [str(root / "other"), str(root / "out")],
                   "unknown_seat_usd": usd(case.unknown_seat_micro), "ledger": str(root / "ledger" / "spend.jsonl")},
-        "watch": {"poll_seconds": case.poll, "max_arm_minutes": case.max_arm_minutes, "stop_grace_seconds": 10,
-                  "stop_file": str(root / "STOP"), "no_reward_streak": case.streak},
+        "watch": {"poll_seconds": case.poll, "max_arm_minutes": case.max_arm_minutes,
+                  "stop_grace_seconds": STOP_GRACE, "stop_file": str(root / "STOP"), "no_reward_streak": case.streak},
         "arms": [
             {"name": arm.name, "tasks": str(root / "tasks" / arm.name), "attempts": arm.attempts,
              "reserve_usd": usd(arm.reserve_micro), "rerun_reserve_usd": usd(arm.reserve_micro // 2),
@@ -205,6 +249,22 @@ def write_supply(case: Scenario, root: Path) -> None:
     (root / "ledger").mkdir()
 
 
+class BrokenStream:
+    def __init__(self, after: int) -> None:
+        assert after >= 1
+        self.after = after
+        self.writes = 0
+
+    def write(self, text: str) -> int:
+        self.writes += 1
+        if self.writes > self.after:
+            raise BrokenPipeError(32, "Broken pipe")
+        return len(text)
+
+    def flush(self) -> None:
+        return None
+
+
 @dataclass
 class FakeTrial:
     name: str
@@ -223,19 +283,49 @@ class FakeTrial:
 @dataclass
 class FakeJob:
     pid: int
+    harbor_pid: int
     owner: int
     out: Path
     concurrency: int
     trials: list[FakeTrial]
     started: float
     crash_at: float | None
-    exit: int | None = None
+    top_death_at: float | None
+    cleanup: float
+    ignore_term: bool
+    hang: float
+    unstoppable: bool
+    top_exit: int | None = None
+    harbor_exit: int | None = None
     ended_at: float | None = None
-    events: int = 0
+    harbor_term_at: float | None = None
+    muster_term_at: float | None = None
+    done_at: float | None = None
+    abandoned: bool = False
+
+    @property
+    def top_alive(self) -> bool:
+        return self.top_exit is None
+
+    @property
+    def harbor_alive(self) -> bool:
+        return self.harbor_exit is None
 
     @property
     def alive(self) -> bool:
-        return self.exit is None
+        return self.top_alive or self.harbor_alive
+
+    def harbor_end(self) -> tuple[float, int] | None:
+        ends: list[tuple[float, int]] = []
+        if self.crash_at is not None:
+            ends.append((self.crash_at, 1))
+        if self.harbor_term_at is not None and not self.ignore_term and not self.unstoppable:
+            ends.append((self.harbor_term_at + self.cleanup, 143))
+        if self.muster_term_at is not None and self.top_alive and not self.unstoppable:
+            ends.append((self.muster_term_at + MUSTER_GRACE, -9))
+        if self.done_at is not None and math.isfinite(self.hang):
+            ends.append((self.done_at + self.hang, 0))
+        return min(ends) if ends else None
 
 
 @dataclass
@@ -253,6 +343,7 @@ class Truth:
 
 
 SpawnHook = Callable[[list[str], int], None]
+ProbeHook = Callable[[int], None]
 
 
 def _write(path: Path, data: Any) -> None:
@@ -290,9 +381,13 @@ class World:
         self.probes: dict[int, Probe] = {}
         self.truth = Truth(charged_micro=case.preexisting_micro)
         self.spawn_hook: SpawnHook | None = None
+        self.probe_hook: ProbeHook | None = None
+        self.in_probe_hook = False
         self.next_pid = 5000
         self.calls: list[str] = []
         self.lock_errors: list[str] = []
+        self.failed_spawns: set[str] = set()
+        self.others: dict[int, str] = {}
 
     def now(self) -> float:
         return self.t
@@ -311,11 +406,18 @@ class World:
         return self.case.balance_micro - self.truth.spent_micro - dropped
 
     def _probe(self, owner: int) -> tuple[int | None, str]:
+        if self.probe_hook is not None and not self.in_probe_hook:
+            self.in_probe_hook = True
+            try:
+                self.probe_hook(owner)
+            finally:
+                self.in_probe_hook = False
         mode = self.case.probe_mode
         broken = mode == "dead" or (mode == "flaky" and self.rng.random() < 0.2)
         if broken:
             self.probes[owner] = Probe(self.t, None)
-            return self.rng.choice(((1, ""), (0, "null\n"), (None, ""), (0, "$18.70\n"), (0, "nan\n")))
+            return self.rng.choice(((1, ""), (0, "null\n"), (None, ""), (0, "$18.70\n"), (0, "nan\n"),
+                                    (0, "99999999999\n")))
         text = f"{usd(self.balance_micro()):.2f}"
         self.probes[owner] = Probe(self.t, float(text))
         return 0, text + "\n"
@@ -338,7 +440,7 @@ class World:
         assert argv[0] == "fake-detector" and len(argv) == 2, argv
         return self._detect(Path(argv[1]))
 
-    def _draw(self, name: str) -> tuple[str, float]:
+    def _draw(self) -> tuple[str, float]:
         roll, total = self.rng.random(), 0.0
         fault = "ok"
         for kind, weight in self.case.faults:
@@ -346,7 +448,7 @@ class World:
             if roll < total:
                 fault = kind
                 break
-        assert fault in FAULT_KINDS, name
+        assert fault in FAULT_KINDS
         if fault == "pull-limit":
             return fault, self.rng.uniform(5, 40)
         if fault == "slow":
@@ -358,46 +460,114 @@ class World:
         trials = []
         for instance in names:
             for attempt in range(attempts):
-                name = f"{instance}__{pid:x}{attempt:02d}"
-                fault, duration = self._draw(name)
+                fault, duration = self._draw()
                 costs = tuple(self.rng.randint(1, 300) * 100 for _ in range(self.rng.randint(1, 3)))
                 if fault == "pull-limit":
                     costs = tuple(0 for _ in costs)
-                trials.append(FakeTrial(name, instance, fault, duration, costs))
+                trials.append(FakeTrial(f"{instance}__{pid:x}{attempt:02d}", instance, fault, duration, costs))
         return trials
+
+    def _job(self, pid: int, owner: int, argv: list[str]) -> FakeJob:
+        case, rng = self.case, self.rng
+        crash_at = self.t + rng.uniform(10, 600) if rng.random() < case.crash_rate else None
+        death = self.t + rng.uniform(10, 400) if rng.random() < case.top_death_rate else None
+        return FakeJob(
+            pid=pid, harbor_pid=pid + 1, owner=owner, out=Path(argv[2]), concurrency=int(argv[4]),
+            trials=self._trials(pid, Path(argv[1]), int(argv[3])), started=self.t, crash_at=crash_at,
+            top_death_at=death, cleanup=rng.choice(case.cleanups),
+            ignore_term=rng.random() < case.ignore_term_rate, hang=rng.choice(case.hangs),
+            unstoppable=rng.random() < case.unstoppable_rate,
+        )
 
     def spawn(self, argv: list[str], cwd: Path, env: dict[str, str], log: Path, owner: int) -> int:
         assert owner in self.live_owners and cwd == self.root
         self.calls.append(argv[0])
-        if self.spawn_hook is not None:
-            self.spawn_hook(argv, owner)
         out = Path(argv[2])
         assert argv[0] == "fake-harbor" and env == {"FAKE_ARM": out.name}, (argv, env)
-        if out.name == self.case.spawn_fail_arm:
+        if out.name == self.case.spawn_fail_arm and out.name not in self.failed_spawns:
+            self.failed_spawns.add(out.name)
             raise OSError("simulated failure to start the trial command")
+        if self.spawn_hook is not None:
+            self.spawn_hook(argv, owner)
         log.open("xb").close()
         pid = self.next_pid
-        self.next_pid += 1
-        crash_at = self.t + self.rng.uniform(10, 600) if self.rng.random() < self.case.crash_rate else None
-        job = FakeJob(pid, owner, out, int(argv[4]), self._trials(pid, Path(argv[1]), int(argv[3])), self.t, crash_at)
+        self.next_pid += 2
+        job = self._job(pid, owner, argv)
         out.mkdir(parents=True)
         self.jobs[pid] = job
         self._fill_slots(job, self.t)
         return pid
 
-    def poll(self, pid: int) -> int | None:
-        return self.jobs[pid].exit
+    def _job_of(self, pid: int) -> FakeJob | None:
+        return self.jobs.get(pid) or self.jobs.get(pid - 1)
 
-    def terminate(self, pid: int, grace: float) -> int:
-        assert grace > 0
-        job = self.jobs[pid]
-        if job.exit is None:
-            job.exit, job.ended_at = SIGTERM_EXIT, self.t
-        return job.exit
+    def poll(self, pid: int) -> int | None:
+        return self.jobs[pid].top_exit
+
+    def _end_harbor(self, job: FakeJob, code: int, at: float) -> None:
+        job.harbor_exit = code
+        if job.top_alive:
+            job.top_exit = 130 if job.muster_term_at is not None else code
+        job.ended_at = at
+
+    def _signal_top(self, job: FakeJob, number: int) -> None:
+        if not job.top_alive:
+            return
+        if number == signal.SIGKILL or job.muster_term_at is not None:
+            job.top_exit, job.ended_at = (-9 if number == signal.SIGKILL else 130), self.t
+            return
+        job.muster_term_at = self.t
+        if job.harbor_alive and job.harbor_term_at is None:
+            job.harbor_term_at = self.t
+
+    def signal_group(self, pgid: int, number: int) -> None:
+        assert pgid > 1 and number in (signal.SIGTERM, signal.SIGKILL)
+        job = self._job_of(pgid)
+        if job is None:
+            return
+        if pgid == job.pid:
+            self._signal_top(job, number)
+            return
+        if job.unstoppable:
+            raise PermissionError(1, "Operation not permitted")
+        if not job.harbor_alive:
+            return
+        if number == signal.SIGKILL:
+            self._end_harbor(job, -9, self.t)
+        elif job.harbor_term_at is None:
+            job.harbor_term_at = self.t
+
+    def operator_kill(self, job: FakeJob, top_only: bool) -> None:
+        if job.top_alive:
+            job.top_exit, job.ended_at = -9, self.t
+        if job.harbor_alive and not top_only:
+            job.harbor_exit = -9
 
     def alive(self, pid: int) -> bool:
-        job = self.jobs.get(pid)
-        return pid in self.live_owners or (job is not None and job.alive)
+        job = self._job_of(pid)
+        if job is not None:
+            return job.top_alive if pid == job.pid else job.harbor_alive
+        return pid in self.live_owners or pid in self.others
+
+    def start_time(self, pid: int) -> str | None:
+        job = self._job_of(pid)
+        if job is not None and self.alive(pid):
+            return f"sim {job.started:.0f} {pid}"
+        return self.others.get(pid)
+
+    def processes(self, needles: list[str]) -> list[tuple[int, int, str]]:
+        found = []
+        for job in self.jobs.values():
+            commands = []
+            if job.top_alive:
+                commands.append((job.pid, f"python3 fake-muster --out {job.out} --attempts 2"))
+            if job.harbor_alive:
+                commands.append((job.harbor_pid, f"/sim/harbor run -c {job.out}.job.json --quiet --yes"))
+            for pid, command in commands:
+                matched = [needle for needle in needles if command_matches(command, needle)]
+                if matched:
+                    found.append((pid, pid, matched[0]))
+        return found
 
     def try_lock(self, path: Path, owner: int) -> bool:
         assert owner in self.live_owners
@@ -419,6 +589,8 @@ class World:
             del self.locks[path]
 
     def _fill_slots(self, job: FakeJob, at: float) -> None:
+        if not job.harbor_alive or job.harbor_term_at is not None:
+            return
         running = sum(1 for trial in job.trials if trial.start is not None and trial.end is None)
         for trial in job.trials:
             if running >= job.concurrency:
@@ -452,23 +624,36 @@ class World:
             _write(folder / "verifier" / "reward.json", {"reward": 1.0 if trial.fault == "ok" else 0.5})
         self.truth.finished.append((iso(at), str(folder), trial.fault in REWARDED))
 
+    def _next_event(self, job: FakeJob) -> tuple[float, str, FakeTrial | None, int]:
+        events: list[tuple[float, str, FakeTrial | None, int]] = []
+        if job.harbor_alive:
+            for trial in job.trials:
+                if trial.start is not None and trial.end is None:
+                    events.append((trial.start + trial.duration, "trial", trial, 0))
+            end = job.harbor_end()
+            if end is not None:
+                events.append((end[0], "harbor", None, end[1]))
+        if job.top_alive and job.top_death_at is not None:
+            events.append((job.top_death_at, "top-death", None, -9))
+        if not events:
+            return math.inf, "", None, 0
+        return min(events, key=lambda event: (event[0], RANK[event[1]]))
+
     def _step_job(self, job: FakeJob, until: float) -> None:
         for _ in range(MAX_JOB_EVENTS):
-            if job.exit is not None:
-                return
-            running = [trial for trial in job.trials if trial.start is not None and trial.end is None]
-            ends = [(trial.start or 0.0) + trial.duration for trial in running]
-            moment = min([*ends, job.crash_at if job.crash_at is not None else float("inf")])
+            moment, kind, trial, code = self._next_event(job)
             if moment > until:
                 return
-            if job.crash_at is not None and moment == job.crash_at:
-                job.exit, job.ended_at = 1, moment
-                return
-            self._finish(job, running[ends.index(moment)], moment)
-            self._fill_slots(job, moment)
-            if all(trial.end is not None for trial in job.trials):
-                job.exit, job.ended_at = 0, moment
-                return
+            if kind == "top-death":
+                job.top_exit, job.ended_at = code, moment
+            elif kind == "harbor":
+                self._end_harbor(job, code, moment)
+            else:
+                assert trial is not None
+                self._finish(job, trial, moment)
+                self._fill_slots(job, moment)
+                if job.done_at is None and all(item.end is not None for item in job.trials):
+                    job.done_at = moment
         raise AssertionError("a fake job made too many events")
 
     def advance(self, seconds: float) -> None:
@@ -478,7 +663,11 @@ class World:
             self._step_job(job, until)
         self.t = until
 
-    def truth_streak(self) -> bool:
-        done = sorted(self.truth.finished)
-        last = [ok for _, _, ok in done[-self.case.streak:]]
+    def truth_streak(self, since: datetime, until: float = math.inf) -> bool:
+        done = sorted((datetime.fromisoformat(end), path, ok) for end, path, ok in self.truth.finished)
+        limit = BASE + timedelta(seconds=until) if math.isfinite(until) else None
+        last = [ok for end, _, ok in done if end >= since and (limit is None or end <= limit)][-self.case.streak:]
         return len(last) == self.case.streak and not any(last)
+
+    def end_times(self, start: float) -> list[float]:
+        return [trial.end for trial in self.truth.trials.values() if trial.end is not None and trial.end >= start]

@@ -5,6 +5,7 @@ import math
 import os
 from collections import Counter
 from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -160,12 +161,21 @@ def _result_cost(path: Path, totals: Counter[str]) -> tuple[float, bool]:
     return sum(_seat_cost(seat, totals) for seat in seats), True
 
 
+def _raise(error: OSError) -> None:
+    raise error
+
+
+def distinct_roots(roots: tuple[Path, ...] | list[Path]) -> list[Path]:
+    real = sorted({Path(os.path.realpath(root)) for root in roots})
+    return [root for root in real if not any(other in root.parents for other in real)]
+
+
 def scan_cost(roots: tuple[Path, ...] | list[Path]) -> Cost:
     totals: Counter[str] = Counter()
     recorded = 0.0
     visited = 0
-    for root in roots:
-        for dirpath, dirnames, filenames in os.walk(root):
+    for root in distinct_roots(roots):
+        for dirpath, dirnames, filenames in os.walk(root, onerror=_raise):
             visited += 1
             assert visited <= MAX_WALK_DIRS, "too many folders under the cap roots"
             dirnames.sort()
@@ -184,23 +194,33 @@ def scan_cost(roots: tuple[Path, ...] | list[Path]) -> Cost:
     )
 
 
-def finished_trials(root: Path) -> list[tuple[str, str, bool]]:
-    done: list[tuple[str, str, bool]] = []
+def parse_utc(text: Any) -> datetime | None:
+    if not isinstance(text, str) or not text:
+        return None
+    try:
+        stamp = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    return stamp if stamp.tzinfo is not None else stamp.replace(tzinfo=UTC)
+
+
+def finished_trials(root: Path, since: datetime) -> list[tuple[datetime, str, bool]]:
+    done: list[tuple[datetime, str, bool]] = []
     if not root.is_dir():
         return done
     for folder in sorted(root.iterdir()):
         for trial in trial_dirs(folder):
             result = read_json(trial / "result.json")
-            finished = result.get("finished_at") if isinstance(result, dict) else None
-            if isinstance(finished, str) and finished:
+            finished = parse_utc(result.get("finished_at")) if isinstance(result, dict) else None
+            if finished is not None and finished >= since:
                 done.append((finished, str(trial), reward(trial) is not None))
             assert len(done) <= MAX_TRIALS
     done.sort()
     return done
 
 
-def streak(root: Path, need: int) -> tuple[bool, int]:
+def streak(root: Path, need: int, since: datetime) -> tuple[bool, int]:
     assert need >= 1
-    done = finished_trials(root)
+    done = finished_trials(root, since)
     last = [ok for _, _, ok in done[-need:]]
     return len(last) == need and not any(last), len(done)

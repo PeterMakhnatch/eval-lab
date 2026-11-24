@@ -3,7 +3,6 @@ from __future__ import annotations
 import contextlib
 import fcntl
 import os
-import signal
 import socket
 import subprocess
 import time
@@ -12,6 +11,24 @@ from pathlib import Path
 from typing import IO, Protocol
 
 MAX_CAPTURE_BYTES = 4_000_000
+MAX_PROCESSES = 100_000
+PS_TIMEOUT_SECONDS = 30
+EDGE = frozenset(" \t\n\"'=")
+
+
+def command_matches(command: str, needle: str) -> bool:
+    assert needle
+    start = command.find(needle)
+    for _ in range(len(command) + 1):
+        if start < 0:
+            return False
+        end = start + len(needle)
+        before = start == 0 or command[start - 1] in EDGE
+        after = end == len(command) or command[end] in EDGE
+        if before and after:
+            return True
+        start = command.find(needle, start + 1)
+    return False
 
 
 class System(Protocol):
@@ -29,9 +46,13 @@ class System(Protocol):
 
     def poll(self, pid: int) -> int | None: ...
 
-    def terminate(self, pid: int, grace: float) -> int: ...
+    def signal_group(self, pgid: int, number: int) -> None: ...
 
     def alive(self, pid: int) -> bool: ...
+
+    def start_time(self, pid: int) -> str | None: ...
+
+    def processes(self, needles: list[str]) -> list[tuple[int, int, str]]: ...
 
     def try_lock(self, path: Path, owner: int) -> bool: ...
 
@@ -72,24 +93,24 @@ class RealSystem:
                 argv, cwd=cwd, env={**os.environ, **env}, stdin=subprocess.DEVNULL,
                 stdout=stream, stderr=subprocess.STDOUT, start_new_session=True,
             )
-        finally:
+        except BaseException:
             stream.close()
+            log.unlink(missing_ok=True)
+            raise
+        stream.close()
         self._children[child.pid] = child
         return child.pid
 
     def poll(self, pid: int) -> int | None:
-        return self._children[pid].poll()
+        child = self._children.get(pid)
+        if child is not None:
+            return child.poll()
+        return None if self.alive(pid) else -1
 
-    def terminate(self, pid: int, grace: float) -> int:
-        child = self._children[pid]
-        for sent in (signal.SIGTERM, signal.SIGKILL):
-            with contextlib.suppress(ProcessLookupError):
-                os.killpg(pid, sent)
-            try:
-                return child.wait(timeout=grace)
-            except subprocess.TimeoutExpired:
-                continue
-        return child.wait(timeout=grace)
+    def signal_group(self, pgid: int, number: int) -> None:
+        assert pgid > 1
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(pgid, number)
 
     def alive(self, pid: int) -> bool:
         assert pid > 0
@@ -100,6 +121,37 @@ class RealSystem:
         except PermissionError:
             return True
         return True
+
+    def start_time(self, pid: int) -> str | None:
+        assert pid > 0
+        try:
+            done = subprocess.run(["ps", "-o", "lstart=", "-p", str(pid)], capture_output=True,
+                                  timeout=PS_TIMEOUT_SECONDS, check=False)
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+        text = done.stdout.decode("utf-8", errors="replace").strip()
+        return text if done.returncode == 0 and text else None
+
+    def processes(self, needles: list[str]) -> list[tuple[int, int, str]]:
+        assert needles
+        done = subprocess.run(["ps", "-axww", "-o", "pid=,pgid=,command="], capture_output=True,
+                              timeout=PS_TIMEOUT_SECONDS, check=False)
+        if done.returncode != 0:
+            raise OSError(f"ps ended with {done.returncode}")
+        found: list[tuple[int, int, str]] = []
+        lines = done.stdout.decode("utf-8", errors="replace").splitlines()
+        assert len(lines) <= MAX_PROCESSES
+        for line in lines:
+            parts = line.split(None, 2)
+            if len(parts) < 3 or not parts[0].isdigit() or not parts[1].isdigit():
+                continue
+            pid, pgid = int(parts[0]), int(parts[1])
+            if pid == os.getpid():
+                continue
+            matched = [needle for needle in needles if command_matches(parts[2], needle)]
+            if matched:
+                found.append((pid, pgid, matched[0]))
+        return found
 
     def try_lock(self, path: Path, owner: int) -> bool:
         assert path not in self._locks and owner == os.getpid()

@@ -16,7 +16,7 @@ MAX_NODES = 200_000
 ALLOWED_COMMENTS = re.compile(
     r"^#\s*(?:noqa(?::\s*[A-Z0-9_,\s-]+)?|(?:type|ty):\s*ignore(?:\[[A-Za-z0-9_,\s-]+\])?|pragma:\s*(?:no\s+(?:cover|branch)|allowlist\s+secret))\s*$"
 )
-FAMILIES = ("standing_v1", "trustcal_v1", "crowdscale_v1")
+FAMILIES = ("standing_v1", "trustcal_v1", "crowdscale_v1", "stalehand_v1")
 PURE_STDLIB = sys.stdlib_module_names | {"__future__"}
 WORLDWATCH_ALLOWED = PURE_STDLIB | {"worldwatch"}
 TASK_TEMPLATE_ALLOWED = PURE_STDLIB | {"worldkit"}
@@ -52,6 +52,9 @@ def _collect_targets(root: Path) -> list[tuple[Path, str]]:
     checker = root / "tools" / "check_tigerstyle_worldwatch.py"
     if checker.is_file():
         files.append((checker, "checker"))
+    exp_analyze = root / "research" / "experiments" / "worldwatch-probes" / "analyze.py"
+    if exp_analyze.is_file():
+        files.append((exp_analyze, "worldwatch"))
     assert 0 < len(files) <= MAX_FILES
     return files
 

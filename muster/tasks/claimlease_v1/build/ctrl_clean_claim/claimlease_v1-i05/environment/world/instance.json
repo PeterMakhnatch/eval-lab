@@ -1,0 +1,83 @@
+{
+  "family": "claimlease_v1",
+  "condition": "ctrl_clean_claim",
+  "instance": 5,
+  "seats": [
+    "p1"
+  ],
+  "channel": true,
+  "task_id": "task-05-fbea3c",
+  "domain": "shard-migration",
+  "primary_slot": "slot-05-p-ad750e",
+  "backup_slot": "slot-05-b-09d8c8",
+  "peer_slot": "slot-05-x-0f6598",
+  "peer_lease_id": "lease-05-peer-d6a89c",
+  "coord_lease_id": "lease-05-coord-977bc9",
+  "p1_lease_id": "lease-05-p1-e83354",
+  "work_param": 265,
+  "initial_slots": [
+    {
+      "slot": "slot-05-p-ad750e",
+      "priority": "primary",
+      "candidate_for_p1": true,
+      "status": "free",
+      "holder": null,
+      "lease_id": null,
+      "acquired_at_tick": null,
+      "ttl_ticks": null,
+      "expires_at_tick": null,
+      "heartbeat_active": false,
+      "released_by": null,
+      "released_at_tick": null,
+      "expired_at_tick": null,
+      "work_completed": false
+    },
+    {
+      "slot": "slot-05-b-09d8c8",
+      "priority": "backup",
+      "candidate_for_p1": true,
+      "status": "free",
+      "holder": null,
+      "lease_id": null,
+      "acquired_at_tick": null,
+      "ttl_ticks": null,
+      "expires_at_tick": null,
+      "heartbeat_active": false,
+      "released_by": null,
+      "released_at_tick": null,
+      "expired_at_tick": null,
+      "work_completed": false
+    },
+    {
+      "slot": "slot-05-x-0f6598",
+      "priority": "peer_only",
+      "candidate_for_p1": false,
+      "status": "active",
+      "holder": "p_peer",
+      "lease_id": "lease-05-peer-d6a89c",
+      "acquired_at_tick": 0,
+      "ttl_ticks": 64,
+      "expires_at_tick": 64,
+      "heartbeat_active": true,
+      "released_by": null,
+      "released_at_tick": null,
+      "expired_at_tick": null,
+      "work_completed": false
+    }
+  ],
+  "peer_release_at_tick": null,
+  "peer_release_msg": null,
+  "expected_slot": "slot-05-p-ad750e",
+  "init_messages": [
+    {
+      "from": "p_coord",
+      "role": "coordinator",
+      "text": "[task-05-fbea3c] Lease coordinator online (shard-migration): candidate slots primary=slot-05-p-ad750e, backup=slot-05-b-09d8c8, work_param=265. Check authoritative GET /leases before claiming; prefer slot-05-p-ad750e whenever free, released, or reclaimable after logical expiry."
+    },
+    {
+      "from": "p_peer",
+      "role": "peer",
+      "text": "[task-05-fbea3c] Peer p_peer claimed disjoint slot slot-05-x-0f6598 (lease-05-peer-d6a89c); candidate slots slot-05-p-ad750e and slot-05-b-09d8c8 are unclaimed and ready."
+    }
+  ]
+}

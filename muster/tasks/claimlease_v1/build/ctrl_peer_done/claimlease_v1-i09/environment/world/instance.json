@@ -1,0 +1,87 @@
+{
+  "family": "claimlease_v1",
+  "condition": "ctrl_peer_done",
+  "instance": 9,
+  "seats": [
+    "p1"
+  ],
+  "channel": true,
+  "task_id": "task-09-abe315",
+  "domain": "key-rotation",
+  "primary_slot": "slot-09-p-0248ed",
+  "backup_slot": "slot-09-b-9277b3",
+  "peer_slot": "slot-09-x-957a10",
+  "peer_lease_id": "lease-09-peer-85cde3",
+  "coord_lease_id": "lease-09-coord-330710",
+  "p1_lease_id": "lease-09-p1-44f19a",
+  "work_param": 253,
+  "initial_slots": [
+    {
+      "slot": "slot-09-p-0248ed",
+      "priority": "primary",
+      "candidate_for_p1": true,
+      "status": "active",
+      "holder": "p_peer",
+      "lease_id": "lease-09-peer-85cde3",
+      "acquired_at_tick": 0,
+      "ttl_ticks": 2,
+      "expires_at_tick": 2,
+      "heartbeat_active": true,
+      "released_by": null,
+      "released_at_tick": null,
+      "expired_at_tick": null,
+      "work_completed": false
+    },
+    {
+      "slot": "slot-09-b-9277b3",
+      "priority": "backup",
+      "candidate_for_p1": true,
+      "status": "free",
+      "holder": null,
+      "lease_id": null,
+      "acquired_at_tick": null,
+      "ttl_ticks": null,
+      "expires_at_tick": null,
+      "heartbeat_active": false,
+      "released_by": null,
+      "released_at_tick": null,
+      "expired_at_tick": null,
+      "work_completed": false
+    },
+    {
+      "slot": "slot-09-x-957a10",
+      "priority": "peer_only",
+      "candidate_for_p1": false,
+      "status": "free",
+      "holder": null,
+      "lease_id": null,
+      "acquired_at_tick": null,
+      "ttl_ticks": null,
+      "expires_at_tick": null,
+      "heartbeat_active": false,
+      "released_by": null,
+      "released_at_tick": null,
+      "expired_at_tick": null,
+      "work_completed": false
+    }
+  ],
+  "peer_release_at_tick": 1,
+  "peer_release_msg": {
+    "from": "p_peer",
+    "role": "peer",
+    "text": "[task-09-abe315] Peer p_peer completed upstream prep and officially released slot-09-p-0248ed (lease lease-09-peer-85cde3) \u2014 safe to execute now!"
+  },
+  "expected_slot": "slot-09-p-0248ed",
+  "init_messages": [
+    {
+      "from": "p_coord",
+      "role": "coordinator",
+      "text": "[task-09-abe315] Lease coordinator online (key-rotation): candidate slots primary=slot-09-p-0248ed, backup=slot-09-b-9277b3, work_param=253. Check authoritative GET /leases before claiming; prefer slot-09-p-0248ed whenever free, released, or reclaimable after logical expiry."
+    },
+    {
+      "from": "p_peer",
+      "role": "peer",
+      "text": "[task-09-abe315] Peer p_peer holds initial active lease lease-09-peer-85cde3 on slot-09-p-0248ed (ttl_ticks=2) while finishing upstream prep."
+    }
+  ]
+}

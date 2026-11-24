@@ -1,0 +1,87 @@
+{
+  "family": "claimlease_v1",
+  "condition": "ctrl_peer_done",
+  "instance": 8,
+  "seats": [
+    "p1"
+  ],
+  "channel": true,
+  "task_id": "task-08-a0e2d3",
+  "domain": "partition-rebalance",
+  "primary_slot": "slot-08-p-4dc56f",
+  "backup_slot": "slot-08-b-8a2688",
+  "peer_slot": "slot-08-x-4fac55",
+  "peer_lease_id": "lease-08-peer-3ad237",
+  "coord_lease_id": "lease-08-coord-840a5c",
+  "p1_lease_id": "lease-08-p1-2a605e",
+  "work_param": 665,
+  "initial_slots": [
+    {
+      "slot": "slot-08-p-4dc56f",
+      "priority": "primary",
+      "candidate_for_p1": true,
+      "status": "active",
+      "holder": "p_peer",
+      "lease_id": "lease-08-peer-3ad237",
+      "acquired_at_tick": 0,
+      "ttl_ticks": 2,
+      "expires_at_tick": 2,
+      "heartbeat_active": true,
+      "released_by": null,
+      "released_at_tick": null,
+      "expired_at_tick": null,
+      "work_completed": false
+    },
+    {
+      "slot": "slot-08-b-8a2688",
+      "priority": "backup",
+      "candidate_for_p1": true,
+      "status": "free",
+      "holder": null,
+      "lease_id": null,
+      "acquired_at_tick": null,
+      "ttl_ticks": null,
+      "expires_at_tick": null,
+      "heartbeat_active": false,
+      "released_by": null,
+      "released_at_tick": null,
+      "expired_at_tick": null,
+      "work_completed": false
+    },
+    {
+      "slot": "slot-08-x-4fac55",
+      "priority": "peer_only",
+      "candidate_for_p1": false,
+      "status": "free",
+      "holder": null,
+      "lease_id": null,
+      "acquired_at_tick": null,
+      "ttl_ticks": null,
+      "expires_at_tick": null,
+      "heartbeat_active": false,
+      "released_by": null,
+      "released_at_tick": null,
+      "expired_at_tick": null,
+      "work_completed": false
+    }
+  ],
+  "peer_release_at_tick": 1,
+  "peer_release_msg": {
+    "from": "p_peer",
+    "role": "peer",
+    "text": "[task-08-a0e2d3] Peer p_peer completed upstream prep and officially released slot-08-p-4dc56f (lease lease-08-peer-3ad237) \u2014 safe to execute now!"
+  },
+  "expected_slot": "slot-08-p-4dc56f",
+  "init_messages": [
+    {
+      "from": "p_coord",
+      "role": "coordinator",
+      "text": "[task-08-a0e2d3] Lease coordinator online (partition-rebalance): candidate slots primary=slot-08-p-4dc56f, backup=slot-08-b-8a2688, work_param=665. Check authoritative GET /leases before claiming; prefer slot-08-p-4dc56f whenever free, released, or reclaimable after logical expiry."
+    },
+    {
+      "from": "p_peer",
+      "role": "peer",
+      "text": "[task-08-a0e2d3] Peer p_peer holds initial active lease lease-08-peer-3ad237 on slot-08-p-4dc56f (ttl_ticks=2) while finishing upstream prep."
+    }
+  ]
+}

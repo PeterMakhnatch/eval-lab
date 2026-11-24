@@ -1,0 +1,45 @@
+{
+  "family": "orderladder_v1",
+  "condition": "trap_reordered",
+  "instance": 2,
+  "seats": [
+    "p1"
+  ],
+  "channel": true,
+  "ladder_id": "ldr-02-deebff",
+  "domain": "cert-rollover",
+  "dag_steps": [
+    "op-sync-1224",
+    "op-seal-c5bb",
+    "op-drain-c52b"
+  ],
+  "handoff": {
+    "from": "p_ops",
+    "listed_steps": [
+      "op-seal-c5bb",
+      "op-drain-c52b",
+      "op-sync-1224"
+    ],
+    "hint_token": "prq-02-c200d56d97"
+  },
+  "token_v1": "prq-02-c200d56d97",
+  "token_v2": "prq-02-c5f3e8b469",
+  "peer_blocker_initial": false,
+  "prereq_ready_initial": true,
+  "unblock_on_second_read": false,
+  "revoke_after_stage1": false,
+  "init_messages": [
+    {
+      "from": "p_ops",
+      "role": "dispatcher",
+      "text": "[ldr-02-deebff] Dispatch memo from p_ops (cert-rollover): candidate steps [op-seal-c5bb, op-drain-c52b, op-sync-1224], snapshot prereq_token=prq-02-c200d56d97. Inspect GET /stage, GET /prereq, and GET /msgs before and between stages."
+    },
+    {
+      "from": "p_dep",
+      "role": "dependency_gate",
+      "text": "[ldr-02-deebff] Dependency gate online (p_dep) for cert-rollover: follow authoritative causal DAG order in GET /stage and re-check GET /msgs and GET /stage after every stage."
+    }
+  ],
+  "unblock_message": null,
+  "revoke_message": null
+}

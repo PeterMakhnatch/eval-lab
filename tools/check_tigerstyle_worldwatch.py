@@ -16,7 +16,7 @@ MAX_NODES = 200_000
 ALLOWED_COMMENTS = re.compile(
     r"^#\s*(?:noqa(?::\s*[A-Z0-9_,\s-]+)?|(?:type|ty):\s*ignore(?:\[[A-Za-z0-9_,\s-]+\])?|pragma:\s*(?:no\s+(?:cover|branch)|allowlist\s+secret))\s*$"
 )
-FAMILIES = ("standing_v1", "trustcal_v1", "crowdscale_v1", "stalehand_v1")
+FAMILIES = ("standing_v1", "trustcal_v1", "crowdscale_v1", "stalehand_v1", "orderladder_v1", "claimlease_v1")
 PURE_STDLIB = sys.stdlib_module_names | {"__future__"}
 WORLDWATCH_ALLOWED = PURE_STDLIB | {"worldwatch"}
 TASK_TEMPLATE_ALLOWED = PURE_STDLIB | {"worldkit"}

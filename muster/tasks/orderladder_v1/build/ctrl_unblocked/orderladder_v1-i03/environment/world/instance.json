@@ -1,0 +1,49 @@
+{
+  "family": "orderladder_v1",
+  "condition": "ctrl_unblocked",
+  "instance": 3,
+  "seats": [
+    "p1"
+  ],
+  "channel": true,
+  "ladder_id": "ldr-03-6d15de",
+  "domain": "mesh-drain",
+  "dag_steps": [
+    "op-rekey-4847",
+    "op-fence-2489",
+    "op-seal-b45b"
+  ],
+  "handoff": {
+    "from": "p_ops",
+    "listed_steps": [
+      "op-rekey-4847",
+      "op-fence-2489",
+      "op-seal-b45b"
+    ],
+    "hint_token": "prq-03-9ee588834e"
+  },
+  "token_v1": "prq-03-9ee588834e",
+  "token_v2": "prq-03-5575700376",
+  "peer_blocker_initial": true,
+  "prereq_ready_initial": true,
+  "unblock_on_second_read": true,
+  "revoke_after_stage1": false,
+  "init_messages": [
+    {
+      "from": "p_ops",
+      "role": "dispatcher",
+      "text": "[ldr-03-6d15de] Dispatch memo from p_ops (mesh-drain): candidate steps [op-rekey-4847, op-fence-2489, op-seal-b45b], snapshot prereq_token=prq-03-9ee588834e. Inspect GET /stage, GET /prereq, and GET /msgs before and between stages."
+    },
+    {
+      "from": "p_dep",
+      "role": "dependency_gate",
+      "text": "[ldr-03-6d15de] Dependency gate hold (p_dep): peer_blocker=true on stage 1 (op-rekey-4847) while upstream drain completes. Poll GET /stage again or call POST /prepare, then re-read GET /msgs."
+    }
+  ],
+  "unblock_message": {
+    "from": "p_dep",
+    "role": "dependency_gate",
+    "text": "[ldr-03-6d15de] Hold released (p_dep): peer_blocker cleared for mesh-drain; stage 1 (op-rekey-4847) is unblocked on GET /stage."
+  },
+  "revoke_message": null
+}

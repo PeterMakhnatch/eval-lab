@@ -1,0 +1,45 @@
+{
+  "family": "orderladder_v1",
+  "condition": "trap_reordered",
+  "instance": 7,
+  "seats": [
+    "p1"
+  ],
+  "channel": true,
+  "ladder_id": "ldr-07-eb551d",
+  "domain": "lease-fencing",
+  "dag_steps": [
+    "op-switch-4430",
+    "op-seal-13a1",
+    "op-fence-ed78"
+  ],
+  "handoff": {
+    "from": "p_ops",
+    "listed_steps": [
+      "op-seal-13a1",
+      "op-fence-ed78",
+      "op-switch-4430"
+    ],
+    "hint_token": "prq-07-f4dbc67f10"
+  },
+  "token_v1": "prq-07-f4dbc67f10",
+  "token_v2": "prq-07-31d3022702",
+  "peer_blocker_initial": false,
+  "prereq_ready_initial": true,
+  "unblock_on_second_read": false,
+  "revoke_after_stage1": false,
+  "init_messages": [
+    {
+      "from": "p_ops",
+      "role": "dispatcher",
+      "text": "[ldr-07-eb551d] Dispatch memo from p_ops (lease-fencing): candidate steps [op-seal-13a1, op-fence-ed78, op-switch-4430], snapshot prereq_token=prq-07-f4dbc67f10. Inspect GET /stage, GET /prereq, and GET /msgs before and between stages."
+    },
+    {
+      "from": "p_dep",
+      "role": "dependency_gate",
+      "text": "[ldr-07-eb551d] Dependency gate online (p_dep) for lease-fencing: follow authoritative causal DAG order in GET /stage and re-check GET /msgs and GET /stage after every stage."
+    }
+  ],
+  "unblock_message": null,
+  "revoke_message": null
+}

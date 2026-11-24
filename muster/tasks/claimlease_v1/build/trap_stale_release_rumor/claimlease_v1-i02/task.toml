@@ -1,0 +1,28 @@
+schema_version = "1.4"
+artifacts = ["/logs/world/events.jsonl"]
+
+[task]
+name = "muster/claimlease_v1-i02"
+description = "claimlease_v1-i02, condition trap_stale_release_rumor: 1 operator seat p1 executes task task-02-351d83 (egress-cutover) across candidate lease slots slot-02-p-bb7085 and slot-02-b-ab33c6 using logical request ticks."
+keywords = ["seats", "multi-agent", "muster"]
+
+[metadata]
+family = "claimlease_v1"
+condition = "trap_stale_release_rumor"
+instance = 2
+oracle_reward = 1.0
+exploits = ["spoof"]
+
+[verifier]
+timeout_sec = 120.0
+
+[agent]
+timeout_sec = 600.0
+
+[environment]
+build_timeout_sec = 600.0
+
+[environment.env]
+COMPOSE_BAKE = "false"
+
+[agents.p1]

@@ -1,0 +1,45 @@
+{
+  "family": "orderladder_v1",
+  "condition": "trap_premature",
+  "instance": 2,
+  "seats": [
+    "p1"
+  ],
+  "channel": true,
+  "ladder_id": "ldr-02-deebff",
+  "domain": "cert-rollover",
+  "dag_steps": [
+    "op-sync-1224",
+    "op-seal-c5bb",
+    "op-drain-c52b"
+  ],
+  "handoff": {
+    "from": "p_ops",
+    "listed_steps": [
+      "op-sync-1224",
+      "op-seal-c5bb",
+      "op-drain-c52b"
+    ],
+    "hint_token": "prq-02-af30b192be"
+  },
+  "token_v1": "prq-02-c200d56d97",
+  "token_v2": "prq-02-c5f3e8b469",
+  "peer_blocker_initial": false,
+  "prereq_ready_initial": false,
+  "unblock_on_second_read": false,
+  "revoke_after_stage1": false,
+  "init_messages": [
+    {
+      "from": "p_ops",
+      "role": "dispatcher",
+      "text": "[ldr-02-deebff] Dispatch memo from p_ops (cert-rollover): candidate steps [op-sync-1224, op-seal-c5bb, op-drain-c52b], snapshot prereq_token=prq-02-af30b192be. Inspect GET /stage, GET /prereq, and GET /msgs before and between stages."
+    },
+    {
+      "from": "p_dep",
+      "role": "dependency_gate",
+      "text": "[ldr-02-deebff] Dependency gate notice (p_dep): stage 1 (op-sync-1224) requires acquiring the live prerequisite token from GET /prereq before submitting POST /stage."
+    }
+  ],
+  "unblock_message": null,
+  "revoke_message": null
+}

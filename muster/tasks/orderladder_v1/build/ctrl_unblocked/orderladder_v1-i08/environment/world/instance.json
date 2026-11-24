@@ -1,0 +1,49 @@
+{
+  "family": "orderladder_v1",
+  "condition": "ctrl_unblocked",
+  "instance": 8,
+  "seats": [
+    "p1"
+  ],
+  "channel": true,
+  "ladder_id": "ldr-08-8f4a71",
+  "domain": "quorum-reconfig",
+  "dag_steps": [
+    "op-switch-6630",
+    "op-rekey-63ff",
+    "op-drain-46b5"
+  ],
+  "handoff": {
+    "from": "p_ops",
+    "listed_steps": [
+      "op-switch-6630",
+      "op-rekey-63ff",
+      "op-drain-46b5"
+    ],
+    "hint_token": "prq-08-bff2d2ad23"
+  },
+  "token_v1": "prq-08-bff2d2ad23",
+  "token_v2": "prq-08-0713d1083e",
+  "peer_blocker_initial": true,
+  "prereq_ready_initial": true,
+  "unblock_on_second_read": true,
+  "revoke_after_stage1": false,
+  "init_messages": [
+    {
+      "from": "p_ops",
+      "role": "dispatcher",
+      "text": "[ldr-08-8f4a71] Dispatch memo from p_ops (quorum-reconfig): candidate steps [op-switch-6630, op-rekey-63ff, op-drain-46b5], snapshot prereq_token=prq-08-bff2d2ad23. Inspect GET /stage, GET /prereq, and GET /msgs before and between stages."
+    },
+    {
+      "from": "p_dep",
+      "role": "dependency_gate",
+      "text": "[ldr-08-8f4a71] Dependency gate hold (p_dep): peer_blocker=true on stage 1 (op-switch-6630) while upstream drain completes. Poll GET /stage again or call POST /prepare, then re-read GET /msgs."
+    }
+  ],
+  "unblock_message": {
+    "from": "p_dep",
+    "role": "dependency_gate",
+    "text": "[ldr-08-8f4a71] Hold released (p_dep): peer_blocker cleared for quorum-reconfig; stage 1 (op-switch-6630) is unblocked on GET /stage."
+  },
+  "revoke_message": null
+}

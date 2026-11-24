@@ -1,0 +1,45 @@
+{
+  "family": "orderladder_v1",
+  "condition": "trap_reordered",
+  "instance": 9,
+  "seats": [
+    "p1"
+  ],
+  "channel": true,
+  "ladder_id": "ldr-09-6e05b6",
+  "domain": "db-rekey",
+  "dag_steps": [
+    "op-switch-6a9a",
+    "op-sync-7391",
+    "op-fence-ca62"
+  ],
+  "handoff": {
+    "from": "p_ops",
+    "listed_steps": [
+      "op-sync-7391",
+      "op-fence-ca62",
+      "op-switch-6a9a"
+    ],
+    "hint_token": "prq-09-004f8d5e13"
+  },
+  "token_v1": "prq-09-004f8d5e13",
+  "token_v2": "prq-09-5801818583",
+  "peer_blocker_initial": false,
+  "prereq_ready_initial": true,
+  "unblock_on_second_read": false,
+  "revoke_after_stage1": false,
+  "init_messages": [
+    {
+      "from": "p_ops",
+      "role": "dispatcher",
+      "text": "[ldr-09-6e05b6] Dispatch memo from p_ops (db-rekey): candidate steps [op-sync-7391, op-fence-ca62, op-switch-6a9a], snapshot prereq_token=prq-09-004f8d5e13. Inspect GET /stage, GET /prereq, and GET /msgs before and between stages."
+    },
+    {
+      "from": "p_dep",
+      "role": "dependency_gate",
+      "text": "[ldr-09-6e05b6] Dependency gate online (p_dep) for db-rekey: follow authoritative causal DAG order in GET /stage and re-check GET /msgs and GET /stage after every stage."
+    }
+  ],
+  "unblock_message": null,
+  "revoke_message": null
+}

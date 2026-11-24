@@ -1,0 +1,93 @@
+# Local zero-spend Docker smoke plan across all 6 behavioral probe families.
+# Companion live watch command (atomic STOP + dark HTML dashboard):
+#   PYTHONDONTWRITEBYTECODE=1 uv run --no-sync python -m worldwatch tail /tmp/ww-probes-local-smoke/out --once --stop-file /tmp/ww-probes-local-smoke/STOP --html /tmp/ww-probes-local-smoke/dashboard.html
+
+schema = "campaign-plan/v1"
+id = "probes-local-smoke"
+output_root = "/tmp/ww-probes-local-smoke/out"
+state_root = "/tmp/ww-probes-local-smoke/state"
+max_trials_at_once = 1
+
+[command]
+argv = [
+  "uv", "run", "--no-sync", "python", "-m", "muster", "run", "{tasks}",
+  "--roster", "/Users/petermakhnatch/Developer/eval-lab-wt/worldwatch-and-behavioral-probes/campaign/plans/oracle-roster.json",
+  "--attempts", "{attempts}", "--concurrency", "{concurrency}", "--out", "{out}",
+]
+cwd = "/Users/petermakhnatch/Developer/eval-lab-wt/worldwatch-and-behavioral-probes"
+env = { MUSTER_HARBOR = "{harbor}", PYTHONDONTWRITEBYTECODE = "1" }
+
+[harbor]
+program = "/Users/petermakhnatch/Developer/harbor-multiagent-muster/.venv/bin/harbor"
+run_args = ["--env", "docker"]
+
+[money]
+provider = "local"
+probe = ["python3", "-c", "print(50.0)"]
+key_limit_probe = ["python3", "-c", "print('none')"]
+probe_timeout_seconds = 30
+floor_usd = 5.00
+cap_usd = 20.00
+cap_roots = ["/tmp/ww-probes-local-smoke/out"]
+unknown_seat_usd = 0.01
+ledger = "/tmp/ww-probes-local-smoke-ledger.jsonl"
+
+[watch]
+poll_seconds = 2
+max_arm_minutes = 15
+stop_grace_seconds = 180
+stop_file = "/tmp/ww-probes-local-smoke/STOP"
+no_reward_streak = 5
+
+[[arms]]
+name = "standing-ctrl"
+tasks = "/Users/petermakhnatch/Developer/eval-lab-wt/worldwatch-and-behavioral-probes/muster/tasks/standing_v1/build/none-ctrl"
+attempts = 1
+reserve_usd = 0.20
+rerun_reserve_usd = 0.10
+expected_usd = 0.00
+
+[[arms]]
+name = "trustcal-ctrl"
+tasks = "/Users/petermakhnatch/Developer/eval-lab-wt/worldwatch-and-behavioral-probes/muster/tasks/trustcal_v1/build/always-honest"
+attempts = 1
+reserve_usd = 0.20
+rerun_reserve_usd = 0.10
+expected_usd = 0.00
+
+[[arms]]
+name = "crowdscale-ctrl"
+tasks = "/Users/petermakhnatch/Developer/eval-lab-wt/worldwatch-and-behavioral-probes/muster/tasks/crowdscale_v1/build/solo-k1"
+attempts = 1
+reserve_usd = 0.20
+rerun_reserve_usd = 0.10
+expected_usd = 0.00
+
+[[arms]]
+name = "stalehand-ctrl"
+tasks = "/Users/petermakhnatch/Developer/eval-lab-wt/worldwatch-and-behavioral-probes/muster/tasks/stalehand_v1/build/fresh-ctrl"
+attempts = 1
+reserve_usd = 0.20
+rerun_reserve_usd = 0.10
+expected_usd = 0.00
+
+[[arms]]
+name = "orderladder-ctrl"
+tasks = "/Users/petermakhnatch/Developer/eval-lab-wt/worldwatch-and-behavioral-probes/muster/tasks/orderladder_v1/build/ctrl_ready"
+attempts = 1
+reserve_usd = 0.20
+rerun_reserve_usd = 0.10
+expected_usd = 0.00
+
+[[arms]]
+name = "claimlease-ctrl"
+tasks = "/Users/petermakhnatch/Developer/eval-lab-wt/worldwatch-and-behavioral-probes/muster/tasks/claimlease_v1/build/ctrl_clean_claim"
+attempts = 1
+reserve_usd = 0.20
+rerun_reserve_usd = 0.10
+expected_usd = 0.00
+
+[[lanes]]
+name = "smoke"
+concurrency = 1
+arms = ["standing-ctrl", "trustcal-ctrl", "crowdscale-ctrl", "stalehand-ctrl", "orderladder-ctrl", "claimlease-ctrl"]

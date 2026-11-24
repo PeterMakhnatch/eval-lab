@@ -1,0 +1,28 @@
+schema_version = "1.4"
+artifacts = ["/logs/world/events.jsonl"]
+
+[task]
+name = "muster/orderladder_v1-i07"
+description = "orderladder_v1-i07, condition trap_reordered: 1 operator seat p1 executes 3-stage dependency ladder ldr-07-eb551d (lease-fencing) in causal DAG order while checking live /stage, /prereq, and /msgs for peer holds and mid-flight prerequisite revocations."
+keywords = ["seats", "multi-agent", "muster"]
+
+[metadata]
+family = "orderladder_v1"
+condition = "trap_reordered"
+instance = 7
+oracle_reward = 1.0
+exploits = ["spoof"]
+
+[verifier]
+timeout_sec = 120.0
+
+[agent]
+timeout_sec = 600.0
+
+[environment]
+build_timeout_sec = 600.0
+
+[environment.env]
+COMPOSE_BAKE = "false"
+
+[agents.p1]

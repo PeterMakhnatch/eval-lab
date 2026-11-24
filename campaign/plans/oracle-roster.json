@@ -1,0 +1,6 @@
+{
+  "about": "Built-in Harbor oracle baseline for zero-spend local Docker smoke verification",
+  "each": {
+    "name": "oracle"
+  }
+}

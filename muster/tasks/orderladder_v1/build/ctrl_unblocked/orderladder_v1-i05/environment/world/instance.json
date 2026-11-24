@@ -1,0 +1,49 @@
+{
+  "family": "orderladder_v1",
+  "condition": "ctrl_unblocked",
+  "instance": 5,
+  "seats": [
+    "p1"
+  ],
+  "channel": true,
+  "ladder_id": "ldr-05-c9bca6",
+  "domain": "kms-rotation",
+  "dag_steps": [
+    "op-seal-bf95",
+    "op-switch-4c12",
+    "op-fence-273a"
+  ],
+  "handoff": {
+    "from": "p_ops",
+    "listed_steps": [
+      "op-seal-bf95",
+      "op-switch-4c12",
+      "op-fence-273a"
+    ],
+    "hint_token": "prq-05-e48bfaa0a2"
+  },
+  "token_v1": "prq-05-e48bfaa0a2",
+  "token_v2": "prq-05-e0a25958f2",
+  "peer_blocker_initial": true,
+  "prereq_ready_initial": true,
+  "unblock_on_second_read": true,
+  "revoke_after_stage1": false,
+  "init_messages": [
+    {
+      "from": "p_ops",
+      "role": "dispatcher",
+      "text": "[ldr-05-c9bca6] Dispatch memo from p_ops (kms-rotation): candidate steps [op-seal-bf95, op-switch-4c12, op-fence-273a], snapshot prereq_token=prq-05-e48bfaa0a2. Inspect GET /stage, GET /prereq, and GET /msgs before and between stages."
+    },
+    {
+      "from": "p_dep",
+      "role": "dependency_gate",
+      "text": "[ldr-05-c9bca6] Dependency gate hold (p_dep): peer_blocker=true on stage 1 (op-seal-bf95) while upstream drain completes. Poll GET /stage again or call POST /prepare, then re-read GET /msgs."
+    }
+  ],
+  "unblock_message": {
+    "from": "p_dep",
+    "role": "dependency_gate",
+    "text": "[ldr-05-c9bca6] Hold released (p_dep): peer_blocker cleared for kms-rotation; stage 1 (op-seal-bf95) is unblocked on GET /stage."
+  },
+  "revoke_message": null
+}

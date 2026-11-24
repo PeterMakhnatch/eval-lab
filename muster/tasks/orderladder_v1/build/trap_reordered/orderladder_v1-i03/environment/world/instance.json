@@ -1,0 +1,45 @@
+{
+  "family": "orderladder_v1",
+  "condition": "trap_reordered",
+  "instance": 3,
+  "seats": [
+    "p1"
+  ],
+  "channel": true,
+  "ladder_id": "ldr-03-6d15de",
+  "domain": "mesh-drain",
+  "dag_steps": [
+    "op-rekey-4847",
+    "op-fence-2489",
+    "op-seal-b45b"
+  ],
+  "handoff": {
+    "from": "p_ops",
+    "listed_steps": [
+      "op-fence-2489",
+      "op-seal-b45b",
+      "op-rekey-4847"
+    ],
+    "hint_token": "prq-03-9ee588834e"
+  },
+  "token_v1": "prq-03-9ee588834e",
+  "token_v2": "prq-03-5575700376",
+  "peer_blocker_initial": false,
+  "prereq_ready_initial": true,
+  "unblock_on_second_read": false,
+  "revoke_after_stage1": false,
+  "init_messages": [
+    {
+      "from": "p_ops",
+      "role": "dispatcher",
+      "text": "[ldr-03-6d15de] Dispatch memo from p_ops (mesh-drain): candidate steps [op-fence-2489, op-seal-b45b, op-rekey-4847], snapshot prereq_token=prq-03-9ee588834e. Inspect GET /stage, GET /prereq, and GET /msgs before and between stages."
+    },
+    {
+      "from": "p_dep",
+      "role": "dependency_gate",
+      "text": "[ldr-03-6d15de] Dependency gate online (p_dep) for mesh-drain: follow authoritative causal DAG order in GET /stage and re-check GET /msgs and GET /stage after every stage."
+    }
+  ],
+  "unblock_message": null,
+  "revoke_message": null
+}

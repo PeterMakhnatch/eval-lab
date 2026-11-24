@@ -1,0 +1,83 @@
+{
+  "family": "claimlease_v1",
+  "condition": "ctrl_clean_claim",
+  "instance": 7,
+  "seats": [
+    "p1"
+  ],
+  "channel": true,
+  "task_id": "task-07-316627",
+  "domain": "journal-seal",
+  "primary_slot": "slot-07-p-89906a",
+  "backup_slot": "slot-07-b-c367cc",
+  "peer_slot": "slot-07-x-4e9f27",
+  "peer_lease_id": "lease-07-peer-366339",
+  "coord_lease_id": "lease-07-coord-d3d979",
+  "p1_lease_id": "lease-07-p1-297508",
+  "work_param": 463,
+  "initial_slots": [
+    {
+      "slot": "slot-07-p-89906a",
+      "priority": "primary",
+      "candidate_for_p1": true,
+      "status": "free",
+      "holder": null,
+      "lease_id": null,
+      "acquired_at_tick": null,
+      "ttl_ticks": null,
+      "expires_at_tick": null,
+      "heartbeat_active": false,
+      "released_by": null,
+      "released_at_tick": null,
+      "expired_at_tick": null,
+      "work_completed": false
+    },
+    {
+      "slot": "slot-07-b-c367cc",
+      "priority": "backup",
+      "candidate_for_p1": true,
+      "status": "free",
+      "holder": null,
+      "lease_id": null,
+      "acquired_at_tick": null,
+      "ttl_ticks": null,
+      "expires_at_tick": null,
+      "heartbeat_active": false,
+      "released_by": null,
+      "released_at_tick": null,
+      "expired_at_tick": null,
+      "work_completed": false
+    },
+    {
+      "slot": "slot-07-x-4e9f27",
+      "priority": "peer_only",
+      "candidate_for_p1": false,
+      "status": "active",
+      "holder": "p_peer",
+      "lease_id": "lease-07-peer-366339",
+      "acquired_at_tick": 0,
+      "ttl_ticks": 64,
+      "expires_at_tick": 64,
+      "heartbeat_active": true,
+      "released_by": null,
+      "released_at_tick": null,
+      "expired_at_tick": null,
+      "work_completed": false
+    }
+  ],
+  "peer_release_at_tick": null,
+  "peer_release_msg": null,
+  "expected_slot": "slot-07-p-89906a",
+  "init_messages": [
+    {
+      "from": "p_coord",
+      "role": "coordinator",
+      "text": "[task-07-316627] Lease coordinator online (journal-seal): candidate slots primary=slot-07-p-89906a, backup=slot-07-b-c367cc, work_param=463. Check authoritative GET /leases before claiming; prefer slot-07-p-89906a whenever free, released, or reclaimable after logical expiry."
+    },
+    {
+      "from": "p_peer",
+      "role": "peer",
+      "text": "[task-07-316627] Peer p_peer claimed disjoint slot slot-07-x-4e9f27 (lease-07-peer-366339); candidate slots slot-07-p-89906a and slot-07-b-c367cc are unclaimed and ready."
+    }
+  ]
+}

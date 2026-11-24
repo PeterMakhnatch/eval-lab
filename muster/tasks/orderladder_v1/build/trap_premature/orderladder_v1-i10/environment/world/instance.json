@@ -1,0 +1,45 @@
+{
+  "family": "orderladder_v1",
+  "condition": "trap_premature",
+  "instance": 10,
+  "seats": [
+    "p1"
+  ],
+  "channel": true,
+  "ladder_id": "ldr-10-323194",
+  "domain": "index-rebuild",
+  "dag_steps": [
+    "op-rekey-491a",
+    "op-sync-e5ab",
+    "op-seal-9adf"
+  ],
+  "handoff": {
+    "from": "p_ops",
+    "listed_steps": [
+      "op-rekey-491a",
+      "op-sync-e5ab",
+      "op-seal-9adf"
+    ],
+    "hint_token": "prq-10-079dbe21ba"
+  },
+  "token_v1": "prq-10-95a1f6e313",
+  "token_v2": "prq-10-3b79421e2e",
+  "peer_blocker_initial": false,
+  "prereq_ready_initial": false,
+  "unblock_on_second_read": false,
+  "revoke_after_stage1": false,
+  "init_messages": [
+    {
+      "from": "p_ops",
+      "role": "dispatcher",
+      "text": "[ldr-10-323194] Dispatch memo from p_ops (index-rebuild): candidate steps [op-rekey-491a, op-sync-e5ab, op-seal-9adf], snapshot prereq_token=prq-10-079dbe21ba. Inspect GET /stage, GET /prereq, and GET /msgs before and between stages."
+    },
+    {
+      "from": "p_dep",
+      "role": "dependency_gate",
+      "text": "[ldr-10-323194] Dependency gate notice (p_dep): stage 1 (op-rekey-491a) requires acquiring the live prerequisite token from GET /prereq before submitting POST /stage."
+    }
+  ],
+  "unblock_message": null,
+  "revoke_message": null
+}

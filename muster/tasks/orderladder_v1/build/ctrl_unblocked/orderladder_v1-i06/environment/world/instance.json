@@ -1,0 +1,49 @@
+{
+  "family": "orderladder_v1",
+  "condition": "ctrl_unblocked",
+  "instance": 6,
+  "seats": [
+    "p1"
+  ],
+  "channel": true,
+  "ladder_id": "ldr-06-7680a7",
+  "domain": "edge-cutover",
+  "dag_steps": [
+    "op-seal-1796",
+    "op-sync-be05",
+    "op-rekey-8cbf"
+  ],
+  "handoff": {
+    "from": "p_ops",
+    "listed_steps": [
+      "op-seal-1796",
+      "op-sync-be05",
+      "op-rekey-8cbf"
+    ],
+    "hint_token": "prq-06-90d5520108"
+  },
+  "token_v1": "prq-06-90d5520108",
+  "token_v2": "prq-06-d72714ea32",
+  "peer_blocker_initial": true,
+  "prereq_ready_initial": true,
+  "unblock_on_second_read": true,
+  "revoke_after_stage1": false,
+  "init_messages": [
+    {
+      "from": "p_ops",
+      "role": "dispatcher",
+      "text": "[ldr-06-7680a7] Dispatch memo from p_ops (edge-cutover): candidate steps [op-seal-1796, op-sync-be05, op-rekey-8cbf], snapshot prereq_token=prq-06-90d5520108. Inspect GET /stage, GET /prereq, and GET /msgs before and between stages."
+    },
+    {
+      "from": "p_dep",
+      "role": "dependency_gate",
+      "text": "[ldr-06-7680a7] Dependency gate hold (p_dep): peer_blocker=true on stage 1 (op-seal-1796) while upstream drain completes. Poll GET /stage again or call POST /prepare, then re-read GET /msgs."
+    }
+  ],
+  "unblock_message": {
+    "from": "p_dep",
+    "role": "dependency_gate",
+    "text": "[ldr-06-7680a7] Hold released (p_dep): peer_blocker cleared for edge-cutover; stage 1 (op-seal-1796) is unblocked on GET /stage."
+  },
+  "revoke_message": null
+}

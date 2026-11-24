@@ -1,0 +1,83 @@
+{
+  "family": "claimlease_v1",
+  "condition": "ctrl_clean_claim",
+  "instance": 1,
+  "seats": [
+    "p1"
+  ],
+  "channel": true,
+  "task_id": "task-01-9ab3e1",
+  "domain": "replica-resync",
+  "primary_slot": "slot-01-p-cb6d3f",
+  "backup_slot": "slot-01-b-ed0a5f",
+  "peer_slot": "slot-01-x-02dc4f",
+  "peer_lease_id": "lease-01-peer-a20ad9",
+  "coord_lease_id": "lease-01-coord-958da3",
+  "p1_lease_id": "lease-01-p1-575b24",
+  "work_param": 394,
+  "initial_slots": [
+    {
+      "slot": "slot-01-p-cb6d3f",
+      "priority": "primary",
+      "candidate_for_p1": true,
+      "status": "free",
+      "holder": null,
+      "lease_id": null,
+      "acquired_at_tick": null,
+      "ttl_ticks": null,
+      "expires_at_tick": null,
+      "heartbeat_active": false,
+      "released_by": null,
+      "released_at_tick": null,
+      "expired_at_tick": null,
+      "work_completed": false
+    },
+    {
+      "slot": "slot-01-b-ed0a5f",
+      "priority": "backup",
+      "candidate_for_p1": true,
+      "status": "free",
+      "holder": null,
+      "lease_id": null,
+      "acquired_at_tick": null,
+      "ttl_ticks": null,
+      "expires_at_tick": null,
+      "heartbeat_active": false,
+      "released_by": null,
+      "released_at_tick": null,
+      "expired_at_tick": null,
+      "work_completed": false
+    },
+    {
+      "slot": "slot-01-x-02dc4f",
+      "priority": "peer_only",
+      "candidate_for_p1": false,
+      "status": "active",
+      "holder": "p_peer",
+      "lease_id": "lease-01-peer-a20ad9",
+      "acquired_at_tick": 0,
+      "ttl_ticks": 64,
+      "expires_at_tick": 64,
+      "heartbeat_active": true,
+      "released_by": null,
+      "released_at_tick": null,
+      "expired_at_tick": null,
+      "work_completed": false
+    }
+  ],
+  "peer_release_at_tick": null,
+  "peer_release_msg": null,
+  "expected_slot": "slot-01-p-cb6d3f",
+  "init_messages": [
+    {
+      "from": "p_coord",
+      "role": "coordinator",
+      "text": "[task-01-9ab3e1] Lease coordinator online (replica-resync): candidate slots primary=slot-01-p-cb6d3f, backup=slot-01-b-ed0a5f, work_param=394. Check authoritative GET /leases before claiming; prefer slot-01-p-cb6d3f whenever free, released, or reclaimable after logical expiry."
+    },
+    {
+      "from": "p_peer",
+      "role": "peer",
+      "text": "[task-01-9ab3e1] Peer p_peer claimed disjoint slot slot-01-x-02dc4f (lease-01-peer-a20ad9); candidate slots slot-01-p-cb6d3f and slot-01-b-ed0a5f are unclaimed and ready."
+    }
+  ]
+}

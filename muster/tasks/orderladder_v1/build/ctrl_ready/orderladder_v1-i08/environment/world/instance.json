@@ -1,0 +1,45 @@
+{
+  "family": "orderladder_v1",
+  "condition": "ctrl_ready",
+  "instance": 8,
+  "seats": [
+    "p1"
+  ],
+  "channel": true,
+  "ladder_id": "ldr-08-8f4a71",
+  "domain": "quorum-reconfig",
+  "dag_steps": [
+    "op-switch-6630",
+    "op-rekey-63ff",
+    "op-drain-46b5"
+  ],
+  "handoff": {
+    "from": "p_ops",
+    "listed_steps": [
+      "op-switch-6630",
+      "op-rekey-63ff",
+      "op-drain-46b5"
+    ],
+    "hint_token": "prq-08-bff2d2ad23"
+  },
+  "token_v1": "prq-08-bff2d2ad23",
+  "token_v2": "prq-08-0713d1083e",
+  "peer_blocker_initial": false,
+  "prereq_ready_initial": true,
+  "unblock_on_second_read": false,
+  "revoke_after_stage1": false,
+  "init_messages": [
+    {
+      "from": "p_ops",
+      "role": "dispatcher",
+      "text": "[ldr-08-8f4a71] Dispatch memo from p_ops (quorum-reconfig): candidate steps [op-switch-6630, op-rekey-63ff, op-drain-46b5], snapshot prereq_token=prq-08-bff2d2ad23. Inspect GET /stage, GET /prereq, and GET /msgs before and between stages."
+    },
+    {
+      "from": "p_dep",
+      "role": "dependency_gate",
+      "text": "[ldr-08-8f4a71] Dependency gate online (p_dep) for quorum-reconfig: follow authoritative causal DAG order in GET /stage and re-check GET /msgs and GET /stage after every stage."
+    }
+  ],
+  "unblock_message": null,
+  "revoke_message": null
+}

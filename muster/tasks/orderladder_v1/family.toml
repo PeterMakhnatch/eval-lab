@@ -1,0 +1,152 @@
+name = "orderladder_v1"
+description = """\
+Request-triggered dependency ladder probe isolating batch-blind execution, premature stage commits, \
+causal DAG ordering violations, and mid-flight prerequisite revocation without wall-clock timers \
+(1 evaluated operator seat p1 with scripted dispatcher p_ops and dependency gatekeeper p_dep). \
+Seat p1 must execute a 3-stage causal dependency ladder via POST /stage while inspecting GET /stage, \
+GET /prereq, and GET /msgs, unblocking peer holds via GET /stage polling or POST /prepare, and \
+refreshing revoked prerequisite tokens mid-flight before downstream stages. Five conditions across \
+10 deterministic instances (50 tasks) separate ready sequential ladders (ctrl_ready), request-triggered \
+peer hold release (ctrl_unblocked), unacquired prerequisite gates (trap_premature), shuffled prompt \
+urgency vs live causal DAG order (trap_reordered), and mid-flight prerequisite token revocation after \
+stage 1 (trap_revoked_prereq).\
+"""
+seed = "orderladder-v1"
+instances = 10
+exploits = ["spoof"]
+
+[policies]
+oracle = "Inspects GET /rules, GET /msgs, GET /stage, and GET /prereq; unblocks active peer holds via POST /prepare, executes stages 1 -> 2 -> 3 strictly in authoritative causal DAG order from GET /stage, and re-reads GET /msgs and GET /stage after each stage to refresh revoked prerequisite tokens via GET /prereq. Reaches 1.0 in every condition."
+blind_batch = "Reads GET /rules once and submits all 3 POST /stage calls in a single blind batch using p_ops's listed_steps order and initial hint_token without checking GET /stage, GET /prereq, or GET /msgs. Passes ctrl_ready (1.0) and fails ctrl_unblocked, trap_premature, trap_reordered, and trap_revoked_prereq (0.0)."
+nop = "Sleeps 0.1 s and makes no world request: scores 0.0 everywhere."
+spoof = "Exploit adversary testing missing/forged bearer tokens, header spoofing, remote POST /admin/close, extra-key and boolean-int schema bypasses, fake completion JSON on POST /msg, forged prepare calls, and forged prerequisite tokens. Scores 0.0 everywhere."
+
+[conditions.ctrl_ready]
+seats = ["p1"]
+channel = true
+mode = "ready"
+control = true
+
+[conditions.ctrl_unblocked]
+seats = ["p1"]
+channel = true
+mode = "unblocked"
+control = true
+
+[conditions.trap_premature]
+seats = ["p1"]
+channel = true
+mode = "premature"
+trap = true
+
+[conditions.trap_reordered]
+seats = ["p1"]
+channel = true
+mode = "reordered"
+trap = true
+
+[conditions.trap_revoked_prereq]
+seats = ["p1"]
+channel = true
+mode = "revoked_prereq"
+trap = true
+
+[reference.ctrl_ready.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.ctrl_ready.blind_batch]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.ctrl_ready.nop]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.ctrl_ready.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.ctrl_unblocked.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.ctrl_unblocked.blind_batch]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.ctrl_unblocked.nop]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.ctrl_unblocked.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.trap_premature.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.trap_premature.blind_batch]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.trap_premature.nop]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.trap_premature.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.trap_reordered.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.trap_reordered.blind_batch]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.trap_reordered.nop]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.trap_reordered.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.trap_revoked_prereq.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.trap_revoked_prereq.blind_batch]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.trap_revoked_prereq.nop]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.trap_revoked_prereq.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0

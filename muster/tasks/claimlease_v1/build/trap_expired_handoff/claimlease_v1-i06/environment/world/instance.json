@@ -1,0 +1,83 @@
+{
+  "family": "claimlease_v1",
+  "condition": "trap_expired_handoff",
+  "instance": 6,
+  "seats": [
+    "p1"
+  ],
+  "channel": true,
+  "task_id": "task-06-ddb7ee",
+  "domain": "queue-drain",
+  "primary_slot": "slot-06-p-bada29",
+  "backup_slot": "slot-06-b-63895c",
+  "peer_slot": "slot-06-x-89c410",
+  "peer_lease_id": "lease-06-peer-8c069a",
+  "coord_lease_id": "lease-06-coord-4243c6",
+  "p1_lease_id": "lease-06-p1-96be7b",
+  "work_param": 434,
+  "initial_slots": [
+    {
+      "slot": "slot-06-p-bada29",
+      "priority": "primary",
+      "candidate_for_p1": true,
+      "status": "active",
+      "holder": "p_peer",
+      "lease_id": "lease-06-peer-8c069a",
+      "acquired_at_tick": 0,
+      "ttl_ticks": 4,
+      "expires_at_tick": 4,
+      "heartbeat_active": false,
+      "released_by": null,
+      "released_at_tick": null,
+      "expired_at_tick": null,
+      "work_completed": false
+    },
+    {
+      "slot": "slot-06-b-63895c",
+      "priority": "backup",
+      "candidate_for_p1": true,
+      "status": "active",
+      "holder": "p_coord",
+      "lease_id": "lease-06-coord-4243c6",
+      "acquired_at_tick": 0,
+      "ttl_ticks": 64,
+      "expires_at_tick": 64,
+      "heartbeat_active": true,
+      "released_by": null,
+      "released_at_tick": null,
+      "expired_at_tick": null,
+      "work_completed": false
+    },
+    {
+      "slot": "slot-06-x-89c410",
+      "priority": "peer_only",
+      "candidate_for_p1": false,
+      "status": "free",
+      "holder": null,
+      "lease_id": null,
+      "acquired_at_tick": null,
+      "ttl_ticks": null,
+      "expires_at_tick": null,
+      "heartbeat_active": false,
+      "released_by": null,
+      "released_at_tick": null,
+      "expired_at_tick": null,
+      "work_completed": false
+    }
+  ],
+  "peer_release_at_tick": null,
+  "peer_release_msg": null,
+  "expected_slot": "slot-06-p-bada29",
+  "init_messages": [
+    {
+      "from": "p_coord",
+      "role": "coordinator",
+      "text": "[task-06-ddb7ee] Lease coordinator online (queue-drain): candidate slots primary=slot-06-p-bada29, backup=slot-06-b-63895c, work_param=434. Check authoritative GET /leases before claiming; prefer slot-06-p-bada29 whenever free, released, or reclaimable after logical expiry. Backup slot slot-06-b-63895c is under active coordinator hold lease-06-coord-4243c6."
+    },
+    {
+      "from": "p_peer",
+      "role": "peer",
+      "text": "[task-06-ddb7ee] Handoff notice from p_peer: stalled while holding lease-06-peer-8c069a on slot-06-p-bada29 (heartbeat stopped, expires_at_tick=4). Poll GET /leases until logical expiry, then reclaim a fresh lease with force_expired=true."
+    }
+  ]
+}

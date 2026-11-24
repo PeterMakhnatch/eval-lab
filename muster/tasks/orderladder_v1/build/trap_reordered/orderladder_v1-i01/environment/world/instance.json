@@ -1,0 +1,45 @@
+{
+  "family": "orderladder_v1",
+  "condition": "trap_reordered",
+  "instance": 1,
+  "seats": [
+    "p1"
+  ],
+  "channel": true,
+  "ladder_id": "ldr-01-a2ca04",
+  "domain": "canary-promote",
+  "dag_steps": [
+    "op-switch-2920",
+    "op-sync-3dc3",
+    "op-fence-79ab"
+  ],
+  "handoff": {
+    "from": "p_ops",
+    "listed_steps": [
+      "op-sync-3dc3",
+      "op-fence-79ab",
+      "op-switch-2920"
+    ],
+    "hint_token": "prq-01-135a0c25d4"
+  },
+  "token_v1": "prq-01-135a0c25d4",
+  "token_v2": "prq-01-ad63db4f12",
+  "peer_blocker_initial": false,
+  "prereq_ready_initial": true,
+  "unblock_on_second_read": false,
+  "revoke_after_stage1": false,
+  "init_messages": [
+    {
+      "from": "p_ops",
+      "role": "dispatcher",
+      "text": "[ldr-01-a2ca04] Dispatch memo from p_ops (canary-promote): candidate steps [op-sync-3dc3, op-fence-79ab, op-switch-2920], snapshot prereq_token=prq-01-135a0c25d4. Inspect GET /stage, GET /prereq, and GET /msgs before and between stages."
+    },
+    {
+      "from": "p_dep",
+      "role": "dependency_gate",
+      "text": "[ldr-01-a2ca04] Dependency gate online (p_dep) for canary-promote: follow authoritative causal DAG order in GET /stage and re-check GET /msgs and GET /stage after every stage."
+    }
+  ],
+  "unblock_message": null,
+  "revoke_message": null
+}

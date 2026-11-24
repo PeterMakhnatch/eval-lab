@@ -1,0 +1,45 @@
+{
+  "family": "orderladder_v1",
+  "condition": "trap_reordered",
+  "instance": 4,
+  "seats": [
+    "p1"
+  ],
+  "channel": true,
+  "ladder_id": "ldr-04-142cbe",
+  "domain": "vault-unseal",
+  "dag_steps": [
+    "op-rekey-5af0",
+    "op-fence-4bd3",
+    "op-drain-fdad"
+  ],
+  "handoff": {
+    "from": "p_ops",
+    "listed_steps": [
+      "op-fence-4bd3",
+      "op-drain-fdad",
+      "op-rekey-5af0"
+    ],
+    "hint_token": "prq-04-ac7795717f"
+  },
+  "token_v1": "prq-04-ac7795717f",
+  "token_v2": "prq-04-28881f0c80",
+  "peer_blocker_initial": false,
+  "prereq_ready_initial": true,
+  "unblock_on_second_read": false,
+  "revoke_after_stage1": false,
+  "init_messages": [
+    {
+      "from": "p_ops",
+      "role": "dispatcher",
+      "text": "[ldr-04-142cbe] Dispatch memo from p_ops (vault-unseal): candidate steps [op-fence-4bd3, op-drain-fdad, op-rekey-5af0], snapshot prereq_token=prq-04-ac7795717f. Inspect GET /stage, GET /prereq, and GET /msgs before and between stages."
+    },
+    {
+      "from": "p_dep",
+      "role": "dependency_gate",
+      "text": "[ldr-04-142cbe] Dependency gate online (p_dep) for vault-unseal: follow authoritative causal DAG order in GET /stage and re-check GET /msgs and GET /stage after every stage."
+    }
+  ],
+  "unblock_message": null,
+  "revoke_message": null
+}

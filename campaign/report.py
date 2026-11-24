@@ -146,6 +146,7 @@ def _rules(keyed: bool) -> list[str]:
         "least the open spend of every other user of that key",
         "  2. floor_usd covers the next reserve of every bash lane that runs beside this plan (they take no lock)",
         "  3. cap_usd = charged cost under the cap roots now (campaign status) + the budget of this run",
+        "     each start must fit charged cost + own open reserves not already charged + its reserve",
         "  4. start each runner with nohup; never kill a runner that prints STOPPING or WAIT",
         "  5. after a harbor-alive line, run its commands, then check `daytona sandbox list`",
         "  6. start uv, muster, python or python3 directly after optional keys run --, env or nohup; "

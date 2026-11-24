@@ -1,5 +1,19 @@
 [
   {
+    "seed": 1124010,
+    "step": "admission/reserve-equality",
+    "invariant": "cap-admission-exposure",
+    "detail": "the third lane cannot start after the first 2 reserves reach the cap",
+    "known": false
+  },
+  {
+    "seed": 1124010,
+    "step": "admission/resultless-lane",
+    "invariant": "resultless-lane-respects-cap",
+    "detail": "4 configured model seats without results leave room for only 2 arms",
+    "known": false
+  },
+  {
     "seed": 730820162355091945,
     "step": "run/duplicate",
     "invariant": "lane-lock",

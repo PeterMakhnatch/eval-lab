@@ -485,6 +485,9 @@ def parse(raw: bytes, path: Path) -> Plan:
     _check_key_env(fields, argv, env)
     _check_places(fields)
     arms = tuple(_arm(item, f"arms[{i}]") for i, item in enumerate(_tables(data, "arms", MAX_ARMS)))
+    largest = max(max(arm.reserve_usd, arm.rerun_reserve_usd) for arm in arms)
+    if largest > fields["cap_usd"]:
+        raise PlanError(f"largest arm reserve ${largest} exceeds money.cap_usd ${fields['cap_usd']}")
     lanes = tuple(_lane(item, f"lanes[{i}]") for i, item in enumerate(_tables(data, "lanes", MAX_LANES)))
     total = _int(data, "max_trials_at_once", "", 1, 4096)
     _check_arms_and_lanes(arms, lanes, total)

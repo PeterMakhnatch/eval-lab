@@ -5,6 +5,7 @@ import math
 import os
 import shutil
 import signal
+from collections import Counter
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -216,7 +217,8 @@ def scenario(seed: int) -> Scenario:
     balance = floor + (gap if gap is not None else rng.choice((3_000_000, 20_000_000)))
     return Scenario(
         seed=seed, lanes=lanes, arms=arms, total=at_once + rng.randint(0, 2), floor_micro=floor,
-        cap_micro=preexisting + rng.choice((150_000, 600_000, 2_000_000, 50_000_000)),
+        cap_micro=max(max(arm.reserve_micro for arm in arms),
+                      preexisting + rng.choice((150_000, 600_000, 2_000_000, 50_000_000))),
         unknown_seat_micro=rng.choice((10_000, 20_000, 300_000)), preexisting_micro=preexisting,
         streak=rng.randint(2, 4), poll=20, max_arm_minutes=30, faults=_faults(rng),
         crash_rate=rng.choice((0.0, 0.0, 0.1)), probe_mode=probe_mode, balance_micro=balance,
@@ -454,6 +456,7 @@ class Probe:
 class Truth:
     charged_micro: int = 0
     spent_micro: int = 0
+    charged_by_arm: Counter[Path] = field(default_factory=Counter)
     finished: list[tuple[str, str, bool]] = field(default_factory=list)
     trials: dict[str, FakeTrial] = field(default_factory=dict)
 
@@ -861,20 +864,30 @@ class World:
             if trial.start is None:
                 trial.start = at
                 running += 1
-                _write(job.out / trial.name / "config.json", {"trial_name": trial.name})
+                participants = [{"name": "terminus-2", "model_name": "sim/model"} for _ in trial.seat_costs]
+                _write(job.out / trial.name / "config.json",
+                       {"trial_name": trial.name, "task": {"path": trial.instance},
+                        "participants": participants, "agent": {"name": "script"}})
+                self._charge(job, len(participants) * self.case.unknown_seat_micro)
                 self.truth.trials[str(job.out / trial.name)] = trial
+
+    def _charge(self, job: FakeJob, delta: int) -> None:
+        self.truth.charged_micro += delta
+        self.truth.charged_by_arm[job.out] += delta
+        assert self.truth.charged_by_arm[job.out] >= 0
 
     def _finish(self, job: FakeJob, trial: FakeTrial, at: float) -> None:
         trial.end = at
         folder = job.out / trial.name
         self.truth.spent_micro += sum(trial.seat_costs)
+        pending = len(trial.seat_costs) * self.case.unknown_seat_micro
         if trial.fault == "unreadable":
             (folder / "result.json").write_text('{"trial_name": "', encoding="utf-8")
-            self.truth.charged_micro += self.case.unknown_seat_micro
+            self._charge(job, self.case.unknown_seat_micro - pending)
             return
         recorded = sum(trial.seat_costs[1:] if trial.fault == "unknown-cost" else trial.seat_costs)
         unknown = self.case.unknown_seat_micro if trial.fault == "unknown-cost" else 0
-        self.truth.charged_micro += recorded + unknown
+        self._charge(job, recorded + unknown - pending)
         exception = None
         if trial.fault == "pull-limit":
             exception = {"exception_type": "RuntimeError", "exception_message": "docker pull: 429 Too Many Requests"}

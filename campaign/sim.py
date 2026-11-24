@@ -18,7 +18,7 @@ from random import Random
 from tempfile import TemporaryDirectory
 from typing import Any, TypedDict
 
-from campaign import evidence, fill, ledger, report, sim_cost, sim_keyenv, sim_spend
+from campaign import evidence, fill, ledger, report, sim_admission, sim_cost, sim_keyenv, sim_spend
 from campaign.plan import RERUN_TAG, Plan, PlanError, base_arm, load, parse, sha256_file
 from campaign.runner import (
     LOCK_NOTE_SECONDS,
@@ -66,12 +66,13 @@ _MAX_SEED = 2**64 - 1
 _DEFAULT_HUNT_SEED = 1_124_007
 _RESERVE_UNION_SEED = 1_124_008
 _MUTATION_SEED = 1_124_009
-_SEEDED_BUGS = sim_spend.MUTATIONS | sim_cost.MUTATIONS | sim_keyenv.MUTATIONS
+_SEEDED_BUGS = sim_spend.MUTATIONS | sim_cost.MUTATIONS | sim_keyenv.MUTATIONS | sim_admission.MUTATIONS
 _MAX_HUNT_SEEDS = 1_000_000
 _MAX_STEPS = 4000
 _MAX_RESUMES = 12
 _GLOBAL_FLAGS = ("stop-file", "cap", "cap-root")
 _SHUTDOWN = ("interrupted", "crash", "tick-limit")
+_ADMISSION_SEED = 1_124_010
 
 
 @dataclass(frozen=True)
@@ -494,13 +495,35 @@ class Sim:
         start = info.get("child_start")
         return isinstance(start, str) and self.world.start_time(info["child"]) == start
 
+    def _cap_micro(self, plan: Plan, skip: str = "") -> int:
+        spent = self.world.truth.charged_by_arm
+        remaining = sum(max(0, round(item.reserved_usd * (item.reserves - item.settles) / item.reserves * 1_000_000)
+                            - spent[plan.output_root / name])
+                        for name, item in ledger.state(plan.ledger, plan.id).items() if name != skip and item.open)
+        return self.world.truth.charged_micro + remaining
+
+    def _cap_is_true(self, plan: Plan, text: str) -> bool:
+        match = re.search(r"next reserve \$[0-9.e+-]+ for (\S+) exceeds the cap", text)
+        if match is None:
+            return self.world.truth.charged_micro >= self.case.cap_micro
+        name = match[1]
+        arm = plan.arm(base_arm(name))
+        reserve = arm.rerun_reserve_usd if RERUN_TAG in name else arm.reserve_usd
+        return self._cap_micro(plan) + round(reserve * 1_000_000) > self.case.cap_micro
+
     def _stop_is_true(self, proc: Proc, event: dict[str, str]) -> bool:
         reason, lane, before = event["reason"], event["lane"], event["before"]
         plan, world = proc.runner.plan, self.world
+        if reason == "cap":
+            text = event["text"]
+            if event["kind"] == "STOPPING":
+                current = next(run for run in proc.runner.lanes if run.lane.name == lane)
+                assert current.job is not None and current.job.stop is not None
+                text = current.job.stop.detail
+            return self._cap_is_true(plan, text)
         truths: dict[str, Callable[[], bool]] = {
             "stop-file": lambda: plan.stop_file.exists(),
             "plan-changed": lambda: sha256_file(proc.plan_path) != proc.start_sha,
-            "cap": lambda: world.truth.charged_micro >= self.case.cap_micro,
             "cap-root": lambda: any(not root.is_dir() for root in plan.cap_roots if root != plan.output_root),
             "streak": lambda: world.truth_streak(plan.output_root, proc.runner.since),
             "balance-low": lambda: self._balance_low(proc, before),
@@ -566,7 +589,9 @@ class Sim:
         check(value is not None and value >= need - 1e-9, "balance-before-start",
               f"{name}: the smaller of account credits and key limit left {value} is below floor + reserve + "
               f"every open reserve in the ledger {need}")
-        check(world.truth.charged_micro < self.case.cap_micro, "cap-before-start", name)
+        check(world.locks.get(proc.runner.money_lock()) == proc.owner, "money-lock-held-at-start", name)
+        exposure = self._cap_micro(plan, name) + round(reserve * 1_000_000)
+        check(exposure <= self.case.cap_micro, "cap-before-start", f"{name}: {exposure} > {self.case.cap_micro}")
         missing = [str(root) for root in plan.cap_roots if root != plan.output_root and not root.is_dir()]
         check(not missing, "cap-roots-present", f"{name} starts while {missing} is missing")
 
@@ -1065,6 +1090,8 @@ def _run_seed(seed: int) -> Run:
         sim_spend.scenario(run, seed, root / "spend")
         sim_cost.replay(run, seed, root / "cost")
         sim_keyenv.replay(run, seed, root / "keyenv")
+        if seed == _ADMISSION_SEED:
+            sim_admission.replay(run, seed, root / "admission")
     return run
 
 
@@ -1129,6 +1156,8 @@ def _mutate(names: list[str], seed: int) -> int:
                 sim_cost.replay(run, seed, path / "cost", name)
             elif name in sim_keyenv.MUTATIONS:
                 sim_keyenv.replay(run, seed, path / "keyenv", name)
+            elif name in sim_admission.MUTATIONS:
+                sim_admission.replay(run, seed, path / "admission", name)
             else:
                 sim_spend.scenario(run, seed, path / "spend", name)
         fired = sorted({failure.invariant for failure in run.failures})

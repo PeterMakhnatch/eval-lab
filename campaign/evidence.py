@@ -4,7 +4,7 @@ import json
 import math
 import os
 from collections import Counter
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -17,6 +17,7 @@ MAX_WALK_DIRS = 2_000_000
 MAX_TRIALS = 1_000_000
 MAX_JSON_BYTES = 64_000_000
 TOKEN_FIELDS = ("n_input_tokens", "n_cache_tokens", "n_output_tokens")
+TrialCharge = Callable[[Path, float, int], None]
 
 
 @dataclass(frozen=True)
@@ -368,6 +369,26 @@ def _result_cost(
     return max(subtotal, team) if missing else subtotal, True
 
 
+def _missing_result(folder: Path, totals: Counter[str], problems: list[str], expected_seats: int) -> bool:
+    path = folder / "config.json"
+    config = read_json(path)
+    if not isinstance(config, dict) or config.get("trial_name") != folder.name:
+        return False
+    if not isinstance(config.get("task"), dict):
+        return False
+    participants = config.get("participants")
+    if isinstance(participants, list | dict) and participants:
+        seats = _absent_model_participants(participants, [])
+    elif _configured_model(config.get("agent")):
+        seats = 1
+    else:
+        seats = expected_seats if _team_cost_unknown({"config": config}) else 0
+    totals["trials"] += 1
+    _unknown(totals, seats)
+    problems.append(f"{folder / 'result.json'}: no result file")
+    return True
+
+
 def _walk_errors(root: Path) -> WalkError:
     def handle(error: OSError) -> None:
         vanished = isinstance(error, FileNotFoundError | NotADirectoryError)
@@ -389,7 +410,7 @@ def distinct_roots(roots: tuple[Path, ...] | list[Path]) -> list[Path]:
 
 def scan_cost(
     roots: tuple[Path, ...] | list[Path], walk: Walk = _os_walk, *, expected_seats: int = 1,
-    free_models: frozenset[str] = frozenset(),
+    free_models: frozenset[str] = frozenset(), on_trial_charge: TrialCharge | None = None,
 ) -> Cost:
     assert expected_seats >= 1
     totals: Counter[str] = Counter()
@@ -401,12 +422,20 @@ def scan_cost(
             visited += 1
             assert visited <= MAX_WALK_DIRS, "too many folders under the cap roots"
             dirnames.sort()
-            if "result.json" not in filenames:
+            if "result.json" not in filenames and "config.json" not in filenames:
                 continue
-            amount, is_trial_result = _result_cost(
-                Path(dirpath) / "result.json", totals, problems, expected_seats, free_models,
-            )
-            recorded += amount
+            folder = Path(dirpath)
+            before = totals["seats_without_cost"]
+            if "result.json" in filenames:
+                amount, is_trial_result = _result_cost(folder / "result.json", totals, problems, expected_seats,
+                                                       free_models)
+                recorded += amount
+            else:
+                amount = 0.0
+                is_trial_result = _missing_result(folder, totals, problems, expected_seats)
+            unknown = totals["seats_without_cost"] - before
+            if on_trial_charge is not None and (amount or unknown):
+                on_trial_charge(folder, amount, unknown)
             if is_trial_result:
                 dirnames[:] = []
     return Cost(

@@ -5,9 +5,11 @@ import math
 import os
 import re
 import signal
+from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -489,11 +491,27 @@ class Runner:
             return "the ledger has a reserve line for it"
         return ""
 
+    def _own_open(self) -> dict[str, float]:
+        try:
+            rows = ledger.entries(self.plan.ledger, self.plan.id)
+        except ledger.LedgerError as error:
+            raise Stop("ledger", str(error)) from error
+        open_rows: dict[str, deque[float]] = {}
+        for row in rows:
+            name = row["arm"]
+            if row["event"] == "reserve":
+                amount = evidence.finite(row.get("reserved_usd"))
+                if amount is None or amount <= 0:
+                    raise Stop("ledger", f"invalid reserve for {name} in {self.plan.ledger}")
+                open_rows.setdefault(name, deque()).append(amount)
+            elif name in open_rows:
+                open_rows[name].popleft()
+                if not open_rows[name]:
+                    del open_rows[name]
+        return {name: math.fsum(amounts) for name, amounts in open_rows.items()}
+
     def _open_items(self) -> dict[tuple[str, str], float]:
-        items: dict[tuple[str, str], float] = {}
-        for name, arm in self._state().items():
-            if arm.open and arm.reserves:
-                items[("own", name)] = arm.reserved_usd * (arm.reserves - arm.settles) / arm.reserves
+        items = {("own", name): amount for name, amount in self._own_open().items()}
         now = evidence.parse_utc(self.system.utc())
         assert now is not None
         try:
@@ -507,7 +525,7 @@ class Runner:
             items[key] = item.reserved_usd
         return items
 
-    def _charged(self) -> float:
+    def _charged(self, on_trial_charge: evidence.TrialCharge | None = None) -> float:
         missing = [root for root in self.plan.cap_roots if root != self.plan.output_root and not root.is_dir()]
         if missing:
             raise Stop("cap-root", f"cap root {missing[0]} is not a folder; its cost would count as $0")
@@ -516,15 +534,42 @@ class Runner:
                 [root for root in self.plan.cap_roots if root.is_dir()], self.system.walk,
                 expected_seats=self.plan.expected_seats,
                 free_models=self.plan.free_models,
+                on_trial_charge=on_trial_charge,
             )
         except OSError as error:
             raise Stop("cap-root", f"cannot read the cap roots: {error}") from error
         return cost.charged(self.plan.unknown_seat_usd)
 
-    def _gate_cost(self) -> None:
-        charged = self._charged()
-        if charged >= self.plan.cap_usd:
-            raise Stop("cap", f"recorded cost ${charged:.4f} is at or above the cap ${self.plan.cap_usd:.2f}")
+    def _gate_cost(self, step: Step | None = None) -> None:
+        if step is None:
+            charged = self._charged()
+            if charged >= self.plan.cap_usd:
+                raise Stop("cap", f"recorded charged cost ${charged:.6f} is at or above the cap "
+                                  f"${self.plan.cap_usd}")
+        else:
+            self._gate_commitment(step)
+        self._gate_streak()
+
+    def _gate_commitment(self, step: Step) -> None:
+        own = self._own_open()
+        output = self.plan.output_root.resolve()
+        costs = {output / name: 0.0 for name in own}
+
+        def attribute(folder: Path, amount: float, unknown: int) -> None:
+            for parent in (folder, *folder.parents):
+                if parent in costs:
+                    costs[parent] += amount + unknown * self.plan.unknown_seat_usd
+                    return
+
+        charged = self._charged(attribute if own else None)
+        pending = sum((max(Decimal(0), Decimal(str(reserve)) - Decimal(str(round(costs[output / name], 6))))
+                       for name, reserve in own.items()), Decimal(0))
+        if Decimal(str(charged)) + pending + Decimal(str(step.reserve_usd)) > Decimal(str(self.plan.cap_usd)):
+            raise Stop("cap", f"recorded charged cost ${charged:.6f} + own open reserves "
+                              f"${math.fsum(own.values()):.6f} (${pending:f} not already charged) + "
+                              f"next reserve ${step.reserve_usd} for {step.out} exceeds the cap ${self.plan.cap_usd}")
+
+    def _gate_streak(self) -> None:
         hit, finished = evidence.streak(self.plan.output_root, self.plan.no_reward_streak, self.since)
         if hit:
             raise Stop("streak", f"the newest {self.plan.no_reward_streak} of {finished} trials that ended "
@@ -555,7 +600,7 @@ class Runner:
             self._gate_common()
             item = run.items[0]
             if isinstance(item, str):
-                self._gate_cost()
+                self._gate_streak()
                 run.items[0:1] = self.expand(self, run, item)
                 continue
             reason = self._already_started(item)
@@ -569,7 +614,6 @@ class Runner:
                 continue
             if not evidence.task_instances(item.tasks):
                 raise Stop("tasks-missing", f"{item.tasks} holds no task")
-            self._gate_cost()
             if self._start_locked(run, item):
                 run.items.pop(0)
             return
@@ -607,7 +651,7 @@ class Runner:
         try:
             balance = self._gate_balance(step)
             self._gate_common()
-            self._gate_cost()
+            self._gate_cost(step)
             self._start(run, step, balance)
         finally:
             self.system.unlock(lock, self.owner)

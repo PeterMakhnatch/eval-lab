@@ -300,14 +300,18 @@ _Body = list[tuple[str, str | None]]
 
 
 def _patch_body(rng: Random, build: _Build, calls: Sequence[_Call]) -> tuple[_Body, list[str]]:
-    leaves = rng.sample(_HELPER_NAMES, rng.randint(2, 4))
+    stdlib = rng.sample(_STDLIB_IMPORTS, rng.randint(1, 2))
+    stdlib_leaves = {text.split(" import ")[0].split()[-1].split(".")[-1] for text in stdlib}
+    assert stdlib_leaves and stdlib_leaves <= {"util", "utils"}
+    names = [name for name in _HELPER_NAMES if name not in stdlib_leaves]
+    leaves = rng.sample(names, rng.randint(2, 4))
     split = rng.randint(1, len(leaves) - 1)
     body: _Body = []
     for leaf in leaves[:split]:
         body.append(_helper_import(rng, leaf, build.token))
     for leaf in leaves[split:]:
         body.append((_helper_import(rng, leaf, build.token)[0], None))
-    body += [(text, None) for text in rng.sample(_STDLIB_IMPORTS, rng.randint(1, 2))]
+    body += [(text, None) for text in stdlib]
     if _flag(rng):
         body.append((f"from lib_{build.token} import thing", None))
     for call in calls:

@@ -17,7 +17,7 @@ from zoneinfo import ZoneInfo
 
 from campaign import cli, spend, spend_cli, spend_harbor
 from campaign.sim_fixture import toml_text
-from campaign.spend_types import Root, Trial
+from campaign.spend_types import MissingUse, Root, Trial
 
 EXAMPLE = "spend-roots.example.toml"
 ET = ZoneInfo("America/New_York")
@@ -679,6 +679,12 @@ def _check_cli(run: Checks, fixture: Fixture, result: dict[str, Any], usage: tup
 def _mutated(name: str, trial: Trial, distractors: dict[str, tuple[Decimal, ...]]) -> Trial:
     if name == "missing-zero":
         return replace(trial, entries=tuple(replace(e, usd=Decimal(0)) if e.usd is None else e for e in trial.entries))
+    if name == "unknown-all":
+        if trial.missing_use or any(entry.usd is not None for entry in trial.entries):
+            return trial
+        uses = tuple(MissingUse(entry.time, None, entry.route, None, "synthetic missing cost", ())
+                     for entry in trial.entries)
+        return replace(trial, missing_use=uses)
     assert name == "add-fallback"
     extra = distractors.get(trial.identity[0], ())
     results = [e for e in trial.entries if e.channel == "result" and e.usd is not None]
@@ -703,10 +709,6 @@ def inject(name: str | None, distractors: dict[str, tuple[Decimal, ...]]) -> Ite
     if name is None:
         yield
         return
-    if name == "unknown-all":
-        with _swapped(spend, "_model_use", lambda uses: True):
-            yield
-        return
     if name == "copy-twice":
         add_trial = spend.Summary.add_trial
 
@@ -724,6 +726,71 @@ def inject(name: str | None, distractors: dict[str, tuple[Decimal, ...]]) -> Ite
 
     with _swapped(spend_harbor, "trials", trials):
         yield
+
+
+def _partial_fixture(fixture: Fixture, days: tuple[date, ...]) -> Path:
+    trial = "sim-task__partial"
+    seats: list[dict[str, Any]] = [
+        {"seat": "priced", "agent_info": {"model_info": {"name": DIRECT_MODEL, "provider": "deepseek"}}},
+        {"seat": "zero", "agent_info": {"model_info": {"name": OR_MODEL, "provider": "openrouter"}},
+         "agent_result": {"cost_usd": 0, "n_input_tokens": 17}},
+        {"seat": "unpriced", "agent_info": {"model_info": {"name": OR_MODEL, "provider": "openrouter"}},
+         "agent_result": {"n_input_tokens": 41, "n_cache_tokens": 0, "n_output_tokens": 3}},
+        {"seat": "scripted", "agent_info": {"name": "oracle"}, "agent_result": {"n_input_tokens": 0}},
+    ]
+    for seat, day in zip(seats, days[:4], strict=True):
+        seat["agent_execution"] = {"finished_at": f"{day}T00:00:00Z"}
+    result = json.dumps({"id": trial, "trial_name": trial, "started_at": f"{days[0]}T00:00:00Z",
+                         "finished_at": f"{days[3]}T00:00:00Z", "seat_results": seats})
+    for root in ("partial-copy", "partial-owner"):
+        folder = fixture.path(root, trial)
+        fixture.put(folder / "result.json", result)
+        fixture.put(folder / "seats/priced/agent/trajectory.json", '{"final_metrics":{"total_cost_usd":1.25}}')
+    roots = fixture.path("partial.toml")
+    fixture.put(roots, toml_text({"roots": [
+        {"label": "copy", "kind": "harbor-trials", "path": "partial-copy", "copies_of": "partial"},
+        {"label": "partial", "kind": "harbor-trials", "path": "partial-owner"},
+    ]}))
+    return roots
+
+
+def _check_partial(run: Checks, fixture: Fixture) -> None:
+    run.step = "spend/partial-seat-window"
+    days = tuple(AS_OF.date() + timedelta(days=offset) for offset in range(-1, 5))
+    roots = _partial_fixture(fixture, days)
+    positive = {("direct", LIST_PRICE): Decimal("1.25")}
+    zero = {("openrouter", LIST_PRICE): Decimal(0)}
+    count_keys = ("trials", "no_model_trials", "model_use_without_cost_trials", "partially_measured_trials")
+    tokens = {"result.n_input_tokens": 41, "result.n_cache_tokens": 0, "result.n_output_tokens": 3}
+    cases = (
+        (0, 4, positive | zero, (1, 0, 0, 1)),
+        (0, 1, positive, (1, 0, 0, 0)),
+        (0, 2, positive | zero, (1, 0, 0, 0)),
+        (1, 3, zero, (1, 0, 0, 1)),
+        (2, 3, {}, (1, 0, 1, 0)),
+        (3, 4, {}, (1, 1, 0, 0)),
+        (4, 5, {}, (0, 0, 0, 0)),
+    )
+    for lower, upper, money, counts in cases:
+        detail = f"{days[lower]} to {days[upper]}"
+        result = spend.report(roots, since=days[lower], until=days[upper], as_of=AS_OF)
+        lane, = result["lanes"]
+        views = (result, lane, result["duplicates"])
+        run.check(not result["problems"] and all(tuple(view[key] for key in count_keys) == counts for view in views),
+                  "spend-partial-exclusive-counts", detail)
+        run.check(all(_reported(view["routes"]) == money for view in (result["total"], *views[1:])),
+                  "spend-partial-preserves-money", detail)
+        for key, expected in (("model_use_without_cost", counts[2]), ("partially_measured_missing_seats", counts[3])):
+            records = [row for group in result[key] for row in group["records"]]
+            got = [(row["lane"], Path(row["path"]).parent.name, _seat_view(row["seats"])) for row in records]
+            want = [("partial", "partial-owner", [("unpriced", "openrouter", OR_MODEL,
+                                                   json.dumps(tokens, sort_keys=True))])] if expected else []
+            run.check(got == want, "spend-partial-missing-seat-details", f"{detail}: {key}")
+        heading = "\nMissing seats in partially measured trials"
+        _, separator, after = spend.text(result).partition(heading)
+        line = f"Seat unpriced | openrouter | {OR_MODEL} |"
+        run.check(bool(separator) and (line in after) == bool(counts[3]) and "Seat scripted" not in after,
+                  "spend-partial-text-details", detail)
 
 
 def example(run: Checks, path: Path) -> None:
@@ -748,5 +815,7 @@ def scenario(run: Checks, seed: int, workspace: Path, mutation: str | None = Non
             part = spend.report(fixture.roots_file, since=SINCE, until=UNTIL, as_of=AS_OF, usage=part_usage)
             _check_result(run, fixture, part, window, part_usage)
             _check_cli(run, fixture, whole, usage)
+        if mutation is None:
+            _check_partial(run, fixture)
     except Exception as error:
         run.check(False, "spend-no-crash", type(error).__name__)

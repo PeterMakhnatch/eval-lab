@@ -163,6 +163,7 @@ class Lane:
     settled_trials: int = 0
     no_model_trials: int = 0
     model_use_trials: int = 0
+    partially_measured_trials: int = 0
     first: datetime | None = None
     last: datetime | None = None
 
@@ -178,13 +179,10 @@ class Lane:
             'no_model_trials': self.no_model_trials,
             'model_use_without_cost_trials': self.model_use_trials,
             'model_use_without_cost_share': self.model_use_trials / self.trials if self.trials else None,
+            'partially_measured_trials': self.partially_measured_trials,
             'first': self.first.isoformat() if self.first else None,
             'last': self.last.isoformat() if self.last else None,
         }
-
-
-def _model_use(uses: tuple[MissingUse, ...]) -> bool:
-    return bool(uses)
 
 
 def _missing_row(label: str, trial: Trial, uses: tuple[MissingUse, ...]) -> dict[str, Any]:
@@ -237,6 +235,7 @@ class Summary:
         self.duplicates = Lane()
         self.excluded: list[dict[str, Any]] = []
         self.missing: list[dict[str, Any]] = []
+        self.partial: list[dict[str, Any]] = []
 
     def contains(self, stamp: datetime) -> bool:
         return (self.lower is None or self.lower <= stamp) and (self.upper is None or stamp < self.upper)
@@ -264,14 +263,19 @@ class Summary:
             return
         lane = self.duplicates if duplicate else self.lanes[label]
         lane.trials += 1
-        if not any(entry.usd is not None for entry in entries):
-            uses = tuple(use for use in trial.missing_use if self.contains(use.time))
-            if _model_use(uses):
+        measured = any(entry.usd is not None for entry in entries)
+        uses = tuple(use for use in trial.missing_use if self.contains(use.time))
+        if uses:
+            if measured:
+                lane.partially_measured_trials += 1
+                if not duplicate:
+                    self.partial.append(_missing_row(label, trial, uses))
+            else:
                 lane.model_use_trials += 1
                 if not duplicate:
                     self.missing.append(_missing_row(label, trial, uses))
-            else:
-                lane.no_model_trials += 1
+        elif not measured:
+            lane.no_model_trials += 1
         for entry in entries:
             if duplicate:
                 lane.add(entry)
@@ -299,12 +303,16 @@ class Summary:
         trials = sum(lane['trials'] for lane in lanes)
         no_model = sum(lane['no_model_trials'] for lane in lanes)
         unknown = sum(lane['model_use_without_cost_trials'] for lane in lanes)
+        partial = sum(lane['partially_measured_trials'] for lane in lanes)
         assert unknown == len(self.missing)
+        assert partial == len(self.partial) and no_model + unknown + partial <= trials
         return {
             'lanes': lanes, 'trials': trials, 'no_model_trials': no_model,
             'model_use_without_cost_trials': unknown,
             'model_use_without_cost_share': unknown / trials if trials else None,
             'model_use_without_cost': _missing_lanes(self.missing),
+            'partially_measured_trials': partial,
+            'partially_measured_missing_seats': _missing_lanes(self.partial),
             'total': {'routes': self.total.routes()},
             'days': {
                 zone: [{'date': day, 'lane': lane, 'model': model, 'routes': spend.routes()}

@@ -40,5 +40,12 @@
     "seed": 10,
     "step": 155,
     "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-24T09:32:01.791461+00:00",
+    "invariant": "anatomy_runner_hidden",
+    "seed": 0,
+    "step": 153,
+    "subsystem": "package-anatomy"
   }
 ]

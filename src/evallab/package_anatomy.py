@@ -450,7 +450,7 @@ def _is_executed_from_image(script: str, baked_tests: Sequence[str]) -> list[str
             continue
         for baked in baked_tests:
             for token in operands:
-                clean = token.strip("./")
+                clean = token.removeprefix("./").rstrip("/")
                 if clean and (baked.endswith("/" + clean) or f"/{clean}/" in baked or PurePosixPath(baked).name == PurePosixPath(clean).name):
                     executed.append(baked)
     return sorted(set(executed))

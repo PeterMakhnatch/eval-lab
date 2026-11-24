@@ -6,6 +6,7 @@ from random import Random
 from evallab.package_anatomy import (
     DockerInstruction,
     PatchFile,
+    _is_executed_from_image,
     analyze_package,
     baked_files,
     dumps_card,
@@ -20,6 +21,11 @@ _JOINED_ARGS = "apt-get update &&" + " " * 6 + "apt-get install -y curl"
 _BAKED_CASES = 12
 _PACKAGE_SEEDS = 3
 _Baked = tuple[str, list[DockerInstruction], list[str], dict[str, tuple[str, int]]]
+_RUNNER_DIRS = ("tests", "ci", "checks", "spec")
+_RUNNER_COMMANDS = ("pytest", "python -m pytest", "uv run pytest", "py.test")
+_RUNNER_FLAGS = ("", " -q", " -x", " --tb short")
+_RUNNER_FORMS = ("plain", "dot_slash", "hidden", "hidden_slash", "dot_slash_hidden")
+_RUNNER_FILES = 2
 
 
 def _token(rng: Random, count: int) -> str:
@@ -36,6 +42,28 @@ def _write(root: Path, files: dict[str, str]) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
     assert root.is_dir()
+
+
+def _runner_operand(form: str, name: str) -> tuple[str, bool]:
+    assert form in _RUNNER_FORMS
+    assert name in _RUNNER_DIRS
+    operands = {
+        "plain": (name, False),
+        "dot_slash": (f"./{name}", False),
+        "hidden": (f".{name}", True),
+        "hidden_slash": (f".{name}/", True),
+        "dot_slash_hidden": (f"./.{name}/", True),
+    }
+    assert len(operands) == len(_RUNNER_FORMS)
+    return operands[form]
+
+
+def _runner_baked(rng: Random, name: str) -> tuple[list[str], list[str]]:
+    assert name in _RUNNER_DIRS
+    visible = [f"/app/{name}/test_{_token(rng, 8)}.py" for _ in range(_RUNNER_FILES)]
+    hidden = [f"/app/.{name}/test_{_token(rng, 8)}.py" for _ in range(_RUNNER_FILES)]
+    assert len(set(visible) | set(hidden)) == 2 * _RUNNER_FILES
+    return sorted(visible), sorted(hidden)
 
 
 def _diff_text(marker: str) -> str:
@@ -366,6 +394,7 @@ class AnatomySimulation:
         self.check_dockerfile()
         self.check_baked()
         self.check_determinism()
+        self.check_runner()
         self.sim.require(self.sim.step - self.start_step <= _STEP_BUDGET, "anatomy_step_budget")
 
     def check_diff(self) -> None:
@@ -394,6 +423,22 @@ class AnatomySimulation:
             all(item.line not in {2, 3, 4} for item in parsed),
             "anatomy_dockerfile_skips_blank_and_comment",
         )
+
+    def check_runner(self) -> None:
+        rng = self.rng
+        forms = list(_RUNNER_FORMS)
+        rng.shuffle(forms)
+        name = rng.choice(_RUNNER_DIRS)
+        visible, hidden = _runner_baked(rng, name)
+        baked = [*visible, *hidden]
+        rng.shuffle(baked)
+        self.sim.begin("anatomy-runner", name=name, forms=",".join(forms))
+        for form in forms:
+            operand, is_hidden = _runner_operand(form, name)
+            line = f"{rng.choice(_RUNNER_COMMANDS)} {operand}{rng.choice(_RUNNER_FLAGS)}"
+            expected = hidden if is_hidden else visible
+            assert expected and set(expected) <= set(baked)
+            self.sim.require(_is_executed_from_image(line, baked) == expected, f"anatomy_runner_{form}")
 
     def check_baked(self) -> None:
         cases = _baked_cases()

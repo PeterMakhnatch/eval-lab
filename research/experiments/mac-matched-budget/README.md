@@ -16,10 +16,12 @@ budget, does a talking team score higher than a silent team of the same size on 
 | `POWER.md` | The sample size, the cost and the budget below which the test cannot decide. |
 | `analysis/matched_budget.py` | A reader of Bespoke-harness trial folders: scores and spend at equal time, equal dollars, equal tokens. |
 | `analysis/power_plan.py` | A seeded planner for a paired sign-flip test with attrition and up to 3 looks. |
+| `analysis/holdout_reads.py` | A reader of the Holdout pilot's traces: message delivery, reads between actions, repeated orders. |
 
 The stored data is another lane's pilot of the task Holdout (claude-haiku-5-5, 30 minutes, 2 trials for each of
 4 arms): `~/Developer/eval-lab-results/multiagent-campaign-2026-11-23/bespoke/study4-holdout/`. The outputs of
-the readers are in `~/Developer/muster-runs/day-2026-11-24/{mac-matched,mac-power}/`, with the audit reports.
+the readers are in `~/Developer/muster-runs/day-2026-11-24/{mac-matched,mac-power,mac-reads}/`, with the audit
+reports.
 
 ## What the stored pilot shows (audited, 2 trials for each arm)
 
@@ -41,6 +43,28 @@ An independent auditor recomputed every number below from the raw files with its
   equal budget, the control is the silent team of the same size.
 - OBSERVED. The harness has a team-wide cap (`budget_usd`), checked before each model request. No stored trial
   has reached it: the pilot caps were $0.75 and $1.25, and the largest spend was $0.1975.
+
+## What the agents did with messages in the stored pilot (audited)
+
+An independent auditor confirmed 34 of 36 sampled facts and recounted the 4 headline numbers from the raw
+files. Its 4 corrections are applied in the reader. The sentences below are the auditor's wording.
+
+- OBSERVED. All 62 game-routed posts (of 68) appear in a later tool result of the receiver. The median lag is
+  0.31 s: 26 of 62 arrive within 0.3 s, 59 of 62 within 5 s, and the longest takes 25 s. 6 of 68 posts reached
+  no teammate.
+- OBSERVED. The habit of the synthetic `muster` worlds, 1 board read and then 1 batch of actions, does not
+  appear. All 14 seats read events between their first and last actions. An events read lies between
+  consecutive action steps in 72 of 83 cases in the team arm and in 60 of 72 in the guard arm.
+- OBSERVED. An `events` read also returns game progress, and the silent arm reads at a similar rate (21.6
+  reads for each 10 minutes against 27.4 in the team arm). So these reads do not show that agents look for
+  teammate posts.
+- OBSERVED. In the 2 silent trials 8 of 93 accepted shared-work orders repeat a teammate's earlier order on
+  the same target; in the 2 team trials 10 of 100 do. 5 of the 8 silent repeats are 2 agents asking a stranger
+  the same question. 6 of the 10 team repeats are chops on a tree after the teammate's announcement was in an
+  earlier result. The game allows several harvests of 1 tree, so these are not counts of wasted work.
+- INFERRED. A post that is never fetched is not the main gap in these trials, unlike the synthetic worlds
+  (`muster-boxes/FINDINGS.md` F31: 55.8% of repeats had a post that the agent had not fetched). The pilot does
+  not measure whether a delivered post was used or ignored. A tool result is not attention.
 
 ## What the plan says
 

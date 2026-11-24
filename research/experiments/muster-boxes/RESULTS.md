@@ -26,6 +26,10 @@ old muster repository: `docs/` and `experiments/` are now this folder, `tasks/` 
   24 opens in total). No rule: 58%. A fixed plan by seat number: 97%. 1 coordinator that gives each agent its
   boxes: 94%. 1 agent with all 24 opens: 100%. A rule that only gives each box an owner removes every repeat
   and scores 45%.
+- The loss continues to 48 agents (E9, 2026-11-24, 240 boxes, 96 opens in total). No rule: 74% at 8 agents,
+  59.5% at 16, 43% at 48, or 12 points lost for each doubling. At 48 agents a fixed plan scores 96% and 1
+  coordinator 94%; in 2 of 7 trials the coordinator's list was wrong and the agents followed it. 1 agent
+  with all 96 opens: 100%, at 1/14 to 1/71 of the cost.
 - Limits: 1 harness, 1 main model, 3 synthetic tasks, 10 instances each.
 
 ## The task and the setup
@@ -314,6 +318,41 @@ numbers before this text. Details: F24.
   can come from the prompt (`zones`) or from 1 agent (`chief`). Limits: each rule paragraph also tells the
   agents to post results and to read the board; `zones` puts the solution into the prompt; no primary test
   ranks the rules; 1 model, 1 harness, 1 task.
+
+## E9: 8 to 48 agents at the same total budget, and 2 rules at 48 agents (2026-11-24)
+
+`horde`: 240 boxes in 24 rooms, 8 treasure rooms, 80 flags, 96 opens in total split equally over the agents.
+7 layouts, 1 trial each. Pre-registered in Amendment 11 after an independent review and a pilot with 48 real
+agents. 6 arms, 42 trials, every trial has a reward, 0 stalled agents, 0 reruns. An independent audit
+recomputed the numbers before this text. Details: F27.
+
+| Arm | Agents x opens | Score | Repeats (of 96 opens) | Messages | Cost for a trial |
+|---|---|---|---|---|---|
+| 1 agent with all 96 opens | 1 x 96 | 100.0% | 0.1 | 0 | $0.0016 |
+| Team, no rule | 8 x 12 | 73.9% | 16.4 | 36 | $0.023 |
+| Team, no rule | 16 x 6 | 59.5% | 30.9 | 71 | $0.047 |
+| Team, no rule | 48 x 2 | 42.9% | 43.7 | 150 | $0.115 |
+| `zones`: a fixed plan by agent number | 48 x 2 | 96.4% | 2.3 | 31 | $0.047 |
+| `chief`: agent p1 posts the boxes for each agent | 48 x 2 | 94.3% | 2.0 | 109 | $0.077 |
+
+- OBSERVED, primary (Holm's rule over 3 tests, all pass with the smallest p that 7 layouts allow, 0.0156):
+  the team without a rule loses 11.9 points for each doubling of the agents [-14.7, -7.9]; `zones-48 -
+  team-48` = 53.6 points [49.5, 57.5]; `chief-48 - team-48` = 51.4 points [44.8, 57.5].
+- OBSERVED: the loss is repeated opens. From 8 to 48 agents the lost flags rise by 24.9 and the repeats by
+  27.3. A team of 48 opens 52 distinct boxes with its 96 opens.
+- OBSERVED: 1 agent is still higher: by 3.6 points [1.6, 6.1] against `zones-48` and by 5.7 points
+  [0.7, 12.3] against `chief-48`. Neither rule passes the 5-point margin, and neither fails it. The teams
+  cost 14 to 71 times as much as 1 agent.
+- OBSERVED: under `chief`, the team is as good as the coordinator's list. In 2 of 7 trials p1 posted a wrong
+  list (an empty room in place of a treasure room), the agents followed it, and the trials lost 19 and 9
+  flags. The other 5 trials score 97.5% to 100%. Under `zones`, 97.2% of the opens follow the plan; 14 of
+  the 19 opens outside it are the right position in a neighbour room.
+- OBSERVED: the obedience of `chief-48` is not measured under the registered rule (the parser reads the
+  coordinator's list for 79.7% of the opens; the limit is 80%). Of the opens that it reads, 528 of 534 follow
+  the list.
+- INFERRED: the repeat loss of E5 continues to 48 agents, and 1 paragraph that fixes who opens what removes
+  it. Limits: only 1 team size for each rule; `zones` puts the solution into the prompt; 7 layouts with 1
+  trial each; 1 model, 1 harness, 1 night.
 
 ## How this fits other work
 

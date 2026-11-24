@@ -12,6 +12,33 @@ Times are New York time (ET). Newest entry first. Each entry says what is done a
 
 ## 2026-11-24
 
+**4:31 AM. E9 is complete and audited (F27). E8: the scripted check and the pilot passed; the lanes run.**
+- E9: 42 of 42 trials have a reward, 0 stalled seats, 0 reruns. All 3 primary tests pass. Command 1 ended
+  at 3:53 AM; before command 2 `night_money.py` showed $3.74 left (the rule needs $2.60), the watcher ran
+  (checked with `ps` and `awk`, own line excluded, not with `pgrep` as written) and no stop file existed.
+  Command 2 ended at 4:14 AM. I ran the analysis after the last arm ended.
+- The independent audit recomputed every number with its own code: no wrong number. It corrected 4
+  statements that the script prints about `chief-48` ("99 opens before the first list" and "1 trial with no
+  list" are parser gaps in a trial that scores 100%; the losses come from 2 wrong lists of the coordinator)
+  and added 3 facts: 23 HTTP 429 answers in 2 `team-48` trials, the call time follows the reply length, and
+  the 2 money gates had no record in a file. All are in F27.
+- Watcher hand-over as registered: `WATCH-END` at 4:14 AM, the E9 watcher ended ($3.19 left), `WATCH-END`
+  removed, no `STOP` file existed, `night_watch.sh 0.30` started with the log `watch-e8.log`.
+- E8 scripted check (4:15 to 4:21 AM): 26 of 26 trials equal the reference values of `standin-i02` and have
+  `script_faithful` 1 (`e8/checks/run_check.log`). The 13 `oracle` trials ran through `campaign` at
+  `4a12891bd` (4 lanes, 1 runner process for each lane, all `DONE`): its first run with a real Harbor. The
+  13 `naive` trials ran through `night_arm.sh` with muster's ScriptAgent, its first run on Daytona.
+- E8 pilot (4:21 to 4:24 AM, 4 trap cells on `standin-i01`, not scored, $0.009): every trial has a reward
+  and `script_faithful` 1, and the agent reached the world (31 to 55 events). In the `wait-t` trial the
+  report came by the rule "first read after the 3rd open" (27.5 s after the first read), not by the 30 s
+  rule. So the timed path of `wait-t` is not checked with a real agent.
+- E8 lanes started at 4:24 AM with $3.09 left (the rule needs $2.60 for 2 attempts). A script
+  (`e8/cell_watch.py`) prints the health of each cell when it ends and writes the STOP file when a cell has
+  3 or more void trials; it reads no score.
+- `campaign`: the third round of fixes landed (`4a12891bd`): only the 2 command forms of an arm match, a
+  stop for all lanes signals every arm in the same tick, the money lock and the open reserves are for the
+  whole ledger. 17 seeded bugs all fail the gate. A third review is in work.
+
 **3:35 AM. E8 `standin` is pre-registered (Amendment 12). E9 runs. The task family `standin` is on `main`.**
 - E9 timing: Amendment 11 was committed at 2:50:20 AM ET and pushed to a branch on the server at 2:51:42
   AM; the first scored trial started at 2:51:58 AM; the commit reached `main` at about 2:54 AM (the land

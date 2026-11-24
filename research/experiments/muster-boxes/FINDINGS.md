@@ -850,3 +850,113 @@ INFERRED. The main failure of these teams is an action on a view of the shared s
 not a refusal to read: most opens do follow a read. The behaviour probes of the `standin` family (a change
 that arrives between a read and an open, a wrong list, a promised report, a claim that nobody uses) come
 from these codes. Limits: 1 model as the rater, 96 items, rules tuned on the test items.
+
+## F27. E9 `horde`: with 96 opens the team without a rule loses 12 points for each doubling from 8 to 48 agents; a fixed plan or a coordinator brings 48 agents to 94% to 96%; 1 agent scores 100% at 1/14 to 1/71 of the cost (2026-11-24, $2.17)
+
+Pre-registered in Amendment 11 after 2 passes of an independent review and a pilot with 48 real agents. An
+independent audit recomputed every number below from the event logs with its own code before this text; it
+found no wrong number and 4 statements about the coordinator arm that the first output of the analysis
+script gives in a misleading way (corrected here). Files: `muster-runs/night-2026-11-24/e9/`
+(`scored/<arm>`, `final/<arm>`, `analysis/e9.txt`, `analysis/e9.json`, `lane-cmd1.log`, `lane-cmd2.log`),
+timeline pages `night-2026-11-24/storyboards/overview-e9-<arm>.html`. Analysis:
+`analysis/horde_scaling.py` at `2ff1a4366`.
+
+OBSERVED:
+- **Design.** `horde`: 240 boxes in 24 rooms of 10, 8 treasure rooms, 80 flags, 96 opens in total, split
+  equally over k agents (96, 12, 6 or 2 each). 7 layouts, 1 trial each. terminus-2 with DeepSeek V4.1 Flash,
+  thinking off, 30 turns. Daytona with a 4 vCPU sandbox, 2 trials at once. `zones` and `chief` are the rule
+  paragraphs of E7, written for 48 agents.
+
+  | Arm | Agents x opens | Score | Repeats (of 96) | Unused opens | Messages | Board reads | Cost for a trial | Wall time |
+  |---|---|---|---|---|---|---|---|---|
+  | `solo-96` | 1 x 96 | 100.0% | 0.14 | 0.14 | 0 | 0 | $0.0016 | 112 s |
+  | `team-8` | 8 x 12 | 73.9% | 16.4 | 4.14 | 36 | 33 | $0.023 | 199 s |
+  | `team-16` | 16 x 6 | 59.5% | 30.9 | 0 | 71 | 66 | $0.047 | 209 s |
+  | `team-48` | 48 x 2 | 42.9% | 43.7 | 0 | 150 | 168 | $0.115 | 241 s |
+  | `zones-48` | 48 x 2 | 96.4% | 2.3 | 0 | 31 | 108 | $0.047 | 240 s |
+  | `chief-48` | 48 x 2 | 94.3% | 2.0 | 0.29 | 109 | 301 | $0.077 | 276 s |
+
+- **Primary (Holm's rule, family of 3, all pass).** With 7 layouts the smallest possible p is 0.0156, so
+  each test needs all 7 layouts to agree; they do.
+  - P1, the slope of `team-k` on log2 k over k = 8, 16, 48: -11.9 points for each doubling [-14.7, -7.9],
+    p 0.0156, falls. The 7 slopes are -0.9 to -16.0.
+  - P2, `zones-48 - team-48`: +53.6 points [49.5, 57.5], p 0.0156, helps (the 7 differences: +45.0 to +62.5).
+  - P3, `chief-48 - team-48`: +51.4 points [44.8, 57.5], p 0.0156, helps (+36.3 to +63.8).
+- **Secondary (no correction).** `zones-48 - chief-48` = 2.1 [-1.3, 7.9], p 0.94, not resolved; the
+  coordinator is equal or higher in 5 of 7 layouts. `team-16 - team-8` = -14.5 [-25.4, -2.0], p 0.094, not
+  resolved (1 layout goes the other way). `team-48 - team-16` = -16.6 [-23.6, -8.8], p 0.031.
+- **1 agent against the teams** (5-point margin): `solo-96 - team-8` = 26.1 [17.7, 38.2], `- team-16` = 40.5
+  [34.5, 46.3], `- team-48` = 57.1 [54.1, 60.0]: fail. `solo-96 - zones-48` = 3.6 [1.6, 6.1], p 0.031, and
+  `solo-96 - chief-48` = 5.7 [0.7, 12.3], p 0.0625: inconclusive against the margin, and both lower ends are
+  above 0. No team arm is above 1 agent.
+- **The loss is repeats.** Lost flags for a trial = repeats + unused opens + empty opens above the 16 scout
+  opens that any search needs. `team-8`: 20.9 = 16.4 + 4.1 + 0.3. `team-16`: 32.4 = 30.9 + 0 + 1.6.
+  `team-48`: 45.7 = 43.7 + 0 + 2.0. From 8 to 48 agents the lost flags rise by 24.9 and the repeats by 27.3.
+  The team of 48 opens 52 distinct boxes with 96 opens; 48 agents that choose at random would open 79.
+- **The unused opens of `team-8`** (29 opens, 5 seats, 2 trials that score 73.8 and 40.0): no seat was at the
+  turn cap and none had an exception. The seats stopped when all 8 treasure rooms were known and read the
+  goal as "find the rooms" ("Total score should be 8/80"). This is the `OBJECTIVE_MISREAD` code of F26. The
+  trial at 40.0 is the layout with the slope nearest to 0 (-0.9); with a positive slope there, P1 would
+  have p 0.031 and would still pass at its place in Holm's order.
+- **`zones-48`: 97.2% of the opens follow the plan** (653 of 672; interval over layouts [0.951, 0.988]). Of
+  the 19 opens outside the plan, 14 are the right position in a neighbour treasure room (the room index is
+  off by 1), 4 are in a room without treasure and 1 is a wrong position. Each of the 19 costs 1 flag; they
+  are 19 of the 20 flags that the arm lost.
+- **`chief-48`: the losses come from the coordinator's lists, not from disobedience.** p1 posted a scouting
+  list in all 7 trials, 15.7 to 41.8 s after the start. 4 opens came before it: 3 by p1 of its own scout box
+  and 1 outside any list. In 2 of the 7 trials p1 posted a wrong treasure list, and the other agents
+  followed it: in `horde-i05` (76.3%) a text list gives an empty room and leaves out a treasure room, and a
+  later JSON list conflicts with it (19 flags lost); in `horde-i06` (88.8%) the list gives an empty room in
+  place of a treasure room (9 flags lost). That is 28 of the 32 flags that the arm lost. The other 5 trials
+  score 97.5% to 100%.
+- **The obedience of `chief-48` is not measured under the registered rule:** parser v2 could class 534 of the
+  670 opens (79.7%; the limit is 80%), and 528 of the 534 follow p1's list. All 136 opens that it could not
+  class come from 3 posts of p1 in 2 trials: 2 lists with a label before the JSON (`SCOUTING LIST {...}`,
+  `TREASURE LIST {...}`, in a trial that scores 100%) and 1 text list. The script prints these as "99 opens
+  before the first list" and "1 trial with no list"; both are parser gaps, not behaviour. Post hoc, with the
+  auditor's reader (not registered): 668 of 670 opens can be classed and 664 are in a list of p1.
+- **1 agent.** `solo-96` scores 100% in 7 of 7 trials with 4 to 9 agent steps: it writes 1 shell loop over
+  the 24 scout boxes and 1 loop over the treasure rooms. The 30-turn cap does not bind it (Amendment 11
+  expected that it could). Its world gives the same response fields as a team agent's. The teams cost 14
+  (`team-8`), 29 (`team-16`), 71 (`team-48`), 29 (`zones-48`) and 47 (`chief-48`) times as much as 1 agent.
+- **Run health.** 42 of 42 trials have a reward; 0 of 1,183 seats ended with an exception; 0 stalled seats; 0
+  seats at the 600 s limit; 1 seat at the turn cap (with both opens used); no rerun. 2 `team-48` trials that
+  ran together got 23 HTTP 429 answers from the route (`engine_overloaded`); their median model call took
+  3.8 and 4.1 s against 2.3 to 2.6 s in the other 5, no seat failed, and they score 40.0 and 45.0, inside
+  the arm's range of 36.3 to 50.0. 66 posts were refused by the world (status 400 or 404; 34 in `zones-48`,
+  25 in `chief-48`); in 4 `chief-48` trials p1's first post was one of them and its next post came 8 to 14 s
+  later.
+- **Model-call time.** The median call takes 2.7 s in `team-48`, 1.8 s in `zones-48` and 1.6 s in
+  `chief-48`. The call time follows the length of the reply (0.69 s + 6.45 s for each 1,000 output tokens,
+  over 9,637 calls), and the rule arms make shorter replies (median 172 to 201 output tokens against 301).
+  The arms that ran after `chief-48` are at 2.5 to 2.6 s again, so this is not a drift of the route over
+  the night.
+- **The pre-registered expectations: all met.** `team-48` 42.9 (35 to 55), `team-16` 59.5 (45 to 65),
+  `team-8` 73.9 (55 to 75), slope -11.9 (-4 to -12, at the edge), `zones-48` above 90, `chief-48` 94.3 (75
+  to 95, with 1 to 2 trials with a late or wrong list: 2), both rules help by 30 points or more, `solo-96`
+  100 (85 to 100), no team above 1 agent, both rule arms within 15 points of 1 agent.
+- **Accounting and deviations:**
+  - 6 arms x 7 trials = 42 started, 42 with a reward, 0 reruns. The task bytes equal the landed build
+    (`1994fccbf`); all 42 trials have the same model settings; the arm order and the load are as registered.
+  - The first scored trial started at 2:52:02 AM ET, after the commit (2:50:20) and after its push to a
+    branch (2:51:42), and before the commit reached `main` (2:54:11). The auditor could not confirm the push
+    time from a local ref.
+  - No file recorded the 2 money gates at the time. Reconstructed by the auditor: $3.81 left before command
+    1 and $3.74 before command 2 (the rule needs $2.60). The watcher ran from 2:36 AM to 4:14 AM ET, over
+    both commands. I checked it with `ps` and `awk` (own line excluded), not with `pgrep` as written.
+  - The OpenRouter balance fell by $4.48 during E9, and E9 recorded $2.15 in the same window. The account
+    is shared with other lanes; the recorded cost is not checked against the bill. No other muster trial
+    overlaps the E9 window (0 of 2,203 trial folders).
+  - `horde-i01` was seen in the pilot (3 trials, not scored, $0.24).
+
+INFERRED. The repeat loss of E5 continues to 48 agents in a larger world: every doubling of the agents costs
+the team without a rule about 12 points, and almost all of it is repeated opens. 1 paragraph that fixes who
+opens what removes the loss at 48 agents, whether the plan is in the prompt or comes from 1 agent. With a
+coordinator the team is as good as its coordinator's list: the agents follow a wrong list too. Not
+supported: "a coordinator scales to 48 agents" (1 size, and 2 of 7 trials lose 9 and 19 flags to a wrong
+list); "48 agents with a rule match 1 agent" (both differences are inconclusive, with lower ends above 0);
+"teams of 48 work when given a plan" (`zones` puts the solution into the prompt, and 1 agent is ahead at
+1/29 of the cost); "the loss for each doubling is the same as in E5" (another world and budget; only the
+direction is compared); "zones is better than chief" (p 0.94); "the team gets worse with every added agent"
+(3 sizes; 8 to 16 is not resolved; the opens for each agent fall with k). 1 model, 1 harness, 1 synthetic
+search task, 7 layouts with 1 trial each, 1 night.

@@ -656,9 +656,9 @@ def _reward_gate(test_sh: str, sources: Sequence[TestSource]) -> dict[str, Any]:
                 and not re.search(r"\bif\b", stripped):
             unconditional = True
             hit = (number, stripped[:200])
-            assert len(reward_lines) <= 6
-            if hit not in reward_lines:
+            if hit not in reward_lines and len(reward_lines) < 6:
                 reward_lines.append(hit)
+    assert len(reward_lines) <= 6
     masks: list[tuple[int, str]] = []
     masks += _find(test_sh, r"(?:pytest|unittest|jest|mocha|cargo|go test|vitest)[^\n]*\|\|\s*true")
     masks += _find(test_sh, r"^\s*set\s+\+e\b")

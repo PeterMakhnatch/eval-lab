@@ -45,6 +45,9 @@ _EXIT_LINE = {
 }
 _PIPE = "pytest tests -q | tee /tmp/pytest.out"
 _PLUGIN = "export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1"
+_REWARD_ZERO = "echo 0 > /logs/verifier/reward.txt"
+_REWARD_ONE = "echo 1 > /logs/verifier/reward.txt"
+_REWARD_EVIDENCE_LIMIT = 6
 _REWARD_SOURCE = "def test_reward():\n    target = 'reward.txt'\n"
 
 
@@ -72,7 +75,8 @@ class _Plan:
     structured: bool
     log_grep: bool
     python_writes: bool
-    unconditional: bool
+    unconditional_count: int
+    zero_count: int
     mask_or_true: bool
     mask_set_plus_e: bool
     early_exit: bool
@@ -92,6 +96,10 @@ class _Plan:
     pipefail: bool
     plugin_autoload_disabled: bool
 
+    @property
+    def unconditional(self) -> bool:
+        return self.unconditional_count > 0
+
 
 @dataclass(slots=True)
 class _Lines:
@@ -99,7 +107,8 @@ class _Lines:
     set_plus_e: _Hit | None = None
     or_true: _Hit | None = None
     early_exit: _Hit | None = None
-    echo: _Hit | None = None
+    zeros: list[_Hit] = field(default_factory=list)
+    echoes: list[_Hit] = field(default_factory=list)
     cd: _Hit | None = None
     addopts: list[_Hit] = field(default_factory=list)
     pythonpath: list[_Hit] = field(default_factory=list)
@@ -132,7 +141,8 @@ def _plan(rng: Random) -> _Plan:
         structured=_flag(rng),
         log_grep=_flag(rng),
         python_writes=_flag(rng),
-        unconditional=_flag(rng),
+        unconditional_count=rng.randint(0, 2),
+        zero_count=rng.randint(0, _REWARD_EVIDENCE_LIMIT),
         mask_or_true=_flag(rng),
         mask_set_plus_e=_flag(rng),
         early_exit=_flag(rng),
@@ -156,6 +166,7 @@ def _plan(rng: Random) -> _Plan:
     assert plan.addopts in _ADDOPTS and plan.workdir_mode in _WORKDIR
     assert len(plan.extra_bare) == extra_count <= 2
     assert 0 <= plan.pythonpath_count <= 2 and 0 <= plan.deselect_count <= 2
+    assert 0 <= plan.unconditional_count <= 2 and 0 <= plan.zero_count <= _REWARD_EVIDENCE_LIMIT
     return plan
 
 
@@ -183,9 +194,10 @@ def _present(hits: tuple[_Hit | None, ...]) -> list[_Hit]:
 
 
 def _reward_lines(lines: _Lines) -> list[dict[str, Any]]:
-    found = _present((lines.reward_clear, lines.echo))
-    assert len(found) <= 6
-    return _evidence("tests/test.sh", found)
+    found = [*_present((lines.reward_clear,)), *lines.zeros, *lines.echoes]
+    assert found == sorted(found)
+    assert len(found) <= 1 + _REWARD_EVIDENCE_LIMIT + 2
+    return _evidence("tests/test.sh", found[:_REWARD_EVIDENCE_LIMIT])
 
 
 def _masks(lines: _Lines) -> list[dict[str, Any]]:
@@ -294,9 +306,12 @@ def _render_tail(script: _Script, recorded: _Lines, plan: _Plan) -> None:
         recorded.cd = script.add("cd /app")
     if plan.exit_trigger != "none":
         script.add(_EXIT_LINE[plan.exit_trigger])
-    if plan.unconditional:
-        recorded.echo = script.add("echo 1 > /logs/verifier/reward.txt")
-    assert (recorded.echo is not None) is plan.unconditional
+    for _ in range(plan.zero_count):
+        recorded.zeros.append(script.add(_REWARD_ZERO))
+    for _ in range(plan.unconditional_count):
+        recorded.echoes.append(script.add(_REWARD_ONE))
+    assert len(recorded.zeros) == plan.zero_count
+    assert len(recorded.echoes) == plan.unconditional_count
     assert (recorded.cd is not None) is (plan.workdir_mode == "cd")
 
 

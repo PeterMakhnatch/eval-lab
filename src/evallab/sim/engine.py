@@ -155,6 +155,7 @@ def run(seed: int) -> RunResult:
     from evallab.sim.lint import LintSimulation
     from evallab.sim.mechanics import MechanicsSimulation
     from evallab.sim.mutation import MutationSimulation
+    from evallab.sim.overlap import OverlapSimulation
     from evallab.sim.protected import ProtectedPathSimulation
     from evallab.sim.rewards import RewardSimulation
     from evallab.sim.rigor import RigorSimulation
@@ -191,6 +192,8 @@ def run(seed: int) -> RunResult:
             MechanicsSimulation(sim, root / "mechanics").run()
             sim.subsystem = "instruction-patch-surface"
             SurfaceSimulation(sim).run()
+            sim.subsystem = "baked-script-overlap"
+            OverlapSimulation(sim, root / "overlap").run()
         except InvariantViolation as exc:
             failure = exc
         except (Exception, ProcessCrash) as exc:

@@ -627,10 +627,10 @@ def _runner_of(*texts: str) -> tuple[str, list[str]]:
 
 
 def _reset_list(test_sh: str) -> list[str]:
-    match = re.search(r"<<\s*'?(EOF_RESET_TEST_FILES|EOF_RESET\w*)'?\n(.*?)\n\1", test_sh, re.S)
+    match = re.search(r"<<\s*(['\"]?)(EOF_RESET_TEST_FILES|EOF_RESET\w*)\1\n(.*?)\n\2", test_sh, re.S)
     if not match:
         return []
-    return [line.strip() for line in match.group(2).splitlines() if line.strip()]
+    return [line.strip() for line in match.group(3).splitlines() if line.strip()]
 
 
 def _reward_gate(test_sh: str, sources: Sequence[TestSource]) -> dict[str, Any]:

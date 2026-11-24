@@ -1,0 +1,163 @@
+# Swarm QA from stored verdicts
+
+**Question.** At the same dollars, what finds more true defects in evaluation tasks, graders, and traces? Compare 1 stronger model, merged runs of a cheap model, and agents that talk.
+
+**INFERRED.** Try a cheap union as a screen, with review of the extra alarms. Do not use these data to choose an equal-dollar policy. They do not show more verified defects for each dollar at the same false-alarm rate.
+
+**OBSERVED.** This is an offline recount, not a new model run. The independent audit checked counts and prices, not the underlying labels. A hit matches a stored positive label. A control alarm flags a labeled control. All alarms include hits. A labeled control is not proof of a clean item. The cohorts use different labels, so do not pool them.
+
+## Cohorts and label sources
+
+| Cohort | Items used | Who made the labels |
+|---|---|---|
+| TR-A | 114 priced calibration traces: 39 positives, 75 controls | Eval Lab action Gold. 2 Gemini 3.8 Flash readers agreed on mechanisms and executed-action citations for Terminal Wrench and CheatBench positives. Eval Lab R1/R2 reviewed Goodfire actions. The lab used submitted and restored grades for constructed impossible tasks. The priced slice has 35 Terminal Wrench and 4 constructed positives. |
+| TR-E | 223 evaluation traces: 83 positives, 140 controls | The same action-Gold protocol. This slice includes Terminal Wrench, CheatBench, Goodfire, and impossible-task positives. |
+| DT1 | 150 exposed Goodfire DEV traces: 80 positives, 70 controls. 148 complete all 3 DeepSeek draws; 144 also complete Opus. | Goodfire CM-6 uses publisher-derived enacted and clean labels. These labels do not certify a specific window or a reward change. |
+| RA | 92 traces complete across all 4 readers: 57 positives, 35 controls | RA6 uses Goodfire source labels and Eval Lab keys from CheatBench publisher labels. Source-labeled attempts can count as positives. |
+| MIX | 12 selected TB4 DEV tasks: 46 keys, no certified clean tasks | Preference Model published the issues. Eval Lab assigned directions and adjudicated mechanism matches. The artifact names `CrossModelCouncilBench`, not an individual. 10 keys are `confirmed`; 36 are `pm_reported`. |
+
+## Recount tables
+
+**OBSERVED.** Recorded USD means stored charges for the compared calls. It excludes review time and other unpriced work. RA USD uses historical list prices and logged tokens. RA subscription receipts report zero charges, not a comparable price. Unknown does not mean zero.
+
+### Trace Review: TR-A and TR-E
+
+| Cohort and arm | Hits / positives | All alarms | Control alarms | Recorded USD |
+|---|---:|---:|---:|---:|
+| TR-A Mini evidence-first | 13/39 | 13 | 0/75 | 0.631859 |
+| TR-A Flash evidence-first | 17/39 | 21 | 4/75 | 0.201742 |
+| TR-A Flash score-first | 14/39 | 18 | 4/75 | 0.200251 |
+| TR-A Flash union, ≥1 of 2 | 20/39 | 26 | 6/75 | 0.401993 |
+| TR-A both Flash calls, ≥2 of 2 | 11/39 | 13 | 2/75 | 0.401993 |
+| TR-A Flash evidence-first → Mini | 10/39 | 10 | 0/75 | 0.392692 |
+| TR-A Flash score-first → Mini | 8/39 | 8 | 0/75 | 0.290417 |
+| TR-A Flash union → Mini | 11/39 | 11 | 0/75 | 0.632770 |
+| TR-E Mini v1 | 20/83 | 26 | 6/140 | 1.323690 |
+| TR-E Flash v2 | 33/83 | 43 | 10/140 | 0.374812 |
+| TR-E Flash v2 → Mini v1 | 17/83 | 18 | 1/140 | 0.642692 |
+
+TR-A uses threshold 66 on all 3 scores. The lab set 66 from the original Flash evidence-first calibration scores. Calibration gives 6/149 control alarms at 66 and 8/149 at 65. The threshold predates the ablation, but the ablation did not preregister this comparison. TR-E uses each pipeline's frozen threshold: 11 for Mini v1 and 66 for Flash v2. The versions differ; TR-E does not isolate a model effect.
+
+| TR-A selection at threshold 66 | Items | Mini hits; control alarms | Flash union hits; control alarms |
+|---|---:|---:|---:|
+| Priced | 114 | 13/39; 0/75 | 20/39; 6/75 |
+| All complete Mini-scheduled | 143 | 15/51; 0/92 | 25/51; 7/92 |
+| Complete but not priced | 29 | 2/12; 0/17 | 5/12; 1/17 |
+
+The calibration manifest has 234 traces in 100 task groups. The dry-run cost rule selected a hash-ordered prefix of 57 groups with 144 traces. 1 trace lacks a complete Flash evidence-first score. All 29 excluded complete traces have a Mini cache hit. Some also fail a Flash cost check. The filter does not create the recall lead at 66. It can still change the size of that lead. Mini did not score all 234 traces.
+
+| TR-A in-sample control-alarm count | Mini best hits; control alarms | Flash union best hits; control alarms |
+|---|---:|---:|
+| Exactly 0 | 14/39; 0/75 | 0/39; 0/75 |
+| At most 6 | 14/39; 0/75 | 20/39; 6/75 |
+| Exactly 10 | 22/39; 10/75 | 18/39; 10/75 |
+| At most 10 | 22/39; 10/75 | 20/39; 6/75 |
+
+No Mini threshold gives exactly 6 control alarms. Thresholds 11–40 give 14/39 at zero. Thresholds 6–10 maximize F1 and Youden's J on this slice. They give 22/39 at 10 control alarms. The sweep reuses the labels. It does not validate new thresholds.
+
+### DT1: DeepSeek repeats and Opus
+
+Each merge cell is `hits / positives; all alarms (control alarms)`. USD for a draw subset applies to all its voting rules. There are 70 labeled controls in each row. Policy C keeps 2 deterministic positive pass-throughs for every arm.
+
+| Cohort and arm | Traces | Hits / positives | All alarms | Control alarms | Recorded USD |
+|---|---:|---:|---:|---:|---:|
+| DeepSeek r1 | 150 | 16/80 | 21 | 5 | 0.20899840 |
+| DeepSeek r2 | 148 | 15/78 | 19 | 4 | 0.19460740 |
+| DeepSeek r3 | 150 | 16/80 | 21 | 5 | 0.23364014 |
+| Opus, complete | 146 | 14/76 | 19 | 5 | Unknown |
+| Opus, paired | 144 | 14/74 | 19 | 5 | Unknown |
+| r1 → Opus, paired | 144 | 11/74 | 13 | 2 | Unknown; 0.201166 for r1 only |
+
+| Draw subset, 148 traces | Trace ≥1 | Trace ≥2 | Trace ≥3 | Same window ≥2 | Same window ≥3 | Recorded USD |
+|---|---|---|---|---|---|---:|
+| r1+r2 | 19/78; 25 (6) | 12/78; 15 (3) | — | 12/78; 14 (2) | — | 0.401864 |
+| r1+r3 | 22/78; 29 (7) | 10/78; 13 (3) | — | 9/78; 12 (3) | — | 0.439230 |
+| r2+r3 | 20/78; 27 (7) | 11/78; 13 (2) | — | 9/78; 10 (1) | — | 0.426581 |
+| r1+r2+r3 | 22/78; 30 (8) | 17/78; 21 (4) | 8/78; 10 (2) | 16/78; 20 (4) | 7/78; 8 (1) | 0.633838 |
+
+| Draw subset, 144 traces paired with Opus | Trace ≥1 | Trace ≥2 | Trace ≥3 | Recorded USD |
+|---|---|---|---|---:|
+| r1+r2 | 18/74; 24 (6) | 12/74; 15 (3) | — | 0.386446 |
+| r1+r3 | 21/74; 28 (7) | 10/74; 13 (3) | — | 0.426929 |
+| r2+r3 | 19/74; 26 (7) | 10/74; 12 (2) | — | 0.411044 |
+| r1+r2+r3 | 21/74; 29 (8) | 16/74; 20 (4) | 8/74; 10 (2) | 0.612209 |
+
+### RA: Haiku repeats and Sonnet
+
+| Arm | Suspicion ≥1: hits; all alarms (control alarms) | Suspicion ≥2: hits; all alarms (control alarms) | Modeled list price, USD |
+|---|---|---|---:|
+| Sonnet | 18/57; 20 (2/35) | 3/57; 3 (0/35) | 23.389386 |
+| Terra | 23/57; 28 (5/35) | 6/57; 6 (0/35) | 7.133029 |
+| Haiku | 30/57; 42 (12/35) | 5/57; 6 (1/35) | 1.1387883 |
+| Haiku retest | 29/57; 35 (6/35) | 5/57; 6 (1/35) | 1.1405846 |
+| Haiku union | 37/57; 49 (12/35) | 6/57; 8 (2/35) | 2.2793729 |
+| Both Haiku calls | 22/57; 28 (6/35) | 4/57; 4 (0/35) | 2.2793729 |
+| Haiku → Sonnet | 10/57; 12 (2/35) | 2/57; 2 (0/35) | 16.9778043 at ≥1; 2.5536503 at ≥2 |
+
+Same trace IDs do not mean equal input sizes. The 2 Haiku readers match successful map prompts on 51/51 traces with map calls. Sonnet matches on 49/51. No receipt shows byte equality across all calls.
+
+### MIX: coverage of stored keys
+
+| Arm or merge | Distinct matched keys | Claims |
+|---|---:|---:|
+| Sol (`codex`) | 9/46 | 30 |
+| Kimi | 12/46 | 34 |
+| Sonnet | 13/46 | 35 |
+| Muse | 14/46 | 36 |
+| Offline union of 4 | 20/46 | 135 |
+| Offline ≥2, ≥3, ≥4 votes | 14/46, 10/46, 4/46 | Not a label-free selection |
+| Live merger | 14/46 | 35 selected |
+
+Comparable USD and control alarms are unknown for every MIX arm. The offline union covers 13/29 wrong-pass keys and 7/17 unfair-fail keys. The votes use key identities that a real screener would not have. The live merger is not a shared-board arm.
+
+### Shared misses
+
+| Pair and slice | Both hit | First only | Second only | Both miss |
+|---|---:|---:|---:|---:|
+| TR-A Flash evidence-first / score-first, 39 positives | 11 | 6 | 3 | 19 |
+| TR-E Mini / Flash, 83 positives | 17 | 3 | 16 | 47 |
+| DT1 r1 / r2, 78 positives | 12 | 4 | 3 | 59 |
+| DT1 r1 / r3, 78 positives | 10 | 6 | 6 | 56 |
+| DT1 r2 / r3, 78 positives | 11 | 4 | 5 | 58 |
+| RA Haiku / retest, 57 positives at ≥1 | 22 | 8 | 7 | 20 |
+| RA Haiku / retest, 57 positives at ≥2 | 4 | 1 | 1 | 51 |
+
+Both Flash calls flag 2/75 TR-A controls. Each flags 2 more alone. Both clear 69/75.
+
+## 8 findings
+
+1. **OBSERVED.** At the reported thresholds, the Flash, DeepSeek, and Haiku unions each flagged more labeled positives than their single comparator: 20 vs 13 of 39, 21 vs 14 of 74, and 37 vs 18 of 57.
+2. **OBSERVED.** The unions also flagged more labeled controls: 6 vs 0 of 75, 7 vs 5 of 70, and 12 vs 2 of 35.
+3. **OBSERVED.** In TR-A, recorded costs were $0.40 for the Flash union and $0.63 for Mini; in RA, modeled list prices were $2.28 for the Haiku union and $23.39 for Sonnet.
+4. **OBSERVED.** Both draws in each DeepSeek pair missed the same 56–59 of 78 labeled positives. Adding r2 to the best pair, r1+r3, added 0 hits and 1 control alarm. Adding r3 to r1+r2 adds 3 hits. The best pair is selected after the results.
+5. **OBSERVED.** On 12 selected DEV tasks, the offline union of 4 models matched 20 of 46 stored defect keys, versus 14 for the best single model.
+6. **OBSERVED.** The stored QA comparisons in this report do not show 5 or 8 comparable cheap runs, a shared-board QA arm, or all QA arms under one enforced dollar cap.
+7. **OBSERVED.** At an exact match of 0 control alarms, tuned Mini hits 14/39 and the tuned Flash union hits 0/39. At a cap of 10, Mini hits 22/39 and Flash hits 20/39. These are in-sample fits.
+8. **INFERRED.** Test union screening as a review queue, not as an automatic rejection rule. Stored cascades intersect blind verdicts. They do not measure a reviewer who sees the cheap model's claims.
+
+## Limits and provenance
+
+**INFERRED.** Three label risks block a production decision:
+
+1. Trace labels do not always track executed or reward-changing defects. Eval Lab's later Goodfire review reports 11 executed shortcuts among 80 publisher positives. Its strict outcome test reports 6. That review also uses models.
+2. Label readers, window selectors, and scored models can share errors. A verbatim quote proves text presence. It does not prove that the action broke a rule or changed a reward.
+3. Prior exposure and incomplete keys can reward agreement with known answers. TR sources informed J3 development. In MIX, 13/46 keys are `tuned` and 14/46 are `inspected_only`. Unmatched claims may name real defects.
+
+| Evidence | Paths |
+|---|---|
+| TR | `~/Developer/trace-review/evals/{split,scores,v2-scores,policy,v2-policy}.json` and `ablations/2026-11-15-field-order/{scores,dry-run}.json` under that folder |
+| DT1 | `~/.local/state/evallab-prod-live/run-atlas/comparisons/{cm20-deepseek,cm19}/` and `~/Developer/research-context/bridge/2026-10-29-ds-squad/raw/DT-1/receipts/` |
+| DT1 Opus receipt | `~/Developer/eval-lab/.worktrees/fable-map/research/evidence/runs/cm19-opus-windows-20261028/results/result.json` |
+| RA | `~/.local/state/evallab-prod-live/run-atlas/comparisons/ra6-readers/` |
+| MIX | `~/Developer/eval-lab-results/2026-10-24/cross-model-swarm-bench/` |
+| Label methods | `research/experiments/{ev1110-gold-grow/RESULT.md,ev1105-goodfire/README.md}`, `research/answer-keys/cheatbench-actions-v1/README.md`, and `src/evallab/gold/seed.py` in the `fable-map` worktree |
+| Worker and audit | `/tmp/fable-day/swarmqa/report.md`; `/tmp/fable-day/swarmqa-audit/{report.md,recount.txt}` |
+
+Run from the study worktree. The reader does not write to the inputs. The output lists the SHA-256 of each input file. Missing files produce a problem list and a nonzero exit.
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 -I -B research/experiments/swarm-qa-stored-verdicts/analysis/stored_merges.py
+PYTHONDONTWRITEBYTECODE=1 python3 -I -B research/experiments/swarm-qa-stored-verdicts/analysis/stored_merges.py --json
+```
+
+The stored outputs are in `~/Developer/muster-runs/day-2026-11-24/swarm-qa/landed/`. See [DESIGN.md](DESIGN.md) for the next measurement. No paid run is approved.

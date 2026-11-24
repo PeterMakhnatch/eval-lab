@@ -25,14 +25,18 @@ class Cost:
     seats: int
     seats_without_cost: int
     unreadable_results: int
+    unknown_trials: int
+    problems: tuple[str, ...]
 
     def charged(self, unknown_seat_usd: float) -> float:
         assert unknown_seat_usd > 0
-        unknown = (self.seats_without_cost + self.unreadable_results) * unknown_seat_usd
-        return round(self.recorded_usd + unknown, 6)
+        return round(self.recorded_usd + self.seats_without_cost * unknown_seat_usd, 6)
 
     def record(self) -> dict[str, Any]:
-        return asdict(self)
+        record = asdict(self)
+        if self.recorded_usd == 0 and self.unknown_trials:
+            record["recorded_usd"] = None
+        return record
 
 
 def read_json(path: Path) -> Any:
@@ -129,40 +133,60 @@ def folder_counts(folder: Path, detected: frozenset[str]) -> dict[str, Any]:
     }
 
 
-def _seat_cost(seat: Any, totals: Counter[str]) -> float:
-    if not isinstance(seat, dict):
-        return 0.0
-    totals["seats"] += 1
-    agent = seat.get("agent_result")
-    cost = finite(agent.get("cost_usd")) if isinstance(agent, dict) else None
-    if cost is not None and cost >= 0:
-        return cost
+def _agent_cost(result: Any) -> float | None:
+    agent = result.get("agent_result") if isinstance(result, dict) else None
     raw = agent.get("cost_usd") if isinstance(agent, dict) else None
-    info = seat.get("agent_info") or {}
-    ran = bool(agent) or bool(seat.get("agent_execution"))
-    if raw is not None or (ran and isinstance(info, dict) and info.get("model_info")):
-        totals["seats_without_cost"] += 1
-    return 0.0
+    try:
+        cost = finite(raw)
+    except OverflowError:
+        return None
+    return cost if cost is not None and cost >= 0 else None
 
 
-def _result_cost(path: Path, totals: Counter[str]) -> tuple[float, bool]:
+def _unknown(totals: Counter[str], seats: int) -> None:
+    assert seats >= 0
+    if seats:
+        totals["unknown_trials"] += 1
+        totals["seats_without_cost"] += seats
+
+
+def _result_cost(path: Path, totals: Counter[str], problems: list[str], expected_seats: int) -> tuple[float, bool]:
     result = read_json(path)
     if not isinstance(result, dict):
-        if not path.exists():
-            return 0.0, False
-        if "__" in path.parent.name:
+        if "__" in path.parent.name and path.exists():
             totals["unreadable_results"] += 1
+            _unknown(totals, expected_seats)
         return 0.0, False
     if "trial_name" not in result:
         return 0.0, False
     totals["trials"] += 1
-    seats = result.get("seat_results") or []
-    if isinstance(seats, dict):
-        seats = list(seats.values())
-    if not isinstance(seats, list):
-        totals["unreadable_results"] += 1
+    team = _agent_cost(result)
+    seats = result.get("seat_results")
+    config = result.get("config")
+    participants = config.get("participants") if isinstance(config, dict) else None
+    configured = len(participants) if isinstance(participants, list | dict) else 0
+    if not isinstance(seats, list | dict) or not seats:
+        if team is not None:
+            return team, True
+        _unknown(totals, configured or expected_seats)
         return 0.0, True
-    return sum(_seat_cost(seat, totals) for seat in seats), True
+    assert len(seats) <= MAX_TRIALS
+    totals["seats"] += len(seats)
+    known, subtotal = 0, 0.0
+    for seat in seats.values() if isinstance(seats, dict) else seats:
+        cost = _agent_cost(seat)
+        if cost is not None:
+            known += 1
+            subtotal += cost
+    missing = max(len(seats), configured) - known
+    _unknown(totals, missing)
+    if team is None:
+        return subtotal, True
+    difference = subtotal - team
+    if round(difference, 12) > 0.01 or (not missing and round(-difference, 12) > 0.01):
+        problems.append(f"{path}: seat cost ${subtotal:.6f} and team cost ${team:.6f} disagree")
+        return max(subtotal, team), True
+    return max(subtotal, team) if missing else subtotal, True
 
 
 def _walk_errors(root: Path) -> WalkError:
@@ -184,8 +208,12 @@ def distinct_roots(roots: tuple[Path, ...] | list[Path]) -> list[Path]:
     return [root for root in real if not any(other in root.parents for other in real)]
 
 
-def scan_cost(roots: tuple[Path, ...] | list[Path], walk: Walk = _os_walk) -> Cost:
+def scan_cost(
+    roots: tuple[Path, ...] | list[Path], walk: Walk = _os_walk, *, expected_seats: int = 1,
+) -> Cost:
+    assert expected_seats >= 1
     totals: Counter[str] = Counter()
+    problems: list[str] = []
     recorded = 0.0
     visited = 0
     for root in distinct_roots(roots):
@@ -195,7 +223,7 @@ def scan_cost(roots: tuple[Path, ...] | list[Path], walk: Walk = _os_walk) -> Co
             dirnames.sort()
             if "result.json" not in filenames:
                 continue
-            amount, is_trial_result = _result_cost(Path(dirpath) / "result.json", totals)
+            amount, is_trial_result = _result_cost(Path(dirpath) / "result.json", totals, problems, expected_seats)
             recorded += amount
             if is_trial_result:
                 dirnames[:] = []
@@ -205,6 +233,8 @@ def scan_cost(roots: tuple[Path, ...] | list[Path], walk: Walk = _os_walk) -> Co
         seats=totals["seats"],
         seats_without_cost=totals["seats_without_cost"],
         unreadable_results=totals["unreadable_results"],
+        unknown_trials=totals["unknown_trials"],
+        problems=tuple(problems),
     )
 
 

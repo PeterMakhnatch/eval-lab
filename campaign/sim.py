@@ -18,7 +18,7 @@ from random import Random
 from tempfile import TemporaryDirectory
 from typing import Any, TypedDict
 
-from campaign import evidence, fill, ledger, report, sim_spend
+from campaign import evidence, fill, ledger, report, sim_cost, sim_spend
 from campaign.plan import RERUN_TAG, Plan, PlanError, base_arm, load, parse, sha256_file
 from campaign.runner import (
     LOCK_NOTE_SECONDS,
@@ -66,6 +66,7 @@ _MAX_SEED = 2**64 - 1
 _DEFAULT_HUNT_SEED = 1_124_007
 _RESERVE_UNION_SEED = 1_124_008
 _MUTATION_SEED = 1_124_009
+_SEEDED_BUGS = sim_spend.MUTATIONS | sim_cost.MUTATIONS
 _MAX_HUNT_SEEDS = 1_000_000
 _MAX_STEPS = 4000
 _MAX_RESUMES = 12
@@ -131,6 +132,7 @@ def _mutations() -> dict[str, Mutation]:
         "unknown-top-key": lambda d: d.update(extra=1),
         "unknown-arm-key": lambda d: d["arms"][0].update(color="red"),
         "missing-money-key": lambda d: d["money"].pop("floor_usd"),
+        "expected-seats-zero": lambda d: d["money"].update(expected_seats=0),
         "bool-attempts": lambda d: d["arms"][0].update(attempts=True),
         "float-attempts": lambda d: d["arms"][0].update(attempts=2.0),
         "relative-path": lambda d: d.update(output_root="out"),
@@ -1061,6 +1063,7 @@ def _run_seed(seed: int) -> Run:
         _status_end(sim)
         _merge_end(sim)
         sim_spend.scenario(run, seed, root / "spend")
+        sim_cost.replay(run, seed, root / "cost")
     return run
 
 
@@ -1108,10 +1111,10 @@ def _check() -> int:
                 shown.add(key)
                 print(f"{'Known regression' if is_known else 'Failure'}: {failure}",
                       file=sys.stdout if is_known else sys.stderr)
-    missed = _mutate(sorted(sim_spend.MUTATIONS), _MUTATION_SEED)
+    missed = _mutate(sorted(_SEEDED_BUGS), _MUTATION_SEED)
     print(f"Seeds: {len(seeds)}. Invariants checked: {checks}. Unexpected violations: {unexpected}. "
-          f"Known violations: {expected}. Seeded bugs caught: {len(sim_spend.MUTATIONS) - missed} of "
-          f"{len(sim_spend.MUTATIONS)}. Time: {time.monotonic() - started:.2f} s.")
+          f"Known violations: {expected}. Seeded bugs caught: {len(_SEEDED_BUGS) - missed} of "
+          f"{len(_SEEDED_BUGS)}. Time: {time.monotonic() - started:.2f} s.")
     return int(unexpected > 0 or missed > 0)
 
 
@@ -1120,9 +1123,13 @@ def _mutate(names: list[str], seed: int) -> int:
     for name in names:
         run = Run(seed)
         with TemporaryDirectory(prefix="campaign-sim-") as directory:
-            sim_spend.scenario(run, seed, Path(directory) / "spend", name)
+            path = Path(directory)
+            if name in sim_cost.MUTATIONS:
+                sim_cost.replay(run, seed, path / "cost", name)
+            else:
+                sim_spend.scenario(run, seed, path / "spend", name)
         fired = sorted({failure.invariant for failure in run.failures})
-        expected = sim_spend.MUTATIONS[name]
+        expected = _SEEDED_BUGS[name]
         missed += expected not in fired
         print(f"Seeded bug {name} at seed {seed}: {'caught' if expected in fired else 'missed'} by {expected}; "
               f"violated invariants: {', '.join(fired) or 'none'}.")
@@ -1188,8 +1195,8 @@ def _seconds(value: str) -> int:
 
 
 def _bug(value: str) -> str:
-    if value not in sim_spend.MUTATIONS:
-        raise argparse.ArgumentTypeError(f"use one of {', '.join(sorted(sim_spend.MUTATIONS))}")
+    if value not in _SEEDED_BUGS:
+        raise argparse.ArgumentTypeError(f"use one of {', '.join(sorted(_SEEDED_BUGS))}")
     return value
 
 
@@ -1202,8 +1209,8 @@ def main(argv: list[str] | None = None) -> int:
     hunt.add_argument("--start-seed", type=_seed, default=_DEFAULT_HUNT_SEED)
     replay = commands.add_parser("replay", help="replay a single seed")
     replay.add_argument("seed", type=_seed)
-    mutate = commands.add_parser("mutate", help="inject seeded spend bugs and show the invariant that catches each")
-    mutate.add_argument("names", nargs="*", type=_bug, metavar="BUG", help=", ".join(sorted(sim_spend.MUTATIONS)))
+    mutate = commands.add_parser("mutate", help="inject seeded cost bugs and show the invariant that catches each")
+    mutate.add_argument("names", nargs="*", type=_bug, metavar="BUG", help=", ".join(sorted(_SEEDED_BUGS)))
     mutate.add_argument("--seed", type=_seed, default=_MUTATION_SEED)
     args = parser.parse_args(argv)
     if args.command == "check":
@@ -1211,7 +1218,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "hunt":
         return _hunt(args.seconds, args.start_seed)
     if args.command == "mutate":
-        return int(_mutate(args.names or sorted(sim_spend.MUTATIONS), args.seed) > 0)
+        return int(_mutate(args.names or sorted(_SEEDED_BUGS), args.seed) > 0)
     assert args.command == "replay"
     return _replay(args.seed)
 

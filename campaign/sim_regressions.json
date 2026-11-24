@@ -7,6 +7,13 @@
     "known": false
   },
   {
+    "seed": 730820162355091945,
+    "step": "cost/result-shapes",
+    "invariant": "cap-status-lists-conflicts",
+    "detail": "JSON and text",
+    "known": false
+  },
+  {
     "seed": 17202047028777897598,
     "step": "fill/money-lock",
     "invariant": "money-lock-wait-line",
@@ -32,6 +39,20 @@
     "step": "examples",
     "invariant": "wrapper-shape",
     "detail": "('env', '-u', 'X', 'sh', '-c', 'a;b')",
+    "known": false
+  },
+  {
+    "seed": 1124009,
+    "step": "cost/result-shapes",
+    "invariant": "cap-unknown-trial-charged",
+    "detail": "empty",
+    "known": false
+  },
+  {
+    "seed": 1124009,
+    "step": "cost/result-shapes",
+    "invariant": "cap-recorded-cost",
+    "detail": "team",
     "known": false
   }
 ]

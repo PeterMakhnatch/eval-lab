@@ -185,8 +185,9 @@ def check(plan: Plan, now: datetime, funds: tuple[Funds | None, str]) -> tuple[l
         f"sha256 {plan.sha256}",
         f"campaign {plan.id}: output {plan.output_root}, state {plan.state_root}",
         f"at once: lanes {sum(lane.concurrency for lane in plan.lanes)} of max {plan.max_trials_at_once}",
-        f"money: floor ${plan.floor_usd:.2f}, cap ${plan.cap_usd:.2f} of recorded cost (a seat without a "
-        f"cost counts ${plan.unknown_seat_usd:.4f}), ledger {plan.ledger}, provider {plan.provider}",
+        f"money: floor ${plan.floor_usd:.2f}, cap ${plan.cap_usd:.2f} (each unknown seat counts "
+        f"${plan.unknown_seat_usd:.4f}; {plan.expected_seats} seats if the trial has no seat count), "
+        f"ledger {plan.ledger}, provider {plan.provider}",
         f"cap roots: {' '.join(str(root) for root in plan.cap_roots)}",
         *_foreign_lines(plan, problems, now),
         *_funds_lines(plan, funds, problems),
@@ -235,7 +236,8 @@ def arm_status(plan: Plan, name: str, state: dict[str, ledger.ArmLedger]) -> dic
     if planned > main["started"]:
         unmeasured["not-started"] = planned - main["started"]
     merged = _merge_counts([main, *reruns.values()])
-    cost = evidence.scan_cost([folder for folder in [plan.output_root / name, *folders] if folder.is_dir()])
+    cost = evidence.scan_cost([folder for folder in [plan.output_root / name, *folders] if folder.is_dir()],
+                              expected_seats=plan.expected_seats)
     outs = [name, *reruns]
     return {
         "arm": name, "lane": plan.lane_of(name).name, "pilot": arm.pilot, "planned": planned,
@@ -247,6 +249,7 @@ def arm_status(plan: Plan, name: str, state: dict[str, ledger.ArmLedger]) -> dic
         "instances": len(instances), "detected": len(found),
         "recorded_usd": cost.recorded_usd, "seats_without_cost": cost.seats_without_cost,
         "unreadable_results": cost.unreadable_results,
+        "unknown_trials": cost.unknown_trials, "cost_problems": list(cost.problems),
         "ledger": {out: state[out].record() for out in outs if out in state},
     }
 
@@ -255,7 +258,8 @@ def status(plan: Plan) -> dict[str, Any]:
     try:
         state = ledger.state(plan.ledger, plan.id)
         arms = [arm_status(plan, name, state) for lane in plan.lanes for name in lane.arms]
-        cost = evidence.scan_cost([root for root in plan.cap_roots if root.is_dir()])
+        cost = evidence.scan_cost([root for root in plan.cap_roots if root.is_dir()],
+                                  expected_seats=plan.expected_seats)
     except (ledger.LedgerError, OSError) as error:
         raise PlanError(str(error)) from error
     missing = [str(root) for root in plan.cap_roots if not root.is_dir() and root != plan.output_root]
@@ -263,7 +267,8 @@ def status(plan: Plan) -> dict[str, Any]:
         "campaign": plan.id, "plan_sha256": plan.sha256, "arms": arms,
         "cap": {"cap_usd": plan.cap_usd, "charged_usd": cost.charged(plan.unknown_seat_usd),
                 "recorded_usd": cost.recorded_usd, "seats_without_cost": cost.seats_without_cost,
-                "unreadable_results": cost.unreadable_results, "missing_roots": missing},
+                "unreadable_results": cost.unreadable_results, "unknown_trials": cost.unknown_trials,
+                "cost_problems": list(cost.problems), "missing_roots": missing},
         "stop_file": plan.stop_file.exists(),
         "open_reservations": sorted(out for out, item in state.items() if item.open),
     }
@@ -282,7 +287,7 @@ def status_text(report: dict[str, Any]) -> str:
         lines.append(
             f"{row['arm']:<12} lane {row['lane']:<4} planned {row['planned']:>3} started {row['started']:>3} "
             f"reward {row['with_reward']:>3} unmeasured [{_kinds(row['unmeasured'])}] "
-            f"${row['recorded_usd']:.4f} {led_text}"
+            f"${row['recorded_usd']:.4f}, {row['unknown_trials']} unknown trials, {led_text}"
         )
         for out, rerun in row["reruns"].items():
             lines.append(f"  {out:<14} started {rerun['started']:>3} reward {rerun['with_reward']:>3} "
@@ -291,8 +296,10 @@ def status_text(report: dict[str, Any]) -> str:
                      f"rewards with reruns {row['with_reward_all']}, detector listed {row['detected']}")
     cap = report["cap"]
     lines.append(f"cap: charged ${cap['charged_usd']:.4f} of ${cap['cap_usd']:.2f} "
-                 f"(recorded ${cap['recorded_usd']:.4f}, {cap['seats_without_cost']} seats without a cost)"
+                 f"(recorded ${cap['recorded_usd']:.4f}, {cap['seats_without_cost']} seats without a cost, "
+                 f"{cap['unknown_trials']} unknown trials)"
                  + (f"; missing cap roots: {', '.join(cap['missing_roots'])}" if cap["missing_roots"] else ""))
+    lines.extend(f"cost problem: {problem}" for problem in cap["cost_problems"])
     lines.append(f"STOP file present: {report['stop_file']}; open reservations: "
                  f"{', '.join(report['open_reservations']) or 'none'}")
     return "\n".join(lines) + "\n"

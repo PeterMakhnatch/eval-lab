@@ -438,7 +438,9 @@ class Runner:
     def _settle(self, lane: str, out: str, status: str, code: int | None) -> dict[str, Any]:
         folder = self.plan.output_root / out
         try:
-            actual = evidence.scan_cost([folder] if folder.exists() else [], self.system.walk).record()
+            actual = evidence.scan_cost(
+                [folder] if folder.exists() else [], self.system.walk, expected_seats=self.plan.expected_seats,
+            ).record()
         except OSError as error:
             actual = {"error": f"cannot read {folder}: {error}"}
         record = {
@@ -504,7 +506,10 @@ class Runner:
         if missing:
             raise Stop("cap-root", f"cap root {missing[0]} is not a folder; its cost would count as $0")
         try:
-            cost = evidence.scan_cost([root for root in self.plan.cap_roots if root.is_dir()], self.system.walk)
+            cost = evidence.scan_cost(
+                [root for root in self.plan.cap_roots if root.is_dir()], self.system.walk,
+                expected_seats=self.plan.expected_seats,
+            )
         except OSError as error:
             raise Stop("cap-root", f"cannot read the cap roots: {error}") from error
         return cost.charged(self.plan.unknown_seat_usd)

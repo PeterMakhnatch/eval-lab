@@ -67,6 +67,7 @@ class Plan:
     cap_usd: float
     cap_roots: tuple[Path, ...]
     unknown_seat_usd: float
+    expected_seats: int
     ledger: Path
     foreign_reserve_window_hours: float
     poll_seconds: float
@@ -278,7 +279,7 @@ def _harbor(data: Any) -> tuple[Path, tuple[str, ...]]:
 def _money(data: Any) -> dict[str, Any]:
     required = {"provider", "probe", "probe_timeout_seconds", "floor_usd", "cap_usd", "cap_roots",
                 "unknown_seat_usd", "ledger"}
-    table = _keys(data, "money", required, {"foreign_reserve_window_hours", "key_limit_probe"})
+    table = _keys(data, "money", required, {"foreign_reserve_window_hours", "key_limit_probe", "expected_seats"})
     roots = table["cap_roots"]
     if not isinstance(roots, list) or not 1 <= len(roots) <= 64:
         raise PlanError("money.cap_roots must be a list of 1 to 64 paths")
@@ -291,6 +292,7 @@ def _money(data: Any) -> dict[str, Any]:
         "cap_usd": _number(table, "cap_usd", "money", 0.01, 1_000_000),
         "cap_roots": tuple(_path_value(root, "money.cap_roots") for root in roots),
         "unknown_seat_usd": _number(table, "unknown_seat_usd", "money", 0.0001, 1_000),
+        "expected_seats": _int(table, "expected_seats", "money", 1, 4096) if "expected_seats" in table else 1,
         "ledger": _path(table, "ledger", "money"),
         "foreign_reserve_window_hours": (
             _number(table, "foreign_reserve_window_hours", "money", 0.1, 720)

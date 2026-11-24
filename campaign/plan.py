@@ -5,10 +5,13 @@ import math
 import os
 import re
 import shlex
+import sys
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+from campaign import keyenv
 
 SCHEMA = "campaign-plan/v1"
 NAME = re.compile(r"[a-z0-9][a-z0-9-]{0,63}")
@@ -22,6 +25,8 @@ RERUN_TAG = ".r1-m"
 MIN_STOP_GRACE_SECONDS = 180
 MAX_BALANCE_USD = 100_000.0
 DEFAULT_FOREIGN_WINDOW_HOURS = 6.0
+DIRECT_COMMANDS = frozenset(("uv", "muster", "python", "python3"))
+KEYENV_SCRIPT = Path(keyenv.__file__).resolve()
 
 
 class PlanError(Exception):
@@ -62,6 +67,7 @@ class Plan:
     provider: str
     probe: tuple[str, ...]
     key_limit_probe: tuple[str, ...]
+    key_env: str | None
     probe_timeout_seconds: float
     floor_usd: float
     cap_usd: float
@@ -150,11 +156,18 @@ def arm_values(plan: Plan, out_name: str, tasks: Path, attempts: int, concurrenc
     }
 
 
+def render_argv(plan: Plan, values: dict[str, str]) -> list[str]:
+    argv = [render(arg, values) for arg in plan.argv]
+    if plan.key_env is not None:
+        argv[3:3] = [sys.executable, "-I", str(KEYENV_SCRIPT), plan.key_env, "--"]
+    return argv
+
+
 def arm_command(
     plan: Plan, out_name: str, tasks: Path, attempts: int, concurrency: int
 ) -> tuple[list[str], dict[str, str]]:
     values = arm_values(plan, out_name, tasks, attempts, concurrency)
-    argv = [render(arg, values) for arg in plan.argv]
+    argv = render_argv(plan, values)
     env = {key: render(value, values) for key, value in plan.env}
     return argv, env
 
@@ -279,7 +292,11 @@ def _harbor(data: Any) -> tuple[Path, tuple[str, ...]]:
 def _money(data: Any) -> dict[str, Any]:
     required = {"provider", "probe", "probe_timeout_seconds", "floor_usd", "cap_usd", "cap_roots",
                 "unknown_seat_usd", "ledger"}
-    table = _keys(data, "money", required, {"foreign_reserve_window_hours", "key_limit_probe", "expected_seats"})
+    optional = {"foreign_reserve_window_hours", "key_limit_probe", "expected_seats", "key_env"}
+    table = _keys(data, "money", required, optional)
+    key_env = table.get("key_env")
+    if "key_env" in table and not keyenv.valid_name(key_env):
+        raise PlanError("money.key_env must be a name such as OPENROUTER_KEY_MUSTER")
     roots = table["cap_roots"]
     if not isinstance(roots, list) or not 1 <= len(roots) <= 64:
         raise PlanError("money.cap_roots must be a list of 1 to 64 paths")
@@ -287,6 +304,7 @@ def _money(data: Any) -> dict[str, Any]:
         "provider": _name(table, "provider", "money"),
         "probe": _argv(table, "probe", "money"),
         "key_limit_probe": _argv(table, "key_limit_probe", "money") if "key_limit_probe" in table else (),
+        "key_env": key_env,
         "probe_timeout_seconds": _number(table, "probe_timeout_seconds", "money", 1, 600),
         "floor_usd": _number(table, "floor_usd", "money", 0, 1_000_000),
         "cap_usd": _number(table, "cap_usd", "money", 0.01, 1_000_000),
@@ -398,6 +416,23 @@ def _check_places(fields: dict[str, Any]) -> None:
         raise PlanError("money.cap_roots must cover output_root, or the cap misses this campaign")
 
 
+def _check_key_env(fields: dict[str, Any], argv: tuple[str, ...], env: tuple[tuple[str, str], ...]) -> None:
+    if fields["key_env"] is None:
+        return
+    for probe in ("probe", "key_limit_probe"):
+        if any(keyenv.API_KEY in arg for arg in fields[probe]):
+            raise PlanError(f"money.{probe} names {keyenv.API_KEY}; use money.key_env instead")
+    if (len(argv) < 4 or Path(argv[0]).name != "keys" or argv[1:3] != ("run", "--")
+            or Path(argv[3]).name not in DIRECT_COMMANDS):
+        raise PlanError("money.key_env requires command.argv to start keys run -- followed by uv, muster, "
+                        "python or python3 so the keyenv shim runs inside keys")
+    if any(Path(arg).name == "keys" and sub == "run" and separator == "--"
+           for arg, sub, separator in zip(argv[3:], argv[4:], argv[5:], strict=False)):
+        raise PlanError("money.key_env forbids another keys run -- inside the arm command")
+    if any(keyenv.protected(name) for name, _ in env):
+        raise PlanError("money.key_env requires command.env to omit OpenRouter key settings")
+
+
 def parse(raw: bytes, path: Path) -> Plan:
     if len(raw) > MAX_PLAN_BYTES:
         raise PlanError(f"{path} is larger than {MAX_PLAN_BYTES} bytes")
@@ -419,6 +454,7 @@ def parse(raw: bytes, path: Path) -> Plan:
         **_watch(data["watch"]),
         **_rerun(data.get("rerun", {})),
     }
+    _check_key_env(fields, argv, env)
     _check_places(fields)
     arms = tuple(_arm(item, f"arms[{i}]") for i, item in enumerate(_tables(data, "arms", MAX_ARMS)))
     lanes = tuple(_lane(item, f"lanes[{i}]") for i, item in enumerate(_tables(data, "lanes", MAX_LANES)))

@@ -50,6 +50,7 @@ class Root:
     provider_override: str | None = None
     model_prefix: str = ''
     cost_source: str | None = None
+    key_env: str | None = None
 
     @property
     def owner(self) -> str:

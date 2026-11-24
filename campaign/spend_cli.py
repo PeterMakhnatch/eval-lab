@@ -14,6 +14,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
+from campaign.spend_keys import KeyProbeSystem
 from campaign.spend_types import amount
 from campaign.system import RealSystem
 
@@ -35,6 +36,7 @@ Recorded model spend by lane, UTC day, ET day and model from the roots in ROOTS.
 --as-of is the instant of the key counters; records after it stay out of the reconciliation only.
 --key-usage takes the key counters total,daily,weekly,monthly in USD;
 --key-probe runs a JSON argv array once that prints those 4 numbers (its output is never shown).
+--probe-keys reads the current OpenRouter counters once for each key_env in ROOTS.toml.
 Exit 0 without problems, 1 with problems (0 with --lenient for input problems only),
 1 when the probe or an output fails, 2 for an invalid argument.
 """
@@ -48,6 +50,7 @@ class Options:
     usage: Usage | None
     probe: list[str] | None
     out: Path | None
+    probe_keys: bool
 
 
 def register(sub: Any) -> None:
@@ -61,6 +64,7 @@ def register(sub: Any) -> None:
     counters = child.add_mutually_exclusive_group()
     counters.add_argument("--key-usage", metavar="TOTAL,DAILY,WEEKLY,MONTHLY", help="key counters in USD")
     counters.add_argument("--key-probe", metavar="JSON_ARGV", help="JSON argv array that prints the 4 key counters")
+    counters.add_argument("--probe-keys", action="store_true", help="read live OpenRouter counters for each key_env")
     child.add_argument("--json", type=Path, metavar="OUT", help="also write the result to the new file OUT")
     child.add_argument("--lenient", action="store_true", help="list input problems and exit 0")
     child.set_defaults(run=run)
@@ -173,6 +177,8 @@ def _out(value: Path | None) -> tuple[Path | None, str]:
 
 def options(args: argparse.Namespace, now: datetime) -> tuple[Options | None, str]:
     assert now.tzinfo is not None
+    if args.probe_keys and args.as_of is not None:
+        return None, "--probe-keys reads current counters and does not accept --as-of"
     since, until, as_of, problem = _window(args, now)
     if problem:
         return None, problem
@@ -191,7 +197,7 @@ def options(args: argparse.Namespace, now: datetime) -> tuple[Options | None, st
     out, problem = _out(args.json)
     if problem:
         return None, problem
-    return Options(since, until, as_of, usage, probe, out), ""
+    return Options(since, until, as_of, usage, probe, out, args.probe_keys), ""
 
 
 def read_probe(argv: list[str], capture: Capture) -> tuple[Usage | None, str]:
@@ -239,7 +245,8 @@ def _print(body: str) -> bool:
     return True
 
 
-def run(args: argparse.Namespace, *, now: datetime | None = None, capture: Capture | None = None) -> int:
+def run(args: argparse.Namespace, *, now: datetime | None = None, capture: Capture | None = None,
+        key_system: KeyProbeSystem | None = None) -> int:
     from campaign import spend
 
     moment = datetime.now(UTC) if now is None else now
@@ -259,12 +266,13 @@ def run(args: argparse.Namespace, *, now: datetime | None = None, capture: Captu
         _say("cannot expand the roots file path (path not shown)")
         return 1
     result = spend.report(roots, since=chosen.since, until=chosen.until,
-                          as_of=moment if chosen.probe is not None else chosen.as_of, usage=usage)
+                          as_of=moment if chosen.probe is not None else chosen.as_of, usage=usage,
+                          key_system=(key_system or RealSystem()) if chosen.probe_keys else None)
     problems = result.get("problems")
     assert isinstance(problems, list)
     if probe_problem:
         problems.append(probe_problem)
-    failed = bool(probe_problem)
+    failed = bool(probe_problem) or any(row["problem"] for row in result.get("key_reconciliation", ()))
     if chosen.out is not None and not write_json(chosen.out, result):
         _say("cannot create the --json file (it exists now or is not writable; path not shown)")
         failed = True

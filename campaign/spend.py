@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from campaign import spend_harbor, spend_ledgers
+from campaign import keyenv, spend_harbor, spend_keys, spend_ledgers
 from campaign.spend_types import KINDS, ROUTES, SOURCES, Entry, Root, Trial, safe
 from campaign.spend_view import text as text
 
@@ -23,6 +23,7 @@ ZERO = Decimal(0)
 _OPTIONAL_TEXT = (
     'copies_of', 'include', 'time_field', 'model_field', 'provider_field', 'usd_field', 'id_field',
     'skip_field', 'skip_value', 'provider_override', 'model_prefix', 'cost_source',
+    'key_env',
 )
 _LISTS = ('exclude', 'dedup_fields')
 _FLAGS = ('delta_ledger', 'report_only')
@@ -61,6 +62,8 @@ def _root(item: object, directory: Path) -> Root:
             if not isinstance(item[key], bool):
                 raise ValueError('invalid boolean setting')
             options[key] = item[key]
+    if 'key_env' in options and not keyenv.valid_name(options['key_env']):
+        raise ValueError('key_env must be a name such as OPENROUTER_KEY_MUSTER')
     root = Root(label, directory / Path(path).expanduser(), kind, **options)
     if root.copies_of is not None and (root.kind != 'harbor-trials' or safe(root.copies_of) == '?'):
         raise ValueError('copies_of needs a Harbor root and a safe owner label')
@@ -169,9 +172,11 @@ class Lane:
 
 
 class Summary:
-    def __init__(self, lower: datetime | None, upper: datetime | None, as_of: datetime) -> None:
+    def __init__(self, lower: datetime | None, upper: datetime | None, as_of: datetime,
+                 key_recorded: dict[str, Decimal]) -> None:
         assert as_of.tzinfo is UTC
         self.lower, self.upper, self.as_of = lower, upper, as_of
+        self.key_recorded = key_recorded
         day = as_of.replace(hour=0, minute=0, second=0, microsecond=0)
         self.windows = {'day': day, 'week': day - timedelta(days=day.weekday()), 'month': day.replace(day=1), 'total': None}
         self.windows_usd = {name: Spend() for name in self.windows}
@@ -196,6 +201,8 @@ class Summary:
             day = entry.time.astimezone(timezone).date().isoformat()
             self.days[zone][day, lane, entry.model].add(entry)
         if entry.route == 'openrouter' and entry.time <= self.as_of:
+            if lane in self.key_recorded:
+                self.key_recorded[lane] += entry.usd
             for name, lower in self.windows.items():
                 if lower is None or entry.time >= lower:
                     self.windows_usd[name].add(entry)
@@ -347,16 +354,21 @@ def _add_control(controls: dict[str, Lane], reason: str, root: Root, entry: Entr
 
 
 def report(path: Path, *, since: date | None = None, until: date | None = None, as_of: datetime,
-           usage: tuple[Decimal, Decimal, Decimal, Decimal] | None = None) -> dict[str, Any]:
+           usage: tuple[Decimal, Decimal, Decimal, Decimal] | None = None,
+           key_system: spend_keys.KeyProbeSystem | None = None) -> dict[str, Any]:
     assert since is None or until is None or since < until
     assert as_of.tzinfo is not None
     lower = datetime.combine(since, time.min, UTC) if since is not None else None
     upper = datetime.combine(until, time.min, UTC) if until is not None else None
     problems: list[str] = []
     roots = _roots(path, problems)
+    lanes = spend_keys.lane_keys(roots, problems) if key_system is not None else {}
     with localcontext() as context:
         context.prec = 60
-        summary = Summary(lower, upper, as_of.astimezone(UTC))
+        summary = Summary(lower, upper, as_of.astimezone(UTC), dict.fromkeys(lanes, ZERO))
         _scan_trials(roots, problems, summary)
         _scan_lines(roots, problems, summary)
-        return summary.result(problems, usage)
+        result = summary.result(problems, usage)
+        if key_system is not None:
+            result['key_reconciliation'] = spend_keys.rows(key_system, lanes, summary.key_recorded, problems)
+        return result

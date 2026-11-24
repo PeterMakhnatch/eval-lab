@@ -81,6 +81,25 @@ def _reconciliation(result: dict[str, Any]) -> list[str]:
     ]
 
 
+def _key_reconciliation(rows: list[dict[str, str | None]]) -> list[str]:
+    if not rows:
+        return ['', 'OpenRouter lane keys: no lane has a key_env to probe.']
+    fields = ('usage', 'usage_daily', 'usage_weekly', 'usage_monthly', 'limit', 'limit_remaining',
+              'recorded_usd', 'remainder_usd')
+    return [
+        '', 'Live OpenRouter lane keys (USD):',
+        'Recorded USD counts only OpenRouter records in the supplied roots and date filter, up to report start.',
+        'Remainder = key usage minus recorded USD. The records do not prove which key paid.',
+        'Rows that name the same key repeat its counters. Do not add those counters.',
+        *_table(
+            ('Lane', 'Key name', 'Total', 'Day', 'Week', 'Month', 'Limit', 'Remaining', 'Recorded', 'Remainder'),
+            [[row['lane'] or '-', row['key_env'] or '-',
+              *(_usd(value) if value is not None else '-' for value in (row[field] for field in fields))]
+             for row in rows],
+        ),
+    ]
+
+
 def text(result: dict[str, Any]) -> str:
     lines = [
         'Campaign spend report (USD)',
@@ -105,6 +124,7 @@ def text(result: dict[str, Any]) -> str:
         *_table(('Model', 'Combined USD', 'OpenRouter USD', 'Direct USD', 'Unknown route USD'),
                 [[row['model'], _usd(row['recorded_usd']), *_routes(row)] for row in result['top_models']]),
         *_details(result), *_reconciliation(result),
+        *(_key_reconciliation(result['key_reconciliation']) if 'key_reconciliation' in result else []),
         '', f"Input problems: {len(result['problems'])}",
         *(f'problem: {problem}' for problem in result['problems']),
     ])

@@ -9,10 +9,9 @@ from pathlib import Path
 from typing import Any
 
 from campaign import evidence, fill, ledger
-from campaign.plan import Plan, PlanError, arm_command, render
+from campaign.plan import DIRECT_COMMANDS, Plan, PlanError, arm_command, render_argv
 from campaign.runner import Funds, Stop
 
-DIRECT_COMMANDS = frozenset(("uv", "muster", "python", "python3"))
 ENV_SHORT_FLAGS = re.compile(r"-[iv]*(?:u(.*))?")
 
 
@@ -120,7 +119,7 @@ def _rerun_form(plan: Plan) -> str:
         "attempts": "<missing>", "concurrency": "<lane concurrency>",
         "harbor": str(plan.wrapper_path()), "out_root": str(plan.output_root),
     }
-    return shlex.join(render(arg, values) for arg in plan.argv)
+    return shlex.join(render_argv(plan, values))
 
 
 def _foreign_lines(plan: Plan, problems: list[str], now: datetime) -> list[str]:
@@ -197,7 +196,9 @@ def check(plan: Plan, now: datetime, funds: tuple[Funds | None, str]) -> tuple[l
         "rerun: 1 round into <arm>.r1-m<missing>; detector: "
         + (shlex.join(plan.detector) if plan.detector else "none"),
         f"rerun form: $ {_rerun_form(plan)}",
-        "environment: run passes the whole environment of the caller to each arm, plus the env lines below",
+        (f"environment: the keyenv shim maps {plan.key_env} to OPENROUTER_API_KEY and removes lane and "
+         "management keys" if plan.key_env else
+         "environment: run passes the whole environment of the caller to each arm, plus the env lines below"),
         f"harbor wrapper {plan.wrapper_path()}: 'run ARGS' becomes "
         f"{shlex.join([str(plan.harbor_program), 'run', 'ARGS', *plan.harbor_run_args])}",
         "order:",

@@ -8,6 +8,7 @@ import subprocess
 import time
 from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
+from http.client import HTTPException, HTTPSConnection
 from pathlib import Path
 from typing import IO, Protocol
 
@@ -89,6 +90,20 @@ class RealSystem:
         except (OSError, subprocess.SubprocessError):
             return None, ""
         return done.returncode, done.stdout[:MAX_CAPTURE_BYTES].decode("utf-8", errors="replace")
+
+    def key_env_value(self, name: str) -> str | None:
+        return os.environ.get(name)
+
+    def openrouter_key(self, key: str, timeout: float, size: int) -> bytes | None:
+        connection = HTTPSConnection("openrouter.ai", timeout=timeout)
+        try:
+            connection.request("GET", "/api/v1/key", headers={"Authorization": f"Bearer {key}"})
+            with connection.getresponse() as response:
+                return response.read(size) if response.status == 200 else None
+        except (OSError, HTTPException, ValueError):
+            return None
+        finally:
+            connection.close()
 
     def spawn(self, argv: list[str], cwd: Path, env: dict[str, str], log: Path, owner: int) -> int:
         assert argv and owner > 0

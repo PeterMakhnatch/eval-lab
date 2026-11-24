@@ -18,7 +18,7 @@ from random import Random
 from tempfile import TemporaryDirectory
 from typing import Any, TypedDict
 
-from campaign import evidence, fill, ledger, report, sim_cost, sim_spend
+from campaign import evidence, fill, ledger, report, sim_cost, sim_keyenv, sim_spend
 from campaign.plan import RERUN_TAG, Plan, PlanError, base_arm, load, parse, sha256_file
 from campaign.runner import (
     LOCK_NOTE_SECONDS,
@@ -66,7 +66,7 @@ _MAX_SEED = 2**64 - 1
 _DEFAULT_HUNT_SEED = 1_124_007
 _RESERVE_UNION_SEED = 1_124_008
 _MUTATION_SEED = 1_124_009
-_SEEDED_BUGS = sim_spend.MUTATIONS | sim_cost.MUTATIONS
+_SEEDED_BUGS = sim_spend.MUTATIONS | sim_cost.MUTATIONS | sim_keyenv.MUTATIONS
 _MAX_HUNT_SEEDS = 1_000_000
 _MAX_STEPS = 4000
 _MAX_RESUMES = 12
@@ -1064,6 +1064,7 @@ def _run_seed(seed: int) -> Run:
         _merge_end(sim)
         sim_spend.scenario(run, seed, root / "spend")
         sim_cost.replay(run, seed, root / "cost")
+        sim_keyenv.replay(run, seed, root / "keyenv")
     return run
 
 
@@ -1126,6 +1127,8 @@ def _mutate(names: list[str], seed: int) -> int:
             path = Path(directory)
             if name in sim_cost.MUTATIONS:
                 sim_cost.replay(run, seed, path / "cost", name)
+            elif name in sim_keyenv.MUTATIONS:
+                sim_keyenv.replay(run, seed, path / "keyenv", name)
             else:
                 sim_spend.scenario(run, seed, path / "spend", name)
         fired = sorted({failure.invariant for failure in run.failures})
@@ -1209,7 +1212,7 @@ def main(argv: list[str] | None = None) -> int:
     hunt.add_argument("--start-seed", type=_seed, default=_DEFAULT_HUNT_SEED)
     replay = commands.add_parser("replay", help="replay a single seed")
     replay.add_argument("seed", type=_seed)
-    mutate = commands.add_parser("mutate", help="inject seeded cost bugs and show the invariant that catches each")
+    mutate = commands.add_parser("mutate", help="inject seeded campaign bugs and show the invariant that catches each")
     mutate.add_argument("names", nargs="*", type=_bug, metavar="BUG", help=", ".join(sorted(_SEEDED_BUGS)))
     mutate.add_argument("--seed", type=_seed, default=_MUTATION_SEED)
     args = parser.parse_args(argv)

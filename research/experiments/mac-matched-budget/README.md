@@ -1,6 +1,7 @@
 # MAC Bench at a matched model budget
 
-Status on 2026-11-24: design and analysis of stored data. This study has run no trial.
+Status on 2026-11-24: design and analysis of stored data. This study has run no trial. The lane's
+recommendation is not to buy the Holdout pilot now (see "Decision of 2026-11-24" at the end).
 
 ## Question
 
@@ -99,3 +100,47 @@ files. Its 4 corrections are applied in the reader. The sentences below are the 
 - The spread comes from 2 trials for each arm. To learn it first: 12 complete pairs, 16 pair starts, about
   $12.08 to $12.85.
 - Before any paid trial: the 4 changes of `DESIGN.md` Part 2.3 and the $0 checks O1 to O6 of Part 2.7.
+
+## The launcher and its $0 proofs (built, reviewed, not landed)
+
+A launcher that wraps the other lane's Bespoke lab without editing it is on the pushed branch `fable/mac-run`
+(`e05fc5018`; 13 files under `run/` and the plan `campaign/plans/mac-matched-pilot.toml`, marked "not
+approved"). It makes the 4 changes of `DESIGN.md` Part 2.3. Its proofs used scripted seats on local Docker and
+a fake model endpoint: no model call, no paid call. Receipts and the 2 reviews are in
+`~/Developer/muster-runs/day-2026-11-24/mac-run/{build,proofs,reviews}/`.
+
+| Check of `DESIGN.md` Part 2.7 | Verdict | Evidence in short |
+|---|---|---|
+| O1, Claude Code on a cap refusal | pass | Exit 1 in 0.4 s, 1 request, no retry. |
+| O2, team cap and per-seat cap | pass | 12 of 12 cases at 1, 2 and 4 seats; largest overshoot of the test burst $0.026. |
+| O3, background processes | fail | Detached and orphan processes got 50 replies and 8 accepted orders after the harness stop; the other seat's workers got 21 accepted orders after its clean exit. |
+| O4, fixed horizon | pass | Both seats ended at 50.9 s; the world froze at 121.1 s for `time_up`; queued orders ran on. |
+| O5, sealed Git in every arm | pass | 5 of 5 seats failed 2 reads and 2 writes against the team remote. |
+| O6, web tools denied | pass | The CLI refused both tools with the changed settings; the unchanged settings offered both. |
+| Game call log | pass | 36 of 36 calls in each arm, no message text; the silent arm refused 6 of 6 messages. |
+
+An independent safety review gave the verdict "do not land" with 4 blockers:
+
+1. The last paid gate of `run/matched_trial.py` is an `assert`. Python with `-O` removes it.
+2. The recorded-cost cap of `campaign` read only `seat_results`. A Bespoke result records 1 team cost, so the
+   cap counted $0.00 for it. (This is a defect of `campaign` for every harness without a seat list; its fix
+   is a separate change.)
+3. The admission limit uses estimates, not provider bills, and an incomplete cleanup can look settled. No
+   code checks Daytona funds.
+4. O3: a seat that stops is not a boundary for game activity. Register and measure it in both arms, or end
+   the seat's game access at its exit.
+
+## Decision of 2026-11-24
+
+An independent skeptic reviewed the plan against the day's results. Its verdict, which the lane accepts: do
+not buy the Holdout pilot now.
+
+- No outcome of the pilot changes what a builder does. It compares a talking pair with a silent pair on 1
+  game. It cannot say whether a second agent is worth its cost.
+- Holdout is 1 of the 2 tasks where teams hold up in Bespoke's data. The pilot would use a cheap model for 30
+  of 240 minutes on 1 map and seed.
+- Bespoke's published runs already answer the descriptive question (the section above): a single agent has
+  the higher final score for each model dollar in 36 of 36 cells.
+- Reopen this study only for a named decision about Holdout, and only after the 4 blockers are closed.
+- The readers, `DESIGN.md` and `POWER.md` stay as the record of how to do a matched-budget comparison on a
+  Bespoke-harness task.

@@ -12,6 +12,28 @@ Times are New York time (ET). Newest entry first. Each entry says what is done a
 
 ## 2026-11-24
 
+**12:05 PM. The matched-budget study: stored data read, 1 comparison designed, the pilot not recommended.**
+All of this is in `research/experiments/mac-matched-budget/` (`README.md` first). No trial ran.
+- Bespoke's 517 published runs at equal agent-hours (the lane's own recount of the headline rows agrees with
+  the worker's): a team of 8 at 30 minutes scores 0.193 against 0.350 for 1 agent at 4 hours, and leads in 8
+  of 36 task-and-model cells. The final score for each $100 of model spend is 1.549 for 1 agent and 0.211
+  for a team of 8; 1 agent has the higher ratio in 36 of 36 cells.
+- The stored Holdout pilot of another lane (2 trials for each arm, audited): the talking team led by 18.1%
+  at 15 minutes at nearly the same spend; at the end the scores were nearly the same and it had spent 29.0%
+  more. All 62 game-routed messages reached a tool result of the receiver (median lag 0.31 s).
+- The comparison `team-2` against `silent-2` at a shared cap of $0.10 is designed and costed ($6.04 to
+  $6.43 for 8 pair starts if the pilot's spread holds). A launcher with 7 proofs at $0 is on the branch
+  `fable/mac-run`: 6 pass, 1 fails (processes of a seat act after its stop). A safety review says "do not
+  land" (4 blockers). A skeptic's review says "do not buy the pilot": no outcome changes what a builder
+  does. The lane accepts both.
+- `python -m campaign spend ROOTS.toml` is landed (`c094a9cd2`): recorded model cost by lane, day and model,
+  and the remainder against the key counters. It gives the audit's $70.596987 for all 9 rows.
+- Stored QA verdicts of earlier lanes, reused at $0 (audited counts): at the reported thresholds a union of 2
+  cheap runs flagged more labeled positives than 1 higher-priced model (20 against 13 of 39; 21 against 14 of
+  74; 37 against 18 of 57) and more labeled controls (6 against 0 of 75; 7 against 5 of 70; 12 against 2 of
+  35). The labels are mostly model-made and the false-alarm budgets are not matched, so this supports a
+  trial of union screening and not a policy at equal dollars.
+
 **10:45 AM. A day without experiments (Peter's instruction of about 10:05 AM): build and analysis only.**
 - `campaign`: the 3 open points of the sixth review are fixed and landed (`b29bb6798`). The reserve union
   uses the ledger line number, with an upper-bound invariant. The wrapper check is an allow-list (`uv`,

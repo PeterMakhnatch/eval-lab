@@ -19,13 +19,22 @@ from typing import Any, TypedDict
 from tidegauge import stats
 from tidegauge.cli import main as tidegauge_main
 from tidegauge.sim_fixture import (
+    STALL_CHOICES,
+    UNMEASURED_KINDS,
     Scenario,
+    TimedTrial,
     TrialSpec,
     draw,
+    health_plan,
     scenario,
+    stamp,
+    timeline_plan,
     write_arm,
     write_fault_arm,
+    write_health_job,
     write_job,
+    write_live_job,
+    write_timeline,
     write_trial,
 )
 
@@ -397,6 +406,122 @@ def _calibration(run: Run) -> None:
                     rate <= upper, f"{count}/{_NULL_SAMPLES} = {rate:.4f}; limit {upper:.4f}")
 
 
+_TRIAL_HEALTH_CODES = frozenset({"stalled-seats", "lost-seats", "zero-call-seats"})
+_ARM_HEALTH_CODES = frozenset({"turn-cap-seats", "early-seat-end"})
+
+
+def _health_seen(findings: list[dict]) -> dict[str, set[tuple[str, str | None]]]:
+    seen: dict[str, set[tuple[str, str | None]]] = {}
+    for finding in findings:
+        code, detail = finding["code"], finding["detail"]
+        if code in _TRIAL_HEALTH_CODES:
+            seen.setdefault(detail["trial"], set()).update((code, s["seat"]) for s in detail["seats"])
+        elif code in _ARM_HEALTH_CODES:
+            for row in detail["seats"]:
+                seen.setdefault(row["trial"], set()).add((code, row["seat"]))
+        elif code == "not-started":
+            for name in detail["trials"]:
+                seen.setdefault(name, set()).add((code, None))
+    return seen
+
+
+def _health(run: Run, root: Path, rng: Random) -> None:
+    run.scenarios += 1
+    stall = rng.choice(STALL_CHOICES)
+    plan = health_plan(rng, stall)
+    job = root / "health"
+    write_health_job(job, plan)
+    options = () if stall == 300 else ("--stall-seconds", str(stall))
+    report = _report(run, "health/audit", "audit", [job], codes=(1,), options=options)
+    if report is None:
+        return
+    seen = _health_seen(report["findings"])
+    for spec in plan:
+        found, expected = seen.get(spec.name, set()), spec.expected()
+        detail = f"{spec.name} at stall {stall}: expected {sorted(expected, key=str)}, saw {sorted(found, key=str)}"
+        if expected:
+            run.require(f"health/{spec.kind}", "injected-fault-flagged-with-right-class", found == expected, detail)
+        else:
+            run.require(f"health/{spec.kind}", "clean-trial-never-flagged", not found, detail)
+    unmeasured = sum(1 for spec in plan if spec.kind in UNMEASURED_KINDS)
+    run.require("health/audit", "unmeasured-count-equals-injected-faults", report["arms"][0]["unmeasured"] == unmeasured,
+                f"{report['arms'][0]['unmeasured']} versus {unmeasured}")
+    flagged = [f for f in report["findings"] if f["code"] in _TRIAL_HEALTH_CODES]
+    run.require("health/audit", "trial-findings-say-unmeasured", all(f["detail"]["unmeasured"] is True for f in flagged))
+
+
+def _brute_peaks(trials: list[TimedTrial]) -> tuple[int, int]:
+    own = together = 0
+    for moment in (t.start for t in trials):
+        running = [u for u in trials if u.start <= moment < u.end]
+        mine = sum(1 for u in running if u.own)
+        own = max(own, mine)
+        together = max(together, len(running)) if mine else together
+    return own, together
+
+
+def _process_plan(run: Run, root: Path, step: str, own: Path, also: Path, plan: dict, expected: set[str]) -> None:
+    path = root / f"{step.replace('/', '-')}.json"
+    path.write_text(json.dumps(plan), encoding="utf-8")
+    options = ("--also", str(also), "--plan", str(path))
+    report = _report(run, step, "process", [own], codes=(1,) if expected else (0,), options=options)
+    if report is not None:
+        kinds = {d["kind"] for d in report["deviations"]}
+        holds = expected <= kinds if expected else not kinds
+        run.require(step, "plan-deviations-match-injected-changes", holds, f"expected {sorted(expected)}, saw {sorted(kinds)}")
+
+
+def _timeline(run: Run, root: Path, rng: Random) -> None:
+    run.scenarios += 1
+    plan = timeline_plan(rng)
+    (root / "timeline").mkdir()
+    own, also = write_timeline(root / "timeline", plan)
+    own_peak, together = _brute_peaks(plan.trials)
+    report = _report(run, "process", "process", [own], options=("--also", str(also)))
+    if report is not None:
+        run.require("process", "peak-equals-generator-truth", report["peak"]["count"] == own_peak,
+                    f"{report['peak']['count']} versus {own_peak}")
+        run.require("process", "peak-with-also-equals-generator-truth",
+                    report["peak_with_also"]["count"] == together, f"{report['peak_with_also']['count']} versus {together}")
+        jobs = {t.job for t in plan.trials if t.own}
+        run.require("process", "one-row-per-job", {r["name"] for r in report["arms"]} == jobs)
+        reruns = {r["name"]: (r["arm"], r["round"]) for r in report["reruns"]}
+        run.require("process", "reruns-found", reruns == plan.reruns, f"{reruns} versus {plan.reruns}")
+        rows = {r["name"]: r for r in report["arms"]}
+        for lane in report["lanes"]:
+            ordered = sorted(lane["arms"], key=lambda name: rows[name]["started"])
+            run.require("process", "lane-arms-never-overlap", all(
+                rows[b]["started"] >= rows[a]["finished"] for a, b in pairwise(ordered)
+            ))
+    lanes = {f"lane{i}": names for i, names in enumerate(plan.lanes)}
+    exact = {"max_at_once": together, "lanes": lanes, "reruns": True}
+    _process_plan(run, root, "process/plan-kept", own, also, exact, set())
+    changed: dict[str, Any] = {"lanes": {k: list(reversed(v)) for k, v in lanes.items()}, "reruns": False}
+    expected = {"arm-order"} if any(len(v) > 1 for v in lanes.values()) else set()
+    expected |= {"rerun"} if plan.reruns else set()
+    if together > 1:
+        changed["max_at_once"] = together - 1
+        expected.add("too-many-at-once")
+    _process_plan(run, root, "process/plan-broken", own, also, changed, expected)
+
+
+def _live(run: Run, root: Path, rng: Random) -> None:
+    run.scenarios += 1
+    stall = rng.choice(STALL_CHOICES)
+    case = write_live_job(root / "live", rng, stall)
+    options = ("--now", stamp(case.now), "--stall-seconds", str(stall))
+    report = _report(run, "live", "live", [root / "live"], codes=(1,) if case.stalled else (0,), options=options)
+    if report is None:
+        return
+    counts = {key: report[key] for key in case.counts}
+    run.require("live", "trial-counts-equal-truth", counts == case.counts, f"{counts} versus {case.counts}")
+    run.require("live", "planned-equals-truth", report["planned"] == case.planned
+                and report["job_result_unreadable"] == case.job_unreadable)
+    flagged = {(row["trial"], seat) for row in report["running_trials"] for seat in row["stalled"]}
+    run.require("live", "silent-seats-flagged-exactly", flagged == case.stalled,
+                f"{sorted(flagged)} versus {sorted(case.stalled)}")
+
+
 def _run_seed(seed: int) -> Run:
     run = Run(seed)
     case = scenario(seed)
@@ -412,6 +537,9 @@ def _run_seed(seed: int) -> Run:
         run.exercise("gate-decompose", lambda: _gate_and_decompose(run, paths))
         run.exercise("context", lambda: _context(run, paths, case.seats))
         run.exercise(f"fault/{case.fault}", lambda: _fault(run, root, case.fault, case.seats[-1]))
+        run.exercise("health", lambda: _health(run, root, Random(f"{seed}:health")))
+        run.exercise("timeline", lambda: _timeline(run, root, Random(f"{seed}:timeline")))
+        run.exercise("live", lambda: _live(run, root, Random(f"{seed}:live")))
         if seed == _ALL_INVALID_SEED:
             run.exercise("all-invalid", lambda: _all_invalid(run, root))
     run.exercise("statistics", lambda: _numeric(run))

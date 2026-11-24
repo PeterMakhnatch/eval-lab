@@ -16,6 +16,41 @@ class Counting(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
+class Seat:
+    name: str
+    model: bool
+    exception: str | None
+    started_at: datetime | None
+    finished_at: datetime | None
+    turns: int | None
+    max_turns: int | None
+    calls: int | None
+    exit_code: int | None = None
+    agent_steps: int | None = None
+    last_step_at: datetime | None = None
+
+    def seconds(self) -> float | None:
+        if self.started_at and self.finished_at:
+            return (self.finished_at - self.started_at).total_seconds()
+        return None
+
+
+@dataclass(frozen=True, slots=True)
+class Progress:
+    seat: str
+    state: str
+    agent_steps: int = 0
+    last_step_at: datetime | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class Running:
+    path: Path
+    started_at: datetime | None
+    seats: tuple[Progress, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class Trial:
     path: Path
     trial_name: str
@@ -45,6 +80,10 @@ class Trial:
     seat_exceptions: Mapping[str, str] = field(default_factory=dict)
     partial_usage: tuple[str, ...] = ()
     key_matched: bool | None = None
+    seat_runs: tuple[Seat, ...] = ()
+    agent_started_at: datetime | None = None
+    agent_finished_at: datetime | None = None
+    not_started: str | None = None
 
     def metric(self, name: str) -> float | None:
         if name == "reward":

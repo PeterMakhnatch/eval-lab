@@ -3,9 +3,11 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from tidegauge import render, stats
+from tidegauge.health import EARLY_SHARE, STALL_SECONDS, SeatFault, trial_faults
 from tidegauge.load import task_key
 from tidegauge.model import Arm, Counting, Trial, distinct
 
@@ -333,18 +335,149 @@ def check_accounting(arm: Arm) -> Iterator[Finding]:
         )
 
 
-def check_seat_errors(arm: Arm) -> Iterator[Finding]:
-    hit = [t for t in arm.trials if t.seat_exceptions and t.reward is not None]
+def _secs(value: float | None) -> str:
+    return "unknown" if value is None else f"{value:.0f} s"
+
+
+def _describe(fault: SeatFault) -> str:
+    evidence = fault.evidence
+    if fault.kind == "stalled":
+        steps = evidence["agent_steps"]
+        done = "an unknown number of agent steps" if steps is None else render.count(steps, "agent step")
+        return f"{fault.seat} silent {_secs(evidence['silent_s'])} after {done}"
+    if fault.kind == "lost":
+        return (
+            f"{fault.seat} exit code {evidence['exit_code']} after {_secs(evidence['played_s'])} "
+            f"of a {_secs(evidence['phase_s'])} agent phase"
+        )
+    if fault.kind == "turn-cap":
+        return f"{fault.seat} {evidence['turns']} of {evidence['max_turns']} turns"
+    if fault.kind == "early-end":
+        return f"{fault.seat} played {_secs(evidence['played_s'])}, seat median {_secs(evidence['median_s'])}"
+    return f"{fault.seat} ({evidence['exception'] or 'no exception'})"
+
+
+SEAT_TRIAL_FINDINGS = {
+    "lost": (
+        "lost-seats",
+        "error",
+        "exited with a non-zero code, and result.json records no exception for it",
+        "The team played without it, and the reward does not show it.",
+    ),
+    "stalled": (
+        "stalled-seats",
+        "warn",
+        "ended with AgentTimeoutError and made no agent step in the last {stall} of the seat run",
+        "The model call did not return.",
+    ),
+    "zero-calls": ("zero-call-seats", "warn", "with a model made 0 model calls", "The seat did not play."),
+}
+SEAT_ARM_FINDINGS = {
+    "turn-cap": ("turn-cap-seats", "reached their turn cap. Their reward is real, but the cap bounded it"),
+    "early-end": (
+        "early-seat-end",
+        f"with a model stopped without an error before {EARLY_SHARE:.0%} of the median play time of the "
+        "seats in their trial. Check whether they stopped on purpose",
+    ),
+}
+
+
+def _verdict(trial: Trial) -> str:
+    if trial.valid and trial.reward is not None:
+        return f"Treat the trial as unmeasured: its reward {trial.reward:g} counts now."
+    return "Treat the trial as unmeasured. It has no valid reward."
+
+
+def _trial_finding(arm: Arm, trial: Trial, kind: str, faults: list[SeatFault], stall: float) -> Finding:
+    code, severity, what, why = SEAT_TRIAL_FINDINGS[kind]
+    listed = "; ".join(_describe(f) for f in faults[:8])
+    return Finding(
+        code,
+        severity,
+        f"Trial {trial.trial_name}: {render.count(len(faults), 'seat')} {what.format(stall=_secs(stall))} "
+        f"({listed}). {why} {_verdict(trial)}",
+        arm.name,
+        {
+            "trial": trial.trial_name,
+            "path": str(trial.path),
+            "reward": trial.reward,
+            "unmeasured": True,
+            "seats": [f.as_dict() for f in faults],
+        },
+    )
+
+
+def _arm_finding(arm: Arm, kind: str, hits: list[tuple[Trial, SeatFault]]) -> Finding:
+    code, what = SEAT_ARM_FINDINGS[kind]
+    trials = distinct(t.trial_name for t, _ in hits)
+    listed = "; ".join(f"{t.trial_name} {_describe(f)}" for t, f in hits[:5])
+    return Finding(
+        code,
+        "note",
+        f"{render.count(len(hits), 'seat')} in {render.count(len(trials), 'trial')} {what} ({listed}).",
+        arm.name,
+        {
+            "count": len(hits),
+            "trials": trials[:50],
+            "unmeasured": False,
+            "seats": [{"trial": t.trial_name, **f.as_dict()} for t, f in hits[:200]],
+        },
+    )
+
+
+def _seat_errors(arm: Arm, explained: set[tuple[Path, str]]) -> Iterator[Finding]:
+    hit = [
+        (t, seat, error)
+        for t in arm.trials
+        if t.reward is not None
+        for seat, error in t.seat_exceptions.items()
+        if (t.path, seat) not in explained
+    ]
+    trials = distinct(t.path for t, _, _ in hit)
     if hit:
-        errors = Counter(f"{seat} {error}" for t in hit for seat, error in t.seat_exceptions.items())
+        errors = Counter(f"{seat} {error}" for _, seat, error in hit)
+        valid = sum(1 for t in arm.trials if t.path in trials and t.valid)
         yield Finding(
             "seat-errors",
             "note",
-            f"{_share(len(hit), len(arm.trials))} trials have a reward, and a seat in them raised an exception "
+            f"{_share(len(trials), len(arm.trials))} trials have a reward, and a seat in them raised an exception "
             f"({_top(errors)}). That seat did not finish its work. The reward counts when Harbor marks it valid.",
             arm.name,
-            {"count": len(hit), "valid": sum(1 for t in hit if t.valid), "by_seat": dict(errors)},
+            {"count": len(trials), "valid": valid, "by_seat": dict(errors)},
         )
+
+
+def check_seats(arm: Arm, stall_seconds: float = STALL_SECONDS) -> Iterator[Finding]:
+    assert stall_seconds > 0
+    found = [(t, f) for t in arm.trials for f in trial_faults(t, stall_seconds)]
+    yield from _seat_errors(arm, {(t.path, f.seat) for t, f in found if f.kind == "stalled"})
+    for kind in SEAT_TRIAL_FINDINGS:
+        by_trial: dict[Path, tuple[Trial, list[SeatFault]]] = {}
+        for trial, fault in found:
+            if fault.kind == kind:
+                by_trial.setdefault(trial.path, (trial, []))[1].append(fault)
+        for trial, faults in by_trial.values():
+            yield _trial_finding(arm, trial, kind, faults, stall_seconds)
+    for kind in SEAT_ARM_FINDINGS:
+        hits = [(t, f) for t, f in found if f.kind == kind]
+        if hits:
+            yield _arm_finding(arm, kind, hits)
+
+
+def check_not_started(arm: Arm) -> Iterator[Finding]:
+    failed = [t for t in arm.trials if t.not_started is not None]
+    if not failed:
+        return
+    kinds = Counter(t.not_started for t in failed)
+    names = [t.trial_name for t in failed]
+    yield Finding(
+        "not-started",
+        "warn",
+        f"{_share(len(failed), len(arm.trials))} trials never reached the agent phase ({_top(kinds)}): "
+        f"{', '.join(names[:5])}{', …' if len(names) > 5 else ''}. They are unmeasured, never reward 0.",
+        arm.name,
+        {"count": len(failed), "by_kind": dict(kinds), "trials": names[:200], "unmeasured": True},
+    )
 
 
 def check_reward_values(arm: Arm) -> Iterator[Finding]:
@@ -385,7 +518,7 @@ ARM_CHECKS: tuple[Callable[[Arm], Iterator[Finding]], ...] = (
     check_dispersion,
     check_reward_values,
     check_pass_with_exception,
-    check_seat_errors,
+    check_not_started,
     check_accounting,
 )
 
@@ -476,14 +609,15 @@ PAIR_CHECKS: tuple[Callable[[Arm, Arm], Iterator[Finding]], ...] = (
 )
 
 
-def audit_arm(arm: Arm) -> list[Finding]:
+def audit_arm(arm: Arm, stall_seconds: float = STALL_SECONDS) -> list[Finding]:
     if not arm.trials:
         return [
             Finding("no-trials", "error", "No trial was found.", arm.name),
             *check_unreadable(arm),
             *check_unfinished(arm),
         ]
-    return [finding for check in ARM_CHECKS for finding in check(arm)]
+    findings = [finding for check in ARM_CHECKS for finding in check(arm)]
+    return findings + list(check_seats(arm, stall_seconds))
 
 
 def audit_pair(a: Arm, b: Arm) -> list[Finding]:
@@ -541,8 +675,8 @@ def audit_group(arms: Sequence[Arm]) -> list[Finding]:
     return findings
 
 
-def audit(arms: Sequence[Arm]) -> list[Finding]:
-    findings = [f for arm in arms for f in audit_arm(arm)]
+def audit(arms: Sequence[Arm], stall_seconds: float = STALL_SECONDS) -> list[Finding]:
+    findings = [f for arm in arms for f in audit_arm(arm, stall_seconds)]
     if len(arms) == 2:
         findings.extend(audit_pair(arms[0], arms[1]))
     elif len(arms) > 2:

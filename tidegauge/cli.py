@@ -12,6 +12,7 @@ Honest numbers for Harbor runs.
 tidegauge reads Harbor job directories and answers 4 questions without a model:
 are these trials valid and comparable, what is the score and its error bar,
 is the difference between 2 runs real, and how many trials would settle it.
+It also shows how runs went over time (process) and what a running job does now (live).
 """
 
 

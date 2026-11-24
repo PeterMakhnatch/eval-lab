@@ -7,13 +7,17 @@ import os
 import re
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import replace
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from tidegauge.model import PHASES, Arm, Job, Problem, Trial
+from tidegauge.atif import read_trajectory
+from tidegauge.model import PHASES, Arm, Job, Problem, Progress, Running, Seat, Trial
 
 _KEY_JUNK = re.compile(r"[^a-z0-9_-]+")
+SEAT_NAME = re.compile(r"[A-Za-z0-9._-]{1,128}")
+PULL_LIMIT = re.compile(r"429 Too Many Requests|toomanyrequests|pull rate limit", re.IGNORECASE)
+BUILD_FAILED = re.compile(r"build failed|failed to build|failed to solve", re.IGNORECASE)
 
 INVALID_REWARD_EXCEPTIONS = frozenset(
     (
@@ -121,9 +125,10 @@ def _time(value: Any) -> datetime | None:
     if not isinstance(value, str):
         return None
     try:
-        return datetime.fromisoformat(value)
+        parsed = datetime.fromisoformat(value)
     except ValueError:
         return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
 def _get(data: Any, dotted: str) -> Any:
@@ -224,7 +229,52 @@ def _participants(config: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     return [p for p in config.get("participants") or [] if isinstance(p, Mapping)]
 
 
-def _team(result: Mapping[str, Any], config: Mapping[str, Any]) -> dict[str, Any]:
+def _exit_code(seat_dir: Path) -> int | None:
+    try:
+        with open(seat_dir / "agent" / "exit-code.txt", encoding="utf-8") as handle:
+            text = handle.read(32).strip()
+    except (OSError, ValueError):
+        return None
+    return int(text) if re.fullmatch(r"-?\d{1,6}", text) else None
+
+
+def _seat_run(path: Path, record: Mapping[str, Any], config: Mapping[str, Any], model: bool) -> Seat:
+    name = record["seat"]
+    context = _mapping(record.get("agent_result"))
+    metadata = _mapping(context.get("metadata"))
+    requests = metadata.get("api_request_times_msec")
+    calls = len(requests) if isinstance(requests, list) else None
+    if calls is None and model and _number(context.get("n_input_tokens")) == 0:
+        calls = 0
+    exception = _get(record, "exception_info.exception_type")
+    seat = Seat(
+        name=name,
+        model=model,
+        exception=str(exception) if exception else None,
+        started_at=_time(_get(record, "agent_execution.started_at")),
+        finished_at=_time(_get(record, "agent_execution.finished_at")),
+        turns=_count(metadata.get("n_episodes")),
+        max_turns=_count(_get(config, "kwargs.max_turns")),
+        calls=calls,
+    )
+    if not SEAT_NAME.fullmatch(name) or name in (".", ".."):
+        return seat
+    seat_dir = path / "seats" / name
+    seat = replace(seat, exit_code=_exit_code(seat_dir))
+    if seat.exception != "AgentTimeoutError" and not (model and calls is None):
+        return seat
+    trajectory = read_trajectory(seat_dir)
+    if trajectory is None or trajectory.problem:
+        return seat
+    return replace(
+        seat,
+        calls=seat.calls if seat.calls is not None else trajectory.agent_steps,
+        agent_steps=trajectory.agent_steps,
+        last_step_at=trajectory.last_agent_at or trajectory.last_step_at,
+    )
+
+
+def _team(path: Path, result: Mapping[str, Any], config: Mapping[str, Any]) -> dict[str, Any]:
     records = result.get("seat_results")
     records = records if isinstance(records, list) else []
     records = [r for r in records if isinstance(r, Mapping) and isinstance(r.get("seat"), str)]
@@ -257,6 +307,10 @@ def _team(result: Mapping[str, Any], config: Mapping[str, Any]) -> dict[str, Any
         "model_seats": tuple(name for name, model in zip(names, used, strict=True) if model),
         "seat_exceptions": errors,
         "partial_usage": tuple(partial),
+        "seat_runs": tuple(
+            _seat_run(path, r, _mapping(configs.get(r["seat"])), model)
+            for r, model in zip(records, used, strict=True)
+        ),
     }
 
 
@@ -274,6 +328,20 @@ def _conditions(config: Mapping[str, Any]) -> dict[str, Any]:
     return out
 
 
+def _not_started(result: Mapping[str, Any]) -> str | None:
+    if _time(_get(result, "agent_execution.started_at")) is not None:
+        return None
+    kind = _get(result, "exception_info.exception_type")
+    if not kind:
+        return None
+    message = str(_get(result, "exception_info.exception_message") or "")
+    if PULL_LIMIT.search(message):
+        return "pull-limit"
+    if kind == "SandboxBuildFailedError" or BUILD_FAILED.search(message):
+        return "build-failed"
+    return f"setup-error {kind}"
+
+
 def parse_trial(
     path: Path, result: Mapping[str, Any], reward_key: str | None = None, harbor_version: str | None = None
 ) -> Trial:
@@ -285,7 +353,7 @@ def parse_trial(
         "model": model,
         **_usage_fields(_usage(result)),
     }
-    fields.update(_team(result, config))
+    fields.update(_team(path, result, config))
     task_name = str(
         result.get("task_name") or _get(config, "task.name") or _get(config, "task.path") or path.name
     )
@@ -314,6 +382,9 @@ def parse_trial(
         phase_seconds=phases,
         harbor_version=harbor_version,
         conditions=_conditions(config),
+        agent_started_at=_time(_get(result, "agent_execution.started_at")),
+        agent_finished_at=_time(_get(result, "agent_execution.finished_at")),
+        not_started=_not_started(result),
         **fields,
     )
 
@@ -353,7 +424,7 @@ def walk(root: Path, reward_key: str | None = None) -> Iterator[Trial | Problem 
         if "result.json" in files:
             try:
                 data = _read_json(here / "result.json")
-            except (OSError, ValueError) as error:
+            except (OSError, ValueError, RecursionError) as error:
                 yield Problem(here / "result.json", f"unreadable: {type(error).__name__}")
                 continue
             if _is_trial_result(data):
@@ -368,7 +439,7 @@ def walk(root: Path, reward_key: str | None = None) -> Iterator[Trial | Problem 
         elif "config.json" in files:
             try:
                 data = _read_json(here / "config.json")
-            except (OSError, ValueError):
+            except (OSError, ValueError, RecursionError):
                 continue
             if _is_trial_config(data):
                 subdirs[:] = []
@@ -423,3 +494,46 @@ def split_arms(path: str | os.PathLike[str], reward_key: str | None = None) -> l
         if arm.trials:
             arms.append(arm)
     return arms
+
+
+MAX_SEATS = 1024
+
+
+def _mtime(path: Path) -> datetime | None:
+    try:
+        return datetime.fromtimestamp(path.stat().st_mtime, UTC)
+    except (OSError, OverflowError, ValueError):
+        return None
+
+
+def _progress(seat: str, directory: Path) -> Progress:
+    trajectory = read_trajectory(directory)
+    exited = _exit_code(directory) is not None
+    if trajectory is None:
+        return Progress(seat, "exited" if exited else "no-trajectory")
+    if trajectory.problem:
+        return Progress(seat, "exited" if exited else "unreadable")
+    last = trajectory.last_agent_at or trajectory.last_step_at
+    state = "exited" if exited else "done" if trajectory.marked_complete else "playing"
+    return Progress(seat, state, trajectory.agent_steps, last)
+
+
+def _seat_names(path: Path, config: Mapping[str, Any]) -> list[str]:
+    raw = config.get("participants")
+    names = [p.get("seat") for p in raw if isinstance(p, Mapping)] if isinstance(raw, list) else []
+    if not names and (path / "seats").is_dir():
+        with contextlib.suppress(OSError):
+            names = sorted(p.name for p in (path / "seats").iterdir() if p.is_dir())
+    return [n for n in names if isinstance(n, str) and SEAT_NAME.fullmatch(n) and n not in (".", "..")]
+
+
+def read_running(path: Path) -> Running:
+    config: Mapping[str, Any] = {}
+    with contextlib.suppress(OSError, ValueError, RecursionError):
+        config = _mapping(_read_json(path / "config.json"))
+    stamps = [s for name in ("config.json", "lock.json") if (s := _mtime(path / name)) is not None]
+    started = min(stamps) if stamps else _mtime(path)
+    names = _seat_names(path, config)[:MAX_SEATS]
+    seats = [_progress(name, path / "seats" / name) for name in names] or [_progress("agent", path)]
+    assert 1 <= len(seats) <= MAX_SEATS
+    return Running(path, started, tuple(seats))

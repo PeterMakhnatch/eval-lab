@@ -1,4 +1,15 @@
-from tidegauge.commands import audit, compare, context, decompose, gate, plan, rank, score
+from tidegauge.commands import (
+    audit,
+    compare,
+    context,
+    decompose,
+    gate,
+    live,
+    plan,
+    process,
+    rank,
+    score,
+)
 
 COMMANDS = {
     "audit": audit,
@@ -9,4 +20,6 @@ COMMANDS = {
     "gate": gate,
     "context": context,
     "decompose": decompose,
+    "process": process,
+    "live": live,
 }

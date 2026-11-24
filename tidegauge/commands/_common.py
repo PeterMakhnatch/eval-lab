@@ -5,10 +5,32 @@ import re
 from collections.abc import Callable, Sequence
 
 from tidegauge import render
+from tidegauge.health import STALL_SECONDS
 from tidegauge.load import load_arms, rekey, split_arms
 from tidegauge.model import METRICS, Arm, Counting
 
 NAME_WIDTH = 44
+MAX_STALL_SECONDS = 86_400.0
+
+
+def stall_seconds(text: str) -> float:
+    try:
+        value = float(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not a number of seconds: {text}") from None
+    if not 0 < value <= MAX_STALL_SECONDS:
+        raise argparse.ArgumentTypeError(f"use a time above 0 and at most {MAX_STALL_SECONDS:.0f} seconds")
+    return value
+
+
+def add_stall(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--stall-seconds",
+        type=stall_seconds,
+        default=STALL_SECONDS,
+        metavar="S",
+        help=f"a seat is stalled when it made no agent step in its last S seconds (default: {STALL_SECONDS:.0f})",
+    )
 
 
 def add_common(parser: argparse.ArgumentParser, *, metric: bool = True) -> None:

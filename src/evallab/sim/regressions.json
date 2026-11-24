@@ -49,24 +49,24 @@
     "subsystem": "package-anatomy"
   },
   {
-    "found_at_utc": "2026-11-24T09:37:00+00:00",
+    "found_at_utc": "2026-11-24T10:52:00+00:00",
     "invariant": "surface_mismatch_symbols",
-    "seed": 2,
-    "step": 157,
+    "seed": 4,
+    "step": 162,
     "subsystem": "instruction-patch-surface"
   },
   {
-    "found_at_utc": "2026-11-24T09:37:00+00:00",
+    "found_at_utc": "2026-11-24T10:52:00+00:00",
     "invariant": "surface_cue_constraint",
-    "seed": 4,
+    "seed": 12,
     "step": 160,
     "subsystem": "instruction-patch-surface"
   },
   {
-    "found_at_utc": "2026-11-24T09:37:00+00:00",
+    "found_at_utc": "2026-11-24T10:52:00+00:00",
     "invariant": "surface_cue_sentence",
-    "seed": 13,
-    "step": 159,
+    "seed": 31,
+    "step": 161,
     "subsystem": "instruction-patch-surface"
   }
 ]

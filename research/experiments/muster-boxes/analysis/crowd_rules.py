@@ -315,11 +315,12 @@ def parse_list(text: str, seats: list[str]) -> tuple[dict[str, list[int]] | None
 
 def result_kind(text: str, lead: str) -> str | None:
     ordered = ORDER_WORD.search(text) is not None
+    cued = CUE_V2.match(text) is not None
     if LEAD_RESULT.search(lead) or ATTRIBUTION.search(lead):
-        return "refuse" if ordered else "result"
+        return "refuse" if ordered or cued else "result"
     if RESULT.search(text):
-        return "refuse" if ordered else "info" if CUE_V2.match(text) else "result"
-    if CUE_V2.match(text) is None:
+        return "refuse" if ordered else "info" if cued else "result"
+    if not cued:
         return "refuse" if ordered else "info"
     return None
 

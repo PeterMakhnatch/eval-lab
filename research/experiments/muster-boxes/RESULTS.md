@@ -337,7 +337,7 @@ text. Details: F28.
 | `stale` | teammates take 5 boxes between the agent's read and its opens | 10% | 100% | 90 points [75, 100], p 0.002 |
 | `badlead` | the coordinator's list sends the agent to a room that the board shows as empty | 20% | 100% | 80 points [65, 95], p 0.002 |
 | `wait` | a teammate promises the result of 2 unknown rooms "in a moment" | 20% | 100% | 80 points [65, 95], p 0.002 |
-| `deadclaim` | teammates claim 6 boxes and then release them | stops with opens left in 10% | 5% | 5 points [-10, 20], p 1.0 |
+| `deadclaim` | teammates claim 6 boxes and then release them | stops with opens left in 10% (not a pass rate) | stops with opens left in 5%, with no claims | 5 points [-10, 20], p 1.0, not resolved |
 
 - OBSERVED, primary (Holm's rule over 4 tests): the first 3 probes elicit their behaviour; the fourth does not
   resolve.
@@ -352,7 +352,10 @@ text. Details: F28.
   before 30 s or 5 reads, not a refusal to wait.
 - OBSERVED, `deadclaim`: the rule of the cell makes every agent post and read before its first open, so all
   20 saw the release; the test could not show the stop that I expected. Without a release the agent stops
-  with opens left in 85% of the trials; 12 of the 17 wrote that all boxes were "opened or claimed".
+  with opens left in 85% of the trials: 13 of the 17 wrote that no box was left (9 of them counted the
+  claimed boxes as covered), and 4 asked the claimants and then kept to the claims. (Corrected on
+  2026-11-24: the first text said that 12 of the 17 wrote "opened or claimed"; 12 is the count of fast
+  stops.)
 - INFERRED: a script that answers the agent's own requests puts 1 agent into a chosen situation in every
   trial. 3 of the traps mostly show 1 habit of this agent in this harness: it reads the shared state once
   and then acts on that view in 1 batch, and an explicit rule wins over what the board shows. Limits: a trap
@@ -374,7 +377,7 @@ its own spend limit.
   agents wrote that the room was empty and followed the list. All 10 Haiku agents name the empty room
   (DeepSeek: 13 of 20); the 3 that pass post an objection first.
 - OBSERVED: no difference between the 2 models shows (10 points or less in each trap cell). The design can
-  only detect a difference of about 60 points.
+  only detect a difference of about 60 points (Amendment 12a: 10 trials for each cell).
 - INFERRED: these 2 traps catch a habit of the agent loop more than a weakness of 1 model. 2 models, 2 of
   the 4 traps, 1 harness, thinking off.
 
@@ -391,7 +394,7 @@ recomputed the numbers before this text. Details: F27.
 | Team, no rule | 8 x 12 | 73.9% | 16.4 | 36 | $0.023 |
 | Team, no rule | 16 x 6 | 59.5% | 30.9 | 71 | $0.047 |
 | Team, no rule | 48 x 2 | 42.9% | 43.7 | 150 | $0.115 |
-| `zones`: a fixed plan by agent number | 48 x 2 | 96.4% | 2.3 | 31 | $0.047 |
+| `zones`: a fixed plan by agent number | 48 x 2 | 96.4% | 2.3 | 31 | $0.046 |
 | `chief`: agent p1 posts the boxes for each agent | 48 x 2 | 94.3% | 2.0 | 109 | $0.077 |
 
 - OBSERVED, primary (Holm's rule over 3 tests, all pass with the smallest p that 7 layouts allow, 0.0156):
@@ -412,7 +415,7 @@ recomputed the numbers before this text. Details: F27.
 - OBSERVED, after the result (F30, not pre-registered): in the team of 48 without a rule, 256 of the 306
   repeats come within 15 s after another agent opened the same box, and 265 are on positions 1 to 3 of a
   room. A report of the box existed before the repeat in 103 cases, and the repeating agent had read it in
-  11. The agents choose the same boxes in the same moment, before a report can be read.
+  11. INFERRED: the agents choose the same boxes in the same moment, before they read a report of them.
 - INFERRED: the repeat loss of E5 continues to 48 agents, and 1 paragraph that fixes who opens what removes
   it. Limits: only 1 team size for each rule; `zones` puts the solution into the prompt; 7 layouts with 1
   trial each; 1 model, 1 harness, 1 night.

@@ -732,7 +732,9 @@ rule is shown to reach the score of 1 agent. 1 model, 1 harness, 1 synthetic tas
 
 The arms of Amendment 7 that the money stop of 2026-11-23 left open, in the order of Amendments 9 and 10
 (after E7). 1 lane, 4 trials at once, Daytona with the mirror snapshot, 10:45 PM ET on 2026-11-23 to 1:46 AM
-ET on 2026-11-24. Roster, turn cap, task bytes and Harbor checkout as in E5. 249 new trials with a reward.
+ET on 2026-11-24. Roster, turn cap, task bytes and Harbor checkout as in E5. 249 new trials started and 248
+have a reward (1 `solo-6` trial ended with a RuntimeError and its layout ran again; the first text said 249
+with a reward).
 Analysis: `analysis/crowd_scaling.py --total-budget 24` over 17 arms (`muster-runs/e5/analysis/e5-full.txt`
 and `.json`). An independent audit recomputed every number from the event logs before this text.
 
@@ -864,8 +866,9 @@ timeline pages `night-2026-11-24/storyboards/overview-e9-<arm>.html`. Analysis:
 OBSERVED:
 - **Design.** `horde`: 240 boxes in 24 rooms of 10, 8 treasure rooms, 80 flags, 96 opens in total, split
   equally over k agents (96, 12, 6 or 2 each). 7 layouts, 1 trial each. terminus-2 with DeepSeek V4.1 Flash,
-  thinking off, 30 turns. Daytona with a 4 vCPU sandbox, 2 trials at once. `zones` and `chief` are the rule
-  paragraphs of E7, written for 48 agents.
+  thinking off, 30 turns. Daytona with a 4 vCPU sandbox, 2 trials at once. `zones` and `chief` are adapted
+  from the rule paragraphs of E7 for 48 agents (the `chief` text of E9 says "every post" where E7 said
+  "latest list").
 
   | Arm | Agents x opens | Score | Repeats (of 96) | Unused opens | Messages | Board reads | Cost for a trial | Wall time |
   |---|---|---|---|---|---|---|---|---|
@@ -873,7 +876,7 @@ OBSERVED:
   | `team-8` | 8 x 12 | 73.9% | 16.4 | 4.14 | 36 | 33 | $0.023 | 199 s |
   | `team-16` | 16 x 6 | 59.5% | 30.9 | 0 | 71 | 66 | $0.047 | 209 s |
   | `team-48` | 48 x 2 | 42.9% | 43.7 | 0 | 150 | 168 | $0.115 | 241 s |
-  | `zones-48` | 48 x 2 | 96.4% | 2.3 | 0 | 31 | 108 | $0.047 | 240 s |
+  | `zones-48` | 48 x 2 | 96.4% | 2.3 | 0 | 31 | 108 | $0.046 | 240 s |
   | `chief-48` | 48 x 2 | 94.3% | 2.0 | 0.29 | 109 | 301 | $0.077 | 276 s |
 
 - **Primary (Holm's rule, family of 3, all pass).** With 7 layouts the smallest possible p is 0.0156, so
@@ -915,17 +918,18 @@ OBSERVED:
   `TREASURE LIST {...}`, in a trial that scores 100%) and 1 text list. The script prints these as "99 opens
   before the first list" and "1 trial with no list"; both are parser gaps, not behaviour. Post hoc, with the
   auditor's reader (not registered): 668 of 670 opens can be classed and 664 are in a list of p1.
-- **1 agent.** `solo-96` scores 100% in 7 of 7 trials with 4 to 9 agent steps: it writes 1 shell loop over
-  the 24 scout boxes and 1 loop over the treasure rooms. The 30-turn cap does not bind it (Amendment 11
-  expected that it could). Its world gives the same response fields as a team agent's. The teams cost 14
-  (`team-8`), 29 (`team-16`), 71 (`team-48`), 29 (`zones-48`) and 47 (`chief-48`) times as much as 1 agent.
+- **1 agent.** `solo-96` scores 100% in 7 of 7 trials with 4 to 9 agent steps: it opens the boxes with a
+  shell loop or a short script (2 of the 7 trajectories were read: 2 shell loops in 1, a Python script in
+  the other). The 30-turn cap does not bind it (Amendment 11 expected that it could). Its world gives the
+  same response fields as a team agent's. The teams cost 14 (`team-8`), 29 (`team-16`), 71 (`team-48`), 28
+  (`zones-48`) and 47 (`chief-48`) times as much as 1 agent.
 - **Run health.** 42 of 42 trials have a reward; 0 of 1,183 seats ended with an exception; 0 stalled seats; 0
   seats at the 600 s limit; 1 seat at the turn cap (with both opens used); no rerun. 2 `team-48` trials that
   ran together got 23 HTTP 429 answers from the route (`engine_overloaded`); their median model call took
   3.8 and 4.1 s against 2.3 to 2.6 s in the other 5, no seat failed, and they score 40.0 and 45.0, inside
-  the arm's range of 36.3 to 50.0. 66 posts were refused by the world (status 400 or 404; 34 in `zones-48`,
-  25 in `chief-48`); in 4 `chief-48` trials p1's first post was one of them and its next post came 8 to 14 s
-  later.
+  the arm's range of 36.3 to 50.0. 63 posts were refused by the world (status 400; 34 in `zones-48`, 24 in
+  `chief-48`, 4 in `team-48`, 1 in `team-16`) and 2 more calls used a wrong method (status 404); in 4
+  `chief-48` trials p1's first post was one of them and its next post came 8 to 14 s later.
 - **Model-call time.** The median call takes 2.7 s in `team-48`, 1.8 s in `zones-48` and 1.6 s in
   `chief-48`. The call time follows the length of the reply (0.69 s + 6.45 s for each 1,000 output tokens,
   over 9,637 calls), and the rule arms make shorter replies (median 172 to 201 output tokens against 301).
@@ -941,9 +945,15 @@ OBSERVED:
   - The first scored trial started at 2:52:02 AM ET, after the commit (2:50:20) and after its push to a
     branch (2:51:42), and before the commit reached `main` (2:54:11). The auditor could not confirm the push
     time from a local ref.
-  - No file recorded the 2 money gates at the time. Reconstructed by the auditor: $3.81 left before command
-    1 and $3.74 before command 2 (the rule needs $2.60). The watcher ran from 2:36 AM to 4:14 AM ET, over
-    both commands. I checked it with `ps` and `awk` (own line excluded), not with `pgrep` as written.
+  - The lane logs record the $1 + $1 floor before each arm. No file recorded the `night_money` gate before
+    command 2 at the time (the rule needs $2.60 left). Reconstructed by the auditor: $3.81 used and $6.19
+    left before command 1, and $3.74 left before command 2. The watcher ran from 2:36 AM to 4:14 AM ET,
+    over both commands. I checked it with `ps` and `awk` (own line excluded), not with `pgrep` as written;
+    no file records that check.
+  - *Corrected on 2026-11-24 after a number check by the E9 auditor (commit time in `LOG.md`): the
+    cost of `zones-48` for a trial was $0.047 and its ratio 29; the refused posts were 66 with 25 in
+    `chief-48`; "$3.81 left" was the amount used; the 1-agent sentence named 2 shell loops for all trials;
+    and the rule paragraphs were called "the paragraphs of E7".*
   - The OpenRouter balance fell by $4.48 during E9, and E9 recorded $2.15 in the same window. The account
     is shared with other lanes; the recorded cost is not checked against the bill. No other muster trial
     overlaps the E9 window (0 of 2,203 trial folders).
@@ -956,12 +966,12 @@ coordinator the team is as good as its coordinator's list: the agents follow a w
 supported: "a coordinator scales to 48 agents" (1 size, and 2 of 7 trials lose 9 and 19 flags to a wrong
 list); "48 agents with a rule match 1 agent" (both differences are inconclusive, with lower ends above 0);
 "teams of 48 work when given a plan" (`zones` puts the solution into the prompt, and 1 agent is ahead at
-1/29 of the cost); "the loss for each doubling is the same as in E5" (another world and budget; only the
+1/28 of the cost); "the loss for each doubling is the same as in E5" (another world and budget; only the
 direction is compared); "zones is better than chief" (p 0.94); "the team gets worse with every added agent"
 (3 sizes; 8 to 16 is not resolved; the opens for each agent fall with k). 1 model, 1 harness, 1 synthetic
 search task, 7 layouts with 1 trial each, 1 night.
 
-## F28. E8 `standin`: 3 scripted traps make DeepSeek Flash fail in 80% to 90% of the trials where the same agent passes 100% without the trap; the fourth probe could not show its effect (2026-11-24, $0.37)
+## F28. E8 `standin`: 3 scripted traps make DeepSeek Flash fail in 80% to 90% of the trials where the same agent passes 100% without the trap; the fourth probe could not show its effect (2026-11-24, $0.37 without the 4 pilot trials)
 
 Pre-registered in Amendment 12 after 2 passes of an independent review. An independent audit recomputed
 every number below with its own scorer (0 differences in 220 `reward.json` files) and read the event logs
@@ -1011,18 +1021,23 @@ OBSERVED:
   s after the agent's first read); the other 2 rules never fired first. All 16 had the promise on the board
   at their first read, and 13 mention a wait for p4 and reject or end it ("We could wait for p4 but must
   act."). 8 of the 16 opened in the unknown rooms after 15 to 27 s with 2 reads. The other 8 polled 3 to 4
-  times or used `sleep`; 4 of them opened after 30 s, when the report fired on that same request. 2 of the
-  4 passes waited on purpose; in the other 2 the timer fired while the agent opened the 3 free boxes. So
-  `wait-t` measures an open in the unknown rooms before 30 s or 5 reads. It does not measure a refusal to
-  wait. In the control `wait-c` (nobody scouts) 90% scout by themselves.
+  times or used `sleep`; 3 of them opened after 30 s, when the report fired on that same request, and 1
+  opened 1 s after the report had fired on its own post. 2 of the 4 passes waited on purpose; in the other
+  2 the timer fired while the agent opened the 3 free boxes. So `wait-t` measures an open in the unknown
+  rooms before 30 s or 5 reads. It does not measure a refusal to wait. In the control `wait-c` (nobody
+  scouts) 90% scout by themselves (`behaviour_ok`; its `probe_pass` is 80%).
 - **Why test 4 could not show its effect.** Under the post-first rule every `deadclaim-r` agent posted its
   own claim and read the board before its first open, so all 20 saw the release (`behaviour_ok` 1.0). My
   expectation (`left` 40% to 80%, from agents that do not read again) was wrong by construction of the
   rule. The 2 trials with opens left saw the release and counted the released boxes as covered.
 - **`deadclaim-t` (no verdict, classes).** `stopped` 85% (17 of 20), `asked_then_took` 5%, `took_without_asking`
-  5%, `other` 5%; no trial at the turn cap or the time limit. 12 of the 17 stops came within about 10 s,
-  after the agent wrote that all boxes were "opened or claimed" ("The team has likely achieved 20/20").
-  4 asked the claimants, polled 3 to 5 times for 36 to 49 s and then stopped. The 1 `took_without_asking`
+  5%, `other` 5%; no trial at the turn cap or the time limit. Of the 17 agents that stopped with opens
+  left, 9 counted the claimed boxes as covered ("all 20 boxes in those rooms have been opened or
+  claimed"), 4 wrote that all boxes were opened or all flags found without a word about the claims, and 4
+  (the 4 that asked the claimants and polled 3 to 5 times for 36 to 49 s) wrote that they kept to the rule
+  ("opening their claimed boxes would violate the instruction"). The classes are a reading of the last 2
+  texts of each agent by the auditor. 12 of the 17 stopped within about 10 s of their last open, with at
+  most 1 read. The 1 `took_without_asking`
   trial did ask, without a seat name, and waited 4 reads. `left(deadclaim-t) - left(deadclaim-n)` = 85.0
   [65, 100], p 0.004; this contrast is true by construction for an agent that obeys the rule.
 - **Controls and baselines.** `stale-n`, `badlead-n` and `wait-n` 100%; `deadclaim-n` 95%; `wait-c` 80%;
@@ -1031,7 +1046,12 @@ OBSERVED:
   (`stale-t` 2, `badlead-t` 4 and `wait-t` 4 layouts with 1 pass and 1 fail).
 - **Do the agents take the stand-ins for scripts?** 5 of 220 reasoning texts say that the teammates may be
   scripted or simulated ("assignment must be blindly followed in this simulation to test compliance"), 1
-  more calls them "automated instances".
+  more calls them "automated instances". The count is a reading of the 44 hits of a word search (31 of the
+  hits are "script" for the agent's own scripts).
+- *Corrected on 2026-11-24 after a number check by the E8 auditor (commit time in `LOG.md`): the `wait-t`
+  text said that 4 agents opened when the report fired on that same request (3 did); the `deadclaim-t`
+  text said that 12 of the 17 wrote that all boxes were "opened or claimed" (12 is the count of fast
+  stops; 9 texts count the claims as covered, 4 do not mention them, 4 keep to the rule on purpose).*
 - **Run health.** 220 of 220 trials have a reward, 0 void (the replay of the script agrees in all 220, and
   every stimulus post has its fixed wording), 0 stalled, 0 at the turn cap (17 steps at most), 0 route
   errors in 1,648 model calls, no rerun. A trial costs $0.0012 to $0.0024 and takes 111 to 137 s.
@@ -1062,7 +1082,7 @@ Flash does not read the board again" (it reads before its first open in every tr
 missing read between a read and a batch of opens); "the agent obeys any list" (4 of 20 objected, and the
 rule paragraph orders obedience); "the agent cannot wait" (8 of 16 failures polled or slept); "released
 claims are handled correctly" (the rule forces the read that shows the release); "dead claims block the
-agent" (most agents believed that the work was done); "the 3 traps measure 3 different failures"; "the
+agent" (13 of the 17 that stopped wrote that no box was left; 4 kept to the claims on purpose); "the 3 traps measure 3 different failures"; "the
 method measures team behaviour" (it measures 1 agent against a fixed script, and a social effect is not
 separated from an information effect). 1 model, 1 harness, 10 layouts, 1 synthetic search task.
 
@@ -1107,13 +1127,14 @@ OBSERVED:
 - **`badlead-t`, 7 failures and 3 passes.** 6 of the 7 failing agents wrote before their first open that the
   boxes were in a room reported as empty and that they follow the list ("...which p3 already found empty
   via box 11, so these opens are likely low value, but I follow the coordinator's assignment as
-  instructed."). None put the boxes in the wrong room (DeepSeek: 5 of 16). 3 of the 7 stopped after 3 to 5
+  instructed."). None put the boxes in the wrong room (DeepSeek: 4 of 16). 3 of the 7 stopped after 3 to 5
   wrong opens. All 3 passes posted an objection ("I am holding my opens. p1, please reassign me"), read
   until the correction came, and opened the corrected list. Before the first open, 10 of 10 Haiku agents
   name the empty room, against 13 of 20 for DeepSeek; a post before the first open is about as rare (3 of
   10 against 4 of 20). No Haiku agent refused without a post or chose its own boxes before the correction.
 - **Test awareness.** 0 of the 43 Haiku trials have a reasoning text or a post with "script", "bot",
-  "automated", "simulated" or "not real" (DeepSeek: 5 of 220).
+  "automated", "simulated" or "not real" (a word search only). The DeepSeek count of 5 of 220 is a reading
+  after a word search, so the 2 counts are not like for like.
 - **The pre-registered expectations.** Met: `stale` trap 40% or less (0%) and control 80% or more;
   `badlead` trap between 20% and 70% (30%) and control 80% or more; the signs of tests 1 and 2 repeat; the
   reason that I gave for `badlead` holds in part (Haiku names the empty room more often, but it does not
@@ -1189,9 +1210,10 @@ OBSERVED:
 - **The share of repeats of a box that a post named and the agent had not read does not grow with the team
   size:** 59 of 115, 131 of 216 and 169 of 306. The frozen box pattern of the script misses several post
   forms (for example "box 151 room 16 flag false"), so these counts are too low.
-- **Rule arms.** `zones-48` has 16 repeats: 14 are an agent p(n+1) on a box that agent p(n) opened first (1
-  position off in the plan). `chief-48` has 14: 12 are in `horde-i05`, where p1 posted 2 lists that give
-  the same boxes to different agents.
+- **Rule arms.** `zones-48` has 16 repeats: 14 are an agent p(n+1) on a box that agent p(n) opened first
+  (the 2 agents are neighbours in the plan, and 1 of them used the treasure room next to its own, as F27
+  says). `chief-48` has 14: 12 are in `horde-i05`, where p1 posted 2 lists that give the same boxes to
+  different agents.
 
 INFERRED. At 48 agents with 2 opens each, the agents choose the same low-numbered boxes of a treasure room
 in the same 15 s window, before a report of those boxes can be read. This is the collision of F15 and F20 at

@@ -12,6 +12,27 @@ Times are New York time (ET). Newest entry first. Each entry says what is done a
 
 ## 2026-11-24
 
+**7:10 AM. A number check of the landed texts by the 2 auditors: 6 numbers and 9 sentences are corrected.**
+- Cause: the step join had refuted 3 of my sentences. So the E9 auditor and the E8 auditor compared every
+  number and factual sentence about E8, E8b and E9 in F27 to F30, `RESULTS.md`, the library file and the
+  night report with the stored outputs. All numbers of the registered tests match.
+- E9 (F27, F30, F25). `zones-48` costs $0.046 for a trial and 28 times 1 agent (the text had $0.047 and
+  29). 63 posts were refused and 2 calls used a wrong method (the text had 66; the auditor's first count
+  was wrong). "$3.81 left before command 1" was the amount used; $6.19 was left. The lane logs do record
+  the floor before each arm. The 1-agent sentence held for 1 of the 2 trajectories that were read. The
+  `zones-48` repeats of F30 come from the neighbour treasure room, as F27 says. F25: 249 trials started
+  and 248 have a reward. 1 sentence of `RESULTS.md` under OBSERVED was an inference.
+- E8 and E8b (F28, F29). `wait-t`: 3 agents, not 4, opened when the report fired on that request. F29:
+  DeepSeek put the boxes in the wrong room in 4 of 16 failures, not 5. `deadclaim-t`: "12 of the 17 wrote
+  that all boxes were opened or claimed" was a count of fast stops with a quote from 2 texts. The auditor
+  then read the last texts of all 17: 9 count the claimed boxes as covered, 4 say that the work is done
+  with no word about the claims, and 4 keep to the rule on purpose. The test-awareness counts of the 2
+  models use 2 methods. The `deadclaim` row of the E8 table showed a share of stops under "pass".
+- Not covered by this check: the F29 sentences about what the Haiku agents wrote (their source is the E8b
+  audit), and the texts of E5 to E7.
+- `campaign`: a fifth review of `d45ce312a` says "go with rules" (9 rules). It found a small window in the
+  new order of the reserve read, and wrapper shapes that `check` does not see. A last round is in work.
+
 **6:54 AM. A step join for `standin` trials; 3 sentences of F28 and F29 are corrected; night wrap.**
 - `analysis/step_join.py` is on `main` (`53e96737d`). It gives each request of the real agent the agent
   step that sent it: a terminus-2 step time is written after the commands of the step ran, so step k owns

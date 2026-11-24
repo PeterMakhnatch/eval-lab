@@ -90,6 +90,17 @@ CUE = re.compile(
     r"|checks?|checking|samples?|sampling|does|do|uses?|using|tries|box|boxes|b[0-9]|#|[0-9]"
     r"|rooms?(?![a-z])|r[0-9]|rm|in\b|at\b|on\b)"
 )
+CUE_V2 = re.compile(r"\s*(?:(?:correction|reminder|update)\s*)?" + CUE.pattern)
+NUMBER_BRACKETS = re.compile(r"[\[{]\s*([0-9]+(?:\s*,\s*[0-9]+)*)\s*[\]}]")
+PHASE_REF = re.compile(r"\b(?:phase|round|stage|wave|step)\s*#?\s*[0-9]+\b")
+REPORT_TAIL = re.compile(r"\b(?:(?:and|then|please)\s+)*(?:report|post)\b.*", re.S)
+ORDER_WORD = re.compile(r"\b(?:open|opening|use|take|takes|probe|check|test|sample|assign\w*)\b")
+LEAD_ASK = re.compile(r"\b(?:need\w*|whether|waiting|ask\w*|request\w*)\b")
+ORDER_POST = re.compile(r"\b(?:open|use|take|probe)\b[^.;\n|]*?[0-9]")
+PARSERS = ("v1", "v2")
+ORDERS = ("post", "seat")
+DEFAULT_ORDERS = {"v1": "post", "v2": "seat"}
+REGISTERED_READING = {"parser": "v1", "orders": "post"}
 WRAPPERS = ("list", "lists", "assignments", "assignment", "assign", "plan", "boxes")
 SHARE_CLASSES = {"own box": True, "box of another seat": False}
 ZONES_CLASSES = {
@@ -302,6 +313,85 @@ def parse_list(text: str, seats: list[str]) -> tuple[dict[str, list[int]] | None
     return text_list(text, seats) if plan_like(text, seats) else (None, "")
 
 
+def result_kind(text: str, lead: str) -> str | None:
+    ordered = ORDER_WORD.search(text) is not None
+    if LEAD_RESULT.search(lead) or ATTRIBUTION.search(lead):
+        return "refuse" if ordered else "result"
+    if RESULT.search(text):
+        return "refuse" if ordered else "info" if CUE_V2.match(text) else "result"
+    if CUE_V2.match(text) is None:
+        return "refuse" if ordered else "info"
+    return None
+
+
+def read_part_v2(text: str, shared: bool, lead: str, planned: bool) -> tuple[str, list[int]]:
+    text = REPORT_TAIL.sub(" ", PHASE_REF.sub(" ", text))
+    groups = [room_numbers(m.group(1)) for m in ROOM_REF.finditer(text)]
+    if any(g is None for g in groups):
+        return "refuse", []
+    rooms: set[int] = set().union(*groups) if groups else set()
+    no_rooms = ROOM_REF.sub(" ", text)
+    rest = BOX_WORD.sub(" ", no_rooms)
+    if not DIGITS.search(rest):
+        return ("rooms" if rooms else "empty"), []
+    if HEDGE.search(text) or COND.search(lead) or LEAD_ASK.search(lead):
+        return "refuse", []
+    kind = result_kind(text, lead)
+    if kind is not None:
+        return kind, []
+    unsure = shared or REFUSE.search(text) or COUNT.search(no_rooms) or ADJACENT.search(rest)
+    weak = re.match(r"\s*[0-9]", text) is not None and not planned
+    boxes = box_list(rest)
+    if unsure or weak or not boxes or any(rooms and room_of(b) not in rooms for b in boxes):
+        return "refuse", []
+    bare = BOX_WORD.search(no_rooms) is None and BARE_ROOM.search(lead + text) is not None
+    if bare and max(boxes) <= ref.ROOMS:
+        return "refuse", []
+    return "boxes", boxes
+
+
+def text_list_v2(text: str, seats: list[str]) -> tuple[dict[str, list[int]] | None, str]:
+    low = NUMBER_BRACKETS.sub(r" \1 ", text[:MAX_TEXT].lower())
+    parts = seat_parts(low, seats)
+    if parts is None or GLOBAL_REFUSE.search(low) or REVERSED.search(low):
+        return None, "not parsed"
+    planned = PLAN_WORD.search(low) is not None
+    boxes: dict[str, list[int]] = {}
+    kinds: dict[str, set[str]] = {}
+    for seat, item, shared, lead in parts:
+        kind, found = read_part_v2(item, shared, lead, planned)
+        if kind == "refuse":
+            return None, "not parsed"
+        if kind == "boxes":
+            boxes[seat] = list(dict.fromkeys(boxes.get(seat, []) + found))
+        kinds.setdefault(seat, set()).add(kind)
+    unread = {seat for seat, got in kinds.items() if got & {"rooms", "info"}}
+    if boxes and unread - set(boxes):
+        return None, "not parsed"
+    if boxes:
+        return boxes, "text"
+    return None, "room plan" if any("rooms" in got for got in kinds.values()) else "not parsed"
+
+
+def parse_list_v2(text: str, seats: list[str]) -> tuple[dict[str, list[int]] | None, str]:
+    assert isinstance(text, str) and seats
+    exact = ref.list_of(text)
+    if exact is not None:
+        return {seat: list(boxes) for seat, boxes in exact.items()}, "json"
+    if ref.report_of(text) is not None:
+        return None, ""
+    found, how = json_list(text, seats)
+    if how:
+        return found, how
+    if plan_like(text, seats):
+        return text_list_v2(text, seats)
+    low = text[:MAX_TEXT].lower()
+    if ORDER_POST.search(low) is None or SEAT_MARK.search(low) is None:
+        return None, ""
+    found, how = text_list_v2(text, seats)
+    return (found, "order") if found is not None else (None, "")
+
+
 def share_trial(events: list[dict], inst: dict) -> tuple[list, Counter, dict]:
     seats, budget = sorted(inst["seats"]), inst["budget"]
     owner = ref.share_owner(len(seats))
@@ -376,7 +466,7 @@ def zones_trial(events: list[dict], inst: dict) -> tuple[list, Counter, dict]:
 
 
 def chief_class(seat: str, box: int, state: dict) -> str:
-    if state["unparsed"]:
+    if seat in state["unparsed"]:
         return "list not parsed"
     lists = state["lists"]
     if not lists:
@@ -394,14 +484,16 @@ def lenient_allowed(seat: str, box: int, state: dict) -> bool:
 
 
 def note_list(e: dict, seats: list[str], state: dict, extra: Counter, info: dict) -> None:
-    lists, how = parse_list(e["request"]["text"], seats)
+    reading = state["reading"]
+    parse = parse_list_v2 if reading["parser"] == "v2" else parse_list
+    lists, how = parse(e["request"]["text"], seats)
     if how == "room plan":
         extra["room plans posted by p1 (rooms, no exact boxes)"] += 1
         return
     if lists is None:
         if how == "not parsed":
             extra["p1 plan posts that did not parse"] += 1
-            state["unparsed"] = True
+            state["unparsed"] = set(seats)
             info["cross_check"] = False
         return
     extra["lists posted by p1"] += 1
@@ -409,17 +501,21 @@ def note_list(e: dict, seats: list[str], state: dict, extra: Counter, info: dict
     info["cross_check"] = info["cross_check"] and how == "json"
     given = Counter(box for boxes in lists.values() for box in set(boxes))
     extra["boxes a list gave to 2 or more seats"] += sum(1 for n in given.values() if n > 1)
-    state["lists"].append({seat: set(boxes) for seat, boxes in lists.items()})
-    state["unparsed"] = False
+    posted = {seat: set(boxes) for seat, boxes in lists.items()}
+    per_seat = reading["orders"] == "seat"
+    state["lists"].append((state["lists"][-1] if per_seat and state["lists"] else {}) | posted)
+    state["unparsed"] = state["unparsed"] - set(posted) if per_seat else set()
     if info["first_list_sec"] is None:
         info["first_list_sec"] = e["t"] - info["start"]
 
 
-def chief_trial(events: list[dict], inst: dict) -> tuple[list, Counter, dict]:
+def chief_trial(events: list[dict], inst: dict, reading: dict) -> tuple[list, Counter, dict]:
+    assert reading["parser"] in PARSERS and reading["orders"] in ORDERS, reading
     seats = sorted(inst["seats"])
     chief = seats[0]
-    state: dict = {"lists": [], "unparsed": False}
-    info: dict = {"cross_check": True, "first_list_sec": None, "start": events[0]["t"]}
+    state: dict = {"lists": [], "unparsed": set(), "reading": reading}
+    info: dict = {"cross_check": reading["orders"] == "post", "first_list_sec": None}
+    info["start"] = events[0]["t"]
     info["lenient_allowed"] = 0
     out, extra = [], Counter()
     for e in events:
@@ -436,7 +532,7 @@ def chief_trial(events: list[dict], inst: dict) -> tuple[list, Counter, dict]:
     return out, extra, info
 
 
-CLASSIFIERS = {"share": share_trial, "zones": zones_trial, "chief": chief_trial}
+CLASSIFIERS = {"share": share_trial, "zones": zones_trial}
 
 
 def trial_task(trial: Path, result: dict) -> tuple[str, str, int, Path]:
@@ -468,9 +564,12 @@ def instance_of(family: str, condition: str, number: int, as_rule: str | None, p
     return inst
 
 
-def classify(row: dict, events: list[dict], inst: dict, trial: Path) -> dict:
+def classify(row: dict, events: list[dict], inst: dict, trial: Path, reading: dict) -> dict:
     rule = inst["rule"]
-    out, extra, info = CLASSIFIERS[rule](events, inst)
+    if rule == "chief":
+        out, extra, info = chief_trial(events, inst, reading)
+    else:
+        out, extra, info = CLASSIFIERS[rule](events, inst)
     assert len(out) == row["opens"], (trial, len(out), row["opens"])
     status = CLASSES[rule]
     outside = sum(1 for _, cls in out if status[cls] is False)
@@ -491,7 +590,7 @@ def classify(row: dict, events: list[dict], inst: dict, trial: Path) -> dict:
     }
 
 
-def trial_row(trial: Path, as_rule: str | None) -> dict:
+def trial_row(trial: Path, as_rule: str | None, reading: dict) -> dict:
     result = json.loads((trial / "result.json").read_text())
     assert isinstance(result, dict) and isinstance(result.get("seat_results"), list), trial
     family, condition, number, path = trial_task(trial, result)
@@ -517,7 +616,7 @@ def trial_row(trial: Path, as_rule: str | None) -> dict:
     assert row["unused"] >= 0, trial
     if inst["rule"] == "team":
         return row
-    return row | classify(row, events, inst, trial)
+    return row | classify(row, events, inst, trial, reading)
 
 
 def instance_obedience(rows: list[dict], key: str) -> dict[str, float]:
@@ -639,7 +738,7 @@ def main_rows(arms: list[dict]) -> list[list[str]]:
     return rows
 
 
-def render(arms: list[dict], as_rule: str | None) -> str:
+def render(arms: list[dict], as_rule: str | None, reading: dict) -> str:
     headers = [
         "arm",
         "scored as",
@@ -661,6 +760,8 @@ def render(arms: list[dict], as_rule: str | None) -> str:
     ]
     title = "Obedience: allowed opens / classified opens"
     title += f" (scored as if rule {as_rule} applied)" if as_rule else ""
+    if reading != REGISTERED_READING:
+        title += f" (chief lists: parser {reading['parser']}, orders per {reading['orders']})"
     parts = [table(title, headers, main_rows(arms))]
     ruled = [a for a in arms if a["obedience"] is not None]
     seats = sorted({s for a in ruled for s in a["seat_obedience"]}, key=lambda s: int(s[1:]))
@@ -703,14 +804,18 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--as-rule", choices=("share", "zones", "chief"))
     parser.add_argument("--expect-obedient", action="store_true")
     parser.add_argument("--json", metavar="OUT")
+    parser.add_argument("--parser", choices=PARSERS, default="v1")
+    parser.add_argument("--orders", choices=ORDERS)
     args = parser.parse_args(argv)
+    reading = {"parser": args.parser, "orders": args.orders or DEFAULT_ORDERS[args.parser]}
     arms = []
     for label, jobs in parse_arms(args.arm).items():
-        rows = [trial_row(t, args.as_rule) for job in jobs for t in trial_dirs(job)]
+        rows = [trial_row(t, args.as_rule, reading) for job in jobs for t in trial_dirs(job)]
         arms.append(summarize(label, rows))
-    print(render(arms, args.as_rule))
+    print(render(arms, args.as_rule, reading))
     if args.json:
         settings = {"as_rule": args.as_rule, "arms": args.arm}
+        settings |= {} if reading == REGISTERED_READING else {"chief_reading": reading}
         Path(args.json).write_text(
             json.dumps({"settings": settings, "arms": arms}, indent=2) + "\n"
         )

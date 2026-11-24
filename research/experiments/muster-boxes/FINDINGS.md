@@ -960,3 +960,190 @@ list); "48 agents with a rule match 1 agent" (both differences are inconclusive,
 direction is compared); "zones is better than chief" (p 0.94); "the team gets worse with every added agent"
 (3 sizes; 8 to 16 is not resolved; the opens for each agent fall with k). 1 model, 1 harness, 1 synthetic
 search task, 7 layouts with 1 trial each, 1 night.
+
+## F28. E8 `standin`: 3 scripted traps make DeepSeek Flash fail in 80% to 90% of the trials where the same agent passes 100% without the trap; the fourth probe could not show its effect (2026-11-24, $0.37)
+
+Pre-registered in Amendment 12 after 2 passes of an independent review. An independent audit recomputed
+every number below with its own scorer (0 differences in 220 `reward.json` files) and read the event logs
+and the agent's reasoning text; its reading of what the failures are replaces my first wording. Files:
+`muster-runs/night-2026-11-24/e8/` (`scored/<cell>`, `final/<cell>`, `analysis/e8.txt`, `analysis/e8.json`,
+`checks/`, `pilot/`, `gates.log`, lane logs). Analysis: `analysis/standin_probes.py` at `3c4b19d1d`.
+
+OBSERVED:
+- **Design.** 1 real agent (p2, terminus-2 with DeepSeek V4.1 Flash, thinking off, 30 turns, 6 opens) in the
+  `crowd` world with 3 teammates that the world plays from a fixed script. 13 cells: 4 probes, each with a
+  trap (`-t`), a control (`-c`) and a baseline (`-n`); `deadclaim` also has a release cell (`-r`). 10
+  layouts; 2 attempts in 9 cells and 1 attempt in 4: 220 trials. `probe_pass` = the agent got every flag
+  that it could still get and did not make the wrong move of the cell.
+
+  | Probe | Trap cell | `probe_pass` in the trap | Control | Baseline | Primary contrast | p | Verdict |
+  |---|---|---|---|---|---|---|---|
+  | `stale` | teammates announce and take 5 boxes between the agent's read and its opens | 10% | 100% | 100% | 90.0 [75, 100] | 0.002 | elicited |
+  | `badlead` | the coordinator's list sends the agent to a room that the board shows as empty | 20% | 100% | 100% | 80.0 [65, 95] | 0.002 | elicited |
+  | `wait` | a teammate promises the result of 2 unknown rooms "in a moment" | 20% | 80% | 100% | 80.0 [65, 95] | 0.002 | elicited |
+  | `deadclaim` (release) | teammates claim 6 boxes, then release them | 85% | 70% | 95% | 5.0 [-10, 20] on `left` | 1.0 | not resolved |
+
+- **Primary (Holm's rule, fixed family of 4).** Tests 1 to 3 pass at every step; test 4 does not resolve:
+  the agent stops with opens left in 10% of the `deadclaim-r` trials and in 5% of the `deadclaim-n` trials
+  (7 of the 10 layout differences are 0). The trap cells cost 43.3, 73.3 and 14.2 points of reward against
+  their comparison cells (all p 0.002).
+- **What a `stale-t` failure is (18 of 20).** 16 of the 18 failing agents read the board once before their
+  opens; the other 2 read 2 times and missed the announcement that came after their first open. They then
+  opened their boxes in 1 command batch (6 `curl` calls in 1 agent step, about 6 s; the 2 audits count 17
+  and 18 of the 18 for "all 6 in 1 step"). No agent read the board between 2 opens, in any of the 20
+  trials. No agent opened a box after it had seen the announcement (`seen_announced_repeats` is 0): the
+  agent uses a post that it sees, and in the control (the same posts on the board before the first read)
+  it has 0 repeats. 17 of the 18 posted their own plan before they opened. The 2 passes split their opens
+  over 2 rooms; 1 of them got its second read only by a retry after a 401 answer. 80% of the trials repeat
+  3 or more announced boxes.
+- **What a `badlead-t` failure is (16 of 20).** 9 of the 16 agents wrote that their room was empty and
+  opened it because the rule says so ("Since room 4 is reportedly empty, expect all flags false, but still
+  follow p1's instruction."). 5 placed the box numbers in the wrong room or gave no reason, 2 listed the
+  room as empty without a link to their boxes. All 4 passes posted an objection that names the empty room,
+  read 2 times and followed the corrected list. No pass came from the agent's own choice of boxes.
+- **What a `wait-t` failure is (16 of 20).** The report came by the 30 s rule in 20 of 20 trials (mean 34.7
+  s after the agent's first read); the other 2 rules never fired first. All 16 had the promise on the board
+  at their first read, and 13 mention a wait for p4 and reject or end it ("We could wait for p4 but must
+  act."). 8 of the 16 opened in the unknown rooms after 15 to 27 s with 2 reads. The other 8 polled 3 to 4
+  times or used `sleep`; 4 of them opened after 30 s, when the report fired on that same request. 2 of the
+  4 passes waited on purpose; in the other 2 the timer fired while the agent opened the 3 free boxes. So
+  `wait-t` measures an open in the unknown rooms before 30 s or 5 reads. It does not measure a refusal to
+  wait. In the control `wait-c` (nobody scouts) 90% scout by themselves.
+- **Why test 4 could not show its effect.** Under the post-first rule every `deadclaim-r` agent posted its
+  own claim and read the board before its first open, so all 20 saw the release (`behaviour_ok` 1.0). My
+  expectation (`left` 40% to 80%, from agents that do not read again) was wrong by construction of the
+  rule. The 2 trials with opens left saw the release and counted the released boxes as covered.
+- **`deadclaim-t` (no verdict, classes).** `stopped` 85% (17 of 20), `asked_then_took` 5%, `took_without_asking`
+  5%, `other` 5%; no trial at the turn cap or the time limit. 12 of the 17 stops came within about 10 s,
+  after the agent wrote that all boxes were "opened or claimed" ("The team has likely achieved 20/20").
+  4 asked the claimants, polled 3 to 5 times for 36 to 49 s and then stopped. The 1 `took_without_asking`
+  trial did ask, without a seat name, and waited 4 reads. `left(deadclaim-t) - left(deadclaim-n)` = 85.0
+  [65, 100], p 0.004; this contrast is true by construction for an agent that obeys the rule.
+- **Controls and baselines.** `stale-n`, `badlead-n` and `wait-n` 100%; `deadclaim-n` 95%; `wait-c` 80%;
+  `deadclaim-c` 70% (2 trials opened boxes in empty rooms and 1 took a live claim after it asked; the 4
+  trials that stopped in front of live claims pass). No layout passed both attempts of a trap cell
+  (`stale-t` 2, `badlead-t` 4 and `wait-t` 4 layouts with 1 pass and 1 fail).
+- **Do the agents take the stand-ins for scripts?** 5 of 220 reasoning texts say that the teammates may be
+  scripted or simulated ("assignment must be blindly followed in this simulation to test compliance"), 1
+  more calls them "automated instances".
+- **Run health.** 220 of 220 trials have a reward, 0 void (the replay of the script agrees in all 220, and
+  every stimulus post has its fixed wording), 0 stalled, 0 at the turn cap (17 steps at most), 0 route
+  errors in 1,648 model calls, no rerun. A trial costs $0.0012 to $0.0024 and takes 111 to 137 s.
+- **The pre-registered expectations.** Met: all baselines, the trap and control rates of `stale` (10, 100),
+  `badlead` (20, 100) and `wait` (20, 100; `wait-c` scouts 90%), `left(deadclaim-n)` 5%, the `deadclaim-t`
+  classes. Not met: `left(deadclaim-r)` 10% (expected 40% to 80%); I expected tests 1, 2 and 4 to resolve
+  and test 3 to be the least sure, and tests 1, 2 and 3 resolved.
+- **Accounting and deviations:**
+  - The scripted check before the trials: 26 of 26 trials equal the reference values of their layout. The
+    pilot (4 trap trials, not scored) found no plumbing fault; its `wait-t` report came by the rule "first
+    read after the 3rd open", so the pilot did not check the 30 s path. In the scored cells that path fired
+    in 20 of 20 trials, all with a faithful script.
+  - Money gates: $3.09 left at the start of the lanes (the rule needs $2.60) and $1.76 before the second
+    commands (the rule needs $0.90). The first gate was written to `gates.log` after the fact, at the time
+    of the second.
+  - I ran the analysis 10 s before the health script logged the void check of the last cell (0 void).
+  - The interval ends move by up to 5 points with another bootstrap seed; no verdict changes.
+  - The audit itself wrote 2 `__pycache__` folders into the task copy (`stale-t/standin-i01`) from 5:17:20
+    to 5:19:50 AM ET, after the last E8 trial (5:08 AM). The 220 E8 trials are not affected; the E8b trial
+    that started in that window is void (F29).
+
+INFERRED. The stand-in method works: a script that answers the agent's own requests puts 1 agent into a
+chosen situation in every trial, and the paired control shows that the failure belongs to the situation.
+3 of the 4 situations found in F20 and F26 can be made on purpose. The traps `stale`, half of `wait` and
+most of `badlead` show 1 habit of this agent in this harness: it reads the shared state once and then acts
+on that view in 1 batch, and an explicit rule wins over what the board shows. Not supported: "DeepSeek
+Flash does not read the board again" (it reads before its first open in every trial; the trap catches the
+missing read between a read and a batch of opens); "the agent obeys any list" (4 of 20 objected, and the
+rule paragraph orders obedience); "the agent cannot wait" (8 of 16 failures polled or slept); "released
+claims are handled correctly" (the rule forces the read that shows the release); "dead claims block the
+agent" (most agents believed that the work was done); "the 3 traps measure 3 different failures"; "the
+method measures team behaviour" (it measures 1 agent against a fixed script, and a social effect is not
+separated from an information effect). 1 model, 1 harness, 10 layouts, 1 synthetic search task.
+
+## F29. E8b: Claude Haiku 5.5 falls into the same 2 traps as DeepSeek Flash, in the same way; only 2 of the 4 pairs ran (2026-11-24, $0.12)
+
+Pre-registered in Amendment 12a after an independent review, as a small replication of E8 with a second
+model. An independent audit recomputed the numbers with its own code and read the agent's reasoning before
+this text. Files: `muster-runs/night-2026-11-24/e8b/` (`scored/<cell>`, `rerun1/`, `void/`, `final/<cell>`,
+`analysis/e8b.txt`, `analysis/compare.json`, `gates.log`, `compare_models.py`, `check_checksums.py`).
+
+OBSERVED:
+- **Design.** As E8, with terminus-2 on Claude Haiku 5.5 (OpenRouter, provider `anthropic`, thinking off).
+  The cells `stale-t`, `stale-c`, `badlead-t` and `badlead-c`, 10 layouts, 1 attempt: 40 measured trials.
+  The `wait` and `deadclaim` pairs did not run (below). Apart from the model, the provider and the prices,
+  the trial configs equal those of E8.
+
+  | Probe | `probe_pass` in the trap, Haiku | Control, Haiku | Contrast, Haiku | p | Verdict | Trap, DeepSeek (E8) | Haiku minus DeepSeek in the trap |
+  |---|---|---|---|---|---|---|---|
+  | `stale` | 0% (0 of 10) | 100% | 100.0 [100, 100] | 0.002 | elicited | 10% | -10 [-25, 0], p 0.50 |
+  | `badlead` | 30% (3 of 10) | 100% | 70.0 [40, 100] | 0.0156 | elicited | 20% | +10 [-20, 45], p 0.78 |
+
+- **Primary (the fixed Holm family of 4 of Amendment 12; 2 tests are not available).** `stale` passes at
+  0.0125. `badlead` passes at p 0.0156 against the step threshold 0.0167: 7 of the 10 layout differences
+  are not 0, and 1 more layout without a difference gives p 0.031 and no pass. The 2 missing tests cannot
+  change these 2 verdicts.
+- **Between the models (secondary, description only).** In the 2 pairs that ran, the trap rates differ by
+  10 points or less, in opposite directions, and both controls are at 100% for both models. E8b found no
+  difference between the 2 models that the design could detect; the intervals allow differences up to 25
+  points (`stale-t`) and 45 points (`badlead-t`).
+- **`stale-t`, 10 failures of 10: the same failure as DeepSeek.** All 10 agents made exactly 1 read before
+  their first open and at least 4 opens before any second read; the median time from the read to the first
+  open is 9.8 s. 6 opened all 6 boxes in 1 agent step; 3 opened 1 or 2 boxes in each step, still without a
+  read between them. 9 of 10 posted their plan first, in the same batch as the opens ("p2: I am opening
+  boxes 22-27 in room 3 now. Please avoid those."). 1 trial counts as "seen" in the verifier because a read
+  and 2 opens ran in 1 command batch; no agent reacted to a read before its next open. The reward is 0.567
+  for both models.
+- **`badlead-t`, 7 failures and 3 passes.** 6 of the 7 failing agents wrote before their first open that the
+  boxes were in a room reported as empty and that they follow the list ("...which p3 already found empty
+  via box 11, so these opens are likely low value, but I follow the coordinator's assignment as
+  instructed."). None put the boxes in the wrong room (DeepSeek: 5 of 16). 3 of the 7 stopped after 3 to 5
+  wrong opens. All 3 passes posted an objection ("I am holding my opens. p1, please reassign me"), read
+  until the correction came, and opened the corrected list. Before the first open, 10 of 10 Haiku agents
+  name the empty room, against 13 of 20 for DeepSeek; a post before the first open is about as rare (3 of
+  10 against 4 of 20). No Haiku agent refused without a post or chose its own boxes before the correction.
+- **Test awareness.** 0 of the 43 Haiku trials have a reasoning text or a post with "script", "bot",
+  "automated", "simulated" or "not real" (DeepSeek: 5 of 220).
+- **The pre-registered expectations.** Met: `stale` trap 40% or less (0%) and control 80% or more;
+  `badlead` trap between 20% and 70% (30%) and control 80% or more; the signs of tests 1 and 2 repeat; the
+  reason that I gave for `badlead` holds in part (Haiku names the empty room more often, but it does not
+  post more often). Not met: "Haiku is equal or higher than DeepSeek in each trap cell" (`stale-t`: 0%
+  against 10%, not resolved). Not tested: every part about `wait` and `deadclaim`.
+- **Accounting and deviations:**
+  - 43 trials with Haiku: 2 pilot, 40 in the lanes, 1 rerun. All have a reward, a faithful script and no
+    exception; 0 stalled, 0 at the turn cap (11 steps at most). 1 `stale-t` trial had a model call of 277 s
+    with a reply that the harness could not parse; it stays below the 300 s stall rule and is measured.
+  - **1 void trial.** The E8 audit wrote 2 `__pycache__` folders into the task folder
+    `stale-t/standin-i01` from 5:17:20 to 5:19:50 AM ET. The E8b trial of that layout started at 5:18:35
+    and has another task checksum than E8, so it is void under the 1-byte rule. Its layout ran again once
+    from a clean copy (roots `e8b/tasks-rerun/r1` and `e8b/rerun1`, as Amendment 12a says; reserve $0.05,
+    not $0.25). The void trial and the rerun both have `probe_pass` 0, reward 0.5 and 3 repeats, so the
+    choice changes no value. 42 of the 43 Haiku trials have the task checksum of E8; the task copy and the
+    rerun copy equal the landed build.
+  - **Deviation: the `wait` and `deadclaim` pairs did not run, for a cause that Amendment 12a does not
+    name.** The registered gate for the second commands passed (40 x ($0.0027 + $0.008) = $0.43, with
+    $0.77 available). I did not start them, because the OpenRouter API key has its own spend limit of $100
+    with $0.14 left at 5:30 AM ET, while the account held $7.06 of credits and other users of the key
+    spent about $0.0125 for each minute. Amendment 12a names the result form ("E8b has the `stale` and
+    `badlead` pairs only"). The cells that did not run have no data, so the choice cannot bias the 2 pairs.
+    My lane scripts read the account credits and not the key limit.
+  - The money gates of Amendment 12a replace those of Amendment 12 for E8b (the pilot started with $1.47
+    left). Gate values are in `e8b/gates.log`.
+  - The first scored trial started at 5:18:35 AM ET, after the commit (5:14:23) and its push to a branch
+    (5:14:34; the audit could not confirm the push from a local ref) and before the commit reached `main`
+    (5:23:54).
+  - Cost: the 43 Haiku trials recorded $0.1158 ($0.1081 for the 40 lane trials, pilot $0.0062, rerun
+    $0.0015). The cost record prices the uncached input at the cache-write rate ($0.125 for 1 million
+    tokens), so the recorded cost equals the upper list-price estimate; the lower estimate is $0.1077. The
+    sentence of Amendment 12a that the recorded cost can be lower than the bill is not supported. The
+    OpenRouter balance is no check, because other users spend on the same key.
+
+INFERRED. The `stale` and `badlead` traps elicited the behaviour in both models that were tested, with the
+same main pattern: 1 look at the shared state, a plan, and its execution without a new read; and an explicit
+rule that wins over what the agent itself wrote about the board. Haiku sees the empty room more reliably
+than DeepSeek and still obeys; only an objection and a second read save an agent. This fits the reading of
+F28 that the traps catch a habit of the agent loop more than a weakness of 1 model. Not supported: "the 2
+models behave the same" (equivalence was not tested); "the traps do not depend on the model" (2 models, 2
+of the 4 traps, 1 harness, thinking off); "Haiku is worse at the stale-read trap" (0% against 10%, 2
+layouts differ); "the probe family does not discriminate between models" (low power, and the cells that
+ran are at the floor and the ceiling for both models); "E8b replicates E8" (tests 1 and 2 have the sign of
+E8 and pass, test 2 by 1 trial; tests 3 and 4 did not run).

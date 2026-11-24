@@ -12,6 +12,35 @@ Times are New York time (ET). Newest entry first. Each entry says what is done a
 
 ## 2026-11-24
 
+**5:45 AM. E8 and E8b are audited and written (F28, F29). The OpenRouter API key is at its own limit.**
+- E8 audit: its own scorer agrees with all 220 `reward.json` files and with every number of the analysis.
+  It changed the meaning of 3 results, and F28 uses its wording: a `stale-t` failure is 1 read and then a
+  batch of opens (no agent ignored a post that it saw); in `wait-t` the report came by the 30 s rule in 20
+  of 20 trials and half of the failing agents did wait, for less than the script needs; test 4 could not
+  show its effect, because the post-first rule makes every agent read before its first open.
+- A fault of the E8 audit: it imported the family's verifier from the shared task copy, and Python wrote 2
+  `__pycache__` folders into `e8/tasks/standin/stale-t/standin-i01/` from 5:17:20 to 5:19:50 AM ET. The
+  auditor reported it at once. No E8 trial is affected (the last ended at 5:08 AM). 1 E8b trial started in
+  that window with another task checksum; it is void under the 1-byte rule and its layout ran again once
+  from a clean copy. Both trials have the same values. New rule for audits of this lane: import family code
+  only from an own `git archive` export, with `PYTHONDONTWRITEBYTECODE=1`. `e8b/check_checksums.py`
+  compares the task checksum of every trial with the E8 trial of its cell and layout.
+- E8b: pilot at 5:15 AM (2 trials, no plumbing fault, $0.0034 for a trial at most); first commands 5:18 to
+  5:28 AM (`stale` and `badlead` pairs, 40 trials); rerun of the void layout 5:30 to 5:32 AM. Gate values
+  are in `e8b/gates.log`.
+- Deviation in E8b: the registered gate for the second commands passed, and I did not start them. The
+  OpenRouter API key has its own spend limit ($100, no reset) and had $0.14 left at 5:30 AM, while the
+  account held $7.06 of credits; other users of the key spent about $0.0125 for each minute. So E8b has 2
+  of the 4 pairs. My lane scripts and `campaign` read the account credits only; `campaign` gets a check of
+  the key limit (in work).
+- E8b audit: every number is correct. `badlead` passes Holm's rule by 1 trial. The recorded Haiku cost
+  already uses the cache-write rate, so the sentence of Amendment 12a that the bill can be higher is not
+  supported. Haiku fails both traps in the same way as DeepSeek.
+- Tools: `storyboard.py` draws `standin` trials (`2c0fb3332`; old pages byte-identical). `campaign`: a third
+  review says "go with rules" for a paid run; a fourth round closed its 3 findings (`2b2dcbc7e`).
+- Money for the night: $8.89 of the $10 ($4.58 of recorded model cost and $4.31 of Daytona time at list
+  price). The watcher ended at 5:33 AM; no paid trial runs.
+
 **5:14 AM. E8 ended; E8b (a second model, Claude Haiku 5.5) is pre-registered (Amendment 12a).**
 - E8: both first commands ended at 4:58 AM; before the second commands `night_money.py` showed $1.76 left
   (the rule needs $0.90), the watcher ran and no stop file existed (`e8/gates.log`; the gate of 4:24 AM is

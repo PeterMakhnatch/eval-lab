@@ -1,7 +1,8 @@
 # muster results: more agents, talking, and the budget of the team
 
-Written 2026-11-21 for Peter, updated 2026-11-23 with E5. OBSERVED means a run or a file shows it. INFERRED
-means our reasoning. Each number comes from `FINDINGS.md` (F11 to F21) and the dated entries in `LOG.md`, both
+Written 2026-11-21 for Peter, updated 2026-11-23 with E5 to E7 and 2026-11-24 with E8, E8b and E9. OBSERVED
+means a run or a file shows it. INFERRED means our reasoning. Each number comes from `FINDINGS.md` (F11 to
+F29) and the dated entries in `LOG.md`, both
 in this folder. Run outputs stay outside Git, in `muster-runs/`. Paths written before 2026-11-21 refer to the
 old muster repository: `docs/` and `experiments/` are now this folder, `tasks/` is `muster/tasks/`.
 
@@ -30,6 +31,10 @@ old muster repository: `docs/` and `experiments/` are now this folder, `tasks/` 
   59.5% at 16, 43% at 48, or 12 points lost for each doubling. At 48 agents a fixed plan scores 96% and 1
   coordinator 94%; in 2 of 7 trials the coordinator's list was wrong and the agents followed it. 1 agent
   with all 96 opens: 100%, at 1/14 to 1/71 of the cost.
+- 1 agent among scripted teammates falls into 3 of 4 situations that were made on purpose (E8, 2026-11-24):
+  it passes 10% to 20% of the trap trials and 100% of the same trials without the trap. It reads the board
+  once and then acts in 1 batch; it follows a list that it calls wrong because the rule says so. A second
+  model, Claude Haiku 5.5, fails the 2 traps that ran for it in the same way (E8b: 0% and 30%).
 - Limits: 1 harness, 1 main model, 3 synthetic tasks, 10 instances each.
 
 ## The task and the setup
@@ -319,6 +324,58 @@ numbers before this text. Details: F24.
   agents to post results and to read the board; `zones` puts the solution into the prompt; no primary test
   ranks the rules; 1 model, 1 harness, 1 task.
 
+## E8: 4 situations made on purpose for 1 agent among scripted teammates (2026-11-24)
+
+`standin`: the `crowd` world with 1 real agent (6 opens) and 3 teammates that the world plays from a fixed
+script. Each probe has a trap cell, a control and a baseline, so the failure can be tied to the situation.
+Pre-registered in Amendment 12 after an independent review. 13 cells, 220 trials, every trial has a reward,
+0 void, 0 reruns. An independent audit recomputed the numbers and read the agent's reasoning before this
+text. Details: F28.
+
+| Probe | The trap | Pass in the trap | Pass in the comparison cell | Difference |
+|---|---|---|---|---|
+| `stale` | teammates take 5 boxes between the agent's read and its opens | 10% | 100% | 90 points [75, 100], p 0.002 |
+| `badlead` | the coordinator's list sends the agent to a room that the board shows as empty | 20% | 100% | 80 points [65, 95], p 0.002 |
+| `wait` | a teammate promises the result of 2 unknown rooms "in a moment" | 20% | 100% | 80 points [65, 95], p 0.002 |
+| `deadclaim` | teammates claim 6 boxes and then release them | stops with opens left in 10% | 5% | 5 points [-10, 20], p 1.0 |
+
+- OBSERVED, primary (Holm's rule over 4 tests): the first 3 probes elicit their behaviour; the fourth does not
+  resolve.
+- OBSERVED, `stale`: in 18 of 20 trap trials the agent read the board once and then opened its 6 boxes in 1
+  command batch. No agent opened a box after it had seen the announcement, and no agent read the board
+  between 2 opens.
+- OBSERVED, `badlead`: 9 of the 16 failing agents wrote that the room was empty and opened it because the
+  rule says to follow the list. All 4 passes posted an objection first and then followed the corrected list.
+- OBSERVED, `wait`: the report came by the 30 s rule of the script in 20 of 20 trials. 8 of the 16 failing
+  agents did poll or sleep, for less than the script needs. The cell measures an open in the unknown rooms
+  before 30 s or 5 reads, not a refusal to wait.
+- OBSERVED, `deadclaim`: the rule of the cell makes every agent post and read before its first open, so all
+  20 saw the release; the test could not show the stop that I expected. Without a release the agent stops
+  with opens left in 85% of the trials; 12 of the 17 wrote that all boxes were "opened or claimed".
+- INFERRED: a script that answers the agent's own requests puts 1 agent into a chosen situation in every
+  trial. 3 of the traps mostly show 1 habit of this agent in this harness: it reads the shared state once
+  and then acts on that view in 1 batch, and an explicit rule wins over what the board shows. Limits: a trap
+  fires at the worst moment in every trial, so a pass rate is not the rate of the behaviour in a real team;
+  1 model in E8 (a second model: E8b below), 1 harness, 10 layouts.
+
+**E8b, a second model.** Claude Haiku 5.5 ran the `stale` and `badlead` pairs (Amendment 12a, 10 layouts, 1
+attempt, 40 measured trials, audited; F29). The other 2 pairs did not run: the OpenRouter API key reached
+its own spend limit.
+
+| Probe | Haiku, pass in the trap | Haiku, pass in the control | Difference | DeepSeek, pass in the trap |
+|---|---|---|---|---|
+| `stale` | 0% | 100% | 100 points [100, 100], p 0.002 | 10% |
+| `badlead` | 30% | 100% | 70 points [40, 100], p 0.0156 | 20% |
+
+- OBSERVED: both tests pass Holm's rule; `badlead` passes by 1 trial. Haiku fails in the same way: all 10
+  `stale-t` agents read once and did not read again before their opens; 6 of the 7 failing `badlead-t`
+  agents wrote that the room was empty and followed the list. All 10 Haiku agents name the empty room
+  (DeepSeek: 13 of 20); the 3 that pass post an objection first.
+- OBSERVED: no difference between the 2 models shows (10 points or less in each trap cell). The design can
+  only detect a difference of about 60 points.
+- INFERRED: these 2 traps catch a habit of the agent loop more than a weakness of 1 model. 2 models, 2 of
+  the 4 traps, 1 harness, thinking off.
+
 ## E9: 8 to 48 agents at the same total budget, and 2 rules at 48 agents (2026-11-24)
 
 `horde`: 240 boxes in 24 rooms, 8 treasure rooms, 80 flags, 96 opens in total split equally over the agents.
@@ -396,8 +453,9 @@ recomputed the numbers before this text. Details: F27.
 ## Limits
 
 - **1 harness:** terminus-2 in every seat. Other harnesses may read the channel or plan differently.
-- **1 main model:** DeepSeek Flash with thinking off. The only other models are 2 seats of 1 E2 arm and
-  2 single pilot trials. A stronger model or thinking on can change the size of every gap.
+- **1 main model:** DeepSeek Flash with thinking off. The only other models are 2 seats of 1 E2 arm, 2
+  single pilot trials, and Claude Haiku 5.5 in 4 cells of E8b (40 trials). A stronger model or thinking on
+  can change the size of every gap.
 - **3 synthetic tasks:** `boxes` has 1 obvious split of the work (rooms), free messages, and a reward that
   only counts distinct flags. It rewards a team for not repeating work, and for nothing else. `ledger` has 5
   items and free messages, and is at its ceiling for the team. `field` is a larger search world of the same
@@ -413,7 +471,10 @@ recomputed the numbers before this text. Details: F27.
 - **Prompt protocols:** report-first and the F15 to F17 changes are written rules. They measure the value of
   that rule, not what agents find without it.
 - **2 runners:** the fork of Harbor at `6aeb609e`, on local Docker on 1 Mac (E1 to E4) and on Daytona
-  sandboxes (E5, E6).
+  sandboxes (E5 to E9).
+- **E8 and E9 are small.** E9 has 7 layouts with 1 trial each and only 1 team size for each rule. E8 puts
+  the agent into a situation that fires at the worst moment in every trial; its pass rates are not rates of
+  the behaviour in a real team. E8b has 10 trials for each cell and only 2 of the 4 probes.
 - **E5 is at 1 total budget (24 opens).** At 8 seats each agent has 3 opens and there are more seats than
   rooms, so the game differs in kind from 2 to 4 seats. E5 equalizes opens, not tokens or time.
 - **E5 reruns and secondary tests.** 21 of the 200 E5 trials are reruns that ran 12 to 27 minutes later
@@ -437,10 +498,15 @@ recomputed the numbers before this text. Details: F27.
 | E5 pilots (11-23, not scored) | 8 | $0.13 |
 | E6 `field` (11-23; 320 scored trials and 4 pilot trials) | 324 | $3.44 |
 | E7 `crowdrules` (11-23; 180 scored trials and 3 pilot trials) | 183 | $2.07 |
-| **Total** | **1146** | **$12.69** |
+| E5 `crowd`, the arms that were left open (night of 11-24, F25) | 248 | $1.68 |
+| E9 `horde` (11-24; 42 scored trials and 3 pilot trials) | 45 | $2.40 |
+| E8 `standin` (11-24; 220 scored trials and 4 pilot trials) | 224 | $0.38 |
+| E8b `standin` with Claude Haiku 5.5 (11-24; 40 measured, 2 pilot, 1 void) | 43 | $0.12 |
+| **Total** | **1706** | **$17.27** |
 
 Real cost until E4 is computed from tokens at DeepSeek's price for the hour of the run; Harbor records the
 peak price. From E5 the route is OpenRouter; the cost is computed from tokens at the list price of the route
 and is not checked against the bill. E5, E6 and E7 also used about 34.5 hours of Daytona sandbox time, about
-$5.80 at list price (not checked against a bill). The scripted checks for E7, the seat-count probe of F22 and
-the proof for fork PR #101 used about $0.55 more.
+$5.80 at list price (not checked against a bill). The night of 11-24 (the open E5 arms, E8, E8b, E9 and
+their scripted checks) used about 23 hours more, about $4.31 at list price. The scripted checks for E7, the
+seat-count probe of F22 and the proof for fork PR #101 used about $0.55 more.

@@ -9,7 +9,7 @@ from typing import Any
 
 from campaign import evidence, fill, ledger
 from campaign.plan import Plan, PlanError, arm_command, render
-from campaign.runner import Stop
+from campaign.runner import Funds, Stop
 
 
 def _lane_lines(plan: Plan) -> list[str]:
@@ -88,10 +88,27 @@ def _rules() -> list[str]:
         "  3. cap_usd = charged cost under the cap roots now (campaign status) + the budget of this run",
         "  4. start each runner with nohup; never kill a runner that prints STOPPING or WAIT",
         "  5. after a harbor-alive line, run its commands, then check `daytona sandbox list`",
+        "  6. the API key can have its own spend limit below the account credits; set key_limit_probe so the "
+        "smaller number gates each start",
     ]
 
 
-def check(plan: Plan, now: datetime) -> tuple[list[str], list[str]]:
+def _funds_lines(plan: Plan, funds: tuple[Funds | None, str]) -> list[str]:
+    value, problem = funds
+    probe = shlex.join(plan.key_limit_probe) if plan.key_limit_probe else "none (only the account credits gate a start)"
+    lines = [f"balance probe ({plan.probe_timeout_seconds:.0f} s): {shlex.join(plan.probe)}",
+             f"key limit probe: {probe}"]
+    if value is None:
+        return [*lines, f"money now: unreadable ({problem}); run starts no arm while a probe fails"]
+    if not plan.key_limit_probe:
+        key = "not read"
+    else:
+        key = "none (the key has no limit)" if value.key_left is None else f"${value.key_left:.2f}"
+    return [*lines, f"money now: account credits ${value.credits:.2f}, key limit left {key}; "
+                    f"{value.binding()} binds: ${value.usable():.2f}"]
+
+
+def check(plan: Plan, now: datetime, funds: tuple[Funds | None, str]) -> tuple[list[str], list[str]]:
     assert now.tzinfo is not None
     problems = _place_problems(plan)
     lines = [
@@ -103,7 +120,7 @@ def check(plan: Plan, now: datetime) -> tuple[list[str], list[str]]:
         f"cost counts ${plan.unknown_seat_usd:.4f}), ledger {plan.ledger}, provider {plan.provider}",
         f"cap roots: {' '.join(str(root) for root in plan.cap_roots)}",
         *_foreign_lines(plan, problems, now),
-        f"balance probe ({plan.probe_timeout_seconds:.0f} s): {shlex.join(plan.probe)}",
+        *_funds_lines(plan, funds),
         f"watch: poll {plan.poll_seconds:.0f} s, arm limit {plan.max_arm_minutes:.0f} min, stop grace "
         f"{plan.stop_grace_seconds:.0f} s, STOP file {plan.stop_file}, stop after "
         f"{plan.no_reward_streak} finished trials in a row without a reward",

@@ -19,6 +19,8 @@ MICRO = 1_000_000
 REWARDED = frozenset({"ok", "stalled", "unknown-cost"})
 FAULT_KINDS = ("ok", "pull-limit", "stalled", "no-reward", "unknown-cost", "unreadable", "slow")
 PROBE_MODES = ("steady", "steady", "steady", "dead", "flaky", "poor", "falling", "tight", "tight")
+KEY_MODES = ("", "", "", "none", "high", "low", "low", "falling", "falling", "flaky")
+KEY_LEFT_AFTER_DROP_MICRO = 140_000
 MAX_JOB_EVENTS = 100_000
 MUSTER_GRACE = 120.0
 STOP_GRACE = 180
@@ -111,6 +113,9 @@ class Scenario:
     uv_top: bool
     lock_hold: tuple[float, float, float] | None
     stop_in_lock_wait: bool
+    key_mode: str
+    key_micro: int
+    key_drop_at: float
 
     def arm(self, name: str) -> ArmSpec:
         found = [arm for arm in self.arms if arm.name == name]
@@ -184,6 +189,14 @@ def _process_faults(rng: Random) -> dict[str, Any]:
     }
 
 
+def _key_limit(rng: Random, balance: int, floor: int) -> dict[str, Any]:
+    mode = rng.choice(KEY_MODES)
+    low = floor + rng.choice((KEY_LEFT_AFTER_DROP_MICRO, 1_200_000, 3_000_000))
+    key = {"high": balance + 20_000_000, "flaky": balance + 20_000_000, "falling": balance + 5_000_000,
+           "low": low}.get(mode, 0)
+    return {"key_mode": mode, "key_micro": key, "key_drop_at": rng.uniform(0, 3000)}
+
+
 def scenario(seed: int) -> Scenario:
     assert 0 <= seed < 2**64
     rng = Random(seed)
@@ -210,6 +223,7 @@ def scenario(seed: int) -> Scenario:
         spawn_fail_arm=rng.choice([arm.name for arm in arms]) if rng.random() < 0.06 else "",
         clears_stop=rng.random() < 0.7, second_fill=rng.random() < 0.5,
         **_process_faults(rng),
+        **_key_limit(rng, balance, floor),
     )
 
 
@@ -256,6 +270,7 @@ def plan_data(case: Scenario, root: Path, twin: bool = False) -> dict[str, Any]:
                     "cwd": str(root), "env": {"FAKE_ARM": "{arm}"}},
         "harbor": {"program": str(root / "bin" / "harbor"), "run_args": ["--env", "sim", "--ek", "snap=sim-v1"]},
         "money": {"provider": "sim", "probe": ["fake-balance"], "probe_timeout_seconds": 30,
+                  **({"key_limit_probe": ["fake-key-limit"]} if case.key_mode else {}),
                   "floor_usd": usd(case.floor_micro), "cap_usd": usd(case.cap_micro), "cap_roots": roots,
                   "unknown_seat_usd": usd(case.unknown_seat_micro), "ledger": str(root / "ledger" / "spend.jsonl")},
         "watch": {"poll_seconds": case.poll, "max_arm_minutes": case.max_arm_minutes,
@@ -471,6 +486,7 @@ class World:
         self.live_owners: set[int] = set()
         self.locks: dict[Path, int] = {}
         self.probes: dict[int, Probe] = {}
+        self.key_failed: dict[int, float] = {}
         self.truth = Truth(charged_micro=case.preexisting_micro)
         self.spawn_hook: SpawnHook | None = None
         self.probe_hook: ProbeHook | None = None
@@ -530,6 +546,28 @@ class World:
         self.probes[owner] = Probe(self.t, float(text))
         return 0, text + "\n"
 
+    def key_left_micro(self) -> int | None:
+        mode = self.case.key_mode
+        if mode in ("", "none"):
+            return None
+        dropped = 0
+        if mode == "falling" and self.t >= self.case.key_drop_at:
+            dropped = self.case.key_micro - KEY_LEFT_AFTER_DROP_MICRO
+        return self.case.key_micro - self.truth.spent_micro - dropped
+
+    def key_truth(self) -> float | None:
+        left = self.key_left_micro()
+        return None if left is None else float(f"{usd(max(0, left)):.4f}")
+
+    def _key_probe(self, owner: int) -> tuple[int | None, str]:
+        assert self.case.key_mode
+        if self.case.key_mode == "flaky" and self.rng.random() < 0.2:
+            self.key_failed[owner] = self.t
+            return self.rng.choice(((1, ""), (0, "unlimited\n"), (None, ""), (0, "inf\n")))
+        self.key_failed.pop(owner, None)
+        left = self.key_truth()
+        return 0, ("none" if left is None else f"{left:.4f}") + "\n"
+
     def _detect(self, arm_dir: Path) -> tuple[int | None, str]:
         if self.case.detector_fail:
             return 2, "Traceback: simulated detector failure\n"
@@ -545,6 +583,8 @@ class World:
         self.calls.append(argv[0])
         if argv == ["fake-balance"]:
             return self._probe(owner)
+        if argv == ["fake-key-limit"]:
+            return self._key_probe(owner)
         assert argv[0] == "fake-detector" and len(argv) == 2, argv
         return self._detect(Path(argv[1]))
 

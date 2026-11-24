@@ -26,6 +26,10 @@ probe = [
   "sh", "-c",
   '''keys run -- sh -c 'curl -s -m 30 https://openrouter.ai/api/v1/credits -H "Authorization: Bearer $OPENROUTER_API_KEY"' | python3 -c 'import json,sys; d=json.load(sys.stdin)["data"]; print(round(d["total_credits"]-d["total_usage"],2))' ''',
 ]
+key_limit_probe = [
+  "sh", "-c",
+  '''keys run -- sh -c 'curl -s -m 30 https://openrouter.ai/api/v1/key -H "Authorization: Bearer $OPENROUTER_API_KEY"' | python3 -c 'import json,sys; d=json.load(sys.stdin)["data"]; left=[v for v in (d["limit_remaining"] if d["limit"] is not None else None, (d.get("effective_budget") or {}).get("remaining_usd")) if v is not None]; print(max(0.0, round(min(left), 4)) if left else "none")' ''',
+]
 probe_timeout_seconds = 60
 floor_usd = 1.00
 cap_usd = 12.00

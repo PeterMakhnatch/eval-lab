@@ -14,7 +14,7 @@ from typing import Any
 
 from campaign import __version__, fill, report
 from campaign.plan import Plan, PlanError, load
-from campaign.runner import EventLog, Expand, Runner, Stop, drive, expand_first_run
+from campaign.runner import EventLog, Expand, Runner, Stop, drive, expand_first_run, read_funds
 from campaign.system import RealSystem
 
 DESCRIPTION = """\
@@ -74,7 +74,8 @@ def _drive(plan: Plan, lane: str | None, expand: Expand) -> int:
 
 def cmd_check(args: argparse.Namespace) -> int:
     plan = load(args.plan)
-    lines, problems = report.check(plan, datetime.now(UTC))
+    funds = read_funds(RealSystem(), plan, os.getpid())
+    lines, problems = report.check(plan, datetime.now(UTC), funds)
     print("\n".join(lines))
     for problem in problems:
         print(f"problem: {problem}")

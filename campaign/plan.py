@@ -61,6 +61,7 @@ class Plan:
     harbor_run_args: tuple[str, ...]
     provider: str
     probe: tuple[str, ...]
+    key_limit_probe: tuple[str, ...]
     probe_timeout_seconds: float
     floor_usd: float
     cap_usd: float
@@ -277,13 +278,14 @@ def _harbor(data: Any) -> tuple[Path, tuple[str, ...]]:
 def _money(data: Any) -> dict[str, Any]:
     required = {"provider", "probe", "probe_timeout_seconds", "floor_usd", "cap_usd", "cap_roots",
                 "unknown_seat_usd", "ledger"}
-    table = _keys(data, "money", required, {"foreign_reserve_window_hours"})
+    table = _keys(data, "money", required, {"foreign_reserve_window_hours", "key_limit_probe"})
     roots = table["cap_roots"]
     if not isinstance(roots, list) or not 1 <= len(roots) <= 64:
         raise PlanError("money.cap_roots must be a list of 1 to 64 paths")
     return {
         "provider": _name(table, "provider", "money"),
         "probe": _argv(table, "probe", "money"),
+        "key_limit_probe": _argv(table, "key_limit_probe", "money") if "key_limit_probe" in table else (),
         "probe_timeout_seconds": _number(table, "probe_timeout_seconds", "money", 1, 600),
         "floor_usd": _number(table, "floor_usd", "money", 0, 1_000_000),
         "cap_usd": _number(table, "cap_usd", "money", 0.01, 1_000_000),

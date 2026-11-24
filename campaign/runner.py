@@ -95,19 +95,53 @@ def expand_first_run(runner: Runner, run: LaneRun, arm_name: str) -> list[Step]:
     return [first_run_step(runner.plan, arm_name)]
 
 
-def read_balance(system: System, plan: Plan, owner: int) -> tuple[float | None, str]:
-    code, text = system.capture(list(plan.probe), plan.probe_timeout_seconds, owner)
+@dataclass(frozen=True)
+class Funds:
+    credits: float
+    key_left: float | None
+
+    def usable(self) -> float:
+        return self.credits if self.key_left is None else min(self.credits, self.key_left)
+
+    def binding(self) -> str:
+        return "key limit left" if self.key_left is not None and self.key_left < self.credits else "account credits"
+
+    def text(self) -> str:
+        key = "" if self.key_left is None else f", key limit left ${self.key_left:.2f}"
+        return f"account credits ${self.credits:.2f}{key}"
+
+
+def _read_probe(system: System, argv: tuple[str, ...], label: str, timeout: float, owner: int,
+                none_ok: bool) -> tuple[float | None, str]:
+    assert argv and timeout > 0
+    code, text = system.capture(list(argv), timeout, owner)
     value = text.strip()
     if code is None:
-        return None, f"the balance probe timed out after {plan.probe_timeout_seconds:.0f} s or did not start"
+        return None, f"the {label} timed out after {timeout:.0f} s or did not start"
     if code != 0:
-        return None, f"the balance probe exited with {code}"
+        return None, f"the {label} exited with {code}"
+    if none_ok and value == "none":
+        return None, ""
     if not NUMBER.fullmatch(value):
-        return None, f"the balance probe printed {value[:40]!r}, not a number"
+        return None, f"the {label} printed {value[:40]!r}, not a number"
     number = float(value)
     if not math.isfinite(number) or number > MAX_BALANCE_USD:
-        return None, f"the balance probe printed {value[:40]}, above the sane bound ${MAX_BALANCE_USD:.0f}"
+        return None, f"the {label} printed {value[:40]}, above the sane bound ${MAX_BALANCE_USD:.0f}"
     return number, ""
+
+
+def read_funds(system: System, plan: Plan, owner: int) -> tuple[Funds | None, str]:
+    timeout = plan.probe_timeout_seconds
+    credits, problem = _read_probe(system, plan.probe, "balance probe", timeout, owner, none_ok=False)
+    if credits is None:
+        assert problem
+        return None, problem
+    if not plan.key_limit_probe:
+        return Funds(credits, None), ""
+    key_left, problem = _read_probe(system, plan.key_limit_probe, "key limit probe", timeout, owner, none_ok=True)
+    if problem:
+        return None, problem
+    return Funds(credits, key_left), ""
 
 
 def write_atomic(path: Path, text: str) -> None:
@@ -481,14 +515,15 @@ class Runner:
 
     def _gate_balance(self, step: Step) -> float:
         own, foreign = self._open_reserved()
-        balance, problem = read_balance(self.system, self.plan, self.owner)
-        if balance is None:
+        funds, problem = read_funds(self.system, self.plan, self.owner)
+        if funds is None:
             raise Stop("balance-unreadable", problem)
+        balance = funds.usable()
         need = round(self.plan.floor_usd + step.reserve_usd + own + foreign, 6)
         if balance < need:
-            raise Stop("balance-low", f"balance ${balance:.2f} is below floor ${self.plan.floor_usd:.2f} + "
-                                      f"reserve ${step.reserve_usd:.2f} + open reserves ${own:.2f} + open "
-                                      f"reserves of other writers in the ledger ${foreign:.2f}")
+            raise Stop("balance-low", f"{funds.text()}: {funds.binding()} ${balance:.2f} is below floor "
+                                      f"${self.plan.floor_usd:.2f} + reserve ${step.reserve_usd:.2f} + open reserves "
+                                      f"${own:.2f} + open reserves of other writers in the ledger ${foreign:.2f}")
         return balance
 
     def _advance(self, run: LaneRun) -> None:

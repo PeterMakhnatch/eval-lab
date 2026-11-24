@@ -29,6 +29,7 @@ from campaign.runner import (
     Runner,
     Stop,
     expand_first_run,
+    read_funds,
 )
 from campaign.sim_fixture import (
     BASE,
@@ -39,6 +40,7 @@ from campaign.sim_fixture import (
     MUSTER_GRACE,
     OTHER_PID,
     OTHER_START,
+    SHELL_PID,
     STOP_GRACE,
     TWIN_SUFFIX,
     BrokenStream,
@@ -391,14 +393,21 @@ class Sim:
             total += FOREIGN_ODD_MICRO + max(arm.reserve_micro for arm in self.case.arms)
         return usd(total)
 
+    def _usable(self, owner: int) -> float | None:
+        probe = self.world.probes.get(owner)
+        if probe is None or probe.time != self.world.t or probe.value is None:
+            return None
+        key = self.world.key_truth()
+        return probe.value if key is None else min(probe.value, key)
+
     def _balance_low(self, proc: Proc, before: str) -> bool:
         plan = proc.runner.plan
-        probe = self.world.probes.get(proc.owner)
-        if probe is None or probe.time != self.world.t or probe.value is None:
+        usable = self._usable(proc.owner)
+        if usable is None:
             return False
         arm = plan.arm(base_arm(before))
         reserve = arm.rerun_reserve_usd if RERUN_TAG in before else arm.reserve_usd
-        return probe.value < round(plan.floor_usd + reserve + self._held(plan, ""), 6)
+        return usable < round(plan.floor_usd + reserve + self._held(plan, ""), 6)
 
     def _orphan_is_true(self, proc: Proc, lane: str) -> bool:
         plan = proc.runner.plan
@@ -430,7 +439,8 @@ class Sim:
             return self.interrupting == proc.owner
         if reason == "balance-unreadable":
             probe = world.probes.get(proc.owner)
-            return probe is not None and probe.time == world.t and probe.value is None
+            credits_failed = probe is not None and probe.time == world.t and probe.value is None
+            return credits_failed or world.key_failed.get(proc.owner) == world.t
         if reason == "lane-held":
             holder = world.locks.get(plan.lane_dir() / f"{lane}.lock")
             return holder is not None and holder != proc.owner and holder in world.live_owners
@@ -475,10 +485,12 @@ class Sim:
         arm = plan.arm(base_arm(name))
         reserve = arm.rerun_reserve_usd if RERUN_TAG in name else arm.reserve_usd
         need = round(plan.floor_usd + reserve + self._held(plan, name), 6)
-        probe = world.probes.get(proc.owner)
-        value = probe.value if probe is not None and probe.time == world.t else None
+        value = self._usable(proc.owner)
+        if world.key_failed.get(proc.owner) == world.t:
+            value = None
         check(value is not None and value >= need - 1e-9, "balance-before-start",
-              f"{name}: balance {value} below floor + reserve + every open reserve in the ledger {need}")
+              f"{name}: the smaller of account credits and key limit left {value} is below floor + reserve + "
+              f"every open reserve in the ledger {need}")
         check(world.truth.charged_micro < self.case.cap_micro, "cap-before-start", name)
         missing = [str(root) for root in plan.cap_roots if root != plan.output_root and not root.is_dir()]
         check(not missing, "cap-roots-present", f"{name} starts while {missing} is missing")
@@ -720,17 +732,35 @@ class Sim:
             self.run.check(lines == count, "event-log-complete", f"{log}: {lines} log lines for {count} events")
 
 
+def _check_funds(sim: Sim, lines: list[str]) -> None:
+    world = sim.world
+    probe = world.probes.get(SHELL_PID)
+    failed = probe is None or probe.value is None or world.key_failed.get(SHELL_PID) == world.t
+    if failed:
+        want = "money now: unreadable"
+    else:
+        assert probe is not None and probe.value is not None
+        key = world.key_truth()
+        usable = probe.value if key is None else min(probe.value, key)
+        binding = "key limit left" if key is not None and key < probe.value else "account credits"
+        want = f"{binding} binds: ${usable:.2f}"
+    shown = [line for line in lines if line.startswith("money now:")]
+    sim.run.check(len(shown) == 1 and want in shown[0], "check-shows-funds", f"want {want!r} in {shown}")
+
+
 def _purity(sim: Sim) -> None:
     sim.run.step = "check"
     plan = sim.plan()
     before = plan.ledger.read_bytes() if plan.ledger.exists() else None
-    lines, _ = report.check(plan, BASE)
+    lines, _ = report.check(plan, BASE, read_funds(sim.world, plan, SHELL_PID))
     for lane in plan.lanes:
         want = f"lane {lane.name}: {lane.concurrency} trials at once: {' -> '.join(lane.arms)}"
         sim.run.check(any(line.strip() == want for line in lines), "check-shows-order", want)
     after = plan.ledger.read_bytes() if plan.ledger.exists() else None
-    untouched = not plan.state_root.exists() and before == after and not sim.world.calls
+    probes_only = set(sim.world.calls) <= {"fake-balance", "fake-key-limit"}
+    untouched = not plan.state_root.exists() and before == after and probes_only
     sim.run.check(untouched, "check-writes-nothing", repr(sim.world.calls))
+    _check_funds(sim, lines)
     if sim.case.foreign_lines:
         shown = ["night team-8: $0.30"]
         if sim.case.foreign_lines == "odd":

@@ -175,7 +175,11 @@ The auditor's sentences:
 5. **OBSERVED.** "On 13 scorable hidden TS tasks, DeepSeek records 4 hits and $0.13 in model telemetry. Sonnet records 0 hits and $0.52. Adding Spark Open to DeepSeek adds no hits on those tasks." In TS-2 the second cheap route does add coverage (10 against 7 of 14 with retrieval).
 6. **OBSERVED.** "In the stored evidence I checked, I found no execution-scored comparison of several cheap attempts against 1 stronger attempt under the same enforced dollar cap on tasks with verified absence of prior exposure."
 
-**INFERRED.** In these stored attempts 3 things go with more verified grader defects: a retry after the grader's feedback, tests that the agent can see, and a second route of a different kind. A higher price does not. None of this is a comparison at equal dollars: the arms differ in tool use and turns, the tasks are selected, and the costs are telemetry. The worker's planning estimate for the missing comparison (2 one-shot DeepSeek Flash draws against 1 Sonnet draw on fresh private tasks, a $0.15 ceiling for each arm and task): 42 paired tasks for a 20-point margin, about $2.72 at stored medians and $12.60 at the ceiling, before fixtures and review. It needs the sealed tasks of `DESIGN.md` Section 0 first. No paid run is approved.
+**Qualification from the provenance audit.** A credited change in score does not by itself establish a product defect. DeepSeek labels 4 of its 6 hidden hits as test-runner tampering. Removing hits with that self-label leaves Sonnet at 1 of 30 and the other routes at 2 to 5 of 30. The denominator still includes unscorable cells.
+
+All 174 available historical hidden prompts request a task solution, not a QA review. Byte comparison shows that 146 of 152 visible responses match an earlier study, including all 42 credited visible hits. The first-turn streams represent 309 distinct sessions. Their recorded working directory is the repository; this does not prove either access to private tests or isolation from them. Treat the visible and hidden results as separate descriptions, not an estimate of the effect of test visibility.
+
+**Decision.** Do not buy a comparison from these data. None of the stored panels measures an independent second draw of the same route. The expanded roster scan leaves 448 of 567 package names unmatched, not 448 packages known to be unseen. Establish exposure history and a sealed evaluation set first. Source: `~/Developer/muster-runs/day-2026-11-24/two-v-one/audit/auditor-report.md`, sections 1–6.
 
 ## Limits and provenance
 

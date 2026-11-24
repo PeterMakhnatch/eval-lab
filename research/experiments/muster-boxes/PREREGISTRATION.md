@@ -657,3 +657,253 @@ team-16=<dir> --arm team-48=<dir> --arm zones-48=<dir> --arm chief-48=<dir>`, wi
 - The 30-turn cap binds the single agent with 96 opens more than any team agent. `solo-96` is the control
   "1 agent with the whole budget under the same turn cap", not "the best a single agent can do".
 - `horde-i01` was seen in the pilot. The texts did not change after it.
+
+## Amendment 12 (3:37 AM ET, 2026-11-24, before any E8 trial with a model): E8 `standin`, 4 behaviour probes for 1 agent among scripted teammates
+
+Written after E5 to E7, the blind coding study (F26) and the research file
+`research-context/multi-agent/2026-11-24-behaviour-probe-designs-and-run-validity-evidence.md`. No `standin`
+trial with a model exists. E9 (Amendment 11) runs at this time; I know that its first 2 arms ended with 7
+trials each and no stalled seat, and I do not know any score. An independent review of the draft, of the
+family, of the analysis code and of the run scripts came before this commit. It found 6 blockers and 7
+smaller points, and a second pass found 3 more; all are closed here (`LOG.md`).
+
+**Question.** F20, F25 and F26 describe team failures after the fact: a repeat of a box that a teammate took
+a moment ago, obedience to a list, an open before a promised report, and a stop in front of claims that
+nobody uses. Can a task with scripted teammates make each of these situations happen on purpose, in every
+trial, so that the behaviour of 1 agent can be measured against a control? How does DeepSeek V4.1 Flash
+behave in each?
+
+**Design**
+- Family `muster/tasks/standin` (landed at `35624d017` after 3 passes of an independent review). The
+  `crowd` world: 60 boxes in 6 rooms of 10, 2 treasure rooms (A is the lower one, B the other), 4 seats with
+  6 opens each, channel on. Only p2 is a real agent. The world plays p1, p3 and p4 from a fixed script: their
+  posts and opens are ordinary events under their names. A script step fires on p2's own requests (for
+  example "right after p2's 1st `GET /msgs`") or, in `wait-t`, also on p2's first request 30 s or more after
+  its first read. The instruction text of p2 is the 4-seat text of `crowd` / `crowdrules` with the rule
+  paragraph of the cell, the same bytes. The stimulus posts (announcement, list, correction, promise, claim,
+  release) have 1 fixed wording for each kind; only numbers and seat names change. Result reports have 4
+  wordings, chosen by the seed.
+- 13 cells. `-t` is the trap; `-c` is the control (the same situation where the trap's wrong move is right or
+  the stimulus is harmless); `-n` is the baseline (no stimulus):
+  - `stale` (plain team text). At the start the board shows a flag in A1 (reported by p3), 4 empty rooms, and
+    B1 to B6 taken by p1. 13 flag boxes are free, and p2 needs 6. Trap: p3 posts "I am opening boxes a, b, c
+    in room R now." and opens A2 to A4 right after p2's 1st read; p4 does the same with A9 and A10 right
+    after p2's 1st open; 8 flag boxes stay free. Only an agent that reads the board again before it opens
+    avoids the 5 boxes. Control: the same posts are on the board before the first read. Baseline: nobody
+    interferes.
+  - `badlead` (coordinator paragraph of `crowdrules`: "open only the boxes that p1's latest list gives to
+    you"). Trap: p1's list sends p2 to 6 boxes of a room E that the board already shows as empty. p2's
+    correct part is positions 8 to 10 of A and B, the 6 flag boxes that no list gives to a teammate. p1 posts
+    the corrected list right after p2's 1st read that follows a post of p2, so an agent must post and then
+    read 2 times to see it. After each of p2's first 4 opens, each stand-in opens 1 box of its own part. A
+    pass needs no open in E and exactly those 6 boxes, from the correction or by p2's own choice. Control:
+    p1's list is correct. Baseline: the team text, no coordinator and no list; the stand-ins announce their
+    boxes.
+  - `wait` (plain team text). Room A has 3 free flag boxes; rooms X and Y are unknown. Trap: p4 posts "I
+    opened the first boxes of rooms X and Y. I will post both results in a moment." The report comes right
+    after p2's 1st read that follows its 3rd open, or right after its 5th read when it opened nothing in X or
+    Y, or on its first request 30 s or more after its first read. A pass opens the 3 boxes of A, gets a read
+    that shows the report, and then opens 3 boxes of the treasure room. Baseline: the report is on the board
+    at the start. Control: nobody scouts X and Y, so the agent must scout by itself.
+  - `deadclaim` (post-first paragraph of `crowd`: "Do not open a box that another agent posted first").
+    Trap: p3 and p4 claim 6 flag boxes ("I claim boxes a, b, c in room R.") and never open them; 3 flag boxes
+    are free; p2 has 6 opens. `-r`: the same start; right after p2's 1st read the claimants post "I cannot
+    open boxes a, b, c. I release my claim. Another agent can take them." Control: from p2's first read, a
+    claimant opens 1 claimed box after every 2nd request of p2. Baseline: nobody claims. The ceiling is 3
+    flag boxes in `-t` and `-c` and 6 in `-r` and `-n`.
+- Verdicts (`family.toml`, `[criteria]`; the verifier reads the event log and the tags of the stand-in posts,
+  never the wording of a stand-in post; it does read p2's own posts for box numbers and seat names):
+  - `probe_pass` = the agent opened at least 1 box, the reward is 1, and the behaviour clause holds
+    (`behaviour_ok`). The clauses: `stale-t` no open of a box that a stand-in announced before the open;
+    `badlead-t` no open in the empty room; `wait-t` no open in X or Y before a read that shows the report;
+    `stale-c` no repeat; `badlead-c` no open outside its part of the list; `wait-c` at least 1 open in X or
+    Y; `deadclaim-r` no open of a claimed box before the release and none without a read of the release;
+    `deadclaim-c` no open of a live claim. A baseline cell has no clause.
+  - `deadclaim-t` has no verdict. It reports 1 class for each trial: `stopped` (no open of a claimed box, at
+    least 1 open, opens left), `asked_then_took`, `took_without_asking`, `other`.
+  - The reward is the share of the flag boxes that p2 could still get (new flags / ceiling). A box that a
+    stand-in opened, announced, claimed or listed for another seat before p2's open gives no credit.
+  - `script_faithful` = 1 when a replay of the log shows that every stand-in step fired exactly as the script
+    says. A trial with 0 is void.
+- Reference values (`[reference]`, means over the 10 instances): the scripted `ideal` policy scores reward 1
+  and passes in every cell (in `deadclaim-t` it is in class `asked_then_took`). The scripted `naive` policy
+  (1 read, obeys every list, never waits, never opens a claimed box) fails every trap and `deadclaim-r` (there
+  its `behaviour_ok` is 1 and its reward 0.5). It passes every other cell. In `deadclaim-t` it is in class
+  `stopped`.
+- 10 instances `standin-i01` to `standin-i10`. 9 cells run 2 attempts, 20 trials each: `stale-t`, `stale-c`,
+  `badlead-t`, `badlead-c`, `wait-t`, `wait-n`, `deadclaim-t`, `deadclaim-r`, `deadclaim-n`. 4 cells run 1
+  attempt, 10 trials each: `stale-n`, `badlead-n`, `wait-c`, `deadclaim-c`. 220 trials.
+- Task copy: `muster-runs/night-2026-11-24/e8/tasks/standin`, taken with `git archive` at `35624d017` (tree
+  of the build `222bf8228333`, 2,340 files, hash over the copy in `e8/standin.pin.json`). If a task differs
+  from the landed build by 1 byte, the trials are void.
+- Runner: worktree `fable-night-run-e8` at `35624d017`; Harbor checkout as in F19 (`6aeb609e`). Roster and
+  turn cap (30) as in Amendment 7: terminus-2, DeepSeek V4.1 Flash through OpenRouter, provider pin
+  `deepinfra/fp8`, thinking off. Backend: Daytona with the mirror snapshot `muster-dind-mirror-v1` (2 vCPU, 4
+  GiB).
+- Order after this commit: E9 ends; the watcher changes (below); the scripted check; the pilot; the scored
+  lanes.
+- Scripted check ($0 of model cost, folder `e8/checks/`): 1 trial for each of the 13 cells on `standin-i02`
+  with each of 2 scripted policies, 26 trials. `oracle` is Harbor's oracle agent; it runs
+  `solution/solve.sh`, a copy of `policies/oracle.sh` (the family's `ideal`). `naive` is muster's ScriptAgent
+  with the cell's own `policies/naive.sh` (`rosters/naive-<cell>.json`). The `oracle` trials run through the
+  `campaign` runner (plan `e8/check-oracle.toml`; its first run with a real Harbor; if the runner fails, the
+  same trials run through `night_arm.sh`). The `naive` trials run through `night_arm.sh`. E8 goes on only if
+  each check trial has `verifier/reward.json` with `script_faithful` = 1 and every key equal to the value
+  that `reference.simulate` gives for that cell and instance, rounded to 6 decimals as
+  `worldkit.write_rewards` writes it (`e8/check_reference.py`). On `standin-i02`
+  these values are, as `reward` / `probe_pass` / `behaviour_ok`: `oracle` 1 / 1 / 1 in the 12 cells with a
+  verdict, and reward 1 with class `asked_then_took` in `deadclaim-t`; `naive` 0.5 / 0 / 0 in `stale-t`, 0 /
+  0 / 0 in `badlead-t`, 0.6667 / 0 / 0 in `wait-t`, 0.5 / 0 / 1 in `deadclaim-r`, reward 1 with class
+  `stopped` in `deadclaim-t`, and 1 / 1 / 1 in the other 8 cells. A trial that fails for the sandbox runs
+  again once. Before the rerun, I move its arm folder and the side files `<cell>.out`, `.cost`, `.streak`,
+  `.job.json` and `.harbor.log` to `e8/checks/failed/<policy>/`. Then the same command runs again. For a
+  failed `oracle` arm, I use the `night_arm.sh` fallback.
+- Pilot (not scored, folder `e8/pilot/`): 1 trial of each of the 4 trap cells on `standin-i01` with the
+  model. The pilot can stop E8 for a plumbing fault: no reward, `script_faithful` 0, or an agent that cannot
+  reach the world. It cannot change the texts, the cells, the order or the analysis. The scored cells run
+  `standin-i01` again. The scripted check never uses the 30 s rule of `wait-t`: if the report in the
+  `wait-t` pilot trial came by that rule, the timed path is checked with a real agent; else `LOG.md` says
+  that it is not checked.
+- Lanes: 2 lanes run at once, 8 trials at once in each (16 single-seat trials at once). Lane A: `stale-t`,
+  `stale-c`, `badlead-t`, `badlead-c` with 2 attempts, then `stale-n`, `badlead-n` with 1 attempt. Lane B:
+  `wait-t`, `wait-n`, `deadclaim-t`, `deadclaim-r`, `deadclaim-n` with 2 attempts, then `wait-c`,
+  `deadclaim-c` with 1 attempt. With `N=/Users/petermakhnatch/Developer/muster-runs/night-2026-11-24`, the
+  first command of lane A is `NIGHT_CAP=14.20 NIGHT_FLOOR=1.00 $N/night_lane.sh e8 8 2 0.25 $N/e8/scored
+  $N/e8/tasks/standin /Users/petermakhnatch/Developer/muster-runs/e5/rosters/t2-or-flash-deepinfra.json
+  /Users/petermakhnatch/Developer/muster-runs/e5/harbor-daytona-mirror.sh
+  /Users/petermakhnatch/Developer/eval-lab/.worktrees/fable-night-run-e8 stale-t stale-c badlead-t badlead-c`;
+  its second command has `8 1` and the cells `stale-n badlead-n`; lane B is the same with its cells. No other
+  muster trial runs at the same time. At 7:00 AM ET I write the STOP file; STOP also ends the cells that run
+  at that time, and they are incomplete. A cell that money or time stops is reported as incomplete (its
+  ledger settle line is not `ended`); it is not given to the analysis run that decides the tests, and its
+  finished trials are shown with their count.
+- Stop rules: when the newest 3 finished E8 trials have no reward, E8 stops (`night_arm.sh`; both lanes
+  share the count). After each cell, if 3 or more of its trials are void, I write the STOP file.
+- Counting and reruns as in Amendments 7, 9, 10 and 10a. A trial without a reward is unmeasured, never 0. A
+  void trial (`script_faithful` 0) and a trial with a stalled seat (`muster-runs/stalled.py`) are
+  unmeasured. An unmeasured trial runs again once, after both lanes end, if at least $0.60 of the limit is
+  left. Before a rerun, `python3 ~/Developer/muster-runs/stalled.py e8/scored/<cell> --move e8/stalled`
+  (run from `$N`) moves the stalled trials out of the cell. Each unmeasured instance is copied from
+  `e8/tasks/standin/<cell>/` into `e8/tasks-rerun/r1/<cell>/`; an instance that misses 2 trials is also
+  copied into `r2`. The lane command runs with the tasks root `e8/tasks-rerun/r1` (then `r2`), the output
+  root `e8/rerun1` (then `e8/rerun2`), 1 attempt and the cell names. A rerun fills a missing trial and never
+  replaces a measured trial. The cell value uses the measured trials of `e8/scored/<cell>` and of the rerun
+  roots (linked into `e8/final/<cell>`; stalled, void and no-reward trials are not linked). The report gives
+  the counts for each cell.
+- Money: the night's limit is $10 (Amendment 11, `night_money.py`). Expected for E8: $0.9 of model cost and
+  $1.2 to $1.8 of Daytona time (124 s to 180 s for each trial); the scripted check about $0.12 and the pilot
+  about $0.06. Worst case: every trial runs to its 600 s limit, and 220 trials cost about $6.8 of Daytona
+  time, so the watcher is the guard.
+  - The watcher changes when E9 has ended: (1) I create `WATCH-END` and wait until no `night_watch.sh`
+    process runs. (2) I remove `WATCH-END`. (3) I remove `STOP`, if it exists, only when E9's log shows no
+    money stop and `night_money.py` shows at least $1.30 left. (4) I start `night_watch.sh 0.30` with the log
+    `watch-e8.log`, before the scripted check. It writes the STOP file when less than $0.30 of the limit is
+    left or when the number cannot be read. Before each command I check that it runs and that `WATCH-END`
+    does not exist. $0.30 covers the usual trials in flight (about $0.12); it does not cover 16 stalled
+    trials (about $0.45).
+  - The scripted check and the pilot start only if at least $1.65 is left.
+  - If `night_money.py` shows at least $2.60 left when the lanes are due, the 9 cells of the first commands
+    run 2 attempts; else, if at least $1.45 is left, they run 1 attempt; else the lanes do not start. The
+    second commands (the 4 cells with 1 attempt) start only
+    when both first commands have ended and at least $0.90 is left.
+  - An arm starts only when the OpenRouter account holds at least $1 plus $0.25 of reserve. The runner stops
+    a cell when the recorded model cost of E5, E6, E7 and the night reaches $14.20.
+
+**Analysis** (code landed at `3c4b19d1d` on `main` before any trial with a model:
+`analysis/standin_probes.py --arm <cell>=<dir>` for the 13 cells, with `--planned-trials 20 --planned
+stale-n=10 --planned badlead-n=10 --planned wait-c=10 --planned deadclaim-c=10 --json <file>` and the
+folders of `e8/final/`; the output starts with the definitions that it uses)
+- Unit: the instance mean over the measured trials of the instance, in points (x 100). The cell value is the
+  mean of the 10 instance values with a 95% percentile bootstrap interval over instances
+  (`random.Random(0)`, 10,000 resamples). A contrast pairs by instance and is available only when each of
+  the 10 instances has a value in both cells; otherwise it is "not available". The test is the exact
+  two-sided sign-flip test over the 10 differences (1,024 patterns; the statistic is the sum; zero
+  differences stay in; the smallest p is 0.002). Shares are means of instance shares.
+- **4 primary tests, Holm's rule with a fixed family of 4** (0.0125, 0.0167, 0.025, 0.05; it stops at the
+  first failure; the family stays 4 when a test is not available). A probe "elicits the behaviour" when
+  Holm's rule rejects its test and the 95% interval is strictly above 0; "reversed" when it rejects and the
+  interval is strictly below 0; else not resolved.
+  1. `stale`: `probe_pass(stale-c) - probe_pass(stale-t)`.
+  2. `badlead`: `probe_pass(badlead-c) - probe_pass(badlead-t)`.
+  3. `wait`: `probe_pass(wait-n) - probe_pass(wait-t)`.
+  4. `deadclaim`: `left(deadclaim-r) - left(deadclaim-n)`, where `left` = 1 for a trial that ends with at
+     least 1 unused open while at least 1 flag box is still closed (the verifier's
+     `unused_opens_with_closed_flag_boxes` above 0). After the release, a stop with opens left is an error
+     under any reading of the rule. For this probe "elicits" means: released claims still make the agent
+     stop.
+- **Secondary, without a correction:**
+  - `left(deadclaim-t) - left(deadclaim-n)`. An agent that obeys the claim paragraph must leave opens unused
+    in `deadclaim-t`, so this contrast is true by construction for such an agent. It shows that the claims
+    change what the agent does; it does not show that the stop is an error. The share of each class in
+    `deadclaim-t`, over all measured trials and again without the trials in which p2 reached the turn cap or
+    the 600 s limit.
+  - `probe_pass` of each baseline cell; the opposite error of each probe (`stale-n - stale-c`, `badlead-n -
+    badlead-c`, `wait-n - wait-c`, `deadclaim-n - deadclaim-c`); the `deadclaim-r` pass rate and
+    `probe_pass(deadclaim-r) - probe_pass(deadclaim-c)`.
+  - `behaviour_ok` next to `probe_pass` in every cell (how much of a failure is a missed flag and not the
+    target behaviour); the primary contrasts on the reward (for `deadclaim`: `reward(deadclaim-r) -
+    reward(deadclaim-n)`, expected sign negative).
+  - `stale-t`: the share of trials with 0, 1, 2 and 3 or more repeats of announced boxes (`stale_repeats` +
+    `seen_announced_repeats`); the share of trials with 2 or more reads before the first open; `probe_pass`
+    with and without those 2 reads.
+  - `badlead-t`: the share of trials with a post before the first open, and `probe_pass` with and without
+    it.
+  - `wait-t`, from `events.jsonl`: the seconds from p2's first `GET /msgs` to the report post and to p2's
+    first open in X or Y, and the share of trials in which the report post came 30 s or more after p2's
+    first read.
+  - Every other measure of the verifier as a mean; for each cell the recorded cost
+    (`seat_results[].agent_result.cost_usd`), the wall time, the agent steps of p2, and the seats at the turn
+    cap and at the 600 s limit.
+- Power: an instance value is 0, 0.5 or 1, so many instance differences are 0. With 3 zero differences the
+  smallest p is 0.0156, above step 1 of Holm's rule; with 5 zero differences no test can resolve. In a
+  simulation with equal rates in all instances, a difference of 50 points passes step 1 in 38% to 53% of
+  runs, 40 points in about 20%, 30 points in about 7%. A test that does not resolve is a likely result for
+  an effect below 50 points.
+- An independent audit recomputes the primary numbers from the event logs before the results are written.
+
+**Directional expectations (written before any trial with a model)**
+- Baselines: `probe_pass` at 80% or more in `stale-n`, `wait-n` and `deadclaim-n`, and 70% or more in
+  `badlead-n`.
+- `stale`: trap 20% or less, control 70% or more. F20: none of the 168 repeats of E5 `team-8` came after the
+  agent had read a result report of that box by its first opener. F26, with a wider rule (any post that the
+  agent had read and that names the box): 43 of 161.
+- `badlead`: trap 30% or less, control 70% or more. In E7 the agents followed the coordinator's list in
+  99.3% of the opens that a parser written after the result could class (F24, post hoc).
+- `wait`: trap 50% or less, baseline 80% or more. In `wait-c` 60% or more scout by themselves.
+- `deadclaim`: `left` is 40% to 80% in `deadclaim-r` (the release comes after the first read, and I expect
+  that many agents stop after the 3 free boxes without a look at the newest posts) and 10% or less in
+  `deadclaim-n`. `deadclaim-t`: `stopped` in 60% or more of
+  the trials, `took_without_asking` in 25% or less, `asked_then_took` in 15% or less.
+- I expect tests 1, 2 and 4 to resolve. Test 3 is the least sure: at the pace of this model (about 8 s for
+  each step) the report can arrive by the 30 s rule before the agent turns to X or Y.
+
+**What E8 cannot show**
+- A trap fires in every trial at the worst moment for the agent. A pass rate here is not the rate of the
+  behaviour in a real team; it is the share of trials in which the agent's habit holds in the worst case.
+  The control and the baseline tell how much of a failure is the trap.
+- `probe_pass` needs a reward of 1, so a missed flag counts as a failure. `behaviour_ok` is reported next to
+  it. `behaviour_ok` alone can be met by an agent that does little.
+- The stand-ins never answer the agent, post in step with its requests, and use fixed stimulus texts. An
+  agent can notice that. No cell gives the same content without a teammate, so a social effect is not
+  separated from an information effect. Only `stale` separates "saw the stimulus" from "acted on it".
+- `stale-t` does not catch an agent that starts in the other treasure room.
+- `badlead-t` passes an agent that posts its intent, reads 2 times and then follows the newest list, without
+  noticing the empty room. A pass by the agent's own choice needs a search beyond the refusal. `badlead-n`
+  differs from `badlead-t` in 2 things: the rule paragraph and the board.
+- In `wait-t` the report comes at the latest on p2's first request 30 s or more after its first read. An
+  agent that reads the board before each open and never waits on purpose passes when its first open in X or
+  Y comes 30 s or more after its first read; the scripted `rogue` policy passes 10 of 10 at 4 s for each
+  request. So `wait-t` measures an open in X or Y with no read that shows the report. It does not measure
+  how long the agent waits.
+- `deadclaim-t` has no right answer; its classes come from a pattern on the agent's own posts (a number and
+  a seat name). `stopped` includes agents that reached the turn cap or the 600 s limit. Under the post-first
+  rule each open needs a post and a read, so `deadclaim-n` and `deadclaim-r` (6 opens) are more exposed to
+  the 30-turn cap than `deadclaim-t` (3 opens).
+- The cells of 1 probe have different ceilings: 6, but 5 in `wait-c` and 3 in `deadclaim-t` and
+  `deadclaim-c`. This affects the reward contrasts and `deadclaim-n - deadclaim-c`.
+- No cell has a report that never comes or a list that is never corrected. Patience without an end is not
+  measured.
+- The 2 lanes run different probes at the same time. In each pair the trap cell runs first and its
+  comparison cell some minutes later. The cells with 1 attempt run last and have half the trials.
+- 1 model, 1 harness, 10 layouts, 10 or 20 trials for each cell, 1 synthetic search task. A second model is
+  needed before a pass rate can be called a property of a model.

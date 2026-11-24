@@ -12,6 +12,33 @@ Times are New York time (ET). Newest entry first. Each entry says what is done a
 
 ## 2026-11-24
 
+**3:37 AM. E8 `standin` is pre-registered (Amendment 12). E9 runs. The task family `standin` is on `main`.**
+- E9 timing: Amendment 11 was committed at 2:50:20 AM ET and pushed to a branch on the server at 2:51:42
+  AM; the first scored trial started at 2:51:58 AM; the commit reached `main` at about 2:54 AM (the land
+  queue held 4 to 5 lands of other lanes). `main` holds the same commit, `1b3d69092`.
+- E9 so far (health only, no score read): `team-8` and `team-48` ended with 7 of 7 trials and 0 stalled
+  seats; `zones-48` runs.
+- `standin` landed at `35624d017` after 3 passes of an independent review. Pass 1: 3 blockers (the credit
+  rule, a verdict in the unused-claim trap, the timing of the promised report). Pass 2: 1 blocker (a new
+  credit exception gave credit for a box that a stand-in had opened; it switched off the stale-read trap
+  for an agent that posts numbers early, as 19% of the real agents in E5 and E7 do). Pass 3: land, with 2
+  notes that are also in the family (1 fixed form for the announcements; 2 more known limits).
+- An independent review of the E8 draft said "fix first": the `naive` check roster could not run (1 script
+  for each cell); the check rule compared 1 trial with a mean over 10 layouts; the rerun folder layout
+  crashed the analysis; in `wait-t` the 30 s rule lets a slow agent pass without a wait on purpose; the
+  `deadclaim` test was true by construction for an agent that obeys its rule; the E9 watcher would stop E8
+  early. I took the reviewer's better primary test for `deadclaim` (released claims) and its text changes.
+  A second pass found a rounding fault in my comparison script and 2 gaps in the money gates; all 3 are
+  closed.
+- Analysis code on `main` before any E8 trial with a model: `3c4b19d1d` (`analysis/standin_probes.py`).
+- `campaign`: the fixes for the 3 blockers of the first safety review landed (`f0640316b`). A second review
+  says go for a scripted run and "fix first" for a paid run: the new match of Harbor by its command line
+  also hits read-only tools, and 1 process with several lanes stops them one after another. A third round
+  of fixes is in work. E8's scripted `oracle` check is its first run with a real Harbor.
+- F26: 1 sentence corrected (the 43 repeats of E5 `team-8` are of a box that any post read by the agent had
+  named; a plan or an intent counts there).
+- Money at this time: $5.06 of the $10.
+
 **2:50 AM. E9 `horde` is pre-registered (Amendment 11). 3 pilot trials with 48 real agents.**
 - Pilot, 1 trial each on `horde-i01`, DeepSeek Flash, Daytona with the 4 vCPU snapshot, not scored:
   `zones-48` 0.9875 (1 repeat, $0.048, 168 s), `team-48` 0.4875 (36 repeats, 162 messages, $0.107, 231 s),

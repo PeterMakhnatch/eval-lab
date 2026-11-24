@@ -841,8 +841,10 @@ OBSERVED:
 - `seat_codes.py` applies the log rules to every seat of 27 arms. Examples: in E7 `team-8`, 59% of the seats
   repeat a box and 62% of the opens follow a board read by the same seat since its last open; in `share-8`,
   0 repeats, 98% of the opens follow a read, and 27% of the seats open boxes in rooms that the board already
-  shows as empty. In E5 `team-8`, 118 repeats hit a box with no report that the seat had read, against 43
-  repeats of a box whose report it had read.
+  shows as empty. In E5 `team-8`, 118 repeats hit a box that no post read by the seat had named, against 43
+  repeats of a box that a post read by the seat had named as opened, claimed or assigned (a plan or an
+  intent counts here). F20 uses a narrower rule, a result report of the box by its first opener that the
+  seat had read, and counts 0 of 168.
 
 INFERRED. The main failure of these teams is an action on a view of the shared state that is 1 turn old,
 not a refusal to read: most opens do follow a read. The behaviour probes of the `standin` family (a change

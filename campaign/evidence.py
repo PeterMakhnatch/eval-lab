@@ -16,6 +16,7 @@ from campaign.system import Walk, WalkError
 MAX_WALK_DIRS = 2_000_000
 MAX_TRIALS = 1_000_000
 MAX_JSON_BYTES = 64_000_000
+TOKEN_FIELDS = ("n_input_tokens", "n_cache_tokens", "n_output_tokens")
 
 
 @dataclass(frozen=True)
@@ -133,14 +134,103 @@ def folder_counts(folder: Path, detected: frozenset[str]) -> dict[str, Any]:
     }
 
 
-def _agent_cost(result: Any) -> float | None:
-    agent = result.get("agent_result") if isinstance(result, dict) else None
-    raw = agent.get("cost_usd") if isinstance(agent, dict) else None
+def _number(raw: Any) -> float | None:
     try:
-        cost = finite(raw)
+        return finite(raw)
     except OverflowError:
         return None
+
+
+def _raw_agent_cost(result: Any) -> Any:
+    agent = result.get("agent_result") if isinstance(result, dict) else None
+    return agent.get("cost_usd") if isinstance(agent, dict) else None
+
+
+def _agent_cost(result: Any) -> float | None:
+    cost = _number(_raw_agent_cost(result))
     return cost if cost is not None and cost >= 0 else None
+
+
+def _counts_tokens(counters: Any) -> bool:
+    if not isinstance(counters, dict):
+        return False
+    for field in TOKEN_FIELDS:
+        count = _number(counters.get(field))
+        if count is not None and count > 0:
+            return True
+    return False
+
+
+def _positive_tokens(result: Any) -> bool:
+    agent = result.get("agent_result") if isinstance(result, dict) else None
+    if not isinstance(agent, dict):
+        return False
+    if _counts_tokens(agent):
+        return True
+    usage = agent.get("model_usage")
+    if not isinstance(usage, dict):
+        return False
+    assert len(usage) <= MAX_TRIALS
+    return any(_counts_tokens(counters) for counters in usage.values())
+
+
+def _has_model_info(result: Any) -> bool:
+    info = result.get("agent_info") if isinstance(result, dict) else None
+    return isinstance(info, dict) and bool(info.get("model_info"))
+
+
+def _seat_shows_model_use(seat: Any) -> bool:
+    if not isinstance(seat, dict):
+        return False
+    ran = bool(seat.get("agent_result")) or isinstance(seat.get("agent_execution"), dict)
+    return _raw_agent_cost(seat) is not None or (ran and _has_model_info(seat)) or _positive_tokens(seat)
+
+
+def _configured_model(agent: Any) -> bool:
+    model = agent.get("model_name") if isinstance(agent, dict) else None
+    return isinstance(model, str) and bool(model)
+
+
+def _entries(collection: list[Any] | dict[str, Any]) -> Iterator[tuple[str | None, Any]]:
+    assert len(collection) <= MAX_TRIALS
+    if isinstance(collection, dict):
+        yield from collection.items()
+    else:
+        yield from ((None, entry) for entry in collection)
+
+
+def _seat_name(entry: Any) -> str | None:
+    name = entry.get("seat") if isinstance(entry, dict) else None
+    return name if isinstance(name, str) and name else None
+
+
+def _absent_model_participants(participants: Any, seats: list[Any] | dict[str, Any]) -> int:
+    if not isinstance(participants, list | dict) or not participants:
+        return 0
+    represented: set[str] = set()
+    for key, seat in _entries(seats):
+        if key:
+            represented.add(key)
+        name = _seat_name(seat)
+        if name:
+            represented.add(name)
+    absent = sum(_configured_model(participant) and key not in represented
+                 and _seat_name(participant) not in represented for key, participant in _entries(participants))
+    assert 0 <= absent <= len(participants)
+    return absent
+
+
+def _team_cost_unknown(result: dict[str, Any]) -> bool:
+    if _raw_agent_cost(result) is not None or _has_model_info(result) or _positive_tokens(result):
+        return True
+    config = result.get("config")
+    agent = config.get("agent") if isinstance(config, dict) else None
+    if _configured_model(agent):
+        return True
+    info = result.get("agent_info")
+    if isinstance(info, dict) and info:
+        return False
+    return not (isinstance(agent, dict) and (agent.get("name") or agent.get("import_path")))
 
 
 def _unknown(totals: Counter[str], seats: int) -> None:
@@ -168,18 +258,19 @@ def _result_cost(path: Path, totals: Counter[str], problems: list[str], expected
     if not isinstance(seats, list | dict) or not seats:
         if team is not None:
             return team, True
-        _unknown(totals, configured or expected_seats)
+        _unknown(totals, expected_seats if _team_cost_unknown(result) else 0)
         return 0.0, True
-    assert len(seats) <= MAX_TRIALS
     totals["seats"] += len(seats)
-    known, subtotal = 0, 0.0
-    for seat in seats.values() if isinstance(seats, dict) else seats:
+    known, unknown, subtotal = 0, 0, 0.0
+    for _, seat in _entries(seats):
         cost = _agent_cost(seat)
         if cost is not None:
             known += 1
             subtotal += cost
+        elif _seat_shows_model_use(seat):
+            unknown += 1
+    _unknown(totals, unknown + _absent_model_participants(participants, seats))
     missing = max(len(seats), configured) - known
-    _unknown(totals, missing)
     if team is None:
         return subtotal, True
     difference = subtotal - team

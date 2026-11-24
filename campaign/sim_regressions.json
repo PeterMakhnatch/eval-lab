@@ -54,5 +54,26 @@
     "invariant": "cap-recorded-cost",
     "detail": "team",
     "known": false
+  },
+  {
+    "seed": 1124009,
+    "step": "cost/result-shapes",
+    "invariant": "cap-scripted-and-idle-seats-free",
+    "detail": "scripted",
+    "known": false
+  },
+  {
+    "seed": 1124009,
+    "step": "cost/result-shapes",
+    "invariant": "cap-scripted-and-idle-seats-free",
+    "detail": "never-ran",
+    "known": false
+  },
+  {
+    "seed": 1124009,
+    "step": "cost/result-shapes",
+    "invariant": "cap-scripted-and-idle-seats-free",
+    "detail": "solo-scripted",
+    "known": false
   }
 ]

@@ -869,8 +869,8 @@ class World:
             self.truth.charged_micro += self.case.unknown_seat_micro
             return
         recorded = sum(trial.seat_costs[1:] if trial.fault == "unknown-cost" else trial.seat_costs)
-        missing = {"unknown-cost": 1, "pull-limit": len(trial.seat_costs)}.get(trial.fault, 0)
-        self.truth.charged_micro += recorded + missing * self.case.unknown_seat_micro
+        unknown = self.case.unknown_seat_micro if trial.fault == "unknown-cost" else 0
+        self.truth.charged_micro += recorded + unknown
         exception = None
         if trial.fault == "pull-limit":
             exception = {"exception_type": "RuntimeError", "exception_message": "docker pull: 429 Too Many Requests"}

@@ -21,7 +21,10 @@ if TYPE_CHECKING:
 MUTATIONS = {
     "no-seat-list-zero": "cap-unknown-trial-charged",
     "ignore-team-cost": "cap-stop-shape-equivalence",
+    "charge-every-seat": "cap-scripted-and-idle-seats-free",
 }
+TOKENS = ("n_input_tokens", "n_cache_tokens", "n_output_tokens")
+MODEL = "openrouter/sim/model"
 
 
 @dataclass(frozen=True)
@@ -32,6 +35,7 @@ class Trial:
     recorded_micro: int
     unknown_seats: int = 0
     problem: bool = False
+    free: bool = False
 
 
 def _agent(cost: Any) -> dict[str, Any]:
@@ -42,17 +46,63 @@ def _seats(total: int) -> dict[str, Any]:
     return {"seat_results": [_agent(usd(total // 2)), _agent(usd(total - total // 2))]}
 
 
+def _usage(rng: Random, cost: Any, tokens: int) -> dict[str, Any]:
+    assert tokens >= 0
+    usage: dict[str, Any] = {name: rng.choice((None, 0)) for name in TOKENS}
+    if tokens:
+        usage[rng.choice(TOKENS)] = tokens
+    return usage | {"cost_usd": cost, "model_usage": None, "rollout_details": None, "metadata": None}
+
+
+def _info(agent: str, model: bool) -> dict[str, Any]:
+    return {"name": agent, "version": "2.0.0", "model_info": {"name": "sim/model", "provider": "sim"} if model else None}
+
+
+def _seat(name: str, agent: str, model: bool, result: dict[str, Any] | None) -> dict[str, Any]:
+    return {"seat": name, "agent_info": _info(agent, model), "agent_result": result,
+            "agent_execution": {"ok": True} if result is not None else None, "exception_info": None}
+
+
+def _participant(name: str, agent: str, model: str | None) -> dict[str, Any]:
+    return {"seat": name, "name": agent, "import_path": None, "model_name": model, "kwargs": {}}
+
+
+def _config(agent: str | None, model: str | None, participants: list[dict[str, Any]] | None) -> dict[str, Any]:
+    configured = {"name": agent, "import_path": None, "model_name": model, "kwargs": {}} if agent else None
+    return {"config": {"agent": configured, "participants": participants}}
+
+
+def _team(seats: list[dict[str, Any]], extra: tuple[dict[str, Any], ...] = ()) -> dict[str, Any]:
+    assert seats and all(seat["agent_info"]["name"] for seat in seats)
+    roster = [_participant(seat["seat"], seat["agent_info"]["name"], MODEL if seat["agent_info"]["model_info"] else None)
+              for seat in seats]
+    return {"seat_results": seats, "agent_info": None, "agent_result": None} | _config("oracle", None, roster + list(extra))
+
+
+def _keyed(team: dict[str, Any]) -> dict[str, Any]:
+    seats = {seat["seat"]: {key: value for key, value in seat.items() if key != "seat"} for seat in team["seat_results"]}
+    assert len(seats) == len(team["seat_results"])
+    return team | {"seat_results": seats}
+
+
+def _solo(agent: str, model: str | None, result: dict[str, Any] | None) -> dict[str, Any]:
+    return _config(agent, model, None) | {"agent_info": _info(agent, False), "agent_result": result}
+
+
 def _trials(rng: Random, reserve: int, expected_seats: int) -> tuple[Trial, ...]:
     known = rng.randint(120_000, 250_000)
     difference = rng.randint(10_001, 40_000)
-    configured = rng.randint(2, 4)
-    participants = {"config": {"participants": [{"seat": str(n)} for n in range(configured)]}}
+    modeled = expected_seats + rng.randint(1, 2)
+    participants = {"config": {"agent": None,
+                               "participants": [_participant(f"p{n + 1}", "terminus-2", MODEL) for n in range(modeled)]}}
     bad = rng.choice(("0.04", True, -1, float("inf")))
     return (
         Trial("seats", _seats(known), known, known),
         Trial("team", _agent(usd(known)), known, known),
         Trial("empty", {}, reserve, 0, expected_seats),
-        Trial("configured", participants, configured * reserve, 0, configured),
+        Trial("configured", participants, expected_seats * reserve, 0, expected_seats),
+        Trial("configured-empty-seats", participants | {"seat_results": rng.choice(([], {}))},
+              expected_seats * reserve, 0, expected_seats),
         Trial("both", _seats(known) | _agent(usd(known)), known, known),
         Trial("cent", _seats(known) | _agent(usd(known - 10_000)), known, known),
         Trial("larger-team", _seats(known) | _agent(usd(known + difference)),
@@ -63,6 +113,34 @@ def _trials(rng: Random, reserve: int, expected_seats: int) -> tuple[Trial, ...]
         Trial("partial-seats", {"seat_results": [_agent(usd(known)), _agent(bad)]},
               known + reserve, known, 1),
         Trial("explicit-zero", _agent(0), 0, 0),
+        *_seat_trials(rng, reserve, expected_seats, known),
+    )
+
+
+def _seat_trials(rng: Random, reserve: int, expected_seats: int, known: int) -> tuple[Trial, ...]:
+    names = [f"p{n + 1}" for n in range(rng.randint(2, 4))]
+    scripted = [_seat(name, rng.choice(("oracle", "nop")), False, _usage(rng, None, 0)) for name in names]
+    idle = [_seat(name, "terminus-2", True, None) for name in names]
+    paid = _seat(names[0], "terminus-2", True, _usage(rng, usd(known), rng.randint(1, 90_000)))
+    tokens = _seat(names[0], "claude-code", False, _usage(rng, None, rng.randint(1, 90_000)))
+    never_ran = _team(idle) | {"agent_info": _info("terminus-2", True), "exception_info": {
+        "exception_type": "RuntimeError", "exception_message": "docker pull: 429 Too Many Requests"}}
+    unknown = expected_seats * reserve
+    return (
+        Trial("scripted", _team(scripted), 0, 0, free=True),
+        Trial("never-ran", never_ran, 0, 0, free=True),
+        Trial("standin", _team([paid, *scripted[1:]]), known, known),
+        Trial("missing-modeled", _team([paid], (_participant("p9", "terminus-2", MODEL),)), known + reserve, known, 1),
+        Trial("missing-scripted", _team([paid], (_participant("p9", "oracle", None),)), known, known),
+        Trial("missing-modeled-keyed", _keyed(_team([paid, *scripted[1:]], (_participant("p9", "codex", MODEL),))),
+              known + reserve, known, 1),
+        Trial("missing-scripted-keyed", _keyed(_team([paid, *scripted[1:]], (_participant("p9", "nop", None),))),
+              known, known),
+        Trial("tokens-no-model", _team([tokens]), reserve, 0, 1),
+        Trial("solo-scripted", _solo("oracle", None, _usage(rng, None, 0)), 0, 0, free=True),
+        Trial("solo-configured-model", _solo("terminus-2", MODEL, None), unknown, 0, expected_seats),
+        Trial("solo-tokens", _solo("claude-code", None, _usage(rng, None, rng.randint(1, 90_000))),
+              unknown, 0, expected_seats),
     )
 
 
@@ -90,6 +168,8 @@ def _cost_shapes(run: Run, plan: Plan, rng: Random, reserve: int) -> None:
         recorded = None if trial.unknown_seats and trial.recorded_micro == 0 else usd(trial.recorded_micro)
         run.check(cost.record()["recorded_usd"] == recorded, "cap-settle-does-not-record-false-zero", trial.shape)
         run.check(len(cost.problems) == int(trial.problem), "cap-conflicts-reported", trial.shape)
+        run.check(not trial.free or (charged == 0 and not cost.unknown_trials and not cost.seats_without_cost),
+                  "cap-scripted-and-idle-seats-free", trial.shape)
     run.check(evidence.scan_cost([folders[2]]).charged(plan.unknown_seat_usd) == usd(reserve),
               "cap-unknown-minimum-one-seat", "no count in the result or plan")
     status = report.status(plan)
@@ -123,7 +203,8 @@ def _stop_trial(plan: Plan, case: Scenario, amounts: tuple[int, ...], team: bool
 
 def _cap_stop(run: Run, plan: Plan, case: Scenario, rng: Random, root: Path) -> None:
     run.step = "cost/cap-stop"
-    amounts = tuple(rng.randint(50_000, 200_000) for _ in range(4))
+    fallback = round(plan.unknown_seat_usd * plan.expected_seats * 1_000_000)
+    amounts = tuple(fallback + rng.randint(50_000, 200_000) for _ in range(4))
     crossing = rng.randint(2, len(amounts))
     stop_plan = replace(plan, cap_usd=usd(sum(amounts[:crossing])))
     stops = []
@@ -150,6 +231,10 @@ def _inject(mutation: str | None) -> Iterator[None]:
             return result_cost(path, totals, problems, expected_seats)
 
         with patch.object(evidence, "_result_cost", zero):
+            yield
+        return
+    if mutation == "charge-every-seat":
+        with patch.object(evidence, "_seat_shows_model_use", lambda seat: True):
             yield
         return
     assert mutation == "ignore-team-cost"

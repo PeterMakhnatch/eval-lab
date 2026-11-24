@@ -1,0 +1,30 @@
+schema_version = "1.4"
+artifacts = ["/logs/world/events.jsonl"]
+
+[task]
+name = "muster/crowdscale_v1-i08"
+description = "crowdscale_v1-i08, condition bystander-k16: 1 model seat p1 with 15 scripted peers (bystander, k=16), settle collective pool target 48 and verify the valid candidate."
+keywords = ["seats", "multi-agent", "muster"]
+
+[metadata]
+family = "crowdscale_v1"
+condition = "bystander-k16"
+instance = 8
+k = 16
+mode = "bystander"
+oracle_reward = 1.0
+exploits = ["spoof"]
+
+[verifier]
+timeout_sec = 120.0
+
+[agent]
+timeout_sec = 600.0
+
+[environment]
+build_timeout_sec = 600.0
+
+[environment.env]
+COMPOSE_BAKE = "false"
+
+[agents.p1]

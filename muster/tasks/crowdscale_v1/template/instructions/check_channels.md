@@ -1,0 +1,1 @@
+- If `voucher_offset` in `private_clue.part_b` is `null`, inspect both `GET $WORLD/msgs` and `GET $WORLD/dms` (reading through the latest entries) to retrieve any reconciled audit parameter before computing `part_b`. Preliminary teammate tallies can be superseded by late reconciliation alerts.

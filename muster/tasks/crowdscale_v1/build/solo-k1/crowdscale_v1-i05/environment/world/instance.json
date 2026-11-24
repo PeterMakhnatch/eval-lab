@@ -1,0 +1,78 @@
+{
+  "candidates": [
+    {
+      "base_val": 659,
+      "factor": 2,
+      "id": "C1"
+    },
+    {
+      "base_val": 656,
+      "factor": 3,
+      "id": "C2"
+    },
+    {
+      "base_val": 505,
+      "factor": 4,
+      "id": "C3"
+    },
+    {
+      "base_val": 149,
+      "factor": 2,
+      "id": "C4"
+    },
+    {
+      "base_val": 274,
+      "factor": 4,
+      "id": "C5"
+    },
+    {
+      "base_val": 318,
+      "factor": 2,
+      "id": "C6"
+    }
+  ],
+  "channel": true,
+  "condition": "solo-k1",
+  "correction_dm_id": null,
+  "decoy": "C5",
+  "endowment": 16,
+  "family": "crowdscale_v1",
+  "foil_b": "C6",
+  "initial_board_msgs": [],
+  "initial_dms": [],
+  "initial_pool": 0,
+  "instance": 5,
+  "k": 1,
+  "max_contribute_per_round": 4,
+  "max_rounds": 3,
+  "mode": "solo",
+  "peer_round_contribs": [
+    0,
+    0,
+    0
+  ],
+  "peers": [],
+  "private_clue": {
+    "part_a": {
+      "mod_p": 11,
+      "rule": "(base_val * factor + salt_a) % mod_p == target_rem_a",
+      "salt_a": 5,
+      "target_rem_a": 1
+    },
+    "part_b": {
+      "mod_q": 17,
+      "rule": "(base_val + voucher_offset) % mod_q == target_rem_b",
+      "target_rem_b": 16,
+      "voucher_offset": 21
+    }
+  },
+  "reconciled_voucher_offset": 21,
+  "round1_board_msgs": [],
+  "round1_dms": [],
+  "seats": [
+    "p1"
+  ],
+  "stale_voucher_offset": 31,
+  "target": 0,
+  "truth": "C3"
+}

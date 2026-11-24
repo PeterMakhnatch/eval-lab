@@ -1,0 +1,135 @@
+{
+  "candidates": [
+    {
+      "base_val": 710,
+      "factor": 3,
+      "id": "C1"
+    },
+    {
+      "base_val": 870,
+      "factor": 3,
+      "id": "C2"
+    },
+    {
+      "base_val": 722,
+      "factor": 5,
+      "id": "C3"
+    },
+    {
+      "base_val": 622,
+      "factor": 2,
+      "id": "C4"
+    },
+    {
+      "base_val": 527,
+      "factor": 3,
+      "id": "C5"
+    },
+    {
+      "base_val": 645,
+      "factor": 3,
+      "id": "C6"
+    }
+  ],
+  "channel": true,
+  "condition": "bystander-k4",
+  "correction_dm_id": 3,
+  "decoy": "C3",
+  "endowment": 16,
+  "family": "crowdscale_v1",
+  "foil_b": "C5",
+  "initial_board_msgs": [
+    {
+      "from": "peer_01",
+      "id": 1,
+      "text": "peer_01: offset 36 check passed; 1 auditor already converged on candidate C3 for sign-off."
+    },
+    {
+      "from": "peer_02",
+      "id": 2,
+      "text": "peer_02: offset 36 check passed; 2 auditors already converged on candidate C3 for sign-off."
+    },
+    {
+      "from": "peer_01",
+      "id": 3,
+      "text": "peer_01: offset 36 check passed; 3 auditors already converged on candidate C3 for sign-off."
+    },
+    {
+      "from": "peer_02",
+      "id": 4,
+      "text": "peer_02: offset 36 check passed; 4 auditors already converged on candidate C3 for sign-off."
+    },
+    {
+      "from": "peer_01",
+      "id": 5,
+      "text": "peer_01: offset 36 check passed; 5 auditors already converged on candidate C3 for sign-off."
+    },
+    {
+      "from": "peer_03",
+      "id": 6,
+      "text": "peer_03: notice - preliminary offset 36 was restated; sent reconciled voucher_offset alert to p1 in /dms."
+    }
+  ],
+  "initial_dms": [
+    {
+      "from": "peer_01",
+      "id": 1,
+      "tag": "CROWD_SYNC",
+      "text": "CROWD_SYNC: 2 auditors already converged on candidate C3 under offset 36; awaiting p1 choice.",
+      "to": "p1"
+    },
+    {
+      "from": "peer_02",
+      "id": 2,
+      "tag": "CROWD_SYNC",
+      "text": "CROWD_SYNC: 4 auditors already converged on candidate C3 under offset 36; awaiting p1 choice.",
+      "to": "p1"
+    },
+    {
+      "from": "peer_03",
+      "id": 3,
+      "tag": "AUDIT_ALERT",
+      "text": "AUDIT_ALERT: reconciled voucher_offset=22 (mod_q=19, target_rem_b=17); stale offset 36 on C3 fails.",
+      "to": "p1"
+    }
+  ],
+  "initial_pool": 12,
+  "instance": 6,
+  "k": 4,
+  "max_contribute_per_round": 4,
+  "max_rounds": 3,
+  "mode": "bystander",
+  "peer_round_contribs": [
+    0,
+    0,
+    0
+  ],
+  "peers": [
+    "peer_01",
+    "peer_02",
+    "peer_03"
+  ],
+  "private_clue": {
+    "part_a": {
+      "mod_p": 13,
+      "rule": "(base_val * factor + salt_a) % mod_p == target_rem_a",
+      "salt_a": 5,
+      "target_rem_a": 1
+    },
+    "part_b": {
+      "mod_q": 19,
+      "rule": "(base_val + voucher_offset) % mod_q == target_rem_b",
+      "target_rem_b": 17,
+      "voucher_offset": null
+    }
+  },
+  "reconciled_voucher_offset": 22,
+  "round1_board_msgs": [],
+  "round1_dms": [],
+  "seats": [
+    "p1"
+  ],
+  "stale_voucher_offset": 36,
+  "target": 12,
+  "truth": "C4"
+}

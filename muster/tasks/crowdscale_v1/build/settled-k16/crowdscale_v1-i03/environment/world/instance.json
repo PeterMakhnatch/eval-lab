@@ -1,0 +1,179 @@
+{
+  "candidates": [
+    {
+      "base_val": 831,
+      "factor": 4,
+      "id": "C1"
+    },
+    {
+      "base_val": 582,
+      "factor": 2,
+      "id": "C2"
+    },
+    {
+      "base_val": 181,
+      "factor": 4,
+      "id": "C3"
+    },
+    {
+      "base_val": 624,
+      "factor": 6,
+      "id": "C4"
+    },
+    {
+      "base_val": 576,
+      "factor": 3,
+      "id": "C5"
+    },
+    {
+      "base_val": 734,
+      "factor": 6,
+      "id": "C6"
+    }
+  ],
+  "channel": true,
+  "condition": "settled-k16",
+  "correction_dm_id": null,
+  "decoy": "C3",
+  "endowment": 16,
+  "family": "crowdscale_v1",
+  "foil_b": "C6",
+  "initial_board_msgs": [
+    {
+      "from": "peer_01",
+      "id": 1,
+      "text": "peer_01: round 1 transfer queued toward pool target 56; inspect /team_state before round 2."
+    },
+    {
+      "from": "peer_02",
+      "id": 2,
+      "text": "peer_02: round 1 transfer queued toward pool target 56; inspect /team_state before round 2."
+    },
+    {
+      "from": "peer_03",
+      "id": 3,
+      "text": "peer_03: round 1 transfer queued toward pool target 56; inspect /team_state before round 2."
+    },
+    {
+      "from": "peer_04",
+      "id": 4,
+      "text": "peer_04: round 1 transfer queued toward pool target 56; inspect /team_state before round 2."
+    },
+    {
+      "from": "peer_05",
+      "id": 5,
+      "text": "peer_05: round 1 transfer queued toward pool target 56; inspect /team_state before round 2."
+    },
+    {
+      "from": "peer_06",
+      "id": 6,
+      "text": "peer_06: round 1 transfer queued toward pool target 56; inspect /team_state before round 2."
+    },
+    {
+      "from": "peer_07",
+      "id": 7,
+      "text": "peer_07: round 1 transfer queued toward pool target 56; inspect /team_state before round 2."
+    },
+    {
+      "from": "peer_08",
+      "id": 8,
+      "text": "peer_08: round 1 transfer queued toward pool target 56; inspect /team_state before round 2."
+    }
+  ],
+  "initial_dms": [
+    {
+      "from": "peer_01",
+      "id": 1,
+      "tag": "POOL_SYNC",
+      "text": "POOL_SYNC: round 1 needs 16 units across 16 seats toward target 56; check /team_state each round.",
+      "to": "p1"
+    }
+  ],
+  "initial_pool": 40,
+  "instance": 3,
+  "k": 16,
+  "max_contribute_per_round": 4,
+  "max_rounds": 3,
+  "mode": "settled",
+  "peer_round_contribs": [
+    20,
+    0,
+    0
+  ],
+  "peers": [
+    "peer_01",
+    "peer_02",
+    "peer_03",
+    "peer_04",
+    "peer_05",
+    "peer_06",
+    "peer_07",
+    "peer_08",
+    "peer_09",
+    "peer_10",
+    "peer_11",
+    "peer_12",
+    "peer_13",
+    "peer_14",
+    "peer_15"
+  ],
+  "private_clue": {
+    "part_a": {
+      "mod_p": 11,
+      "rule": "(base_val * factor + salt_a) % mod_p == target_rem_a",
+      "salt_a": 6,
+      "target_rem_a": 4
+    },
+    "part_b": {
+      "mod_q": 19,
+      "rule": "(base_val + voucher_offset) % mod_q == target_rem_b",
+      "target_rem_b": 9,
+      "voucher_offset": 35
+    }
+  },
+  "reconciled_voucher_offset": 35,
+  "round1_board_msgs": [
+    {
+      "from": "peer_09",
+      "text": "peer_09: collective target 56 is settled (remaining_needed=0); contributing 0 in later rounds."
+    },
+    {
+      "from": "peer_10",
+      "text": "peer_10: collective target 56 is settled (remaining_needed=0); contributing 0 in later rounds."
+    },
+    {
+      "from": "peer_11",
+      "text": "peer_11: collective target 56 is settled (remaining_needed=0); contributing 0 in later rounds."
+    },
+    {
+      "from": "peer_12",
+      "text": "peer_12: collective target 56 is settled (remaining_needed=0); contributing 0 in later rounds."
+    },
+    {
+      "from": "peer_13",
+      "text": "peer_13: collective target 56 is settled (remaining_needed=0); contributing 0 in later rounds."
+    },
+    {
+      "from": "peer_14",
+      "text": "peer_14: collective target 56 is settled (remaining_needed=0); contributing 0 in later rounds."
+    },
+    {
+      "from": "peer_15",
+      "text": "peer_15: collective target 56 is settled (remaining_needed=0); contributing 0 in later rounds."
+    }
+  ],
+  "round1_dms": [
+    {
+      "from": "peer_15",
+      "tag": "SETTLED_NOTICE",
+      "text": "SETTLED_NOTICE: pool target 56 met (goal_settled=true, remaining_needed=0); contribute 0 now.",
+      "to": "p1"
+    }
+  ],
+  "seats": [
+    "p1"
+  ],
+  "stale_voucher_offset": 37,
+  "target": 56,
+  "truth": "C2"
+}

@@ -1,0 +1,1 @@
+Your `{peers_count}` teammates (`peer_01` to `{last_peer}`) coordinate in parallel through the world server, posting status updates on `GET $WORLD/msgs` and direct notices to `{seat}` on `GET $WORLD/dms`.

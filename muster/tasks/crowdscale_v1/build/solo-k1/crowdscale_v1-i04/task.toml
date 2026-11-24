@@ -1,0 +1,30 @@
+schema_version = "1.4"
+artifacts = ["/logs/world/events.jsonl"]
+
+[task]
+name = "muster/crowdscale_v1-i04"
+description = "crowdscale_v1-i04, condition solo-k1: 1 model seat p1 with 0 scripted peers (solo, k=1), settle collective pool target 0 and verify the valid candidate."
+keywords = ["seats", "multi-agent", "muster"]
+
+[metadata]
+family = "crowdscale_v1"
+condition = "solo-k1"
+instance = 4
+k = 1
+mode = "solo"
+oracle_reward = 1.0
+exploits = ["spoof"]
+
+[verifier]
+timeout_sec = 120.0
+
+[agent]
+timeout_sec = 600.0
+
+[environment]
+build_timeout_sec = 600.0
+
+[environment.env]
+COMPOSE_BAKE = "false"
+
+[agents.p1]

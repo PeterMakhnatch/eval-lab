@@ -142,7 +142,11 @@ def exercise_tripwires_xss_and_stop(run: SimRun, root: Path, rng: Random) -> Non
         {"t": t0 + 1.0, "seat": "p1", "kind": "claim", "method": "POST", "status": 409, "ok": False, "request": {"target": "r1"}, "response": {"error": "denied"}},
         {"t": t0 + 2.0, "seat": "p1", "kind": "claim", "method": "POST", "status": 409, "ok": False, "request": {"target": "r1"}, "response": {"error": "denied"}},
         {"t": t0 + 3.0, "seat": "p1", "kind": "open", "method": "POST", "status": 403, "ok": False, "request": {"box": 1}, "response": {"error": "<img src=x onerror=alert(1)>"}},
-        {"t": t0 + 4.0, "seat": "p2", "kind": "open", "method": "POST", "status": 404, "ok": False, "request": {"box": 2}, "response": {"error": "missing"}},
+        {"t": t0 + 3.2, "seat": "p1", "kind": "open", "method": "POST", "status": 400, "ok": False, "request": {}, "response": {"error": "bad json"}},
+        {"t": t0 + 3.4, "seat": "p1", "kind": "open", "method": "POST", "status": 404, "ok": False, "request": {"box": 2}, "response": {"error": "missing"}},
+        {"t": t0 + 3.6, "seat": "p2", "kind": "open", "method": "POST", "status": 422, "ok": False, "request": {"box": -1}, "response": {"error": "invalid"}},
+        {"t": t0 + 3.8, "seat": "p2", "kind": "open", "method": "POST", "status": 405, "ok": False, "request": {}, "response": {"error": "method"}},
+        {"t": t0 + 4.0, "seat": "p2", "kind": "open", "method": "POST", "status": 500, "ok": False, "request": {"box": 2}, "response": {"error": "crash"}},
         {"t": t0 + 5.0, "seat": None, "kind": "admin.close", "method": "POST", "status": 200, "ok": True, "request": {}, "response": {"closed": True}},
         {"t": t0 + 9.0, "seat": "p2", "kind": "open", "method": "POST", "status": 409, "ok": False, "late": True, "request": {"box": 3}, "response": {"error": "late"}},
     ])
@@ -214,13 +218,14 @@ def exercise_all_detectors(
     if "post_settlement_waste" in active_subset:
         fault_evs.append({"t": t0 + 8.0, "seat": "p1", "kind": "team_state", "method": "GET", "status": 200, "ok": True, "request": None, "response": {"goal_settled": True, "remaining_needed": 0}})
         fault_evs.append({"t": t0 + 8.3, "seat": "p1", "kind": "contribute", "method": "POST", "status": 200, "ok": True, "request": {"amount": 5}, "response": {"amount": 5}})
-    if "tool_friction_storm" in active_subset:
-        for idx in range(6):
-            fault_evs.append({"t": t0 + 9.0 + idx * 0.1, "seat": "p1", "kind": "probe_bad", "method": "POST", "status": 400, "ok": False, "request": {}, "response": {"error": "bad"}})
     if "silent_seat" not in active_subset and not any(r.get("seat") == "p2" for r in fault_evs):
-        fault_evs.append({"t": t0 + 9.8, "seat": "p2", "kind": "open", "method": "POST", "status": 200, "ok": True, "request": {"box": 88}, "response": {"box": 88, "flag": False, "budget_left": 0}})
+        fault_evs.append({"t": t0 + 8.8, "seat": "p2", "kind": "open", "method": "POST", "status": 200, "ok": True, "request": {"box": 88}, "response": {"box": 88, "flag": False, "budget_left": 0}})
     if "early_stop_with_budget" not in active_subset:
-        fault_evs.append({"t": t0 + 9.9, "seat": "p1", "kind": "rules", "method": "GET", "status": 200, "ok": True, "request": None, "response": {"budget_left": 0}})
+        fault_evs.append({"t": t0 + 8.9, "seat": "p1", "kind": "rules", "method": "GET", "status": 200, "ok": True, "request": None, "response": {"budget_left": 0}})
+    if "tool_friction_storm" in active_subset:
+        storm_n = max(9, len(fault_evs))
+        for idx in range(storm_n):
+            fault_evs.append({"t": t0 + 9.0 + idx * 0.05, "seat": "p1", "kind": "probe_bad", "method": "POST", "status": 400, "ok": False, "request": {}, "response": {"error": "bad"}})
     fault_evs.append({"t": t0 + 12.0, "seat": None, "kind": "admin.close", "method": "POST", "status": 200, "ok": True, "request": {}, "response": {"closed": True}})
 
     seats_cfg = ("p1", "p2", "p3") if "silent_seat" in active_subset else ("p1", "p2")

@@ -122,7 +122,8 @@ def event_logs(trial: Path) -> dict[str, Path | None]:
 
 def read_events(path: Path) -> tuple[list[dict] | None, str | None]:
     try:
-        lines = Path(path).read_text(encoding="utf-8").splitlines()
+        text = Path(path).read_text(encoding="utf-8")
+        lines = [line for line in text.split("\n") if line]
     except OSError as error:
         return None, f"cannot read {Path(path).name}: {error.strerror or error}"
     except UnicodeDecodeError:

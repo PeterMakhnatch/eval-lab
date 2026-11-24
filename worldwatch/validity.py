@@ -6,7 +6,12 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from worldwatch._chain import find_olam_event_log, read_jsonl_static
+from worldwatch._chain import (
+    find_bespoke_board_log,
+    find_olam_event_log,
+    find_olam_proxy_log,
+    read_jsonl_static,
+)
 from worldwatch._io import discover_trials
 from worldwatch._trial import (
     SeatInfo,
@@ -19,39 +24,75 @@ _EXACT_COMB_LIMIT = 25_000
 _MAX_SUPPORT = 1_000_000
 
 
-def _log_comb(n: int, k: int) -> float:
-    assert 0 <= k <= n
-    return math.lgamma(n + 1) - math.lgamma(k + 1) - math.lgamma(n - k + 1)
+def _canonicalize_2x2(a: int, b: int, c: int, d: int) -> tuple[int, int, int, int]:
+    symmetries = (
+        (a, b, c, d),
+        (c, d, a, b),
+        (b, a, d, c),
+        (d, c, b, a),
+        (a, c, b, d),
+        (b, d, a, c),
+        (c, a, d, b),
+        (d, b, c, a),
+    )
+    best = symmetries[0]
+    best_key = (best[0] + best[2], best[0] + best[1], best)
+    for cand in symmetries[1:]:
+        key = (cand[0] + cand[2], cand[0] + cand[1], cand)
+        if key < best_key:
+            best = cand
+            best_key = key
+    return best
 
 
-def _fisher_log_space(r1: int, r2: int, c1: int, n: int, a: int, k_min: int, k_max: int) -> float:
-    assert k_max - k_min + 1 <= _MAX_SUPPORT
-    log_denom = _log_comb(n, c1)
-    log_obs = _log_comb(r1, a) + _log_comb(r2, c1 - a) - log_denom
-    selected: list[float] = []
-    for k in range(k_min, k_max + 1):
-        lp = _log_comb(r1, k) + _log_comb(r2, c1 - k) - log_denom
-        if lp <= log_obs + 1e-12:
-            selected.append(lp)
-    if not selected:
-        return 0.0
-    m = max(selected)
-    prob = math.exp(m) * sum(math.exp(lp - m) for lp in selected)
-    return min(1.0, max(0.0, prob))
+def _fisher_log_recurrence(r1: int, r2: int, c1: int, n: int, a: int, k_min: int, k_max: int) -> float:
+    support = k_max - k_min + 1
+    assert 1 <= support <= _MAX_SUPPORT
+    k_mode = min(k_max, max(k_min, ((r1 + 1) * (c1 + 1)) // (n + 2)))
+    lp = [0.0] * support
+    for k in range(k_mode, k_max):
+        ratio = ((r1 - k) * (c1 - k)) / ((k + 1) * (r2 - c1 + k + 1))
+        lp[k + 1 - k_min] = lp[k - k_min] + math.log(ratio)
+    for k in range(k_mode - 1, k_min - 1, -1):
+        ratio = ((k + 1) * (r2 - c1 + k + 1)) / ((r1 - k) * (c1 - k))
+        lp[k - k_min] = lp[k + 1 - k_min] + math.log(ratio)
+    total_mass = math.fsum(math.exp(x) for x in lp)
+    if total_mass <= 0.0 or not math.isfinite(total_mass):
+        return 1.0
+    lp_obs = lp[a - k_min]
+    tail_mass = math.fsum(math.exp(x) for x in lp if x <= lp_obs + 1e-13)
+    p = min(1.0, max(0.0, tail_mass / total_mass))
+    assert 0.0 <= p <= 1.0 and math.isfinite(p)
+    return p
 
 
 def fisher_exact_two_sided(a: int, b: int, c: int, d: int) -> float:
-    assert a >= 0 and b >= 0 and c >= 0 and d >= 0
+    if (
+        isinstance(a, bool)
+        or isinstance(b, bool)
+        or isinstance(c, bool)
+        or isinstance(d, bool)
+        or not (isinstance(a, int) and isinstance(b, int) and isinstance(c, int) and isinstance(d, int))
+        or a < 0
+        or b < 0
+        or c < 0
+        or d < 0
+    ):
+        raise InputError("Fisher table counts must be non-negative integers")
+    a, b, c, d = _canonicalize_2x2(a, b, c, d)
     r1, r2 = a + b, c + d
     c1, c2 = a + c, b + d
     n = r1 + r2
-    if n == 0 or r1 == 0 or r2 == 0 or c1 == 0 or c2 == 0:
+    if n == 0 or r1 == 0 or r2 == 0 or c1 == 0 or c2 == 0 or a * d == b * c:
         return 1.0
     k_min = max(0, c1 - r2)
     k_max = min(r1, c1)
     assert 0 <= k_min <= a <= k_max <= r1
-    if k_max - k_min + 1 > _EXACT_COMB_LIMIT:
-        return _fisher_log_space(r1, r2, c1, n, a, k_min, k_max)
+    support = k_max - k_min + 1
+    if support > _MAX_SUPPORT:
+        raise InputError(f"Fisher table support {support} exceeds limit {_MAX_SUPPORT}")
+    if n > _EXACT_COMB_LIMIT:
+        return _fisher_log_recurrence(r1, r2, c1, n, a, k_min, k_max)
     w_obs = math.comb(r1, a) * math.comb(r2, c1 - a)
     denom = math.comb(n, c1)
     total_w = 0
@@ -93,6 +134,39 @@ def _world_seat_counts(events: list[dict[str, Any]], bundle: TrialBundle) -> Cou
     return counts
 
 
+def _load_validity_logs(
+    trial_dir: Path,
+    ecosystem: str,
+    bundle: TrialBundle,
+) -> tuple[list[dict[str, Any]], bool, bool]:
+    if ecosystem == "bespoke":
+        b_path = find_bespoke_board_log(trial_dir)
+        events, chain_ok, _ = (
+            read_jsonl_static(b_path, require_seq=False, root=trial_dir)
+            if b_path is not None
+            else ([], None, None)
+        )
+        px_path = trial_dir / "agent" / "proxy-usage.jsonl"
+        if not os.path.lexists(px_path) and os.path.lexists(trial_dir / "proxy-usage.jsonl"):
+            px_path = trial_dir / "proxy-usage.jsonl"
+        _, px_ok, _ = read_jsonl_static(px_path, require_seq=False, root=trial_dir)
+        return events, (chain_ok is False or px_ok is False), (b_path is None)
+    ev_path = find_olam_event_log(trial_dir)
+    events, chain_ok, _ = (
+        read_jsonl_static(ev_path, require_seq=True, root=trial_dir)
+        if ev_path is not None
+        else ([], None, None)
+    )
+    px_path = find_olam_proxy_log(trial_dir)
+    _, px_ok, _ = (
+        read_jsonl_static(px_path, require_seq=False, root=trial_dir)
+        if px_path is not None
+        else ([], None, None)
+    )
+    has_multi = os.path.isdir(trial_dir / "seats") or len(bundle.seats) > 1
+    return events, (chain_ok is False or px_ok is False), (has_multi and ev_path is None)
+
+
 def classify_trial_validity(
     trial_dir: Path,
     ecosystem: str,
@@ -106,18 +180,7 @@ def classify_trial_validity(
         return {"trial": bundle.trial_name, "path": str(trial_dir), "measured": False, "reason": "unreadable-result"}
     if bundle.not_started is not None:
         return {"trial": bundle.trial_name, "path": str(trial_dir), "measured": False, "reason": "not-started"}
-    if ecosystem == "bespoke":
-        events, chain_ok, _ = read_jsonl_static(trial_dir / "agent" / "board-events.jsonl", require_seq=False)
-        _, px_ok, _ = read_jsonl_static(trial_dir / "agent" / "proxy-usage.jsonl", require_seq=False)
-        log_bad = chain_ok is False or px_ok is False
-        log_missing = False
-    else:
-        ev_path = find_olam_event_log(trial_dir)
-        events, chain_ok, _ = read_jsonl_static(ev_path, require_seq=True) if ev_path else ([], None, None)
-        _, px_ok, _ = read_jsonl_static(trial_dir / "proxy-usage.jsonl", require_seq=False)
-        log_bad = chain_ok is False or px_ok is False
-        has_multi = os.path.isdir(trial_dir / "seats") or len(bundle.seats) > 1
-        log_missing = has_multi and ev_path is None
+    events, log_bad, log_missing = _load_validity_logs(trial_dir, ecosystem, bundle)
     if log_bad:
         return {"trial": bundle.trial_name, "path": str(trial_dir), "measured": False, "reason": "corrupt-world-log"}
     if log_missing:

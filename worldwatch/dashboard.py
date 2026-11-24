@@ -6,7 +6,13 @@ from pathlib import Path
 from typing import Any
 
 from worldwatch._io import atomic_write_text
-from worldwatch.model import as_list, as_map, canonical_json
+from worldwatch.model import (
+    MAX_REPORT_JSON_NODES,
+    as_list,
+    as_map,
+    canonical_json,
+    sanitize_surrogates,
+)
 
 _CSP = (
     "default-src 'none'; "
@@ -119,11 +125,12 @@ _JS = """
 
 
 def esc(value: Any) -> str:
-    return html.escape("" if value is None else str(value), quote=True)
+    raw = "" if value is None else sanitize_surrogates(str(value))
+    return html.escape(raw, quote=True)
 
 
 def safe_json_for_html(payload: Mapping[str, Any]) -> str:
-    encoded = canonical_json(payload)
+    encoded = sanitize_surrogates(canonical_json(payload, max_nodes=MAX_REPORT_JSON_NODES))
     encoded = encoded.replace("&", "\\u0026")
     encoded = encoded.replace("<", "\\u003c")
     encoded = encoded.replace(">", "\\u003e")

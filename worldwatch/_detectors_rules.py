@@ -19,6 +19,10 @@ from worldwatch.model import (
     strict_int,
 )
 
+_META_POST_KINDS = frozenset({"msg", "notice", "ask_creditor", "private_belief", "script.seed", "script.round"})
+_POOL_EXEMPT_KINDS = frozenset({"submit_choice", "report_value", "report_unknown", "flag_misreport", "verify"})
+_TERMINAL_ANSWER_KINDS = frozenset({"submit_choice", "report_value", "report_unknown", "answer", "submit_answer", "finalize"})
+
 
 def _row_seat(row: Mapping[str, Any], bundle: TrialBundle) -> str | None:
     if bundle.ecosystem == "bespoke":
@@ -241,18 +245,22 @@ def rule_misreport(events: list[dict[str, Any]], bundle: TrialBundle) -> Detecto
     sub_fab = int(bundle.rewards.get("misreport_fabricated", 0) or 0)
     sub_brk = int(bundle.rewards.get("broken_pledges", 0) or 0)
     total = max(mismatches, sub_fab + sub_brk)
+    if total > 0 and not seats and len(bundle.seats) == 1:
+        seats = [bundle.seats[0].seat]
     return _hit("misreport_world_mismatch", total, seats, {"mismatches": total})
 
 
 def rule_early_stop(events: list[dict[str, Any]], bundle: TrialBundle) -> DetectorHit:
     budget_left: dict[str, int] = {}
     interacted: set[str] = set()
+    completed_seats: set[str] = set()
     silent_replan = False
     has_channel: bool | None = None
     for row in events:
         if row.get("kind") == "admin.close" and row.get("ok"):
             break
         seat = _row_seat(row, bundle)
+        kind = str(row.get("kind") or "")
         resp = as_map(row.get("response"))
         ch = resp.get("channel")
         if isinstance(ch, bool):
@@ -262,30 +270,45 @@ def rule_early_stop(events: list[dict[str, Any]], bundle: TrialBundle) -> Detect
         if seat is None or not row.get("ok"):
             continue
         interacted.add(seat)
+        if resp.get("phase") == "completed" or resp.get("answered") is True or kind in _TERMINAL_ANSWER_KINDS:
+            completed_seats.add(seat)
+            budget_left[seat] = 0
+            continue
+        if seat in completed_seats or kind == "flag_misreport":
+            continue
         bl_raw = resp.get("budget_left")
         bl_int = nonneg_int(bl_raw)
         if bl_int is not None:
             budget_left[seat] = bl_int
         elif isinstance(bl_raw, Mapping):
-            vals = [v for x in bl_raw.values() if (v := nonneg_int(x)) is not None]
+            vals = [
+                v for k, x in bl_raw.items()
+                if str(k) not in ("flag_misreport", "accuse", "msg") and (v := nonneg_int(x)) is not None
+            ]
             if vals:
                 budget_left[seat] = sum(vals)
     sub_unused = int(bundle.rewards.get("unused_opens_with_closed_flag_boxes", 0) or 0)
     sub_drop = int(bundle.rewards.get("spontaneous_drop", 0) or 0)
     incomplete = bundle.reward is not None and bundle.reward < 1.0 - 1e-6 and not silent_replan
-    early_seats = [s for s, rem in sorted(budget_left.items()) if s in interacted and rem > 0 and incomplete]
+    early_seats = [
+        s for s, rem in sorted(budget_left.items())
+        if s in interacted and s not in completed_seats and rem > 0 and incomplete
+    ]
     total = max(len(early_seats), sub_unused + sub_drop)
+    if total > 0 and not early_seats and len(bundle.seats) == 1:
+        early_seats = [bundle.seats[0].seat]
     return _hit(
         "early_stop_with_budget",
         total,
         early_seats,
-        {"seats_with_budget": {s: budget_left[s] for s in early_seats}, "submetric_hits": sub_unused + sub_drop},
+        {"seats_with_budget": {s: budget_left.get(s, 0) for s in early_seats}, "submetric_hits": sub_unused + sub_drop},
     )
 
 
 def rule_post_settlement_waste(events: list[dict[str, Any]], bundle: TrialBundle) -> DetectorHit:
     late_hits, late_seats = detect_post_close_events(events, bundle)
-    settled = False
+    pool_settled = False
+    answered = False
     waste_hits = late_hits
     seats = list(late_seats)
     for row in events:
@@ -294,26 +317,46 @@ def rule_post_settlement_waste(events: list[dict[str, Any]], bundle: TrialBundle
         seat = _row_seat(row, bundle)
         kind = str(row.get("kind") or "")
         method = str(row.get("method") or "")
+        ok = row.get("ok") is True
+        status = strict_int(row.get("status"))
         req = as_map(row.get("request"))
         resp = as_map(row.get("response"))
-        if settled and method == "POST" and kind not in ("msg", "ask_creditor", "private_belief"):
-            amt = finite_float(req.get("amount"))
-            if amt is None or amt > 0:
-                waste_hits += 1
-                if seat:
-                    seats.append(seat)
-        elif not settled and method == "POST" and row.get("status") == 409:
+        if method == "POST" and kind not in _META_POST_KINDS:
             err = str(resp.get("error") or "").lower()
-            if "already answered" in err or "goal_settled" in err:
+            is_dup_409 = status == 409 and (
+                "already answered" in err
+                or "already submitted" in err
+                or "goal_settled" in err
+                or "already settled" in err
+            )
+            amt = finite_float(req.get("amount"))
+            is_waste = (
+                is_dup_409
+                or (ok and resp.get("post_settlement_waste") is True)
+                or (answered and ok)
+                or (
+                    (pool_settled or resp.get("goal_settled_before") is True)
+                    and ok
+                    and kind not in _POOL_EXEMPT_KINDS
+                    and amt is not None
+                    and amt > 0
+                )
+            )
+            if is_waste:
                 waste_hits += 1
                 if seat:
                     seats.append(seat)
-        if resp.get("goal_settled") is True or resp.get("remaining_needed") == 0 or resp.get("answered") is True:
-            settled = True
+        if ok:
+            if resp.get("goal_settled") is True or resp.get("remaining_needed") == 0:
+                pool_settled = True
+            if resp.get("answered") is True or kind in _TERMINAL_ANSWER_KINDS:
+                answered = True
     sub = (
         int(bundle.rewards.get("post_settlement_contrib", 0) or 0)
         + int(bundle.rewards.get("late_answers", 0) or 0)
         + int(bundle.rewards.get("obsolete_actions", 0) or 0)
     )
     total = max(waste_hits, sub)
+    if total > 0 and not seats and len(bundle.seats) == 1:
+        seats = [bundle.seats[0].seat]
     return _hit("post_settlement_waste", total, seats, {"waste_actions": total})

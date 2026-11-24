@@ -42,6 +42,8 @@ _CHANNEL_KINDS = frozenset({
     "round_state",
     "audit_log",
     "final_probe",
+    "script.seed",
+    "script.round",
 })
 
 _SHARED_TARGET_KEYS = (
@@ -61,6 +63,7 @@ _SHARED_TARGET_KEYS = (
 )
 
 _SINGLE_ANSWER_KINDS = frozenset({"answer", "submit_answer", "finalize"})
+_FRICTION_HTTP_CODES = frozenset({400, 401, 403, 404, 405, 422})
 
 
 def _event_seat(row: Mapping[str, Any], ecosystem: str, facing_map: Mapping[str, str]) -> str | None:
@@ -82,6 +85,41 @@ def _event_time(row: Mapping[str, Any]) -> datetime | None:
     return None
 
 
+def is_counted_world_request(row: Mapping[str, Any], ecosystem: str) -> bool:
+    if ecosystem == "bespoke":
+        return str(row.get("event") or "") not in ("config", "register", "subagent")
+    kind = str(row.get("kind") or "")
+    if kind in ("script.seed", "script.round"):
+        return False
+    return not (kind == "admin.close" and row.get("status") == 200)
+
+
+def is_world_friction_rejection(row: Mapping[str, Any], ecosystem: str) -> bool:
+    if ecosystem == "bespoke":
+        ev_kind = str(row.get("event") or "")
+        if ev_kind in ("config", "register", "subagent", "guard_claim_denied", "guard_unread_block"):
+            return False
+        if ev_kind == "refused" or row.get("ok") is False:
+            return True
+        st = strict_int(row.get("status"))
+        return st is not None and (st in _FRICTION_HTTP_CODES or st >= 500)
+    st = strict_int(row.get("status"))
+    if st == 409:
+        return False
+    resp = as_map(row.get("response"))
+    err_txt = str(resp.get("error") or "").lower()
+    if st == 429:
+        return not (
+            resp.get("budget_left") == 0
+            or "budget" in err_txt
+            or "calls left" in err_txt
+            or "quota" in err_txt
+        )
+    if st is not None:
+        return st in _FRICTION_HTTP_CODES or st >= 500
+    return row.get("ok") is False
+
+
 def extract_seat_event_stats(
     events: list[dict[str, Any]],
     ecosystem: str,
@@ -98,21 +136,11 @@ def extract_seat_event_stats(
             counts[seat] = counts.get(seat, 0) + 1
             if ts is not None and (seat not in latest or ts > latest[seat]):
                 latest[seat] = ts
-        if ecosystem == "bespoke":
-            ev_kind = str(row.get("event") or "")
-            if ev_kind in ("config", "register", "subagent"):
-                continue
-            total_req += 1
-            status = row.get("status")
-            if ev_kind in ("guard_claim_denied", "guard_unread_block") or row.get("ok") is False or (isinstance(status, int) and status >= 400):
-                rejected += 1
-        else:
-            if row.get("kind") == "admin.close" and row.get("status") == 200:
-                continue
-            total_req += 1
-            status = row.get("status")
-            if row.get("ok") is False or (isinstance(status, int) and status >= 400):
-                rejected += 1
+        if not is_counted_world_request(row, ecosystem):
+            continue
+        total_req += 1
+        if is_world_friction_rejection(row, ecosystem):
+            rejected += 1
     return counts, latest, total_req, rejected
 
 
@@ -449,8 +477,9 @@ def _health_tripwires(
             )
         )
     ratio = (rejected_req / total_req) if total_req > 0 else 0.0
-    min_rej = 1 if max_reject_ratio <= 0.0 else 3
-    if total_req >= (1 if max_reject_ratio <= 0.0 else 4) and rejected_req >= min_rej and ratio > max_reject_ratio:
+    n_seats = max(1, len(seats_live))
+    min_rej = 1 if max_reject_ratio <= 0.0 else max(6, 3 * n_seats)
+    if total_req >= min_rej and rejected_req >= min_rej and ratio > max_reject_ratio:
         alerts.append(
             make_alert(
                 "reject-storm",

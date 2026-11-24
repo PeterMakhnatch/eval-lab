@@ -10,5 +10,77 @@
     "step": "validity/clean",
     "invariant": "clean-plus-active-timeout-measured",
     "known": false
+  },
+  {
+    "seed": 101,
+    "step": "f1/post-settlement",
+    "invariant": "terminal-choice-not-waste",
+    "known": false
+  },
+  {
+    "seed": 102,
+    "step": "f2/team8",
+    "invariant": "step1-401-and-429-no-false-storm",
+    "known": false
+  },
+  {
+    "seed": 103,
+    "step": "f3/authority",
+    "invariant": "unless-released-no-false-override",
+    "known": false
+  },
+  {
+    "seed": 104,
+    "step": "f4/single-harbor",
+    "invariant": "non-world-artifacts-ignored",
+    "known": false
+  },
+  {
+    "seed": 105,
+    "step": "f5/ascii-chain",
+    "invariant": "ensure-ascii-true-fallback-verifies",
+    "known": false
+  },
+  {
+    "seed": 106,
+    "step": "f6/stop-first",
+    "invariant": "stop-written-despite-alerts-symlink",
+    "known": false
+  },
+  {
+    "seed": 107,
+    "step": "f7/truncate-grow",
+    "invariant": "same-inode-rewrite-resets-cleanly",
+    "known": false
+  },
+  {
+    "seed": 108,
+    "step": "f8/large-surrogate",
+    "invariant": "large-report-and-surrogates-safe",
+    "known": false
+  },
+  {
+    "seed": 109,
+    "step": "f9/bespoke-stalled-124",
+    "invariant": "stalled-124-classified-stalled-seat",
+    "known": false
+  },
+  {
+    "seed": 110,
+    "step": "f10/fisher-sym",
+    "invariant": "huge-n-col-swap-identical",
+    "known": false
+  },
+  {
+    "seed": 111,
+    "step": "f11/bypasses",
+    "invariant": "all-five-bypasses-caught",
+    "known": false
+  },
+  {
+    "seed": 112,
+    "step": "f12/tigerstyle-ast",
+    "invariant": "all-eight-ast-bypasses-caught",
+    "known": false
   }
 ]

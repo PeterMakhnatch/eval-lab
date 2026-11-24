@@ -15,9 +15,11 @@ GENESIS_HASH = "0" * 64
 HEX_CHARS = frozenset("0123456789abcdef")
 UNHASHED_KEYS = frozenset({"entry_hash", "hmac"})
 SEAT_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+_SURROGATE_RE = re.compile(r"[\ud800-\udfff]")
 
 MAX_JSON_DEPTH = 64
 MAX_JSON_NODES = 100_000
+MAX_REPORT_JSON_NODES = 2_000_000
 MAX_FILE_BYTES = 64 * 1024 * 1024
 MAX_SMALL_JSON_BYTES = 16 * 1024 * 1024
 MAX_LINES_PER_FILE = 500_000
@@ -62,6 +64,7 @@ NO_MODEL_AGENTS = frozenset({
     "script",
     "scripted",
     "scriptagent",
+    "scripted-team-agent",
 })
 
 
@@ -193,7 +196,17 @@ def is_no_model_name(name: str | None) -> bool:
         return False
     lowered = name.strip().lower()
     tail = lowered.rsplit(":", 1)[-1].rsplit(".", 1)[-1]
-    return lowered in NO_MODEL_AGENTS or tail in NO_MODEL_AGENTS or tail.endswith("scriptagent")
+    return (
+        lowered in NO_MODEL_AGENTS
+        or tail in NO_MODEL_AGENTS
+        or tail.endswith("scriptagent")
+        or tail.startswith("scripted-")
+    )
+
+
+def sanitize_surrogates(text: str) -> str:
+    assert isinstance(text, str)
+    return _SURROGATE_RE.sub("\ufffd", text)
 
 
 def finite_float(value: Any) -> float | None:
@@ -317,20 +330,29 @@ def parse_strict_json(
     return parsed
 
 
-def canonical_json(value: Any) -> str:
-    validate_json_tree(value)
+def canonical_json(
+    value: Any,
+    *,
+    ensure_ascii: bool = False,
+    max_nodes: int = MAX_JSON_NODES,
+) -> str:
+    validate_json_tree(value, max_nodes=max_nodes)
     return json.dumps(
         value,
         sort_keys=True,
         separators=(",", ":"),
-        ensure_ascii=False,
+        ensure_ascii=ensure_ascii,
         allow_nan=False,
     )
 
 
-def compute_entry_hash(event: Mapping[str, Any]) -> str:
+def compute_entry_hash(event: Mapping[str, Any], *, ensure_ascii: bool = False) -> str:
     body = {key: val for key, val in event.items() if key not in UNHASHED_KEYS}
-    digest = hashlib.sha256(canonical_json(body).encode("utf-8")).hexdigest()
+    try:
+        encoded = canonical_json(body, ensure_ascii=ensure_ascii).encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise ValueError(f"UTF-8 encode failed: {exc}") from exc
+    digest = hashlib.sha256(encoded).hexdigest()
     assert len(digest) == 64
     return digest
 
@@ -344,5 +366,5 @@ def compute_entry_hmac(digest: str, key: str) -> str:
 
 def make_alert_id(code: str, trial: str | None, seat: str | None, discriminator: str = "") -> str:
     assert code in ALL_TRIPWIRES
-    raw = f"{code}\0{trial or '-'}\0{seat or '-'}\0{discriminator}"
+    raw = sanitize_surrogates(f"{code}\0{trial or '-'}\0{seat or '-'}\0{discriminator}")
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]

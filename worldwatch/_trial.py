@@ -13,6 +13,12 @@ from worldwatch._io import (
     read_tolerant_json_object,
     stat_regular_file,
 )
+from worldwatch._trial_bespoke import (
+    bespoke_exec_bounds,
+    classify_bespoke_seat_attrs,
+    discover_bespoke_slots,
+    parse_bespoke_exit,
+)
 from worldwatch.model import (
     MAX_SEATS,
     SEAT_NAME_RE,
@@ -121,11 +127,15 @@ def _as_dict(value: Any) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
 
 
-def _read_exit_code(agent_dir: Path) -> tuple[int | None, str | None]:
+def _valid_seat_token(name: str) -> bool:
+    return bool(SEAT_NAME_RE.match(name)) and name not in (".", "..")
+
+
+def _read_exit_code(agent_dir: Path, root: Path | None = None) -> tuple[int | None, str | None]:
     target = agent_dir / "exit-code.txt"
     if not os.path.lexists(target):
         return None, None
-    text, err = read_regular_text(target, max_bytes=1024)
+    text, err = read_regular_text(target, max_bytes=1024, root=root)
     if err is not None or text is None:
         return None, err or "unreadable exit-code.txt"
     token = text.strip()
@@ -141,29 +151,24 @@ def _count_step_tools(step: Mapping[str, Any]) -> tuple[int, int, bool]:
     obs = _as_dict(step.get("observation"))
     results = obs.get("results")
     res_list = [r for r in results if isinstance(r, Mapping)] if isinstance(results, list) else []
-    errors = 0
-    for item in res_list:
-        if item.get("is_error") is True:
-            errors += 1
-            continue
-        extra = _as_dict(item.get("extra"))
-        for key in ("exit_code", "returncode", "return_code"):
-            val = extra.get(key)
-            if isinstance(val, int) and not isinstance(val, bool) and val != 0:
-                errors += 1
-                break
+    errors = sum(
+        1
+        for item in res_list
+        if item.get("is_error") is True
+        or (isinstance(item.get("error"), str) and bool(item["error"]) and item.get("is_error") is not False)
+    )
     return len(call_list), errors, completed
 
 
-def read_atif_summary(traj_path: Path) -> AtifSummary | None:
+def read_atif_summary(traj_path: Path, root: Path | None = None) -> AtifSummary | None:
     if not os.path.lexists(traj_path):
         return None
-    info, err = stat_regular_file(traj_path)
+    info, err = stat_regular_file(traj_path, root=root)
     if err is not None:
         return AtifSummary(path=traj_path, problem=err)
     if info is None:
         return None
-    data, jerr = read_tolerant_json_object(traj_path)
+    data, jerr = read_tolerant_json_object(traj_path, root=root)
     if jerr is not None or data is None:
         return AtifSummary(path=traj_path, problem=jerr or "unreadable trajectory")
     if not isinstance(data.get("schema_version"), str):
@@ -176,10 +181,12 @@ def read_atif_summary(traj_path: Path) -> AtifSummary | None:
     step_cost = 0.0
     has_step_cost = False
     for step in steps[:100_000]:
+        if step.get("is_copied_context") is True:
+            continue
         ts = parse_iso_utc(step.get("timestamp"))
         if ts is not None and (latest is None or ts > latest):
             latest = ts
-        if step.get("source") == "agent" and step.get("is_copied_context") is not True:
+        if step.get("source") == "agent":
             agent_steps += 1
             metrics = _as_dict(step.get("metrics"))
             declared = nonneg_int(step.get("llm_call_count"))
@@ -224,7 +231,7 @@ def _extract_rewards(trial_dir: Path, result: Mapping[str, Any]) -> tuple[dict[s
         single = verifier.get("reward")
         raw = {"reward": single} if single is not None else {}
     if not raw and os.path.lexists(trial_dir / "verifier" / "reward.json"):
-        fallback, err = read_tolerant_json_object(trial_dir / "verifier" / "reward.json")
+        fallback, err = read_tolerant_json_object(trial_dir / "verifier" / "reward.json", root=trial_dir)
         if err is None and fallback is not None:
             raw = fallback
     rewards: dict[str, float] = {}
@@ -258,8 +265,8 @@ def _single_olam_seat(
     ag_inf = _as_dict(result.get("agent_info"))
     ag_name = str(ag_inf.get("name") or ag_cfg.get("name") or ag_cfg.get("import_path") or "agent")
     mod_name = ag_cfg.get("model_name") or _as_dict(ag_inf.get("model_info")).get("name")
-    atif = read_atif_summary(trial_dir / "agent" / "trajectory.json")
-    ec, eerr = _read_exit_code(trial_dir / "agent")
+    atif = read_atif_summary(trial_dir / "agent" / "trajectory.json", root=trial_dir)
+    ec, eerr = _read_exit_code(trial_dir / "agent", root=trial_dir)
     exc = _as_dict(result.get("exception_info")).get("exception_type")
     is_mod = not is_no_model_name(ag_name) and bool(mod_name or (atif and atif.llm_calls > 0))
     return (
@@ -294,9 +301,12 @@ def _olam_seat_entry(
     ag_name = str(ag_name_raw) if isinstance(ag_name_raw, str) and ag_name_raw else None
     mod_info = _as_dict(ag_inf.get("model_info"))
     mod_raw = part.get("model_name") or mod_info.get("name") or mod_info.get("provider")
-    agent_dir = trial_dir / "seats" / name / "agent"
-    atif = read_atif_summary(agent_dir / "trajectory.json")
-    ec, eerr = _read_exit_code(agent_dir)
+    if _valid_seat_token(name):
+        agent_dir = trial_dir / "seats" / name / "agent"
+        atif = read_atif_summary(agent_dir / "trajectory.json", root=trial_dir)
+        ec, eerr = _read_exit_code(agent_dir, root=trial_dir)
+    else:
+        atif, ec, eerr = None, None, f"invalid seat name {name[:24]!r}"
     model_str = str(mod_raw) if isinstance(mod_raw, str) and mod_raw else (atif.model_name if atif else None)
     no_mod = is_no_model_name(ag_name) or is_no_model_name(str(part.get("import_path") or ""))
     has_tok = finite_float(ag_res.get("n_input_tokens")) is not None
@@ -330,25 +340,29 @@ def _build_olam_seats(
     for src in (cfg_doc.get("participants"), res_cfg.get("participants")):
         if isinstance(src, list):
             for item in src:
-                if isinstance(item, Mapping) and isinstance(item.get("seat"), str):
+                if isinstance(item, Mapping) and isinstance(item.get("seat"), str) and item["seat"]:
                     parts_map[item["seat"]] = item
     sr_map: dict[str, Mapping[str, Any]] = {}
     raw_sr = result.get("seat_results")
-    if isinstance(raw_sr, list):
+    has_sr_list = isinstance(raw_sr, list)
+    if has_sr_list:
         for item in raw_sr:
-            if isinstance(item, Mapping) and isinstance(item.get("seat"), str):
+            if isinstance(item, Mapping) and isinstance(item.get("seat"), str) and item["seat"]:
                 sr_map[item["seat"]] = item
     disk_seats: list[str] = []
     seats_root = trial_dir / "seats"
     if os.path.isdir(seats_root) and not os.path.islink(seats_root):
         try:
             disk_seats = sorted(
-                e.name for e in os.scandir(seats_root) if e.is_dir(follow_symlinks=False) and SEAT_NAME_RE.match(e.name)
+                e.name for e in os.scandir(seats_root)
+                if e.is_dir(follow_symlinks=False) and not e.name.startswith(".")
             )
         except OSError:
             disk_seats = []
     ordered_names = list(dict.fromkeys([*sr_map.keys(), *parts_map.keys(), *disk_seats]))[:MAX_SEATS]
     if not ordered_names:
+        if "seat_results" in result and not has_sr_list:
+            return (_olam_seat_entry(trial_dir, "seat-0", {}, {}, False),)
         return _single_olam_seat(trial_dir, result, cfg_doc)
     return tuple(
         _olam_seat_entry(
@@ -356,65 +370,45 @@ def _build_olam_seats(
             name,
             parts_map.get(name, {}),
             sr_map.get(name, {}),
-            (name in sr_map) if raw_sr is not None else True,
+            bool(result) and has_sr_list and (name in sr_map),
         )
         for name in ordered_names
-        if SEAT_NAME_RE.match(name)
     )
-
-
-def _parse_bespoke_exit(raw_exit: Any, lost: bool) -> tuple[int | None, str | None]:
-    exit_code: int | None = None
-    exit_err: str | None = None
-    if isinstance(raw_exit, int) and not isinstance(raw_exit, bool):
-        exit_code = raw_exit
-    elif isinstance(raw_exit, str) and _EXIT_INT_RE.match(raw_exit.strip()):
-        exit_code = int(raw_exit.strip())
-    elif raw_exit is not None:
-        exit_err = f"invalid exit {raw_exit!r}"
-    if lost:
-        exit_err = exit_err or "lost_agent"
-    return exit_code, exit_err
 
 
 def _build_bespoke_seats(
     trial_dir: Path,
     result: Mapping[str, Any],
 ) -> tuple[tuple[SeatInfo, ...], dict[str, str]]:
-    meta = _as_dict(_as_dict(result.get("agent_result")).get("metadata"))
+    raw_ar = result.get("agent_result")
+    has_ar_map = isinstance(raw_ar, Mapping)
+    meta = _as_dict(raw_ar.get("metadata")) if has_ar_map else {}
     agents_meta = _as_dict(meta.get("agents"))
-    alias_map = {str(k): str(v) for k, v in _as_dict(meta.get("agent_names")).items() if isinstance(k, str) and isinstance(v, str)}
-    lost_raw = meta.get("lost_agents")
-    lost_set = {str(x) for x in lost_raw if isinstance(x, str)} if isinstance(lost_raw, list) else set()
-    agent_root = trial_dir / "agent"
-    disk_slots: list[str] = []
-    if os.path.isdir(agent_root) and not os.path.islink(agent_root):
-        try:
-            disk_slots = sorted(
-                e.name
-                for e in os.scandir(agent_root)
-                if e.is_dir(follow_symlinks=False)
-                and SEAT_NAME_RE.match(e.name)
-                and os.path.lexists(Path(e.path) / "trajectory.json")
-            )
-        except OSError:
-            disk_slots = []
-    slots = list(dict.fromkeys([*agents_meta.keys(), *alias_map.keys(), *disk_slots]))[:MAX_SEATS] or ["agent-0"]
+    slots, alias_map, lost_set, time_up = discover_bespoke_slots(trial_dir, meta)
     facing_to_seat: dict[str, str] = {}
     seats: list[SeatInfo] = []
     ag_top = str(_as_dict(result.get("agent_info")).get("name") or meta.get("harness") or "TeamAgent")
-    ag_exec = _as_dict(result.get("agent_execution"))
-    t_start, t_end = parse_iso_utc(ag_exec.get("started_at")), parse_iso_utc(ag_exec.get("finished_at"))
+    t_start, t_end = bespoke_exec_bounds(result)
+    agent_root = trial_dir / "agent"
     for slot in slots:
         facing = alias_map.get(slot, slot)
         facing_to_seat[slot] = slot
         facing_to_seat[facing] = slot
         entry = _as_dict(agents_meta.get(slot))
-        harness = str(entry.get("harness") or ag_top)
+        is_lost = slot in lost_set or facing in lost_set
+        if _valid_seat_token(slot):
+            atif = read_atif_summary(agent_root / slot / "trajectory.json", root=trial_dir)
+            ec, eerr = parse_bespoke_exit(entry.get("exit"), is_lost)
+            if ec is None and eerr is None:
+                ec, eerr = _read_exit_code(agent_root / slot, root=trial_dir)
+        else:
+            atif, ec, eerr = None, None, f"invalid seat name {slot[:24]!r}"
+        steps = atif.agent_steps if atif and atif.problem is None else 0
+        harness, is_mod, seat_exc = classify_bespoke_seat_attrs(
+            entry, ag_top, ec, eerr, is_lost, time_up, steps
+        )
         mod_raw = entry.get("model")
-        atif = read_atif_summary(agent_root / slot / "trajectory.json")
-        ec, eerr = _parse_bespoke_exit(entry.get("exit"), slot in lost_set or facing in lost_set)
-        is_mod = not is_no_model_name(harness) and not is_no_model_name(ag_top)
+        in_sr = (has_ar_map and (not agents_meta or slot in agents_meta)) if result else False
         seats.append(
             SeatInfo(
                 seat=slot,
@@ -423,12 +417,12 @@ def _build_bespoke_seats(
                 agent_name=harness,
                 model_name=str(mod_raw) if isinstance(mod_raw, str) else (atif.model_name if atif else None),
                 is_model=is_mod,
-                exception=None,
+                exception=seat_exc,
                 started_at=t_start,
                 finished_at=t_end,
                 exit_code=ec,
                 exit_error=eerr,
-                in_seat_results=True,
+                in_seat_results=in_sr,
                 atif=atif,
             )
         )
@@ -447,14 +441,14 @@ def _extract_cost_usd(
         if vals:
             return round(sum(vals), 9)
     for rel in ("agent/proxy-usage.json", "proxy-usage.json", "artifacts/proxy-usage.json"):
-        pdoc, err = read_tolerant_json_object(trial_dir / rel)
+        pdoc, err = read_tolerant_json_object(trial_dir / rel, root=trial_dir)
         if err is None and pdoc is not None:
             tot = finite_float(_as_dict(pdoc.get("total")).get("usd"))
             if tot is None:
                 tot = finite_float(pdoc.get("total_cost_usd"))
             if tot is not None and tot >= 0:
                 return round(tot, 9)
-    sub_doc, serr = read_tolerant_json_object(trial_dir / "agent" / "subscription-usage.json")
+    sub_doc, serr = read_tolerant_json_object(trial_dir / "agent" / "subscription-usage.json", root=trial_dir)
     if serr is None and sub_doc is not None and sub_doc.get("budget_enforced") is True:
         stot = finite_float(_as_dict(sub_doc.get("total")).get("usd"))
         if stot is not None and stot >= 0:
@@ -479,8 +473,7 @@ def _extract_cost_usd(
         for rec in raw_sr:
             if not isinstance(rec, Mapping):
                 continue
-            sname = rec.get("seat")
-            if sname in model_seats:
+            if rec.get("seat") in model_seats:
                 c = finite_float(_as_dict(rec.get("agent_result")).get("cost_usd"))
                 if c is None or c < 0:
                     found = []
@@ -505,14 +498,14 @@ def load_trial_bundle(
     proxy_rows: list[dict[str, Any]] | None = None,
 ) -> TrialBundle:
     assert ecosystem in ("olam", "bespoke")
-    cfg_doc, _ = read_tolerant_json_object(trial_dir / "config.json")
+    cfg_doc, _ = read_tolerant_json_object(trial_dir / "config.json", root=trial_dir)
     cfg_map: Mapping[str, Any] = cfg_doc or {}
     res_path = trial_dir / "result.json"
     result_state = "missing"
     result_err: str | None = None
     res_map: Mapping[str, Any] = {}
     if os.path.lexists(res_path):
-        parsed_res, rerr = read_tolerant_json_object(res_path)
+        parsed_res, rerr = read_tolerant_json_object(res_path, root=trial_dir)
         if rerr is not None or parsed_res is None:
             result_state = "unreadable"
             result_err = rerr or "unreadable result.json"

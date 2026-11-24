@@ -49,7 +49,14 @@ def write_atif(
     for idx in range(1, steps + 1):
         is_last = idx == steps
         fn_name = "mark_task_complete" if (is_last and complete) else "bash"
-        exit_c = 1 if idx <= tool_errors else 0
+        is_err = idx <= tool_errors
+        exit_c = 1 if is_err else 0
+        res_item: dict[str, Any] = {
+            "source_call_id": f"c{idx}",
+            "content": "err" if is_err else "ok",
+            "is_error": is_err,
+            "extra": {"exit_code": exit_c},
+        }
         step_rows.append({
             "step_id": idx,
             "source": "agent",
@@ -57,7 +64,7 @@ def write_atif(
             "llm_call_count": 1,
             "metrics": {"prompt_tokens": 200, "completion_tokens": 30, "cost_usd": round(cost_usd / max(1, steps), 6)},
             "tool_calls": [{"tool_call_id": f"c{idx}", "function_name": fn_name, "arguments": {"cmd": "echo ok"}}],
-            "observation": {"results": [{"source_call_id": f"c{idx}", "content": "ok", "extra": {"exit_code": exit_c}}]},
+            "observation": {"results": [res_item]},
         })
     doc = {
         "schema_version": "ATIF-v1.6",

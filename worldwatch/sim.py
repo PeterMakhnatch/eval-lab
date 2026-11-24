@@ -22,6 +22,7 @@ from worldwatch._sim_cases import (
     exercise_tripwires_xss_and_stop,
     exercise_validity_and_baselines,
 )
+from worldwatch._sim_f1_f12 import exercise_redteam_regressions
 from worldwatch.cli import main as worldwatch_main
 from worldwatch.model import canonical_json
 
@@ -63,6 +64,7 @@ def _single_pass(seed: int) -> tuple[SimRun, str]:
         exercise_all_detectors(run, root / "s3", Random(f"{seed}:detectors"), _capture_cli)
         exercise_validity_and_baselines(run, root / "s4", rng, _capture_cli)
         exercise_bespoke_and_malformed(run, root / "s5", Random(f"{seed}:bespoke"), _capture_cli)
+        exercise_redteam_regressions(run, root / "s6", _capture_cli)
     digest = hashlib.sha256(canonical_json(run.digest_items).encode("utf-8")).hexdigest()
     return run, digest
 

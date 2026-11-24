@@ -16,6 +16,7 @@ from worldwatch._io import (
     discover_trials,
     read_regular_bytes,
     read_regular_text,
+    read_regular_window,
     read_tolerant_json_object,
     split_complete_jsonl_bytes,
     split_text_lines_strict,
@@ -51,12 +52,16 @@ MAX_TAIL_TICKS = 1_000_000
 class JsonlCursor:
     path: Path
     require_seq: bool = False
+    root: Path | None = None
     dev: int | None = None
     ino: int | None = None
     offset: int = 0
     partial_bytes: int = 0
     resets: int = 0
     line_count: int = 0
+    event_seq: int = 0
+    head_sig: bytes = b""
+    tail_sig: bytes = b""
     chain_mode: bool | None = None
     prev_hash: str = GENESIS_HASH
     has_hmac: bool = False
@@ -67,6 +72,9 @@ class JsonlCursor:
         self.offset = 0
         self.partial_bytes = 0
         self.line_count = 0
+        self.event_seq = 0
+        self.head_sig = b""
+        self.tail_sig = b""
         self.chain_mode = None
         self.prev_hash = GENESIS_HASH
         self.has_hmac = False
@@ -74,23 +82,37 @@ class JsonlCursor:
         self.errors.clear()
         self.resets += 1
 
+    def _prefix_intact(self) -> bool:
+        if self.offset <= 0:
+            return True
+        hlen = min(64, self.offset)
+        tlen = min(64, self.offset)
+        head = read_regular_window(self.path, 0, hlen, root=self.root)
+        tail = read_regular_window(self.path, self.offset - tlen, tlen, root=self.root)
+        if head is None or tail is None:
+            return False
+        return head == self.head_sig and tail == self.tail_sig
+
     def poll(self, hmac_key: str | None = None) -> int:
-        info, serr = stat_regular_file(self.path)
+        info, serr = stat_regular_file(self.path, root=self.root)
         if serr is not None:
             if serr not in self.errors:
                 self.errors.append(serr)
             return 0
         if info is None:
-            if self.offset > 0 or self.rows:
+            if self.offset > 0 or self.rows or self.event_seq > 0:
                 self._reset_stream()
                 self.dev = None
                 self.ino = None
             return 0
         if self.dev is not None and (
-            info.st_dev != self.dev or info.st_ino != self.ino or info.st_size < self.offset
+            info.st_dev != self.dev
+            or info.st_ino != self.ino
+            or info.st_size < self.offset
+            or not self._prefix_intact()
         ):
             self._reset_stream()
-        snap, rerr = read_regular_bytes(self.path, offset=self.offset, max_bytes=MAX_FILE_BYTES)
+        snap, rerr = read_regular_bytes(self.path, offset=self.offset, max_bytes=MAX_FILE_BYTES, root=self.root)
         if rerr is not None or snap is None:
             if rerr and rerr not in self.errors:
                 self.errors.append(rerr)
@@ -99,7 +121,7 @@ class JsonlCursor:
             snap.dev != self.dev or snap.ino != self.ino or snap.size < self.offset
         ):
             self._reset_stream()
-            snap, rerr = read_regular_bytes(self.path, offset=0, max_bytes=MAX_FILE_BYTES)
+            snap, rerr = read_regular_bytes(self.path, offset=0, max_bytes=MAX_FILE_BYTES, root=self.root)
             if rerr is not None or snap is None:
                 if rerr and rerr not in self.errors:
                     self.errors.append(rerr)
@@ -114,15 +136,24 @@ class JsonlCursor:
         except ValueError as exc:
             self.errors.append(str(exc))
             return 0
+        prev_offset = self.offset
         consumed = len(chunk) - len(trailing)
         assert consumed >= 0
+        if consumed > 0:
+            if prev_offset == 0:
+                self.head_sig = chunk[: min(64, consumed)]
+            elif len(self.head_sig) < 64:
+                need = 64 - len(self.head_sig)
+                self.head_sig = self.head_sig + chunk[: min(need, consumed)]
+            self.tail_sig = (self.tail_sig + chunk[:consumed])[-64:]
         self.offset += consumed
         self.partial_bytes = len(trailing)
         added = 0
         for raw_line in complete:
-            if not raw_line.strip():
-                continue
             self.line_count += 1
+            if raw_line == b"":
+                self.errors.append(f"{self.path.name} line {self.line_count}: blank line in JSONL")
+                continue
             try:
                 line_txt = raw_line.decode("utf-8")
             except UnicodeDecodeError:
@@ -136,9 +167,10 @@ class JsonlCursor:
             if not isinstance(parsed, dict):
                 self.errors.append(f"{self.path.name} line {self.line_count}: row is not a JSON object")
                 continue
+            self.event_seq += 1
             self.chain_mode, self.prev_hash, self.has_hmac, cerr = verify_event_row_chain(
                 parsed,
-                len(self.rows) + 1,
+                self.event_seq,
                 self.prev_hash,
                 self.chain_mode,
                 self.has_hmac,
@@ -155,7 +187,7 @@ class JsonlCursor:
 
 def _config_mtime_utc(trial_dir: Path) -> datetime | None:
     for name in ("config.json", "lock.json"):
-        info, err = stat_regular_file(trial_dir / name)
+        info, err = stat_regular_file(trial_dir / name, root=trial_dir)
         if err is None and info is not None:
             return datetime.fromtimestamp(info.st_mtime, UTC)
     try:
@@ -172,7 +204,7 @@ def _load_existing_alert_ids(alerts_path: Path | None) -> set[str]:
         return set()
     seen: set[str] = set()
     for line in split_text_lines_strict(text)[:MAX_ALERTS]:
-        if not line.strip():
+        if not line:
             continue
         try:
             row = parse_strict_json(line)
@@ -239,10 +271,10 @@ class TailEngine:
         self.cursors: dict[Path, JsonlCursor] = {}
         self.emitted_alert_ids: set[str] = _load_existing_alert_ids(alerts_path)
 
-    def _cursor(self, path: Path, *, require_seq: bool) -> JsonlCursor:
+    def _cursor(self, path: Path, *, require_seq: bool, root: Path) -> JsonlCursor:
         cur = self.cursors.get(path)
         if cur is None:
-            cur = JsonlCursor(path=path, require_seq=require_seq)
+            cur = JsonlCursor(path=path, require_seq=require_seq, root=root)
             self.cursors[path] = cur
         return cur
 
@@ -252,26 +284,15 @@ class TailEngine:
         ecosystem: str,
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], bool | None, str | None, int, int]:
         if ecosystem == "bespoke":
-            b_cur = self._cursor(trial_dir / "agent" / "board-events.jsonl", require_seq=False)
-            p_cur = self._cursor(trial_dir / "agent" / "proxy-usage.jsonl", require_seq=False)
-            b_cur.poll(self.hmac_key)
-            p_cur.poll(self.hmac_key)
-            errs = [*b_cur.errors, *p_cur.errors]
-            chain_ok: bool | None = (
-                False if errs else (True if (b_cur.chain_mode is True or p_cur.chain_mode is True) else None)
-            )
-            return (
-                list(b_cur.rows),
-                list(p_cur.rows),
-                chain_ok,
-                errs[0] if errs else None,
-                b_cur.partial_bytes + p_cur.partial_bytes,
-                b_cur.resets + p_cur.resets,
-            )
-        ev_rels = ("verifier/events.jsonl", "logs/world/events.jsonl", "artifacts/logs/world/events.jsonl")
-        px_rels = ("proxy-usage.jsonl", "artifacts/proxy-usage.jsonl", "artifacts/logs/proxy/proxy-usage.jsonl")
-        ev_cursors = [self._cursor(trial_dir / r, require_seq=True) for r in ev_rels]
-        px_cursors = [self._cursor(trial_dir / r, require_seq=False) for r in px_rels]
+            ev_rels: tuple[str, ...] = ("agent/board-events.jsonl", "board-events.jsonl")
+            px_rels: tuple[str, ...] = ("agent/proxy-usage.jsonl", "proxy-usage.jsonl")
+            ev_req_seq = False
+        else:
+            ev_rels = ("verifier/events.jsonl", "logs/world/events.jsonl", "artifacts/logs/world/events.jsonl")
+            px_rels = ("proxy-usage.jsonl", "artifacts/proxy-usage.jsonl", "artifacts/logs/proxy/proxy-usage.jsonl")
+            ev_req_seq = True
+        ev_cursors = [self._cursor(trial_dir / r, require_seq=ev_req_seq, root=trial_dir) for r in ev_rels]
+        px_cursors = [self._cursor(trial_dir / r, require_seq=False, root=trial_dir) for r in px_rels]
         for cur in (*ev_cursors, *px_cursors):
             cur.poll(self.hmac_key)
         primary_ev = next((c for c in ev_cursors if c.rows or c.errors), ev_cursors[0])
@@ -342,6 +363,47 @@ class TailEngine:
         )
         return live, alerts
 
+    def _flush_sinks(
+        self,
+        now_iso: str,
+        active_alerts: list[Alert],
+        critical: list[Alert],
+    ) -> tuple[bool, dict[str, Any] | None, int, list[str]]:
+        sink_errors: list[str] = []
+        stopped = False
+        stop_record: dict[str, Any] | None = None
+        if self.stop_file is not None:
+            if os.path.lexists(self.stop_file):
+                existing, err = read_tolerant_json_object(self.stop_file)
+                if err is None and existing is not None and existing.get("halted") is True:
+                    stopped = True
+                    stop_record = existing
+            if critical and not stopped:
+                try:
+                    stop_record = _write_or_keep_stop_file(self.stop_file, self.target, now_iso, critical)
+                    stopped = True
+                except (OSError, ValueError) as exc:
+                    sink_errors.append(f"stop-file: {exc}")
+        pending = [
+            a for a in active_alerts
+            if a.alert_id not in self.emitted_alert_ids
+        ][: max(0, MAX_ALERTS - len(self.emitted_alert_ids))]
+        new_rows = [a.as_dict() for a in pending]
+        emitted_cnt = 0
+        if self.alerts_path is not None and new_rows:
+            try:
+                append_ndjson_rows(self.alerts_path, new_rows)
+                for a in pending:
+                    self.emitted_alert_ids.add(a.alert_id)
+                emitted_cnt = len(new_rows)
+            except (OSError, ValueError) as exc:
+                sink_errors.append(f"alerts: {exc}")
+        elif pending:
+            for a in pending:
+                self.emitted_alert_ids.add(a.alert_id)
+            emitted_cnt = len(new_rows)
+        return stopped, stop_record, emitted_cnt, sink_errors
+
     def poll(self, now: datetime | None = None) -> dict[str, Any]:
         moment = now or datetime.now(UTC)
         now_iso = stamp_utc(moment) or ""
@@ -359,19 +421,10 @@ class TailEngine:
         cost_alert = evaluate_cost_tripwire(total_cost, self.max_cost_usd, now_iso)
         if cost_alert is not None:
             active_alerts.append(cost_alert)
-        new_rows: list[Mapping[str, Any]] = []
-        for alert in active_alerts:
-            if alert.alert_id not in self.emitted_alert_ids and len(self.emitted_alert_ids) < MAX_ALERTS:
-                self.emitted_alert_ids.add(alert.alert_id)
-                new_rows.append(alert.as_dict())
-        if self.alerts_path is not None and new_rows:
-            append_ndjson_rows(self.alerts_path, new_rows)
         critical = [a for a in active_alerts if a.code in CRITICAL_TRIPWIRES]
-        stopped = bool(self.stop_file and os.path.lexists(self.stop_file))
-        stop_record: dict[str, Any] | None = None
-        if critical and self.stop_file is not None:
-            stop_record = _write_or_keep_stop_file(self.stop_file, self.target, now_iso, critical)
-            stopped = True
+        stopped, stop_record, emitted_cnt, sink_errors = self._flush_sinks(
+            now_iso, active_alerts, critical
+        )
         report: dict[str, Any] = {
             "command": "tail",
             "target": str(self.target),
@@ -392,14 +445,18 @@ class TailEngine:
             "total_cost_usd": total_cost,
             "critical_alerts": len(critical),
             "warn_alerts": sum(1 for a in active_alerts if a.severity == "warn"),
-            "new_alerts_emitted": len(new_rows),
+            "new_alerts_emitted": emitted_cnt,
             "stopped": stopped,
             "stop_record": stop_record,
+            "sink_errors": sink_errors,
             "alerts": [a.as_dict() for a in active_alerts],
             "trials": [t.as_dict() for t in trials_live],
         }
         if self.html_path is not None:
-            write_dashboard_html(self.html_path, report)
+            try:
+                write_dashboard_html(self.html_path, report)
+            except (OSError, ValueError) as exc:
+                sink_errors.append(f"html: {exc}")
         return report
 
 
@@ -422,7 +479,7 @@ def run_tail_loop(
         last_report = engine.poll(moment)
         if once:
             break
-        if last_report["critical_alerts"] > 0 or last_report["stopped"]:
+        if last_report["critical_alerts"] > 0 or last_report["stopped"] or last_report["sink_errors"]:
             break
         c = last_report["counts"]
         if c["total"] > 0 and c["running"] == 0 and c["unreadable"] == 0:
@@ -432,6 +489,7 @@ def run_tail_loop(
     bad = (
         last_report.get("critical_alerts", 0) > 0
         or last_report.get("stopped", False)
+        or bool(last_report.get("sink_errors"))
         or (fail_on_alert and len(last_report.get("alerts", ())) > 0)
     )
     return last_report, (1 if bad else 0)

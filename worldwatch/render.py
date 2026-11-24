@@ -4,7 +4,7 @@ import json
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from worldwatch.model import validate_json_tree
+from worldwatch.model import MAX_REPORT_JSON_NODES, sanitize_surrogates, validate_json_tree
 
 
 def pct(value: float | None, digits: int = 1) -> str:
@@ -17,18 +17,23 @@ def num(value: float | None, digits: int = 4) -> str:
 
 def shorten(text: str, width: int = 44) -> str:
     assert width >= 4
-    return text if len(text) <= width else text[: width - 1] + "…"
+    clean = sanitize_surrogates(text)
+    return clean if len(clean) <= width else clean[: width - 1] + "…"
 
 
 def to_json(report: Mapping[str, Any]) -> str:
-    validate_json_tree(report)
-    return json.dumps(report, indent=2, sort_keys=False, ensure_ascii=False, allow_nan=False)
+    validate_json_tree(report, max_nodes=MAX_REPORT_JSON_NODES)
+    raw = json.dumps(report, indent=2, sort_keys=False, ensure_ascii=False, allow_nan=False)
+    return sanitize_surrogates(raw)
 
 
 def table(headers: Sequence[str], rows: Sequence[Sequence[Any]], right: Sequence[int] = ()) -> str:
     assert len(headers) >= 1
     right_set = set(right)
-    cells = [[str(h) for h in headers], *[[str(c) for c in r] for r in rows]]
+    cells = [
+        [sanitize_surrogates(str(h)) for h in headers],
+        *[[sanitize_surrogates(str(c)) for c in r] for r in rows],
+    ]
     widths = [max(len(r[idx]) for r in cells) for idx in range(len(headers))]
     lines: list[str] = []
     for row_idx, row in enumerate(cells):
@@ -47,7 +52,7 @@ def render_tail(report: Mapping[str, Any]) -> str:
     cost = report.get("total_cost_usd")
     cost_str = "n/a" if cost is None else f"${float(cost):.4f}"
     lines = [
-        f"target {report['target']} at {report['now']} (stall={report['stall_seconds']:g}s)",
+        f"target {sanitize_surrogates(str(report['target']))} at {report['now']} (stall={report['stall_seconds']:g}s)",
         f"trials: total={counts['total']} running={counts['running']} finished={counts['finished']} "
         f"failed={counts['failed']} unreadable={counts['unreadable']}",
         f"events={report['total_events']} partial_bytes={report['total_partial_bytes']} "
@@ -81,12 +86,12 @@ def render_tail(report: Mapping[str, Any]) -> str:
     if alerts:
         a_rows = [[a["severity"], a["code"], a.get("trial") or "-", a.get("seat") or "-", a["message"]] for a in alerts[:50]]
         lines.extend(["", table(["severity", "code", "trial", "seat", "message"], a_rows)])
-    return "\n".join(lines)
+    return sanitize_surrogates("\n".join(lines))
 
 
 def render_detectors(report: Mapping[str, Any]) -> str:
     lines = [
-        f"detectors on {report['path']}: {report['trials_scanned']} trial(s) ({report['ecosystems']})",
+        f"detectors on {sanitize_surrogates(str(report['path']))}: {report['trials_scanned']} trial(s) ({report['ecosystems']})",
         "",
     ]
     summary = report["summary"]
@@ -102,7 +107,7 @@ def render_detectors(report: Mapping[str, Any]) -> str:
             for t in flagged_trials[:100]
         ]
         lines.extend(["", table(["trial", "eco", "events", "triggered"], t_rows, right=(2,))])
-    return "\n".join(lines)
+    return sanitize_surrogates("\n".join(lines))
 
 
 def render_validity(report: Mapping[str, Any]) -> str:
@@ -144,16 +149,38 @@ def render_validity(report: Mapping[str, Any]) -> str:
             for p in report["pairs"]
         ]
         lines.extend(["", table(["arm_a", "arm_b", "rate_diff", "fisher_p", "flagged"], p_rows, right=(2, 3))])
-    return "\n".join(lines)
+    return sanitize_surrogates("\n".join(lines))
 
 
 def render_certify_baselines(report: Mapping[str, Any]) -> str:
+    if "families" in report:
+        verdict = "PASSED" if report["passed"] else "FAILED"
+        lines = [
+            f"certify-baselines suite ({report['root_dir']}): {verdict} "
+            f"({report['families_passed']}/{report['families_checked']} passed, "
+            f"skipped={len(report.get('skipped_families', ()))})",
+            "",
+        ]
+        f_rows = [
+            [
+                f["family"],
+                str(f["status"]).upper(),
+                f.get("conditions_checked", 0),
+                len(f.get("control_arms", ())),
+                len(f.get("trap_arms", ())),
+                len(f.get("findings", ())),
+            ]
+            for f in report["families"]
+        ]
+        if f_rows:
+            lines.append(table(["family", "status", "conds", "ctrls", "traps", "findings"], f_rows, right=(2, 3, 4, 5)))
+        return sanitize_surrogates("\n".join(lines))
     lines = [
         f"certify-baselines {report['family']} ({report['family_dir']}): {str(report['status']).upper()}",
     ]
     if report.get("error"):
         lines.append(f"error: {report['error']}")
-        return "\n".join(lines)
+        return sanitize_surrogates("\n".join(lines))
     margins = report.get("margins") or {}
     if margins:
         m_rows = [
@@ -182,4 +209,4 @@ def render_certify_baselines(report: Mapping[str, Any]) -> str:
     if findings:
         f_rows = [[f["severity"], f["code"], f["message"]] for f in findings]
         lines.extend(["", table(["severity", "code", "message"], f_rows)])
-    return "\n".join(lines)
+    return sanitize_surrogates("\n".join(lines))

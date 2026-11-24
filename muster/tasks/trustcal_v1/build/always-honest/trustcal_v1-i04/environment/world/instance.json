@@ -2,13 +2,14 @@
   "accuse_budget": 15,
   "channel": true,
   "condition": "always-honest",
+  "designated_liar": "s_suspect",
   "family": "trustcal_v1",
   "final_probe": {
-    "answer": 1173,
-    "clue": "answer = 873 + 300",
+    "answer": 20952,
+    "clue": "answer = 873 * 24",
     "operand_a": 873,
-    "operand_b": 300,
-    "operator": "+",
+    "operand_b": 24,
+    "operator": "*",
     "solvable": true
   },
   "final_round": 6,

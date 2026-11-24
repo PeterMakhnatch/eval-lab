@@ -2,13 +2,14 @@
   "accuse_budget": 15,
   "channel": true,
   "condition": "clustered-lies",
+  "designated_liar": "s_peer",
   "family": "trustcal_v1",
   "final_probe": {
-    "answer": 539,
-    "clue": "answer = 370 + 169",
+    "answer": 201,
+    "clue": "answer = 370 - 169",
     "operand_a": 370,
     "operand_b": 169,
-    "operator": "+",
+    "operator": "-",
     "solvable": true
   },
   "final_round": 6,
@@ -56,7 +57,7 @@
       "batch_id": "B-01-R2",
       "peers": {
         "s_peer": {
-          "audit_open": true,
+          "audit_open": false,
           "claimed_value": 35682,
           "item": "shard_r2_per"
         },
@@ -66,8 +67,8 @@
           "item": "shard_r2_rel"
         },
         "s_suspect": {
-          "audit_open": false,
-          "claimed_value": 35735,
+          "audit_open": true,
+          "claimed_value": 35682,
           "item": "shard_r2_sus"
         }
       },
@@ -79,8 +80,8 @@
       "batch_id": "B-01-R3",
       "peers": {
         "s_peer": {
-          "audit_open": true,
-          "claimed_value": 38537,
+          "audit_open": false,
+          "claimed_value": 37664,
           "item": "shard_r3_per"
         },
         "s_reliable": {
@@ -89,8 +90,8 @@
           "item": "shard_r3_rel"
         },
         "s_suspect": {
-          "audit_open": false,
-          "claimed_value": 38448,
+          "audit_open": true,
+          "claimed_value": 38537,
           "item": "shard_r3_sus"
         }
       },

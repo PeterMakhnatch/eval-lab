@@ -2,14 +2,15 @@
   "accuse_budget": 15,
   "channel": true,
   "condition": "always-honest",
+  "designated_liar": "s_peer",
   "family": "trustcal_v1",
   "final_probe": {
-    "answer": 153,
-    "clue": "answer = 457 - 304",
-    "operand_a": 457,
-    "operand_b": 304,
-    "operator": "-",
-    "solvable": true
+    "answer": null,
+    "clue": "[DATA CORRUPTED / MISSING]",
+    "operand_a": null,
+    "operand_b": null,
+    "operator": null,
+    "solvable": false
   },
   "final_round": 6,
   "instance": 5,

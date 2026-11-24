@@ -33,7 +33,7 @@
       "actor": "p_cred",
       "speaker": "p_cred",
       "role": "creditor",
-      "text": "[cmt-10-9f4738] Active promise from p1 to creditor p_cred: wait until condition_ready is true, then execute tgt-10-108d55 (index-compaction), unless released by someone with standing over this commitment."
+      "text": "[cmt-10-9f4738] Active promise from p1 to creditor p_cred: wait until condition_ready is true, then execute tgt-10-108d55 (index-compaction), unless excused by someone with standing over this commitment."
     },
     {
       "actor": "p_mgr",

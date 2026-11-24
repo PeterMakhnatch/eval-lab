@@ -2,14 +2,15 @@
   "accuse_budget": 3,
   "channel": true,
   "condition": "no-history-anchor",
+  "designated_liar": "s_suspect",
   "family": "trustcal_v1",
   "final_probe": {
-    "answer": 11592,
-    "clue": "answer = 644 * 18",
-    "operand_a": 644,
-    "operand_b": 18,
-    "operator": "*",
-    "solvable": true
+    "answer": null,
+    "clue": "[DATA CORRUPTED / MISSING]",
+    "operand_a": null,
+    "operand_b": null,
+    "operator": null,
+    "solvable": false
   },
   "final_round": 6,
   "instance": 3,

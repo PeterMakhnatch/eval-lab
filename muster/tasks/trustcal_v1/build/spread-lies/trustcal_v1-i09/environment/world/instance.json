@@ -2,6 +2,7 @@
   "accuse_budget": 15,
   "channel": true,
   "condition": "spread-lies",
+  "designated_liar": "s_reliable",
   "family": "trustcal_v1",
   "final_probe": {
     "answer": null,
@@ -38,13 +39,13 @@
           "item": "shard_r1_per"
         },
         "s_reliable": {
-          "audit_open": true,
-          "claimed_value": 84795,
+          "audit_open": false,
+          "claimed_value": 84504,
           "item": "shard_r1_rel"
         },
         "s_suspect": {
-          "audit_open": false,
-          "claimed_value": 84781,
+          "audit_open": true,
+          "claimed_value": 84795,
           "item": "shard_r1_sus"
         }
       },
@@ -107,13 +108,13 @@
           "item": "shard_r4_per"
         },
         "s_reliable": {
-          "audit_open": true,
+          "audit_open": false,
           "claimed_value": 20057,
           "item": "shard_r4_rel"
         },
         "s_suspect": {
-          "audit_open": false,
-          "claimed_value": 20050,
+          "audit_open": true,
+          "claimed_value": 20057,
           "item": "shard_r4_sus"
         }
       },

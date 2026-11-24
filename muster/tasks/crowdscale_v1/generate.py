@@ -2,6 +2,7 @@ import argparse
 import importlib.util
 import json
 import re
+import shutil
 import sys
 from pathlib import Path
 
@@ -14,6 +15,7 @@ BUILD = FAMILY / "build"
 PLACEHOLDER = re.compile(r"\{[a-z_]+\}")
 ENVIRONMENT = "[environment]\nbuild_timeout_sec = 600.0\n"
 NO_BAKE = '\n[environment.env]\nCOMPOSE_BAKE = "false"\n'
+DOCKERIGNORE = "**/__pycache__\n*.pyc\n.DS_Store\n"
 
 _spec = importlib.util.spec_from_file_location("crowdscale_reference", FAMILY / "reference.py")
 assert _spec is not None and _spec.loader is not None
@@ -76,6 +78,15 @@ def play(instance: dict, seat_tokens: dict[str, str], roster: dict[str, str] | s
     return reference.simulate(instance, seat_tokens, roster)
 
 
+def purge_bytecode(root: Path) -> None:
+    if not root.exists():
+        return
+    for cache_dir in list(root.rglob("__pycache__")):
+        shutil.rmtree(cache_dir, ignore_errors=True)
+    for pyc_file in list(root.rglob("*.pyc")):
+        pyc_file.unlink(missing_ok=True)
+
+
 def check_no_bytecode(out: Path = BUILD) -> int:
     if not out.exists():
         return 0
@@ -121,6 +132,8 @@ def tasks() -> dict[str, dict[str, str]]:
                 },
             )
             files["task.toml"] = patch_task_toml(files["task.toml"])
+            files["environment/.dockerignore"] = DOCKERIGNORE
+            files["environment/seat/.dockerignore"] = DOCKERIGNORE
             out[f"{condition}/{name}"] = files
     assert len(out) == 40
     return out
@@ -130,11 +143,13 @@ def main(argv: list[str] | None = None, out: Path = BUILD) -> int:
     parser = argparse.ArgumentParser(description="Build the 40 task directories of crowdscale_v1.")
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args(argv)
+    purge_bytecode(FAMILY)
     status = build.emit(out, tasks(), args.check)
     if args.check:
         status = max(status, reference.check(reference.family()), check_no_bytecode(out))
     else:
         status = max(status, check_no_bytecode(out))
+    purge_bytecode(FAMILY)
     return status
 
 

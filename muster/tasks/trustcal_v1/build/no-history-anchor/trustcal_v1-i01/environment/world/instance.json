@@ -2,13 +2,14 @@
   "accuse_budget": 3,
   "channel": true,
   "condition": "no-history-anchor",
+  "designated_liar": "s_peer",
   "family": "trustcal_v1",
   "final_probe": {
-    "answer": 539,
-    "clue": "answer = 370 + 169",
+    "answer": 201,
+    "clue": "answer = 370 - 169",
     "operand_a": 370,
     "operand_b": 169,
-    "operator": "+",
+    "operator": "-",
     "solvable": true
   },
   "final_round": 6,

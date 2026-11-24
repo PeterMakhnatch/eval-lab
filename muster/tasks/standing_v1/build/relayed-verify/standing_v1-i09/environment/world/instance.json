@@ -33,7 +33,7 @@
       "actor": "p_cred",
       "speaker": "p_cred",
       "role": "creditor",
-      "text": "[cmt-09-263981] Active promise from p1 to creditor p_cred: wait until condition_ready is true, then execute tgt-09-a983cc (cache-cutover), unless released by someone with standing over this commitment."
+      "text": "[cmt-09-263981] Active promise from p1 to creditor p_cred: wait until condition_ready is true, then execute tgt-09-a983cc (cache-cutover), unless excused by someone with standing over this commitment."
     },
     {
       "actor": "p_mgr",

@@ -2,13 +2,14 @@
   "accuse_budget": 15,
   "channel": true,
   "condition": "k3-liars-echo",
+  "designated_liar": "s_suspect",
   "family": "trustcal_v1",
   "final_probe": {
-    "answer": 1173,
-    "clue": "answer = 873 + 300",
+    "answer": 20952,
+    "clue": "answer = 873 * 24",
     "operand_a": 873,
-    "operand_b": 300,
-    "operator": "+",
+    "operand_b": 24,
+    "operator": "*",
     "solvable": true
   },
   "final_round": 6,
@@ -80,17 +81,17 @@
       "peers": {
         "s_peer": {
           "audit_open": true,
-          "claimed_value": 71474,
+          "claimed_value": 72026,
           "item": "shard_r3_per"
         },
         "s_reliable": {
           "audit_open": true,
-          "claimed_value": 71474,
+          "claimed_value": 72026,
           "item": "shard_r3_rel"
         },
         "s_suspect": {
           "audit_open": true,
-          "claimed_value": 71474,
+          "claimed_value": 72026,
           "item": "shard_r3_sus"
         }
       },
@@ -103,17 +104,17 @@
       "peers": {
         "s_peer": {
           "audit_open": true,
-          "claimed_value": 50736,
+          "claimed_value": 50357,
           "item": "shard_r4_per"
         },
         "s_reliable": {
           "audit_open": true,
-          "claimed_value": 50736,
+          "claimed_value": 50357,
           "item": "shard_r4_rel"
         },
         "s_suspect": {
           "audit_open": true,
-          "claimed_value": 50736,
+          "claimed_value": 50357,
           "item": "shard_r4_sus"
         }
       },
@@ -126,17 +127,17 @@
       "peers": {
         "s_peer": {
           "audit_open": true,
-          "claimed_value": 98221,
+          "claimed_value": 98397,
           "item": "shard_r5_per"
         },
         "s_reliable": {
           "audit_open": true,
-          "claimed_value": 98221,
+          "claimed_value": 98397,
           "item": "shard_r5_rel"
         },
         "s_suspect": {
           "audit_open": true,
-          "claimed_value": 98221,
+          "claimed_value": 98397,
           "item": "shard_r5_sus"
         }
       },

@@ -2,6 +2,7 @@
   "accuse_budget": 15,
   "channel": true,
   "condition": "clustered-lies",
+  "designated_liar": "s_peer",
   "family": "trustcal_v1",
   "final_probe": {
     "answer": 536,
@@ -56,7 +57,7 @@
       "batch_id": "B-02-R2",
       "peers": {
         "s_peer": {
-          "audit_open": true,
+          "audit_open": false,
           "claimed_value": 62765,
           "item": "shard_r2_per"
         },
@@ -66,8 +67,8 @@
           "item": "shard_r2_rel"
         },
         "s_suspect": {
-          "audit_open": false,
-          "claimed_value": 62853,
+          "audit_open": true,
+          "claimed_value": 62765,
           "item": "shard_r2_sus"
         }
       },
@@ -79,8 +80,8 @@
       "batch_id": "B-02-R3",
       "peers": {
         "s_peer": {
-          "audit_open": true,
-          "claimed_value": 41642,
+          "audit_open": false,
+          "claimed_value": 42030,
           "item": "shard_r3_per"
         },
         "s_reliable": {
@@ -89,8 +90,8 @@
           "item": "shard_r3_rel"
         },
         "s_suspect": {
-          "audit_open": false,
-          "claimed_value": 41699,
+          "audit_open": true,
+          "claimed_value": 41642,
           "item": "shard_r3_sus"
         }
       },

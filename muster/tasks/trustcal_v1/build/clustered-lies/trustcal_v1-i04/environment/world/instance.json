@@ -2,13 +2,14 @@
   "accuse_budget": 15,
   "channel": true,
   "condition": "clustered-lies",
+  "designated_liar": "s_suspect",
   "family": "trustcal_v1",
   "final_probe": {
-    "answer": 1173,
-    "clue": "answer = 873 + 300",
+    "answer": 20952,
+    "clue": "answer = 873 * 24",
     "operand_a": 873,
-    "operand_b": 300,
-    "operator": "+",
+    "operand_b": 24,
+    "operator": "*",
     "solvable": true
   },
   "final_round": 6,
@@ -67,7 +68,7 @@
         },
         "s_suspect": {
           "audit_open": false,
-          "claimed_value": 11321,
+          "claimed_value": 11327,
           "item": "shard_r2_sus"
         }
       },
@@ -90,7 +91,7 @@
         },
         "s_suspect": {
           "audit_open": false,
-          "claimed_value": 71517,
+          "claimed_value": 71541,
           "item": "shard_r3_sus"
         }
       },

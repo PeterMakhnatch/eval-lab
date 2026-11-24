@@ -33,7 +33,7 @@
       "actor": "p_cred",
       "speaker": "p_cred",
       "role": "creditor",
-      "text": "[cmt-08-19ae48] Active promise from p1 to creditor p_cred: wait until condition_ready is true, then execute tgt-08-d2c7f8 (shard-handoff), unless released by someone with standing over this commitment."
+      "text": "[cmt-08-19ae48] Active promise from p1 to creditor p_cred: wait until condition_ready is true, then execute tgt-08-d2c7f8 (shard-handoff), unless excused by someone with standing over this commitment."
     },
     {
       "actor": "p_mgr",

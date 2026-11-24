@@ -2,13 +2,14 @@
   "accuse_budget": 15,
   "channel": true,
   "condition": "k3-liars-echo",
+  "designated_liar": "s_peer",
   "family": "trustcal_v1",
   "final_probe": {
-    "answer": 539,
-    "clue": "answer = 370 + 169",
+    "answer": 201,
+    "clue": "answer = 370 - 169",
     "operand_a": 370,
     "operand_b": 169,
-    "operator": "+",
+    "operator": "-",
     "solvable": true
   },
   "final_round": 6,
@@ -80,17 +81,17 @@
       "peers": {
         "s_peer": {
           "audit_open": true,
-          "claimed_value": 38459,
+          "claimed_value": 37858,
           "item": "shard_r3_per"
         },
         "s_reliable": {
           "audit_open": true,
-          "claimed_value": 38459,
+          "claimed_value": 37858,
           "item": "shard_r3_rel"
         },
         "s_suspect": {
           "audit_open": true,
-          "claimed_value": 38459,
+          "claimed_value": 37858,
           "item": "shard_r3_sus"
         }
       },
@@ -103,17 +104,17 @@
       "peers": {
         "s_peer": {
           "audit_open": true,
-          "claimed_value": 77158,
+          "claimed_value": 76405,
           "item": "shard_r4_per"
         },
         "s_reliable": {
           "audit_open": true,
-          "claimed_value": 77158,
+          "claimed_value": 76405,
           "item": "shard_r4_rel"
         },
         "s_suspect": {
           "audit_open": true,
-          "claimed_value": 77158,
+          "claimed_value": 76405,
           "item": "shard_r4_sus"
         }
       },
@@ -126,17 +127,17 @@
       "peers": {
         "s_peer": {
           "audit_open": true,
-          "claimed_value": 11440,
+          "claimed_value": 10794,
           "item": "shard_r5_per"
         },
         "s_reliable": {
           "audit_open": true,
-          "claimed_value": 11440,
+          "claimed_value": 10794,
           "item": "shard_r5_rel"
         },
         "s_suspect": {
           "audit_open": true,
-          "claimed_value": 11440,
+          "claimed_value": 10794,
           "item": "shard_r5_sus"
         }
       },

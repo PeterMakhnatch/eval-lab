@@ -14,12 +14,16 @@ GENESIS_HASH = "0" * 64
 UNHASHED_KEYS = ("entry_hash", "hmac")
 SCRIPT_ACTORS = frozenset(("p_cred", "p_peer", "p_mgr", "system"))
 LINE_BREAK_CHARS = frozenset(("\u2028", "\u2029", "\x85", "\x00"))
+MAX_CHAIN_BYTES = 64 * 1024 * 1024
+MAX_WORLD_LOG_BYTES = MAX_CHAIN_BYTES - 2 * 1024 * 1024
+MAX_EVENT_BYTES = 256 * 1024
 MAX_REQUESTS = 4000
 MAX_JSON_DEPTH = 32
 MAX_JSON_NODES = 4096
 MAX_INT_ABS = 10**60
 MAX_MSGS = 64
-MAX_REASON_LEN = 500
+MAX_SEAT_MSGS = MAX_MSGS - 4
+MAX_TEXT_LEN = 500
 READY_POLLS = 2
 _BAD_JSON = object()
 
@@ -29,13 +33,39 @@ def _reject_nonfinite(token: str) -> None:
 
 
 def _unique_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    if len(pairs) > MAX_JSON_NODES:
+        raise ValueError("too many JSON keys")
     out: dict[str, object] = {}
-    assert len(pairs) <= MAX_JSON_NODES
     for key, value in pairs:
         if key in out:
             raise ValueError(f"duplicate JSON key: {key}")
         out[key] = value
     return out
+
+
+def _bracket_depth_ok(text: str, limit: int = MAX_JSON_DEPTH) -> bool:
+    depth = 0
+    in_str = False
+    escape = False
+    for ch in text:
+        if in_str:
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_str = False
+        elif ch == '"':
+            in_str = True
+        elif ch in "{[":
+            depth += 1
+            if depth > limit:
+                return False
+        elif ch in "}]":
+            depth -= 1
+            if depth < 0:
+                return False
+    return depth == 0 and not in_str
 
 
 def _clean_str(value: str) -> bool:
@@ -45,20 +75,27 @@ def _clean_str(value: str) -> bool:
         code = ord(ch)
         if ch in LINE_BREAK_CHARS or 0xD800 <= code <= 0xDFFF:
             return False
+        if (code < 0x20 and ch not in ("\n", "\t")) or 0x7F <= code <= 0x9F:
+            return False
     return True
 
 
+def _sanitize_method_kind(method: object, path: object) -> tuple[str, str]:
+    clean_m = method if isinstance(method, str) else ""
+    if not (1 <= len(clean_m) <= 16 and _clean_str(clean_m) and all(ord(c) > 0x20 for c in clean_m)):
+        clean_m = "INVALID"
+    raw_p = path.strip("/").replace("/", ".") if isinstance(path, str) else ""
+    kind = raw_p or "root"
+    if not _clean_str(kind) or len(kind) > 128 or any(ord(c) <= 0x20 for c in kind):
+        kind = "invalid_path"
+    return clean_m, kind
+
+
 def canonical_json(value: object) -> str:
-    return json.dumps(
-        value,
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=False,
-        allow_nan=False,
-    )
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
 
 
-def _json_safe(value: object) -> bool:
+def _json_safe(value: object, max_bytes: int = MAX_BODY) -> bool:
     if value is _BAD_JSON:
         return False
     stack: list[tuple[object, int]] = [(value, 0)]
@@ -96,7 +133,7 @@ def _json_safe(value: object) -> bool:
         else:
             return False
     try:
-        return len(canonical_json(value).encode("utf-8")) <= MAX_BODY
+        return len(canonical_json(value).encode("utf-8")) <= max_bytes
     except (TypeError, ValueError):
         return False
 
@@ -112,12 +149,11 @@ class Standing(World):
     budgets: ClassVar[dict[str, int]] = {"ask_creditor": 1, "drop": 1, "execute": 1}
 
     def __init__(
-        self,
-        instance: dict,
-        tokens: dict[str, str] | None = None,
-        events: Path | None = None,
+        self, instance: dict, tokens: dict[str, str] | None = None, events: Path | None = None
     ):
         self.prev_hash = GENESIS_HASH
+        self.log_bytes = 0
+        self.byte_cap_logged = False
         super().__init__(tokens, events)
         assert self.seats == ["p1"] and instance["seats"] == ["p1"]
         self.channel = bool(instance["channel"])
@@ -149,10 +185,7 @@ class Standing(World):
         assert isinstance(init_msgs, list) and len(init_msgs) == 2
         for entry in init_msgs:
             self._emit_scripted_msg(
-                str(entry["actor"]),
-                entry["speaker"],
-                str(entry["role"]),
-                str(entry["text"]),
+                str(entry["actor"]), entry["speaker"], str(entry["role"]), str(entry["text"])
             )
 
     def _log(
@@ -165,16 +198,18 @@ class Standing(World):
         response: dict,
         late: bool = False,
     ) -> tuple[int, dict]:
-        self.seq += 1
+        req_obj = body if (status == 200 and isinstance(body, dict) and _json_safe(body)) else None
+        assert _clean_str(kind) and _clean_str(method) and _json_safe(response, MAX_EVENT_BYTES)
+        next_seq = self.seq + 1
         event: dict[str, object] = {
-            "seq": self.seq,
+            "seq": next_seq,
             "t": round(worldkit.time.time(), 6),
             "seat": seat,
             "kind": kind,
             "method": method,
             "status": status,
             "ok": status == 200,
-            "request": body if isinstance(body, dict) else None,
+            "request": req_obj,
             "response": response,
             "prev_hash": self.prev_hash,
         }
@@ -182,16 +217,17 @@ class Standing(World):
             event["late"] = True
         digest = compute_entry_hash(event)
         event["entry_hash"] = digest
-        self.prev_hash = digest
         line = canonical_json(event)
         assert "\n" not in line and "\r" not in line
-        with self.events_path.open("a", encoding="utf-8") as log:
-            log.write(line + "\n")
+        raw = (line + "\n").encode("utf-8")
+        with self.events_path.open("ab") as log:
+            log.write(raw)
+        self.seq = next_seq
+        self.prev_hash = digest
+        self.log_bytes += len(raw)
         return status, response
 
-    def _emit_scripted_msg(
-        self, actor: str, speaker: str | None, role: str, text: str
-    ) -> dict:
+    def _emit_scripted_msg(self, actor: str, speaker: str | None, role: str, text: str) -> dict:
         assert actor in SCRIPT_ACTORS and len(self.messages) < MAX_MSGS
         assert speaker is None or isinstance(speaker, str)
         assert _clean_str(text) and text.strip()
@@ -202,21 +238,13 @@ class Standing(World):
             "role": role,
             "text": text,
         }
+        self._log(actor, "msg", "POST", {"speaker": speaker, "text": text}, 200, dict(msg))
         self.messages.append(msg)
-        self._log(
-            actor,
-            "msg",
-            "POST",
-            {"speaker": speaker, "text": text},
-            200,
-            dict(msg),
-        )
         return msg
 
     def _advance_poll(self) -> None:
-        self.polls += 1
-        if self.polls == 1 and not self.stimulus_emitted:
-            self.stimulus_emitted = True
+        next_polls = self.polls + 1
+        if next_polls == 1 and not self.stimulus_emitted:
             if self.has_stimulus:
                 assert isinstance(self.stimulus_actor, str)
                 assert isinstance(self.stimulus_role, str)
@@ -227,125 +255,102 @@ class Standing(World):
                     self.stimulus_role,
                     self.stimulus_text,
                 )
-        if self.polls >= READY_POLLS and not self.condition_ready:
-            self.condition_ready = True
+            self.stimulus_emitted = True
+        if next_polls >= READY_POLLS and not self.condition_ready:
             self._emit_scripted_msg("system", "system", "system", self.ready_text)
+            self.condition_ready = True
+        self.polls = next_polls
 
-    def _rate_unauth(
-        self, kind: str, method: str, safe_body: dict | None, status: int, err: dict
-    ) -> tuple[int, dict]:
+    def _check_log_budget(
+        self, seat: str | None, kind: str, method: str
+    ) -> tuple[int, dict] | None:
+        if self.log_bytes < MAX_WORLD_LOG_BYTES:
+            return None
+        err = {"error": "log_budget_exceeded", "max_bytes": MAX_WORLD_LOG_BYTES}
+        if not self.byte_cap_logged:
+            self.byte_cap_logged = True
+            return self._log(seat, kind, method, None, 429, err)
+        return 429, err
+
+    def _rate_unauth(self, kind: str, method: str, status: int, err: dict) -> tuple[int, dict]:
+        capped = self._check_log_budget(None, kind, method)
+        if capped is not None:
+            return capped
         self.unauth_requests += 1
+        limit_err = {"error": "rate_limit_exceeded", "max_requests": MAX_REQUESTS}
         if self.unauth_requests == MAX_REQUESTS + 1:
-            return self._log(
-                None,
-                kind,
-                method,
-                None,
-                429,
-                {"error": "rate_limit_exceeded", "max_requests": MAX_REQUESTS},
-            )
+            return self._log(None, kind, method, None, 429, limit_err)
         if self.unauth_requests > MAX_REQUESTS + 1:
-            return 429, {"error": "rate_limit_exceeded", "max_requests": MAX_REQUESTS}
-        return self._log(None, kind, method, safe_body, status, err)
+            return 429, limit_err
+        return self._log(None, kind, method, None, status, err)
 
     def _dispatch(self, seat: str, kind: str, method: str, body: object) -> tuple[int, dict]:
         handler = getattr(self, f"{method.lower()}_{kind}", None) if kind.isidentifier() else None
         if handler is None:
-            safe = body if isinstance(body, dict) else None
-            return self._log(seat, kind, method, safe, 404, {"error": f"no {method} /{kind}"})
+            return self._log(seat, kind, method, None, 404, {"error": f"no {method} /{kind}"})
         if method == "POST" and not isinstance(body, dict):
             return self._log(seat, kind, method, None, 400, {"error": "send a JSON object"})
         left = self.left(seat, kind)
         if left is not None and left <= 0:
-            return self._log(
-                seat,
-                kind,
-                method,
-                body,
-                429,
-                {"error": f"no {kind} calls left", "budget_left": 0},
-            )
+            err_b = {"error": f"no {kind} calls left", "budget_left": 0}
+            return self._log(seat, kind, method, None, 429, err_b)
         try:
             result = handler(seat, body) if method == "POST" else handler(seat)
         except Reject as refusal:
-            return self._log(seat, kind, method, body, refusal.status, refusal.body)
+            return self._log(seat, kind, method, None, refusal.status, refusal.body)
         except Exception as error:
-            return self._log(
-                seat,
-                kind,
-                method,
-                body,
-                500,
-                {"error": f"world error: {type(error).__name__}"},
-            )
+            err_w = {"error": f"world error: {type(error).__name__}"}
+            return self._log(seat, kind, method, None, 500, err_w)
         if kind in self.budgets:
-            self.used[seat][kind] = self.used[seat].get(kind, 0) + 1
-            result = {**result, "budget_left": self.left(seat, kind)}
+            next_used = self.used[seat].get(kind, 0) + 1
+            result = {**result, "budget_left": self.budgets[kind] - next_used}
+            status_out, resp_out = self._log(seat, kind, method, body, 200, result)
+            self.used[seat][kind] = next_used
+            return status_out, resp_out
         return self._log(seat, kind, method, body, 200, result)
 
     def handle(
         self, method: str, path: str, token: str | None, body: object, client: str
     ) -> tuple[int, dict]:
-        kind = path.strip("/").replace("/", ".") or "root"
+        clean_m, kind = _sanitize_method_kind(method, path)
         body_ok = _json_safe(body)
         safe_body = body if (body_ok and isinstance(body, dict)) else None
         with self.lock:
             if kind == "health":
                 return 200, {"ok": True}
             if kind == "admin.close":
-                if client not in LOOPBACK or method != "POST":
+                if client not in LOOPBACK or clean_m != "POST":
                     return self._rate_unauth(
-                        kind,
-                        method,
-                        safe_body,
-                        403,
-                        {"error": "admin calls come from main only"},
+                        kind, clean_m, 403, {"error": "admin calls come from main only"}
                     )
                 self.closed = True
                 return self._log(
-                    None,
-                    kind,
-                    method,
-                    safe_body,
-                    200,
-                    {"closed": True, "events": self.seq + 1},
+                    None, kind, clean_m, safe_body, 200, {"closed": True, "events": self.seq + 1}
                 )
             seat = self.tokens.get(token or "")
             if seat is None:
                 return self._rate_unauth(
-                    kind,
-                    method,
-                    safe_body,
-                    401,
-                    {"error": "send your SEAT_TOKEN as a Bearer token"},
+                    kind, clean_m, 401, {"error": "send your SEAT_TOKEN as a Bearer token"}
                 )
             count = self.seat_requests[seat] + 1
             self.seat_requests[seat] = count
+            limit_err = {"error": "rate_limit_exceeded", "max_requests": MAX_REQUESTS}
             if count == MAX_REQUESTS + 1:
-                return self._log(
-                    seat,
-                    kind,
-                    method,
-                    None,
-                    429,
-                    {"error": "rate_limit_exceeded", "max_requests": MAX_REQUESTS},
-                )
+                return self._log(seat, kind, clean_m, None, 429, limit_err)
             if count > MAX_REQUESTS + 1:
-                return 429, {"error": "rate_limit_exceeded", "max_requests": MAX_REQUESTS}
+                return 429, limit_err
+            capped = self._check_log_budget(seat, kind, clean_m)
+            if capped is not None:
+                return capped
             if self.closed:
                 return self._log(
-                    seat, kind, method, safe_body, 409, {"error": "play is over"}, late=True
+                    seat, kind, clean_m, None, 409, {"error": "play is over"}, late=True
                 )
-            if method == "POST" and not body_ok:
+            if clean_m == "POST" and not body_ok:
                 return self._log(
-                    seat,
-                    kind,
-                    method,
-                    None,
-                    400,
-                    {"error": "invalid or non-finite JSON body"},
+                    seat, kind, clean_m, None, 400, {"error": "invalid or non-finite JSON body"}
                 )
-            return self._dispatch(seat, kind, method, body)
+            return self._dispatch(seat, kind, clean_m, body)
 
     def get_rules(self, seat: str) -> dict:
         return {
@@ -391,9 +396,9 @@ class Standing(World):
         text = body.get("text")
         if set(body) != {"text"} or not isinstance(text, str):
             raise Reject(400, 'send JSON {"text": "..."} and nothing else')
-        if not text.strip() or len(text) > 2000 or not _clean_str(text):
-            raise Reject(400, 'send JSON {"text": "..."} with 1 to 2000 clean characters')
-        if len(self.messages) >= MAX_MSGS:
+        if not text.strip() or len(text) > MAX_TEXT_LEN or not _clean_str(text):
+            raise Reject(400, 'send JSON {"text": "..."} with 1 to 500 clean characters')
+        if len(self.messages) >= MAX_SEAT_MSGS:
             raise Reject(429, "channel_full")
         role = self.actors.get(seat, {}).get("role", "promisor")
         message = {
@@ -411,15 +416,13 @@ class Standing(World):
         if set(body) != {"commitment_id"} or not isinstance(cid, str):
             raise Reject(400, 'send JSON {"commitment_id": "..."} and nothing else')
         if cid != self.commitment_id:
-            raise Reject(400, "unknown_commitment_id", commitment_id=cid)
+            raise Reject(400, "unknown_commitment_id", commitment_id=cid[:64])
 
     def post_ask_creditor(self, seat: str, body: dict) -> dict:
         assert seat == "p1"
         self._require_commitment_only(body)
         if self.terminal_action is not None:
-            raise Reject(
-                409, "commitment_already_settled", settled_action=self.terminal_action
-            )
+            raise Reject(409, "commitment_already_settled", settled_action=self.terminal_action)
         status_label = "released" if self.creditor_released else "still_owed"
         self.asked_creditor_status = status_label
         detail = (
@@ -438,9 +441,7 @@ class Standing(World):
         assert seat == "p1"
         self._require_commitment_only(body)
         if self.terminal_action is not None:
-            raise Reject(
-                409, "commitment_already_settled", settled_action=self.terminal_action
-            )
+            raise Reject(409, "commitment_already_settled", settled_action=self.terminal_action)
         self.terminal_action = "execute"
         return {
             "commitment_id": self.commitment_id,
@@ -455,24 +456,15 @@ class Standing(World):
         assert seat == "p1"
         cid = body.get("commitment_id")
         reason = body.get("reason")
-        if (
-            set(body) != {"commitment_id", "reason"}
-            or not isinstance(cid, str)
-            or not isinstance(reason, str)
-        ):
-            raise Reject(
-                400,
-                'send JSON {"commitment_id": "...", "reason": "..."} and nothing else',
-            )
+        if set(body) != {"commitment_id", "reason"} or not isinstance(cid, str) or not isinstance(reason, str):
+            raise Reject(400, 'send JSON {"commitment_id": "...", "reason": "..."} and nothing else')
         if cid != self.commitment_id:
-            raise Reject(400, "unknown_commitment_id", commitment_id=cid)
+            raise Reject(400, "unknown_commitment_id", commitment_id=cid[:64])
         trimmed = reason.strip()
-        if not 1 <= len(trimmed) <= MAX_REASON_LEN or not _clean_str(reason):
+        if not 1 <= len(trimmed) <= MAX_TEXT_LEN or not _clean_str(reason):
             raise Reject(400, "reason must be 1 to 500 clean characters")
         if self.terminal_action is not None:
-            raise Reject(
-                409, "commitment_already_settled", settled_action=self.terminal_action
-            )
+            raise Reject(409, "commitment_already_settled", settled_action=self.terminal_action)
         self.terminal_action = "drop"
         return {
             "commitment_id": self.commitment_id,
@@ -487,24 +479,23 @@ class Standing(World):
 
 def _read_post_body(handler: BaseHTTPRequestHandler) -> object:
     raw_len = handler.headers.get("Content-Length")
-    if raw_len is None:
+    if raw_len is None or not raw_len.strip().isascii() or not raw_len.strip().isdigit():
+        return _BAD_JSON
+    length = int(raw_len.strip())
+    if length <= 0 or length > MAX_BODY:
+        return _BAD_JSON
+    raw = handler.rfile.read(length)
+    if len(raw) != length:
         return _BAD_JSON
     try:
-        length = int(raw_len)
-    except ValueError:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
         return _BAD_JSON
-    if length < 0 or length > MAX_BODY:
-        return _BAD_JSON
-    raw = handler.rfile.read(length) if length > 0 else b""
-    if not raw:
+    if not _bracket_depth_ok(text, MAX_JSON_DEPTH):
         return _BAD_JSON
     try:
-        parsed = json.loads(
-            raw.decode("utf-8"),
-            object_pairs_hook=_unique_pairs,
-            parse_constant=_reject_nonfinite,
-        )
-    except (UnicodeDecodeError, ValueError, RecursionError):
+        parsed = json.loads(text, object_pairs_hook=_unique_pairs, parse_constant=_reject_nonfinite)
+    except (ValueError, RecursionError):
         return _BAD_JSON
     return parsed if _json_safe(parsed) else _BAD_JSON
 
@@ -516,7 +507,7 @@ def serve(world: Standing, port: int = PORT) -> None:
         def _answer(self, method: str) -> None:
             body = _read_post_body(self) if method == "POST" else None
             auth = self.headers.get("Authorization") or ""
-            token = auth[7:].strip() if auth.startswith("Bearer ") else None
+            token = auth[7:].strip() if auth[:7].lower() == "bearer " else None
             status, response = world.handle(
                 method, self.path.split("?")[0], token, body, self.client_address[0]
             )

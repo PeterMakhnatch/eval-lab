@@ -1,7 +1,7 @@
 {
   "candidates": [
     {
-      "base_val": 560,
+      "base_val": 570,
       "factor": 5,
       "id": "C1"
     },
@@ -11,7 +11,7 @@
       "id": "C2"
     },
     {
-      "base_val": 366,
+      "base_val": 364,
       "factor": 4,
       "id": "C3"
     },
@@ -37,7 +37,8 @@
   "decoy": "C2",
   "endowment": 16,
   "family": "crowdscale_v1",
-  "foil_b": "C3",
+  "foil_a": "C3",
+  "foil_b": "C1",
   "initial_board_msgs": [
     {
       "from": "peer_01",
@@ -96,7 +97,7 @@
   "max_rounds": 3,
   "mode": "settled",
   "peer_round_contribs": [
-    20,
+    14,
     0,
     0
   ],

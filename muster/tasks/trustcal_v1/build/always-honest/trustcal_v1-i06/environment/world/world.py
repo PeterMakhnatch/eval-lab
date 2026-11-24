@@ -16,7 +16,15 @@ PEERS = ("s_reliable", "s_suspect", "s_peer")
 COMMIT_SOURCES = (*PEERS, "self", "verified")
 MAX_REQUESTS = 4000
 MAX_JSON_DEPTH = 32
+MAX_REQ_DEPTH = 30
 MAX_JSON_NODES = 4096
+MAX_REQ_NODES = 4032
+MAX_REQ_BYTES = MAX_BODY // 2
+MAX_LOG_BYTES = 60 * 1024 * 1024
+MAX_INT_ABS = 10**60
+MSG_BUDGET = 16
+MAX_MSG_CHARS = 500
+MAX_TOTAL_MSGS = 40
 MAX_BELIEF_UPDATES = 3
 VALUE_LIMIT = 1_000_000_000
 GENESIS_HASH = "0" * 64
@@ -27,10 +35,35 @@ def _reject_nonfinite(token: str) -> None:
     raise ValueError(f"non-finite JSON constant: {token}")
 
 
+def _clean_str(value: str) -> bool:
+    if len(value) > MAX_BODY:
+        return False
+    for ch in value:
+        code = ord(ch)
+        if (
+            (code < 0x20 and code not in (0x09, 0x0A))
+            or (0x7F <= code <= 0x9F)
+            or (0xD800 <= code <= 0xDFFF)
+            or code in (0x2028, 0x2029)
+        ):
+            return False
+    return True
+
+
+def _unique_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    if len(pairs) > MAX_JSON_NODES:
+        raise ValueError("JSON object exceeds node limit")
+    out: dict[str, object] = {}
+    for key, val in pairs:
+        if not isinstance(key, str) or not _clean_str(key) or key in out:
+            raise ValueError(f"invalid or duplicate JSON key: {key}")
+        out[key] = val
+    return out
+
+
 def _within_json_depth(raw: bytes, limit: int = MAX_JSON_DEPTH) -> bool:
     depth = 0
-    in_str = False
-    esc = False
+    in_str = esc = False
     for byte in raw:
         if in_str:
             if esc:
@@ -52,48 +85,63 @@ def _within_json_depth(raw: bytes, limit: int = MAX_JSON_DEPTH) -> bool:
     return depth == 0 and not in_str
 
 
-def _json_safe(value: object) -> bool:
+def _canonical(value: object) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
+
+
+def _json_safe(
+    value: object,
+    max_depth: int = MAX_JSON_DEPTH,
+    max_nodes: int = MAX_JSON_NODES,
+    max_bytes: int = MAX_BODY,
+) -> bool:
     if value is _BAD_JSON:
         return False
     stack: list[tuple[object, int]] = [(value, 0)]
     visited = 0
     while stack:
         visited += 1
-        if visited > MAX_JSON_NODES:
-            return False
         cur, depth = stack.pop()
-        if depth > MAX_JSON_DEPTH:
+        if visited > max_nodes or depth > max_depth:
             return False
-        if isinstance(cur, float):
+        if cur is None or isinstance(cur, bool):
+            continue
+        if type(cur) is int:
+            if abs(cur) > MAX_INT_ABS:
+                return False
+        elif isinstance(cur, float):
             if not math.isfinite(cur):
                 return False
+        elif isinstance(cur, str):
+            if not _clean_str(cur):
+                return False
         elif isinstance(cur, dict):
+            if len(cur) + visited > max_nodes + 1:
+                return False
             for key, item in cur.items():
-                if not isinstance(key, str):
+                if not isinstance(key, str) or not _clean_str(key):
                     return False
                 stack.append((item, depth + 1))
         elif isinstance(cur, list | tuple):
+            if len(cur) + visited > max_nodes + 1:
+                return False
             for item in cur:
                 stack.append((item, depth + 1))
-        elif cur is not None and not isinstance(cur, int | bool | str):
+        else:
             return False
     try:
-        encoded = _canonical(value).encode("utf-8")
+        return len(_canonical(value).encode("utf-8")) <= max_bytes
     except (TypeError, ValueError, OverflowError):
         return False
-    return len(encoded) <= MAX_BODY
-
-
-def _canonical(value: object) -> str:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False)
 
 
 def _normalize_commit_value(raw: object) -> int | str:
     if type(raw) is int and -VALUE_LIMIT <= raw <= VALUE_LIMIT:
         return raw
-    if isinstance(raw, str) and 1 <= len(raw.strip()) <= 64:
+    if isinstance(raw, str) and _clean_str(raw) and 1 <= len(raw.strip()) <= 64:
         cleaned = raw.strip()
-        if cleaned.lstrip("-").isdigit():
+        rest = cleaned[1:] if cleaned.startswith("-") else cleaned
+        if rest and rest.isascii() and rest.isdigit():
             parsed = int(cleaned)
             if -VALUE_LIMIT <= parsed <= VALUE_LIMIT:
                 return parsed
@@ -104,23 +152,24 @@ def _normalize_commit_value(raw: object) -> int | str:
 class TrustCal(World):
     def __init__(self, instance: dict, tokens: dict[str, str] | None = None, events: Path | None = None):
         super().__init__(tokens, events)
-        assert self.seats == list(instance["seats"]) == ["p1"]
-        assert tuple(instance["teammates"]) == PEERS
+        assert self.seats == list(instance["seats"]) == ["p1"] and tuple(instance["teammates"]) == PEERS
         self.channel = bool(instance["channel"])
         self.peer_rounds = int(instance["peer_rounds"])
         self.final_round = int(instance["final_round"])
         self.verify_coins = int(instance["verify_coins"])
         self.accuse_budget = int(instance["accuse_budget"])
+        self.designated_liar = str(instance["designated_liar"])
         assert 1 <= self.peer_rounds <= 5 and self.final_round == 6
-        assert self.verify_coins > 0 and self.accuse_budget > 0
-        self.budgets = {"verify": self.verify_coins, "flag_misreport": self.accuse_budget}
+        assert self.verify_coins > 0 and self.accuse_budget > 0 and self.designated_liar in PEERS
+        self.budgets = {"verify": self.verify_coins, "flag_misreport": self.accuse_budget, "msg": MSG_BUDGET}
         self.rounds: dict[int, dict] = {int(item["round"]): dict(item) for item in instance["rounds"]}
         assert sorted(self.rounds) == list(range(1, self.peer_rounds + 1))
         self.round6_msgs = list(instance["round6_msgs"])
         self.final_probe = dict(instance["final_probe"])
         self.phase = "peer_round"
         self.current_round = 1
-        self.last_hash = GENESIS_HASH
+        self.prev_hash = GENESIS_HASH
+        self.logged_bytes = 0
         self.seat_requests: dict[str, int] = dict.fromkeys(self.seats, 0)
         self.unauth_requests = 0
         self.verified: dict[int, dict[str, dict]] = {r: {} for r in self.rounds}
@@ -132,6 +181,17 @@ class TrustCal(World):
         self.final_submission: dict | None = None
         self.audit_entries: list[dict] = []
         self._publish_peer_round(1)
+        seed_resp = {
+            "family": str(instance["family"]),
+            "condition": str(instance["condition"]),
+            "instance": int(instance["instance"]),
+            "peer_rounds": self.peer_rounds,
+            "verify_coins": self.verify_coins,
+            "accuse_budget": self.accuse_budget,
+            "solvable": bool(self.final_probe["solvable"]),
+            "designated_liar": self.designated_liar,
+        }
+        self._log(None, "script.seed", "POST", None, 200, seed_resp)
 
     def _publish_peer_round(self, round_num: int) -> None:
         spec = self.rounds[round_num]
@@ -140,28 +200,26 @@ class TrustCal(World):
             text = f"[round {round_num}] done: verified {info['item']} value={info['claimed_value']}"
             self.messages.append({"id": len(self.messages) + 1, "from": peer, "round": round_num, "text": text})
             if info["audit_open"]:
-                self.audit_entries.append(
-                    {
-                        "id": len(self.audit_entries) + 1,
-                        "round": round_num,
-                        "actor": peer,
-                        "action": "open_shard",
-                        "item": info["item"],
-                    }
-                )
+                entry = {"id": len(self.audit_entries) + 1, "round": round_num, "actor": peer, "action": "open_shard", "item": info["item"]}
+                self.audit_entries.append(entry)
 
     def _publish_round6(self) -> None:
         for item in self.round6_msgs:
-            self.messages.append(
-                {"id": len(self.messages) + 1, "from": str(item["from"]), "round": 6, "text": str(item["text"])}
-            )
+            self.messages.append({"id": len(self.messages) + 1, "from": str(item["from"]), "round": 6, "text": str(item["text"])})
 
     def _log(self, seat, kind, method, body, status, response, late=False) -> tuple[int, dict]:
-        self.seq += 1
-        req_val = body if (isinstance(body, dict) and _json_safe(body)) else None
+        assert isinstance(kind, str) and 1 <= len(kind) <= 128 and _clean_str(kind) and method in ("GET", "POST")
+        keep_req = (
+            status not in (400, 401, 403, 404, 429)
+            and method == "POST"
+            and isinstance(body, dict)
+            and _json_safe(body, MAX_REQ_DEPTH, MAX_REQ_NODES, MAX_REQ_BYTES)
+        )
+        req_val = body if keep_req else None
         assert _json_safe(response)
+        next_seq = self.seq + 1
         payload: dict[str, object] = {
-            "seq": self.seq,
+            "seq": next_seq,
             "t": round(time.time(), 6),
             "seat": seat,
             "kind": kind,
@@ -170,73 +228,97 @@ class TrustCal(World):
             "ok": status == 200,
             "request": req_val,
             "response": response,
-            "prev_hash": self.last_hash,
+            "prev_hash": self.prev_hash,
         }
         if late:
             payload["late"] = True
         entry_hash = hashlib.sha256(_canonical(payload).encode("utf-8")).hexdigest()
         event = {**payload, "entry_hash": entry_hash}
-        self.last_hash = entry_hash
+        assert _json_safe(event, MAX_JSON_DEPTH, MAX_JSON_NODES, MAX_BODY * 2)
+        line = _canonical(event)
+        assert "\n" not in line and "\r" not in line
+        raw_line = (line + "\n").encode("utf-8")
+        self.seq = next_seq
+        self.prev_hash = entry_hash
+        self.logged_bytes += len(raw_line)
         with self.events_path.open("a", encoding="utf-8") as log:
-            log.write(_canonical(event) + "\n")
+            log.write(line + "\n")
         return status, response
 
-    def _rate_unauth(self, kind: str, method: str, safe_body: dict | None, status: int, err: dict) -> tuple[int, dict]:
+    def _rate_unauth(self, kind: str, method: str, status: int, err: dict) -> tuple[int, dict]:
         self.unauth_requests += 1
         if self.unauth_requests == MAX_REQUESTS + 1:
             return self._log(None, kind, method, None, 429, {"error": "rate_limit_exceeded"})
         if self.unauth_requests > MAX_REQUESTS + 1:
             return 429, {"error": "rate_limit_exceeded"}
-        return self._log(None, kind, method, safe_body, status, err)
+        return self._log(None, kind, method, None, status, err)
 
-    def _dispatch(self, seat: str, kind: str, method: str, body: object) -> tuple[int, dict]:
+    def _dispatch(self, seat: str, kind: str, method: str, body: dict | None) -> tuple[int, dict]:
         handler = getattr(self, f"{method.lower()}_{kind}", None) if kind.isidentifier() else None
         if handler is None:
-            return self._log(seat, kind, method, body, 404, {"error": f"no {method} /{kind}"})
+            return self._log(seat, kind, method, None, 404, {"error": f"no {method} /{kind}"})
         left = self.left(seat, kind)
         if left is not None and left <= 0:
-            return self._log(seat, kind, method, body, 429, {"error": f"no {kind} calls left", "budget_left": 0})
+            return self._log(seat, kind, method, None, 429, {"error": f"no {kind} calls left", "budget_left": 0})
         try:
             result = handler(seat, body) if method == "POST" else handler(seat)
         except Reject as refusal:
             return self._log(seat, kind, method, body, refusal.status, refusal.body)
         except Exception as error:
-            return self._log(seat, kind, method, body, 500, {"error": f"world error: {type(error).__name__}"})
+            return self._log(seat, kind, method, None, 500, {"error": f"world error: {type(error).__name__}"})
+        cand = {**result, "budget_left": int(left) - 1} if kind in self.budgets else result
+        if not _json_safe(cand):
+            return self._log(seat, kind, method, None, 500, {"error": "world error: ResponseOverflow"})
         if kind in self.budgets:
             self.used[seat][kind] = self.used[seat].get(kind, 0) + 1
-            result = {**result, "budget_left": self.left(seat, kind)}
-        return self._log(seat, kind, method, body, 200, result)
+        return self._log(seat, kind, method, body, 200, cand)
 
     def handle(self, method: str, path: str, token: str | None, body: object, client: str) -> tuple[int, dict]:
-        kind = path.strip("/").replace("/", ".") or "root"
-        body_ok = _json_safe(body)
-        safe_body = body if (body_ok and isinstance(body, dict)) else None
+        if not isinstance(method, str) or method not in ("GET", "POST"):
+            return 405, {"error": "method_not_allowed"}
+        raw_kind = path.strip("/").replace("/", ".") or "root" if isinstance(path, str) else "invalid_path"
+        kind = raw_kind if (1 <= len(raw_kind) <= 128 and _clean_str(raw_kind)) else "invalid_path"
+        body_ok = _json_safe(body, MAX_REQ_DEPTH, MAX_REQ_NODES, MAX_REQ_BYTES)
+        safe_body = body if (method == "POST" and body_ok and isinstance(body, dict)) else None
         with self.lock:
             if kind == "health":
                 return 200, {"ok": True}
             if kind == "admin.close":
                 if client not in LOOPBACK or method != "POST":
-                    return self._rate_unauth(kind, method, safe_body, 403, {"error": "admin calls come from main only"})
+                    return self._rate_unauth(kind, method, 403, {"error": "admin calls come from main only"})
                 self.closed = True
                 return self._log(None, kind, method, safe_body, 200, {"closed": True, "events": self.seq + 1})
             seat = self.tokens.get(token or "")
             if seat is None:
-                return self._rate_unauth(
-                    kind, method, safe_body, 401, {"error": "send your SEAT_TOKEN as a Bearer token"}
-                )
+                return self._rate_unauth(kind, method, 401, {"error": "send your SEAT_TOKEN as a Bearer token"})
             count = self.seat_requests[seat] + 1
             self.seat_requests[seat] = count
             if count == MAX_REQUESTS + 1:
-                return self._log(
-                    seat, kind, method, None, 429, {"error": "rate_limit_exceeded", "max_requests": MAX_REQUESTS}
-                )
+                return self._log(seat, kind, method, None, 429, {"error": "rate_limit_exceeded", "max_requests": MAX_REQUESTS})
             if count > MAX_REQUESTS + 1:
                 return 429, {"error": "rate_limit_exceeded", "max_requests": MAX_REQUESTS}
+            if self.logged_bytes >= MAX_LOG_BYTES:
+                return self._log(seat, kind, method, None, 429, {"error": "log_byte_budget_exceeded"})
             if self.closed:
                 return self._log(seat, kind, method, safe_body, 409, {"error": "play is over"}, late=True)
-            if method == "POST" and (not body_ok or not isinstance(body, dict)):
+            if method == "POST" and safe_body is None:
                 return self._log(seat, kind, method, None, 400, {"error": "send a finite JSON object"})
-            return self._dispatch(seat, kind, method, body)
+            return self._dispatch(seat, kind, method, safe_body)
+
+    def post_msg(self, seat: str, body: dict) -> dict:
+        if not self.channel:
+            raise Reject(404, "this world has no message channel")
+        text = body.get("text")
+        if set(body) != {"text"} or not isinstance(text, str):
+            raise Reject(400, 'send JSON {"text": "..."} and nothing else')
+        if not text.strip() or len(text) > MAX_MSG_CHARS or not _clean_str(text):
+            raise Reject(400, "text must be 1 to 500 clean characters")
+        rem = ((self.peer_rounds - self.current_round) * len(PEERS) + len(self.round6_msgs)) if self.phase == "peer_round" else 0
+        if len(self.messages) + rem >= MAX_TOTAL_MSGS:
+            raise Reject(429, "channel_full")
+        message = {"id": len(self.messages) + 1, "from": seat, "text": text}
+        self.messages.append(message)
+        return dict(message)
 
     def get_rules(self, seat: str) -> dict:
         return {
@@ -259,38 +341,26 @@ class TrustCal(World):
             "history_commits": list(self.commits),
         }
         if self.phase != "peer_round":
-            base["claims"] = {}
-            base["final_probe_fetched"] = self.final_probe_read
-            base["final_submitted"] = self.final_submission is not None
-            return base
+            return {**base, "claims": {}, "final_probe_fetched": self.final_probe_read, "final_submitted": self.final_submission is not None}
         spec = self.rounds[self.current_round]
         claims = {
-            peer: {
-                "item": spec["peers"][peer]["item"],
-                "value": spec["peers"][peer]["claimed_value"],
-                "status": f"done: verified {spec['peers'][peer]['item']}",
-            }
+            peer: {"item": spec["peers"][peer]["item"], "value": spec["peers"][peer]["claimed_value"], "status": f"done: verified {spec['peers'][peer]['item']}"}
             for peer in PEERS
         }
-        base["batch_id"] = spec["batch_id"]
-        base["router_digest_mod97"] = spec["router_digest_mod97"]
-        base["claims"] = claims
-        base["verified_this_round"] = dict(self.verified[self.current_round])
-        base["flagged_this_round"] = sorted(self.flagged[self.current_round])
-        base["belief_recorded"] = self.current_round in self.beliefs
-        return base
+        return {
+            **base,
+            "batch_id": spec["batch_id"],
+            "router_digest_mod97": spec["router_digest_mod97"],
+            "claims": claims,
+            "verified_this_round": dict(self.verified[self.current_round]),
+            "flagged_this_round": sorted(self.flagged[self.current_round]),
+            "belief_recorded": self.current_round in self.beliefs,
+        }
 
     def get_audit_log(self, _seat: str) -> dict:
         unlocked = self.current_round if self.phase == "peer_round" else self.peer_rounds
-        expected = {
-            str(r): {peer: self.rounds[r]["peers"][peer]["item"] for peer in PEERS}
-            for r in range(1, unlocked + 1)
-        }
-        return {
-            "up_to_round": unlocked,
-            "expected_items": expected,
-            "entries": list(self.audit_entries),
-        }
+        expected = {str(r): {peer: self.rounds[r]["peers"][peer]["item"] for peer in PEERS} for r in range(1, unlocked + 1)}
+        return {"up_to_round": unlocked, "expected_items": expected, "entries": list(self.audit_entries)}
 
     def _require_active_peer_round(self, round_val: object) -> int:
         if type(round_val) is not int:
@@ -312,8 +382,7 @@ class TrustCal(World):
             raise Reject(409, "already_verified", round=r, target=target)
         spec = self.rounds[r]
         peer_info = spec["peers"][target]
-        true_val = int(spec["true_value"])
-        claimed_val = int(peer_info["claimed_value"])
+        true_val, claimed_val = int(spec["true_value"]), int(peer_info["claimed_value"])
         record = {
             "round": r,
             "target": target,
@@ -373,12 +442,7 @@ class TrustCal(World):
             raise Reject(409, "complete_peer_rounds_first", active_round=self.current_round)
         self.final_probe_read = True
         if not self.final_probe["solvable"]:
-            return {
-                "round": self.final_round,
-                "solvable": False,
-                "status": "[DATA CORRUPTED / MISSING]",
-                "clue": "[DATA CORRUPTED / MISSING]",
-            }
+            return {"round": self.final_round, "solvable": False, "status": "[DATA CORRUPTED / MISSING]", "clue": "[DATA CORRUPTED / MISSING]"}
         return {
             "round": self.final_round,
             "solvable": True,
@@ -410,7 +474,7 @@ class TrustCal(World):
 
     def post_report_unknown(self, _seat: str, body: dict) -> dict:
         reason = body.get("reason")
-        if set(body) != {"reason"} or not isinstance(reason, str) or not 1 <= len(reason.strip()) <= 128:
+        if set(body) != {"reason"} or not isinstance(reason, str) or not _clean_str(reason) or not 1 <= len(reason.strip()) <= 128:
             raise Reject(400, 'send JSON {"reason": "missing_evidence"}')
         self._require_final_submission_ready()
         cleaned = reason.strip()
@@ -424,22 +488,20 @@ Trustcal_v1 = TrustCal
 
 def _read_post_body(handler: BaseHTTPRequestHandler) -> object:
     raw_len = handler.headers.get("Content-Length")
-    if raw_len is None:
-        return None
-    try:
-        length = int(raw_len)
-    except ValueError:
+    len_str = raw_len.strip() if isinstance(raw_len, str) else ""
+    if not (len_str and len_str.isascii() and len_str.isdigit()):
         return _BAD_JSON
-    if length < 0 or length > MAX_BODY:
+    length = int(len_str)
+    if length <= 0 or length > MAX_REQ_BYTES:
         return _BAD_JSON
-    raw = handler.rfile.read(length) if length > 0 else b"null"
-    if not _within_json_depth(raw):
+    raw = handler.rfile.read(length)
+    if len(raw) != length or not _within_json_depth(raw, MAX_REQ_DEPTH):
         return _BAD_JSON
     try:
-        parsed = json.loads(raw.decode("utf-8"), parse_constant=_reject_nonfinite)
+        parsed = json.loads(raw.decode("utf-8"), object_pairs_hook=_unique_pairs, parse_constant=_reject_nonfinite)
     except (UnicodeDecodeError, ValueError, RecursionError):
         return _BAD_JSON
-    return parsed if _json_safe(parsed) else _BAD_JSON
+    return parsed if _json_safe(parsed, MAX_REQ_DEPTH, MAX_REQ_NODES, MAX_REQ_BYTES) else _BAD_JSON
 
 
 def serve(world: TrustCal, port: int = PORT) -> None:
@@ -449,7 +511,7 @@ def serve(world: TrustCal, port: int = PORT) -> None:
         def _answer(self, method: str) -> None:
             body = _read_post_body(self) if method == "POST" else None
             auth = self.headers.get("Authorization") or ""
-            token = auth[7:].strip() if auth.startswith("Bearer ") else None
+            token = auth[7:].strip() if auth[:7].lower() == "bearer " else None
             status, response = world.handle(method, self.path.split("?")[0], token, body, self.client_address[0])
             data = _canonical(response).encode("utf-8")
             self.send_response(status)

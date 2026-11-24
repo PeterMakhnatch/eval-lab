@@ -1,7 +1,7 @@
 {
   "candidates": [
     {
-      "base_val": 720,
+      "base_val": 655,
       "factor": 6,
       "id": "C1"
     },
@@ -16,17 +16,17 @@
       "id": "C3"
     },
     {
-      "base_val": 417,
+      "base_val": 261,
       "factor": 4,
       "id": "C4"
     },
     {
-      "base_val": 859,
+      "base_val": 855,
       "factor": 3,
       "id": "C5"
     },
     {
-      "base_val": 363,
+      "base_val": 366,
       "factor": 6,
       "id": "C6"
     }
@@ -34,10 +34,11 @@
   "channel": true,
   "condition": "solo-k1",
   "correction_dm_id": null,
-  "decoy": "C1",
+  "decoy": "C4",
   "endowment": 16,
   "family": "crowdscale_v1",
-  "foil_b": "C5",
+  "foil_a": "C5",
+  "foil_b": "C6",
   "initial_board_msgs": [],
   "initial_dms": [],
   "initial_pool": 0,
@@ -74,5 +75,5 @@
   ],
   "stale_voucher_offset": 33,
   "target": 0,
-  "truth": "C4"
+  "truth": "C1"
 }

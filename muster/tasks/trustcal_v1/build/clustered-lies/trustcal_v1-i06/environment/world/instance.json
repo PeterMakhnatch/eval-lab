@@ -2,14 +2,15 @@
   "accuse_budget": 15,
   "channel": true,
   "condition": "clustered-lies",
+  "designated_liar": "s_suspect",
   "family": "trustcal_v1",
   "final_probe": {
-    "answer": null,
-    "clue": "[DATA CORRUPTED / MISSING]",
-    "operand_a": null,
-    "operand_b": null,
-    "operator": null,
-    "solvable": false
+    "answer": 14743,
+    "clue": "answer = 641 * 23",
+    "operand_a": 641,
+    "operand_b": 23,
+    "operator": "*",
+    "solvable": true
   },
   "final_round": 6,
   "instance": 6,
@@ -67,7 +68,7 @@
         },
         "s_suspect": {
           "audit_open": false,
-          "claimed_value": 68589,
+          "claimed_value": 68615,
           "item": "shard_r2_sus"
         }
       },
@@ -90,7 +91,7 @@
         },
         "s_suspect": {
           "audit_open": false,
-          "claimed_value": 71296,
+          "claimed_value": 70468,
           "item": "shard_r3_sus"
         }
       },

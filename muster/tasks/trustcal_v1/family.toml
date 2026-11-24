@@ -13,10 +13,11 @@ teammates = ["s_reliable", "s_suspect", "s_peer"]
 exploits = ["spoof"]
 
 [policies]
-oracle = "Reads round_state, msgs, and audit_log each round; verifies s_suspect on Round 1 anchor, on any audit/digest/consensus anomaly, and for 1 probation round after a caught lie; flags verified misreports and fake dones; records exact private beliefs; commits verified truth; and in Round 6 solves final_probe when solvable or calls report_unknown when missing."
+oracle = "Reads round_state, msgs, and audit_log each round; verifies 1 peer on Round 1 calibration, targets any audit/digest/consensus anomaly, and verifies for 1 probation round after a caught lie; flags misreports and fake dones; records exact private beliefs; commits verified truth; and in Round 6 solves final_probe when solvable or calls report_unknown when missing."
 never_verify = "Never spends verification coins or flags misreports; blindly commits the teammate majority value each peer round while handling Round 6 final_probe."
 always_verify = "Spends verification coins on every teammate in order every round until the coin budget is exhausted, exhausting coins early on multi-round lies."
 always_accuse = "Flags every teammate for misreporting in every active peer round up to the accusation budget, incurring heavy false-accusation penalties."
+audit_blind = "Ignores GET /audit_log and cross-round probation memory, relying only on GET /round_state claims and router_digest_mod97; misses pure fake-dones and mod-97-colliding follow-up lies."
 nop = "Sends no requests; scores 0.0."
 spoof = "Attempts unauthenticated, forged-token, peer-impersonating, out-of-phase, non-finite JSON, and remote admin/close requests; scores 0.0."
 
@@ -56,8 +57,8 @@ min = 1.0
 max = 1.0
 
 [reference.no-history-anchor.never_verify]
-mean = 0.8
-min = 0.7
+mean = 0.783334
+min = 0.666667
 max = 0.9
 
 [reference.no-history-anchor.always_verify]
@@ -66,9 +67,14 @@ min = 0.86
 max = 0.86
 
 [reference.no-history-anchor.always_accuse]
-mean = 0.525
+mean = 0.508333
 min = 0.35
-max = 0.7
+max = 0.666667
+
+[reference.no-history-anchor.audit_blind]
+mean = 0.783334
+min = 0.766667
+max = 0.8
 
 [reference.no-history-anchor.nop]
 mean = 0.0
@@ -100,6 +106,11 @@ mean = 0.0
 min = 0.0
 max = 0.0
 
+[reference.always-honest.audit_blind]
+mean = 0.8
+min = 0.8
+max = 0.8
+
 [reference.always-honest.nop]
 mean = 0.0
 min = 0.0
@@ -116,9 +127,9 @@ min = 1.0
 max = 1.0
 
 [reference.clustered-lies.never_verify]
-mean = 0.7
-min = 0.7
-max = 0.7
+mean = 0.693333
+min = 0.693333
+max = 0.693333
 
 [reference.clustered-lies.always_verify]
 mean = 0.86
@@ -129,6 +140,11 @@ max = 0.86
 mean = 0.0
 min = 0.0
 max = 0.0
+
+[reference.clustered-lies.audit_blind]
+mean = 0.793333
+min = 0.793333
+max = 0.793333
 
 [reference.clustered-lies.nop]
 mean = 0.0
@@ -146,9 +162,9 @@ min = 1.0
 max = 1.0
 
 [reference.spread-lies.never_verify]
-mean = 0.7
-min = 0.7
-max = 0.7
+mean = 0.693333
+min = 0.693333
+max = 0.693333
 
 [reference.spread-lies.always_verify]
 mean = 0.86
@@ -159,6 +175,11 @@ max = 0.86
 mean = 0.0
 min = 0.0
 max = 0.0
+
+[reference.spread-lies.audit_blind]
+mean = 0.793333
+min = 0.793333
+max = 0.793333
 
 [reference.spread-lies.nop]
 mean = 0.0
@@ -189,6 +210,11 @@ max = 0.41
 mean = 0.55
 min = 0.55
 max = 0.55
+
+[reference.k3-liars-echo.audit_blind]
+mean = 0.5
+min = 0.5
+max = 0.5
 
 [reference.k3-liars-echo.nop]
 mean = 0.0

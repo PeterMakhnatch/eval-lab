@@ -32,8 +32,8 @@ def main() -> None:
         call("GET", "/msgs")
         call("GET", "/audit_log")
         claims = {p: int(state["claims"][p]["value"]) for p in PEERS}
-        st, ver = call("POST", "/verify", {"target": "s_suspect", "round": r})
-        val = int(ver["true_value"]) if st == 200 else claims["s_reliable"]
+        st, ver = call("POST", "/verify", {"target": PEERS[0], "round": r})
+        val = int(ver["true_value"]) if st == 200 else claims[PEERS[0]]
         for p in PEERS:
             call("POST", "/flag_misreport", {"suspect": p, "round": r})
         belief = {p: (claims[p] == val) for p in PEERS}

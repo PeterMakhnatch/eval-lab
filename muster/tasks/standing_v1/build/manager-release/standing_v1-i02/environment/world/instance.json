@@ -33,7 +33,7 @@
       "actor": "p_cred",
       "speaker": "p_cred",
       "role": "creditor",
-      "text": "[cmt-02-4aa46c] Active promise from p1 to creditor p_cred: wait until condition_ready is true, then execute tgt-02-665f96 (quota-rebalance), unless released by someone with standing over this commitment."
+      "text": "[cmt-02-4aa46c] Active promise from p1 to creditor p_cred: wait until condition_ready is true, then execute tgt-02-665f96 (quota-rebalance), unless excused by someone with standing over this commitment."
     },
     {
       "actor": "p_mgr",

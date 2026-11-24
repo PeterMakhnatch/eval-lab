@@ -2,14 +2,15 @@
   "accuse_budget": 3,
   "channel": true,
   "condition": "no-history-anchor",
+  "designated_liar": "s_peer",
   "family": "trustcal_v1",
   "final_probe": {
-    "answer": null,
-    "clue": "[DATA CORRUPTED / MISSING]",
-    "operand_a": null,
-    "operand_b": null,
-    "operator": null,
-    "solvable": false
+    "answer": 8100,
+    "clue": "answer = 300 * 27",
+    "operand_a": 300,
+    "operand_b": 27,
+    "operator": "*",
+    "solvable": true
   },
   "final_round": 6,
   "instance": 10,
@@ -43,8 +44,8 @@
           "item": "shard_r1_rel"
         },
         "s_suspect": {
-          "audit_open": false,
-          "claimed_value": 13019,
+          "audit_open": true,
+          "claimed_value": 12929,
           "item": "shard_r1_sus"
         }
       },

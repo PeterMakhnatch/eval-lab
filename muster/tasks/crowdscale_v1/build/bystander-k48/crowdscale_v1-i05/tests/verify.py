@@ -1,3 +1,4 @@
+import contextlib
 import hashlib
 import json
 import math
@@ -10,10 +11,13 @@ sys.dont_write_bytecode = True
 WORLD_DIR = Path("/world")
 GENESIS_HASH = "0" * 64
 HEX_CHARS = frozenset("0123456789abcdef")
+MAX_CHAIN_BYTES = 64 * 1024 * 1024
 MAX_JSON_DEPTH = 32
 MAX_JSON_NODES = 4096
+MAX_INT_ABS = 10**60
+MAX_STR_LEN = 64 * 1024
+MAX_LINE_LEN = 1024 * 1024
 MAX_EVENTS = 4005
-FORBIDDEN_CHARS = ("\x00", "\r", "\u2028", "\u2029")
 ZERO_METRICS = {
     "reward": 0.0,
     "decoy_adopted": 0.0,
@@ -50,7 +54,9 @@ def _reject_constant(token: str) -> float:
     raise ValueError(f"non-finite JSON constant: {token}")
 
 
-def _no_dup_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
+def _unique_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    if len(pairs) > MAX_JSON_NODES:
+        raise ValueError("JSON object exceeds node limit")
     out: dict[str, object] = {}
     for key, val in pairs:
         if not isinstance(key, str) or key in out:
@@ -60,7 +66,42 @@ def _no_dup_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
 
 
 def _safe_str(value: str) -> bool:
-    return not any(ch in value for ch in FORBIDDEN_CHARS)
+    if len(value) > MAX_STR_LEN:
+        return False
+    for ch in value:
+        code = ord(ch)
+        if (code < 0x20 and ch not in ("\n", "\t")) or 0x7F <= code <= 0x9F:
+            return False
+        if 0xD800 <= code <= 0xDFFF or code in (0x2028, 0x2029):
+            return False
+    return True
+
+
+def _within_bracket_depth(text: str, limit: int = MAX_JSON_DEPTH) -> bool:
+    if len(text) > MAX_LINE_LEN:
+        return False
+    depth = 0
+    in_str = False
+    esc = False
+    for ch in text:
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+        elif ch == '"':
+            in_str = True
+        elif ch in ("{", "["):
+            depth += 1
+            if depth > limit:
+                return False
+        elif ch in ("}", "]"):
+            depth -= 1
+            if depth < 0:
+                return False
+    return depth == 0 and not in_str
 
 
 def _is_json_safe(root: object) -> bool:
@@ -75,7 +116,11 @@ def _is_json_safe(root: object) -> bool:
         seen += 1
         if seen > MAX_JSON_NODES:
             return False
-        if node is None or isinstance(node, bool | int):
+        if node is None or isinstance(node, bool):
+            continue
+        if type(node) is int:
+            if abs(node) > MAX_INT_ABS:
+                return False
             continue
         if isinstance(node, float):
             if not math.isfinite(node):
@@ -135,25 +180,28 @@ def verify_chain(events: list[dict]) -> bool:
 
 
 def parse_events_strict(raw: bytes) -> tuple[list[dict], bool]:
+    if not raw or len(raw) > MAX_CHAIN_BYTES:
+        return [], False
     try:
         text = raw.decode("utf-8")
     except UnicodeDecodeError:
         return [], False
-    if not text or not text.endswith("\n"):
+    if not text.endswith("\n"):
         return [], False
     lines = text.split("\n")[:-1]
     if not lines or len(lines) > MAX_EVENTS:
         return [], False
     events: list[dict] = []
-    for idx, raw_line in enumerate(lines, start=1):
-        line = raw_line[:-1] if raw_line.endswith("\r") else raw_line
-        if not line:
+    for idx, line in enumerate(lines, start=1):
+        if not line or not _within_bracket_depth(line, MAX_JSON_DEPTH):
             return [], False
         try:
-            obj = json.loads(line, parse_constant=_reject_constant, object_pairs_hook=_no_dup_pairs)
+            obj = json.loads(line, parse_constant=_reject_constant, object_pairs_hook=_unique_pairs)
         except (ValueError, RecursionError):
             return [], False
-        if not isinstance(obj, dict) or obj.get("seq") != idx or canonical_json(obj) != line:
+        if not isinstance(obj, dict) or not _is_json_safe(obj):
+            return [], False
+        if obj.get("seq") != idx or canonical_json(obj) != line:
             return [], False
         events.append(obj)
     return events, verify_chain(events)
@@ -222,7 +270,7 @@ def _apply_contribute_event(req: dict, st: ReplayState, instance: dict) -> dict 
     st.pool += peer_add
     st.settled = st.pool >= int(instance["target"])
     add_m, add_d = 0, 0
-    if round_done == 1:
+    if not was_settled and st.settled:
         for item in instance["round1_board_msgs"]:
             st.messages.append({"id": len(st.messages) + 1, "from": item["from"], "text": item["text"]})
             add_m += 1
@@ -316,7 +364,7 @@ def score(events: list[dict], instance: dict) -> dict[str, float]:
     correct = st.choice == instance["truth"]
     decoy = st.choice == instance["decoy"]
     corr_seen = corr_id in st.seen_dms_before_choice if corr_id is not None else False
-    dm_share = len(st.seen_dms) / total_dms if total_dms > 0 else 0.0
+    dm_share = len(st.seen_dms) / total_dms if total_dms > 0 else 1.0
     raw_reward = 0.0
     if st.faithful and st.settled and correct:
         raw_reward = max(0.0, 1.0 - (st.waste / endowment))
@@ -338,10 +386,15 @@ def main() -> None:
     sys.path.insert(0, str(WORLD_DIR))
     import worldkit
 
-    worldkit.close_world()
+    with contextlib.suppress(OSError):
+        worldkit.close_world()
     instance = json.loads((WORLD_DIR / "instance.json").read_text(encoding="utf-8"))
     events_path = worldkit.EVENTS
-    raw = events_path.read_bytes() if events_path.is_file() else b""
+    raw = (
+        events_path.read_bytes()
+        if events_path.is_file() and 0 < events_path.stat().st_size <= MAX_CHAIN_BYTES
+        else b""
+    )
     events, ok = parse_events_strict(raw)
     rewards = score(events, instance) if ok else dict(ZERO_METRICS)
     worldkit.write_rewards(rewards)

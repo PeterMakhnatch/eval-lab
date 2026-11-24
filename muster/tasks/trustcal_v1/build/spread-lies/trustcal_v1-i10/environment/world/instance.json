@@ -2,14 +2,15 @@
   "accuse_budget": 15,
   "channel": true,
   "condition": "spread-lies",
+  "designated_liar": "s_peer",
   "family": "trustcal_v1",
   "final_probe": {
-    "answer": null,
-    "clue": "[DATA CORRUPTED / MISSING]",
-    "operand_a": null,
-    "operand_b": null,
-    "operator": null,
-    "solvable": false
+    "answer": 8100,
+    "clue": "answer = 300 * 27",
+    "operand_a": 300,
+    "operand_b": 27,
+    "operator": "*",
+    "solvable": true
   },
   "final_round": 6,
   "instance": 10,
@@ -33,8 +34,8 @@
       "batch_id": "B-10-R1",
       "peers": {
         "s_peer": {
-          "audit_open": true,
-          "claimed_value": 12929,
+          "audit_open": false,
+          "claimed_value": 13123,
           "item": "shard_r1_per"
         },
         "s_reliable": {
@@ -43,8 +44,8 @@
           "item": "shard_r1_rel"
         },
         "s_suspect": {
-          "audit_open": false,
-          "claimed_value": 13019,
+          "audit_open": true,
+          "claimed_value": 12929,
           "item": "shard_r1_sus"
         }
       },
@@ -102,7 +103,7 @@
       "batch_id": "B-10-R4",
       "peers": {
         "s_peer": {
-          "audit_open": true,
+          "audit_open": false,
           "claimed_value": 19549,
           "item": "shard_r4_per"
         },
@@ -112,8 +113,8 @@
           "item": "shard_r4_rel"
         },
         "s_suspect": {
-          "audit_open": false,
-          "claimed_value": 19595,
+          "audit_open": true,
+          "claimed_value": 19549,
           "item": "shard_r4_sus"
         }
       },

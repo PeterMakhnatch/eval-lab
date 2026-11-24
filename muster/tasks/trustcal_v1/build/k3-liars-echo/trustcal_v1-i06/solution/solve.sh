@@ -25,18 +25,18 @@ def choose_verify_target(
     round_num: int, claims: dict[str, int], mod97: int, missing_open: list[str], probation: set[str]
 ) -> str | None:
     if missing_open:
-        return "s_suspect" if "s_suspect" in missing_open else missing_open[0]
+        return missing_open[0]
     bad_mod = [p for p in PEERS if claims[p] % 97 != mod97]
     if bad_mod:
-        return "s_suspect" if "s_suspect" in bad_mod else bad_mod[0]
+        return bad_mod[0]
     if len(set(claims.values())) > 1:
         counts = {v: sum(1 for x in claims.values() if x == v) for v in set(claims.values())}
         outliers = [p for p in PEERS if counts[claims[p]] == 1]
-        return outliers[0] if outliers else "s_suspect"
+        return outliers[0] if outliers else PEERS[0]
     if round_num == 1:
-        return "s_suspect"
+        return PEERS[0]
     if probation:
-        return "s_suspect" if "s_suspect" in probation else sorted(probation)[0]
+        return next(p for p in PEERS if p in probation)
     return None
 
 
@@ -67,7 +67,7 @@ def main() -> None:
             ver = call("POST", "/verify", {"target": target, "round": r})
             true_val = int(ver["true_value"])
         else:
-            true_val = claims["s_reliable"]
+            true_val = claims[PEERS[0]]
         peer_ok = {p: (claims[p] == true_val and p not in missing_open) for p in PEERS}
         for p in PEERS:
             if not peer_ok[p]:

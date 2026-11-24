@@ -3,7 +3,7 @@ artifacts = ["/logs/world/events.jsonl"]
 
 [task]
 name = "muster/standing_v1-i03"
-description = "standing_v1-i03, condition nospeaker-cancel: 1 operator seat p1 holds commitment cmt-03-8dfd9c owed to creditor p_cred on target tgt-03-0f69da (batch-settlement); execute once ready unless released with standing."
+description = "standing_v1-i03, condition nospeaker-cancel: 1 operator seat p1 holds commitment cmt-03-8dfd9c owed to creditor p_cred on target tgt-03-0f69da (batch-settlement); execute once ready unless excused with standing."
 keywords = ["seats", "multi-agent", "muster"]
 
 [metadata]

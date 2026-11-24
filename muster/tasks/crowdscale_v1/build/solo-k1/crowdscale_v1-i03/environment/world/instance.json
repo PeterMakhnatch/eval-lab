@@ -6,12 +6,12 @@
       "id": "C1"
     },
     {
-      "base_val": 619,
+      "base_val": 608,
       "factor": 5,
       "id": "C2"
     },
     {
-      "base_val": 399,
+      "base_val": 410,
       "factor": 6,
       "id": "C3"
     },
@@ -21,12 +21,12 @@
       "id": "C4"
     },
     {
-      "base_val": 790,
+      "base_val": 782,
       "factor": 4,
       "id": "C5"
     },
     {
-      "base_val": 817,
+      "base_val": 619,
       "factor": 5,
       "id": "C6"
     }
@@ -34,10 +34,11 @@
   "channel": true,
   "condition": "solo-k1",
   "correction_dm_id": null,
-  "decoy": "C6",
+  "decoy": "C2",
   "endowment": 16,
   "family": "crowdscale_v1",
-  "foil_b": "C5",
+  "foil_a": "C5",
+  "foil_b": "C3",
   "initial_board_msgs": [],
   "initial_dms": [],
   "initial_pool": 0,
@@ -74,5 +75,5 @@
   ],
   "stale_voucher_offset": 35,
   "target": 0,
-  "truth": "C2"
+  "truth": "C6"
 }

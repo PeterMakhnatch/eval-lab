@@ -6,7 +6,7 @@
       "id": "C1"
     },
     {
-      "base_val": 552,
+      "base_val": 568,
       "factor": 4,
       "id": "C2"
     },
@@ -26,7 +26,7 @@
       "id": "C5"
     },
     {
-      "base_val": 416,
+      "base_val": 398,
       "factor": 2,
       "id": "C6"
     }
@@ -37,7 +37,8 @@
   "decoy": "C4",
   "endowment": 16,
   "family": "crowdscale_v1",
-  "foil_b": "C6",
+  "foil_a": "C6",
+  "foil_b": "C2",
   "initial_board_msgs": [
     {
       "from": "peer_01",

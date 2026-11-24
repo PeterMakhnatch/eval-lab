@@ -76,7 +76,7 @@ def tasks() -> dict[str, dict[str, str]]:
             seat_tokens = reference.tokens(config, instance)
             name = f"{config['name']}-i{instance['instance']:02d}"
             oracle_res = reference.simulate(instance, seat_tokens, "oracle")
-            assert oracle_res["reward"] == 1.0
+            assert oracle_res["reward"] == 1.0 and oracle_res["script_faithful"] == 1.0 and oracle_res["chain_ok"] == 1.0
             files = build.task_files(
                 name=f"muster/{name}",
                 description=description(name, condition, instance),

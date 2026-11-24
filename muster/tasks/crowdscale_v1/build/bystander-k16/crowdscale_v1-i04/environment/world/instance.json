@@ -1,7 +1,7 @@
 {
   "candidates": [
     {
-      "base_val": 635,
+      "base_val": 638,
       "factor": 4,
       "id": "C1"
     },
@@ -11,7 +11,7 @@
       "id": "C2"
     },
     {
-      "base_val": 672,
+      "base_val": 667,
       "factor": 3,
       "id": "C3"
     },
@@ -37,7 +37,8 @@
   "decoy": "C2",
   "endowment": 16,
   "family": "crowdscale_v1",
-  "foil_b": "C3",
+  "foil_a": "C3",
+  "foil_b": "C1",
   "initial_board_msgs": [
     {
       "from": "peer_01",

@@ -2,6 +2,7 @@
   "accuse_budget": 15,
   "channel": true,
   "condition": "always-honest",
+  "designated_liar": "s_peer",
   "family": "trustcal_v1",
   "final_probe": {
     "answer": 536,

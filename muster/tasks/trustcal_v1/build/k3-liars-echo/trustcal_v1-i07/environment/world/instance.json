@@ -2,6 +2,7 @@
   "accuse_budget": 15,
   "channel": true,
   "condition": "k3-liars-echo",
+  "designated_liar": "s_suspect",
   "family": "trustcal_v1",
   "final_probe": {
     "answer": null,
@@ -80,17 +81,17 @@
       "peers": {
         "s_peer": {
           "audit_open": true,
-          "claimed_value": 31196,
+          "claimed_value": 31705,
           "item": "shard_r3_per"
         },
         "s_reliable": {
           "audit_open": true,
-          "claimed_value": 31196,
+          "claimed_value": 31705,
           "item": "shard_r3_rel"
         },
         "s_suspect": {
           "audit_open": true,
-          "claimed_value": 31196,
+          "claimed_value": 31705,
           "item": "shard_r3_sus"
         }
       },
@@ -103,17 +104,17 @@
       "peers": {
         "s_peer": {
           "audit_open": true,
-          "claimed_value": 34445,
+          "claimed_value": 35104,
           "item": "shard_r4_per"
         },
         "s_reliable": {
           "audit_open": true,
-          "claimed_value": 34445,
+          "claimed_value": 35104,
           "item": "shard_r4_rel"
         },
         "s_suspect": {
           "audit_open": true,
-          "claimed_value": 34445,
+          "claimed_value": 35104,
           "item": "shard_r4_sus"
         }
       },
@@ -126,17 +127,17 @@
       "peers": {
         "s_peer": {
           "audit_open": true,
-          "claimed_value": 73020,
+          "claimed_value": 72880,
           "item": "shard_r5_per"
         },
         "s_reliable": {
           "audit_open": true,
-          "claimed_value": 73020,
+          "claimed_value": 72880,
           "item": "shard_r5_rel"
         },
         "s_suspect": {
           "audit_open": true,
-          "claimed_value": 73020,
+          "claimed_value": 72880,
           "item": "shard_r5_sus"
         }
       },

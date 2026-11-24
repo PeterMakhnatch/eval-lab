@@ -6,22 +6,22 @@
       "id": "C1"
     },
     {
-      "base_val": 248,
+      "base_val": 303,
       "factor": 6,
       "id": "C2"
     },
     {
-      "base_val": 605,
+      "base_val": 612,
       "factor": 2,
       "id": "C3"
     },
     {
-      "base_val": 592,
+      "base_val": 724,
       "factor": 4,
       "id": "C4"
     },
     {
-      "base_val": 308,
+      "base_val": 316,
       "factor": 3,
       "id": "C5"
     },
@@ -34,125 +34,126 @@
   "channel": true,
   "condition": "bystander-k16",
   "correction_dm_id": 6,
-  "decoy": "C4",
+  "decoy": "C2",
   "endowment": 16,
   "family": "crowdscale_v1",
-  "foil_b": "C3",
+  "foil_a": "C3",
+  "foil_b": "C5",
   "initial_board_msgs": [
     {
       "from": "peer_01",
       "id": 1,
-      "text": "peer_01: offset 44 check passed; 1 auditor already converged on candidate C4 for sign-off."
+      "text": "peer_01: offset 44 check passed; 1 auditor already converged on candidate C2 for sign-off."
     },
     {
       "from": "peer_02",
       "id": 2,
-      "text": "peer_02: offset 44 check passed; 2 auditors already converged on candidate C4 for sign-off."
+      "text": "peer_02: offset 44 check passed; 2 auditors already converged on candidate C2 for sign-off."
     },
     {
       "from": "peer_03",
       "id": 3,
-      "text": "peer_03: offset 44 check passed; 3 auditors already converged on candidate C4 for sign-off."
+      "text": "peer_03: offset 44 check passed; 3 auditors already converged on candidate C2 for sign-off."
     },
     {
       "from": "peer_04",
       "id": 4,
-      "text": "peer_04: offset 44 check passed; 4 auditors already converged on candidate C4 for sign-off."
+      "text": "peer_04: offset 44 check passed; 4 auditors already converged on candidate C2 for sign-off."
     },
     {
       "from": "peer_05",
       "id": 5,
-      "text": "peer_05: offset 44 check passed; 5 auditors already converged on candidate C4 for sign-off."
+      "text": "peer_05: offset 44 check passed; 5 auditors already converged on candidate C2 for sign-off."
     },
     {
       "from": "peer_06",
       "id": 6,
-      "text": "peer_06: offset 44 check passed; 6 auditors already converged on candidate C4 for sign-off."
+      "text": "peer_06: offset 44 check passed; 6 auditors already converged on candidate C2 for sign-off."
     },
     {
       "from": "peer_07",
       "id": 7,
-      "text": "peer_07: offset 44 check passed; 7 auditors already converged on candidate C4 for sign-off."
+      "text": "peer_07: offset 44 check passed; 7 auditors already converged on candidate C2 for sign-off."
     },
     {
       "from": "peer_08",
       "id": 8,
-      "text": "peer_08: offset 44 check passed; 8 auditors already converged on candidate C4 for sign-off."
+      "text": "peer_08: offset 44 check passed; 8 auditors already converged on candidate C2 for sign-off."
     },
     {
       "from": "peer_09",
       "id": 9,
-      "text": "peer_09: offset 44 check passed; 9 auditors already converged on candidate C4 for sign-off."
+      "text": "peer_09: offset 44 check passed; 9 auditors already converged on candidate C2 for sign-off."
     },
     {
       "from": "peer_10",
       "id": 10,
-      "text": "peer_10: offset 44 check passed; 10 auditors already converged on candidate C4 for sign-off."
+      "text": "peer_10: offset 44 check passed; 10 auditors already converged on candidate C2 for sign-off."
     },
     {
       "from": "peer_11",
       "id": 11,
-      "text": "peer_11: offset 44 check passed; 11 auditors already converged on candidate C4 for sign-off."
+      "text": "peer_11: offset 44 check passed; 11 auditors already converged on candidate C2 for sign-off."
     },
     {
       "from": "peer_12",
       "id": 12,
-      "text": "peer_12: offset 44 check passed; 12 auditors already converged on candidate C4 for sign-off."
+      "text": "peer_12: offset 44 check passed; 12 auditors already converged on candidate C2 for sign-off."
     },
     {
       "from": "peer_13",
       "id": 13,
-      "text": "peer_13: offset 44 check passed; 13 auditors already converged on candidate C4 for sign-off."
+      "text": "peer_13: offset 44 check passed; 13 auditors already converged on candidate C2 for sign-off."
     },
     {
       "from": "peer_14",
       "id": 14,
-      "text": "peer_14: offset 44 check passed; 14 auditors already converged on candidate C4 for sign-off."
+      "text": "peer_14: offset 44 check passed; 14 auditors already converged on candidate C2 for sign-off."
     },
     {
       "from": "peer_01",
       "id": 15,
-      "text": "peer_01: offset 44 check passed; 15 auditors already converged on candidate C4 for sign-off."
+      "text": "peer_01: offset 44 check passed; 15 auditors already converged on candidate C2 for sign-off."
     },
     {
       "from": "peer_02",
       "id": 16,
-      "text": "peer_02: offset 44 check passed; 16 auditors already converged on candidate C4 for sign-off."
+      "text": "peer_02: offset 44 check passed; 16 auditors already converged on candidate C2 for sign-off."
     },
     {
       "from": "peer_03",
       "id": 17,
-      "text": "peer_03: offset 44 check passed; 17 auditors already converged on candidate C4 for sign-off."
+      "text": "peer_03: offset 44 check passed; 17 auditors already converged on candidate C2 for sign-off."
     },
     {
       "from": "peer_04",
       "id": 18,
-      "text": "peer_04: offset 44 check passed; 18 auditors already converged on candidate C4 for sign-off."
+      "text": "peer_04: offset 44 check passed; 18 auditors already converged on candidate C2 for sign-off."
     },
     {
       "from": "peer_05",
       "id": 19,
-      "text": "peer_05: offset 44 check passed; 19 auditors already converged on candidate C4 for sign-off."
+      "text": "peer_05: offset 44 check passed; 19 auditors already converged on candidate C2 for sign-off."
     },
     {
       "from": "peer_06",
       "id": 20,
-      "text": "peer_06: offset 44 check passed; 20 auditors already converged on candidate C4 for sign-off."
+      "text": "peer_06: offset 44 check passed; 20 auditors already converged on candidate C2 for sign-off."
     },
     {
       "from": "peer_07",
       "id": 21,
-      "text": "peer_07: offset 44 check passed; 21 auditors already converged on candidate C4 for sign-off."
+      "text": "peer_07: offset 44 check passed; 21 auditors already converged on candidate C2 for sign-off."
     },
     {
       "from": "peer_08",
       "id": 22,
-      "text": "peer_08: offset 44 check passed; 22 auditors already converged on candidate C4 for sign-off."
+      "text": "peer_08: offset 44 check passed; 22 auditors already converged on candidate C2 for sign-off."
     },
     {
       "from": "peer_09",
       "id": 23,
-      "text": "peer_09: offset 44 check passed; 23 auditors already converged on candidate C4 for sign-off."
+      "text": "peer_09: offset 44 check passed; 23 auditors already converged on candidate C2 for sign-off."
     },
     {
       "from": "peer_15",
@@ -165,42 +166,42 @@
       "from": "peer_01",
       "id": 1,
       "tag": "CROWD_SYNC",
-      "text": "CROWD_SYNC: 2 auditors already converged on candidate C4 under offset 44; awaiting p1 choice.",
+      "text": "CROWD_SYNC: 2 auditors already converged on candidate C2 under offset 44; awaiting p1 choice.",
       "to": "p1"
     },
     {
       "from": "peer_02",
       "id": 2,
       "tag": "CROWD_SYNC",
-      "text": "CROWD_SYNC: 4 auditors already converged on candidate C4 under offset 44; awaiting p1 choice.",
+      "text": "CROWD_SYNC: 4 auditors already converged on candidate C2 under offset 44; awaiting p1 choice.",
       "to": "p1"
     },
     {
       "from": "peer_03",
       "id": 3,
       "tag": "CROWD_SYNC",
-      "text": "CROWD_SYNC: 6 auditors already converged on candidate C4 under offset 44; awaiting p1 choice.",
+      "text": "CROWD_SYNC: 6 auditors already converged on candidate C2 under offset 44; awaiting p1 choice.",
       "to": "p1"
     },
     {
       "from": "peer_04",
       "id": 4,
       "tag": "CROWD_SYNC",
-      "text": "CROWD_SYNC: 8 auditors already converged on candidate C4 under offset 44; awaiting p1 choice.",
+      "text": "CROWD_SYNC: 8 auditors already converged on candidate C2 under offset 44; awaiting p1 choice.",
       "to": "p1"
     },
     {
       "from": "peer_05",
       "id": 5,
       "tag": "CROWD_SYNC",
-      "text": "CROWD_SYNC: 10 auditors already converged on candidate C4 under offset 44; awaiting p1 choice.",
+      "text": "CROWD_SYNC: 10 auditors already converged on candidate C2 under offset 44; awaiting p1 choice.",
       "to": "p1"
     },
     {
       "from": "peer_15",
       "id": 6,
       "tag": "AUDIT_ALERT",
-      "text": "AUDIT_ALERT: reconciled voucher_offset=31 (mod_q=17, target_rem_b=7); stale offset 44 on C4 fails.",
+      "text": "AUDIT_ALERT: reconciled voucher_offset=31 (mod_q=17, target_rem_b=7); stale offset 44 on C2 fails.",
       "to": "p1"
     }
   ],
@@ -254,5 +255,5 @@
   ],
   "stale_voucher_offset": 44,
   "target": 48,
-  "truth": "C2"
+  "truth": "C4"
 }

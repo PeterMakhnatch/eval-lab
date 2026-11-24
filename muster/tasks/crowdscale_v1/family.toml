@@ -190,7 +190,7 @@ min = 1.0
 max = 1.0
 
 [reference.settled-k16.always_follow_crowd]
-mean = 0.5
+mean = 0.375
 min = 0.0
 max = 1.0
 

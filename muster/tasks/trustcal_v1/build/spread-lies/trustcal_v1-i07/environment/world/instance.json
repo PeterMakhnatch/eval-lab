@@ -2,6 +2,7 @@
   "accuse_budget": 15,
   "channel": true,
   "condition": "spread-lies",
+  "designated_liar": "s_suspect",
   "family": "trustcal_v1",
   "final_probe": {
     "answer": null,
@@ -44,7 +45,7 @@
         },
         "s_suspect": {
           "audit_open": false,
-          "claimed_value": 53194,
+          "claimed_value": 53867,
           "item": "shard_r1_sus"
         }
       },
@@ -113,7 +114,7 @@
         },
         "s_suspect": {
           "audit_open": false,
-          "claimed_value": 34445,
+          "claimed_value": 34425,
           "item": "shard_r4_sus"
         }
       },

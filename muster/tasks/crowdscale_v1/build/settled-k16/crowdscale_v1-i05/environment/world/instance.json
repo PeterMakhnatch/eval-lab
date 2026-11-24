@@ -1,12 +1,12 @@
 {
   "candidates": [
     {
-      "base_val": 501,
+      "base_val": 502,
       "factor": 5,
       "id": "C1"
     },
     {
-      "base_val": 179,
+      "base_val": 245,
       "factor": 2,
       "id": "C2"
     },
@@ -16,7 +16,7 @@
       "id": "C3"
     },
     {
-      "base_val": 349,
+      "base_val": 355,
       "factor": 2,
       "id": "C4"
     },
@@ -26,7 +26,7 @@
       "id": "C5"
     },
     {
-      "base_val": 177,
+      "base_val": 111,
       "factor": 6,
       "id": "C6"
     }
@@ -34,10 +34,11 @@
   "channel": true,
   "condition": "settled-k16",
   "correction_dm_id": null,
-  "decoy": "C6",
+  "decoy": "C2",
   "endowment": 16,
   "family": "crowdscale_v1",
-  "foil_b": "C4",
+  "foil_a": "C4",
+  "foil_b": "C1",
   "initial_board_msgs": [
     {
       "from": "peer_01",
@@ -96,7 +97,7 @@
   "max_rounds": 3,
   "mode": "settled",
   "peer_round_contribs": [
-    20,
+    14,
     0,
     0
   ],
@@ -175,5 +176,5 @@
   ],
   "stale_voucher_offset": 28,
   "target": 48,
-  "truth": "C2"
+  "truth": "C6"
 }

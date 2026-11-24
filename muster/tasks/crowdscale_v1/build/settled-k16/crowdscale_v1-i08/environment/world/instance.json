@@ -11,12 +11,12 @@
       "id": "C2"
     },
     {
-      "base_val": 511,
+      "base_val": 526,
       "factor": 5,
       "id": "C3"
     },
     {
-      "base_val": 339,
+      "base_val": 346,
       "factor": 4,
       "id": "C4"
     },
@@ -37,7 +37,8 @@
   "decoy": "C1",
   "endowment": 16,
   "family": "crowdscale_v1",
-  "foil_b": "C4",
+  "foil_a": "C4",
+  "foil_b": "C3",
   "initial_board_msgs": [
     {
       "from": "peer_01",
@@ -96,7 +97,7 @@
   "max_rounds": 3,
   "mode": "settled",
   "peer_round_contribs": [
-    20,
+    14,
     0,
     0
   ],

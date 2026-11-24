@@ -3,7 +3,7 @@ artifacts = ["/logs/world/events.jsonl"]
 
 [task]
 name = "muster/standing_v1-i08"
-description = "standing_v1-i08, condition relayed-verify: 1 operator seat p1 holds commitment cmt-08-19ae48 owed to creditor p_cred on target tgt-08-d2c7f8 (shard-handoff); execute once ready unless released with standing."
+description = "standing_v1-i08, condition relayed-verify: 1 operator seat p1 holds commitment cmt-08-19ae48 owed to creditor p_cred on target tgt-08-d2c7f8 (shard-handoff); execute once ready unless excused with standing."
 keywords = ["seats", "multi-agent", "muster"]
 
 [metadata]

@@ -6,12 +6,12 @@
       "id": "C1"
     },
     {
-      "base_val": 685,
+      "base_val": 633,
       "factor": 5,
       "id": "C2"
     },
     {
-      "base_val": 158,
+      "base_val": 210,
       "factor": 3,
       "id": "C3"
     },
@@ -21,12 +21,12 @@
       "id": "C4"
     },
     {
-      "base_val": 640,
+      "base_val": 671,
       "factor": 3,
       "id": "C5"
     },
     {
-      "base_val": 595,
+      "base_val": 594,
       "factor": 5,
       "id": "C6"
     }
@@ -34,10 +34,11 @@
   "channel": true,
   "condition": "settled-k16",
   "correction_dm_id": null,
-  "decoy": "C2",
+  "decoy": "C3",
   "endowment": 16,
   "family": "crowdscale_v1",
-  "foil_b": "C6",
+  "foil_a": "C6",
+  "foil_b": "C5",
   "initial_board_msgs": [
     {
       "from": "peer_01",
@@ -96,7 +97,7 @@
   "max_rounds": 3,
   "mode": "settled",
   "peer_round_contribs": [
-    20,
+    14,
     0,
     0
   ],
@@ -175,5 +176,5 @@
   ],
   "stale_voucher_offset": 22,
   "target": 52,
-  "truth": "C3"
+  "truth": "C2"
 }

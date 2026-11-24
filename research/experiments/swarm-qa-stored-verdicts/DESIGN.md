@@ -6,6 +6,19 @@
 
 **INFERRED.** Run the smallest paired comparison that can change a production choice. The first 8 bundles qualify the method and estimate spread. They do not settle a small effect. Use a new sealed set for the decision if the pilot cannot resolve it.
 
+## 0. What exists on this Mac today (inventory of 2026-11-24, audited)
+
+One worker listed candidates whose truth rests on execution or documents. An independent auditor recounted the list, checked a seeded sample of 16 rows against their sources, and searched for sources the worker missed. Files: `~/Developer/muster-runs/day-2026-11-24/sealed-bundle/{report.md,candidates.jsonl,audit/auditor-report.md}`. They hold pointers to answer keys. Keep them away from every evaluated agent.
+
+- **OBSERVED.** The list has 80 candidates: 41 defects and 39 decoys; 46 task or grader, 18 trace, 16 data row. Prior use: 16 tuned, 48 inspected, 16 unknown. The recount agrees.
+- **OBSERVED.** Of 32 items that the list calls "differential execution", 8 point to native verifier legs in an archive. 24 point to a publisher's scores.
+- **OBSERVED (the auditor's sentence).** "This audit admits no item from the listed manifest. Prior use, public answers, unknown custody, reuse restrictions, or insufficient proof block admission. The audit did not establish that the Mac has no usable private pairs."
+- **OBSERVED (sources the list missed; all were used in development).** `~/Developer/eval-lab-results/2026-10-30/h1-grader-hardening/` keeps 69 wrong-pass pairs (reward 1 on the original grader, 0 on the hardened one) across 12 tasks; 54 have both native reward files and test logs; the correct submission scores 1 on both sides for all 12 tasks. `~/Developer/eval-lab-results/2026-10-16/envcheck-repair/` keeps 33 task rows with 91 replay and 68 control reward files. The failure library bank (`~/.local/state/evallab-failure-library/bank/`) keeps 143 repair rows, 32 of them validated by a native run, and 383 findings graded `V3_executed`.
+- **OBSERVED.** The list's 11 size-matched layouts leak. Their stored order (defect, decoy, defect, decoy) labels 44 of 44 items. In the 3 data-row layouts all 6 defects are shorter than all 6 decoys. Use them only for plumbing, with a random order and stand-ins where a reuse rule forbids model input.
+- **INFERRED (the auditor's rule).** "Freeze private defects and matched clean items before the compared detectors or tuning teams see them. Require bound execution evidence for runtime claims. Allow independently verified source evidence for separately scored documentary claims. Admit existing pairs if they meet the same rules."
+- **INFERRED.** The cheapest route to the decision set is an intake rule for the lanes that already produce verified defects: hold out a part of every new batch in a scorer-only store before any detector or prompt work reads it, and log every later exposure (`src/evallab/failure_library/bank` has an `ExposureEvent` record for this).
+- **OBSERVED.** Existing code covers parts of every stage: `src/evallab/qa/{task,ask,trace_workspace,answer_key,score,pack,suite}.py`, `src/evallab/gold/{projection,seed}.py`, `src/evallab/failure_library/bank`, `src/evallab/ledger.py`. Section 6 lists the gaps. Another lane built a synthetic family with seeded bugs and team arms (`audit_v1`, 40 tasks, branch `feat/multiagent-harbor-forensics`); it is a candidate for the plumbing checks of Section 2, not a source of real defects.
+
 ## 1. Seal items and give each arm the same evidence
 
 Start with 8 bundles of 4 items, for 32 items total. Use 16 known defects and 16 matched clean decoys. Cover task packages, graders, execution traces, and source-linked data rows. Match decoys to the defects by family, kind, and visible input length. A clean decoy passes an independent check for the tested mechanism. It is not certified bug-free.

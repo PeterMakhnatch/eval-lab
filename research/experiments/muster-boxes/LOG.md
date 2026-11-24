@@ -12,6 +12,21 @@ Times are New York time (ET). Newest entry first. Each entry says what is done a
 
 ## 2026-11-24
 
+**10:45 AM. A day without experiments (Peter's instruction of about 10:05 AM): build and analysis only.**
+- `campaign`: the 3 open points of the sixth review are fixed and landed (`b29bb6798`). The reserve union
+  uses the ledger line number, with an upper-bound invariant. The wrapper check is an allow-list (`uv`,
+  `muster`, `python`, `python3` after `keys run --`, `env`, `nohup`). The simulation has 132 seeds and
+  63,150 checks with 0 violations.
+- F31: `analysis/team_join.py` joins every team agent's opens to its steps in the 542 stored trials of E5
+  to E9. Of 1,910 repeats in joined trials with a board, 1,065 (55.8%) had a post that names the box which
+  the agent had not fetched, 432 (22.6%) had no such post, 82 (4.3%) got it in the open step, and 331
+  (17.3%) got it in an earlier step. An auditor confirmed 36 of 36 facts and recounted 2 arms with 0
+  differences.
+- The OpenRouter key: an audit of the files on this Mac explains $70.60 of the $100.01 (Flotilla $29.87,
+  muster $13.10, the Eval Lab campaign $10.69, Trace Review $6.88, Crucible $4.89, Footnote $3.58, the
+  Bespoke pilot $1.23, WorldWatch $0.36). $29.41 has no record here. Summary:
+  `muster-runs/reports/2026-11-24-spend-audit/SUMMARY.md`.
+
 **7:27 AM. 2 checks after the end entry.**
 - F29, the sentences about what the Haiku agents did (the number check of 7:09 AM did not cover them): the
   E8 auditor checked 15 sentences against the raw trials, with script counts and readings of 7 to 10

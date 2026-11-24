@@ -1222,3 +1222,55 @@ agent's read and its opens. "Race" is too strong as a cause: with 2 opens for ea
 an empty board, "no report existed or was read" holds almost by construction. Limits: the report rule (a
 post with a room and a result word counts for every box of the room; plans and intents do not count), no
 check of the codes against readers on E9, 7 trials for each arm, 1 model.
+
+## F31. E5 to E9, a join of every team agent's opens to its steps: for most repeats a post that names the box existed, and the agent had not fetched it; 1 repeat in 6 came after an earlier step had shown such a post (2026-11-24, no trial)
+
+Not pre-registered: a description of the 542 stored trials of E5, E6, E7 and E9 (33 arms) with
+`analysis/team_join.py`. The script gives each world event of a seat to the agent step that sent it, by the
+rule of `analysis/step_join.py` (a step owns the events in the interval after the previous step's timestamp,
+up to and including its own; clock offset 0; a trial is refused when a needed event is closer than 0.5 s to a
+step boundary). A read is a successful `GET /msgs` or `GET /new`; it "returned" a post when the post's id is
+in the reply. "Names the box" is the frozen pattern of `analysis/seat_codes.py`. Files:
+`muster-runs/day-2026-11-24/team-join/{e5,e6,e7,e9}.{txt,json}`.
+
+Checks. The script's open rows match the stored `seat_codes` export of E9 (4,000 rows) and the stored
+classes of E5 to E7 by event. An independent auditor confirmed 36 of 36 facts on 12 cases drawn with
+`random.Random(0)` against the raw event and trajectory files, and recounted 2 arms (E7 `team-8`, E5
+`team-4`) from the raw files with its own code: 0 differences in 259 repeats.
+
+OBSERVED:
+- **Refused trials:** 35 of 542 (E5 6 of 160, E6 0 of 180, E7 10 of 160, E9 19 of 42). All 14 trials of
+  `zones-48` and `chief-48` are refused, and 4 of 7 of `team-48`. The numbers below are for the joined
+  trials only.
+- **The 1,910 repeats of a box that another agent opened first, in the arms with a board:**
+
+  | Class | Repeats | Share |
+  |---|---:|---:|
+  | No post of another agent named the box before the open | 432 | 22.6% |
+  | Such a post existed; no read by the agent returned it before the open | 1,065 | 55.8% |
+  | The first read that returned it is in the same step as the open | 82 | 4.3% |
+  | A read in an earlier step returned it | 331 | 17.3% |
+
+- **By experiment, earlier-step reads:** E5 82 of 390, E6 67 of 858, E7 70 of 231, E9 112 of 431.
+- **A wider box pattern** (also `box221 flag=true` and lists without the frozen end word) moves 49 repeats
+  out of the first class and gives 338 earlier-step reads in place of 331.
+- **What the earlier post said, in the 7 earlier-step cases of the audit (a reading of 7 texts):** the
+  terminal output of the earlier step shows the post in 7 of 7. 1 post is a result ("Remaining room4 boxes
+  32-40 are all flags"). 6 are a plan, a claim or a request, for example "p6 opening 151,161,171 now", "I
+  claim rooms 4,5,6 (box 31,41,51)" and "Other agents: please open boxes 57-60 in room 6 with your spare
+  opens". In that last case the post asks for the open.
+- **Read and open in 1 step:** 809 of 34,980 agent steps hold a read and then an open. The largest step
+  holds 96 opens.
+- **Claim arms of E5:** 305 of 519 opens come after the agent's own claim in an earlier step, 56 after a
+  claim in the same step, and 158 have no claim that the claim pattern finds.
+- **`chief` arms of E7:** every worker read that returned the chief's list and has a timing is in an earlier
+  step than the open (618 of 618).
+
+INFERRED. In these worlds the main path to a repeat is not "the agent read the message and acted against
+it". For 56% of the repeats the post was on the board and the agent had not fetched it, and for 23% no post
+named the box. At most 17% come after the agent's screen showed a post that names the box, and in the 7
+cases read, 6 of those posts were plans, claims or requests and not results. So a pull board that an agent
+reads 1 time is the weak part, which agrees with F30 and with the `stale` probe of E8. Limits: a post that
+names a box is not a notice that the box is open; delivery to the screen is not attention; refused trials
+are 45% of E9 and may differ by team size; the claim and list patterns miss unusual wording; 1 cheap model;
+search worlds. This does not test what Bespoke reports for its long tasks.

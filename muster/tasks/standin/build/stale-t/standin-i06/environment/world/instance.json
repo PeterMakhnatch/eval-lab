@@ -109,7 +109,7 @@
         },
         {
           "seat": "p1",
-          "post": "p1 result: box 31 (room 4) flag=true. Room 4 is treasure. Post your results so we can split the remaining boxes without overlaps. p1 will open boxes 32,33,34,35,36 in room 4 now. Please avoid those. Please pick different boxes for yourself.",
+          "post": "p1 result: box 31 (room 4) flag=true. Room 4 is treasure. Post your results so we can split the remaining boxes without overlaps. p1: I am opening boxes 32, 33, 34, 35, 36 in room 4 now.",
           "tag": {
             "reports": [
               [
@@ -162,7 +162,7 @@
       "actions": [
         {
           "seat": "p3",
-          "post": "p3: opening 22,23,24 (room 3) now to avoid duplicates. Others take different boxes. Post your own picks so we do not overlap.",
+          "post": "p3: I am opening boxes 22, 23, 24 in room 3 now.",
           "tag": {
             "announces": [
               22,
@@ -199,7 +199,7 @@
       "actions": [
         {
           "seat": "p4",
-          "post": "p4 here. I am opening 29 and 30 in room 3 right now, so skip those boxes. Everyone else please choose other boxes.",
+          "post": "p4: I am opening boxes 29, 30 in room 3 now.",
           "tag": {
             "announces": [
               29,

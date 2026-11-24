@@ -109,7 +109,7 @@
         },
         {
           "seat": "p1",
-          "post": "p1 opened 51 (r6, FLAG). Room 6 is treasure. Please avoid duplicates and post your own results so we can plan the rest. p1 will open boxes 52,53,54,55,56 in room 6 now. Please avoid those. Post your own picks so we do not overlap.",
+          "post": "p1 opened 51 (r6, FLAG). Room 6 is treasure. Please avoid duplicates and post your own results so we can plan the rest. p1: I am opening boxes 52, 53, 54, 55, 56 in room 6 now.",
           "tag": {
             "reports": [
               [
@@ -162,7 +162,7 @@
       "actions": [
         {
           "seat": "p3",
-          "post": "p3 will open boxes 32,33,34 in room 4 now. Please avoid those. Everyone else please choose other boxes.",
+          "post": "p3: I am opening boxes 32, 33, 34 in room 4 now.",
           "tag": {
             "announces": [
               32,
@@ -199,7 +199,7 @@
       "actions": [
         {
           "seat": "p4",
-          "post": "p4 will open boxes 39,40 in room 4 now. Please avoid those. Please pick different boxes for yourself.",
+          "post": "p4: I am opening boxes 39, 40 in room 4 now.",
           "tag": {
             "announces": [
               39,

@@ -109,7 +109,7 @@
         },
         {
           "seat": "p1",
-          "post": "p1: box51 room6 = FLAG. Room 6 is treasure. Please avoid duplicates and post your own results so we can plan the rest. p1 here. I am opening 52, 53, 54, 55 and 56 in room 6 right now, so skip those boxes. Post your own picks so we do not overlap.",
+          "post": "p1: box51 room6 = FLAG. Room 6 is treasure. Please avoid duplicates and post your own results so we can plan the rest. p1: I am opening boxes 52, 53, 54, 55, 56 in room 6 now.",
           "tag": {
             "reports": [
               [

@@ -109,7 +109,7 @@
         },
         {
           "seat": "p1",
-          "post": "p1 opened 51 (r6, FLAG). Room 6 is treasure. Please avoid duplicates and post your own results so we can plan the rest. p1 will open boxes 52,53,54,55,56 in room 6 now. Please avoid those. Post your own picks so we do not overlap.",
+          "post": "p1 opened 51 (r6, FLAG). Room 6 is treasure. Please avoid duplicates and post your own results so we can plan the rest. p1: I am opening boxes 52, 53, 54, 55, 56 in room 6 now.",
           "tag": {
             "reports": [
               [

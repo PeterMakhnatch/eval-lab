@@ -2,7 +2,7 @@
 set -u
 
 exec python3 - rogue plain <<'PYTHON'
-TAGS_JSON = r'''{"Update from p1: box41 room5 -> FLAG true. Room 5 is treasure. Everyone please post box, room and flag for each open. p1 taking room 5 boxes 42,43,44,45,46 now; please avoid them and post your own picks. Please pick different boxes for yourself.": {"announces": [42, 43, 44, 45, 46], "reports": [[41, true]]}, "Update from p3: box21 room3 -> FLAG true, box1 room1 -> empty, box11 room2 -> empty. Room 3 is treasure. Rooms 1 and 2 are empty. Please avoid duplicates and post your own results so we can plan the rest.": {"reports": [[21, true], [1, false], [11, false]]}, "p4 result: box 31 (room 4) flag=false, box 51 (room 6) flag=false. Rooms 4 and 6 are empty. Others please cover distinct boxes in the treasure rooms and report each flag.": {"reports": [[31, false], [51, false]]}}'''
+TAGS_JSON = r'''{"Update from p1: box41 room5 -> FLAG true. Room 5 is treasure. Everyone please post box, room and flag for each open. p1: I am opening boxes 42, 43, 44, 45, 46 in room 5 now.": {"announces": [42, 43, 44, 45, 46], "reports": [[41, true]]}, "Update from p3: box21 room3 -> FLAG true, box1 room1 -> empty, box11 room2 -> empty. Room 3 is treasure. Rooms 1 and 2 are empty. Please avoid duplicates and post your own results so we can plan the rest.": {"reports": [[21, true], [1, false], [11, false]]}, "p4 result: box 31 (room 4) flag=false, box 51 (room 6) flag=false. Rooms 4 and 6 are empty. Others please cover distinct boxes in the treasure rooms and report each flag.": {"reports": [[31, false], [51, false]]}}'''
 import json
 import os
 import sys

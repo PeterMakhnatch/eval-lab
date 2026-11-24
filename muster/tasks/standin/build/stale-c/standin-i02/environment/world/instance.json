@@ -109,7 +109,7 @@
         },
         {
           "seat": "p1",
-          "post": "Update from p1: box51 room6 -> FLAG true. Room 6 is treasure. Others please cover distinct boxes in the treasure rooms and report each flag. p1: opening 52,53,54,55,56 (room 6) now to avoid duplicates. Others take different boxes. Please pick different boxes for yourself.",
+          "post": "Update from p1: box51 room6 -> FLAG true. Room 6 is treasure. Others please cover distinct boxes in the treasure rooms and report each flag. p1: I am opening boxes 52, 53, 54, 55, 56 in room 6 now.",
           "tag": {
             "reports": [
               [
@@ -162,7 +162,7 @@
       "actions": [
         {
           "seat": "p3",
-          "post": "p3 taking room 1 boxes 2,3,4 now; please avoid them and post your own picks. Post your own picks so we do not overlap.",
+          "post": "p3: I am opening boxes 2, 3, 4 in room 1 now.",
           "tag": {
             "announces": [
               2,
@@ -199,7 +199,7 @@
       "actions": [
         {
           "seat": "p4",
-          "post": "p4 here. I am opening 9 and 10 in room 1 right now, so skip those boxes. Everyone else please choose other boxes.",
+          "post": "p4: I am opening boxes 9, 10 in room 1 now.",
           "tag": {
             "announces": [
               9,

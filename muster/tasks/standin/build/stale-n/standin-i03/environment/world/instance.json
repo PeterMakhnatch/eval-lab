@@ -109,7 +109,7 @@
         },
         {
           "seat": "p1",
-          "post": "p1 result: box 21 (room 3) flag=true. Room 3 is treasure. Please avoid duplicates and post your own results so we can plan the rest. p1: opening 22,23,24,25,26 (room 3) now to avoid duplicates. Others take different boxes. Please pick different boxes for yourself.",
+          "post": "p1 result: box 21 (room 3) flag=true. Room 3 is treasure. Please avoid duplicates and post your own results so we can plan the rest. p1: I am opening boxes 22, 23, 24, 25, 26 in room 3 now.",
           "tag": {
             "reports": [
               [

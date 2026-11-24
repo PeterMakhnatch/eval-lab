@@ -143,7 +143,7 @@
       "actions": [
         {
           "seat": "p1",
-          "post": "p1 here. I am opening 12, 13, 14 and 15 in room 2 right now, so skip those boxes. Post your own picks so we do not overlap.",
+          "post": "p1: I am opening boxes 12, 13, 14, 15 in room 2 now.",
           "tag": {
             "announces": [
               12,
@@ -155,7 +155,7 @@
         },
         {
           "seat": "p3",
-          "post": "p3 taking room 6 boxes 52,53,54,55 now; please avoid them and post your own picks. Everyone else please choose other boxes.",
+          "post": "p3: I am opening boxes 52, 53, 54, 55 in room 6 now.",
           "tag": {
             "announces": [
               52,
@@ -167,7 +167,7 @@
         },
         {
           "seat": "p4",
-          "post": "p4 will open boxes 16,17,56,57 in rooms 2 and 6 now. Please avoid those. Please pick different boxes for yourself.",
+          "post": "p4: I am opening boxes 16, 17, 56, 57 in rooms 2 and 6 now.",
           "tag": {
             "announces": [
               16,

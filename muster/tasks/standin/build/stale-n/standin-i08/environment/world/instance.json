@@ -109,7 +109,7 @@
         },
         {
           "seat": "p1",
-          "post": "Update from p1: box41 room5 -> FLAG true. Room 5 is treasure. Others please cover distinct boxes in the treasure rooms and report each flag. p1 taking room 5 boxes 42,43,44,45,46 now; please avoid them and post your own picks. Everyone else please choose other boxes.",
+          "post": "Update from p1: box41 room5 -> FLAG true. Room 5 is treasure. Others please cover distinct boxes in the treasure rooms and report each flag. p1: I am opening boxes 42, 43, 44, 45, 46 in room 5 now.",
           "tag": {
             "reports": [
               [

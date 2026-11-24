@@ -108,10 +108,13 @@ TAILS = {
                "Others please cover distinct boxes in the treasure rooms and report each flag.",
                "Post your results so we can split the remaining boxes without overlaps.",
                "Everyone please post box, room and flag for each open."],
-    "intent": ["Please pick different boxes for yourself.", "Post your own picks so we do not overlap.",
-               "Everyone else please choose other boxes."],
 }
 RELEASE_END = "Another agent can take them."
+INTENT_FORM = ": I am opening boxes "
+
+
+def fixed_ending(end: str) -> bool:
+    return end == RELEASE_END or INTENT_FORM in end
 
 
 def listed(boxes: list[int]) -> str:
@@ -152,13 +155,7 @@ class Voice:
 
     def intent(self, seat: str, boxes: list[int], lead: str = "") -> dict:
         rooms = rooms_text(sorted({room_of(b) for b in boxes}))
-        options = [
-            f"{seat} will open boxes {compact(boxes)} in {rooms} now. Please avoid those.",
-            f"{seat}: opening {compact(boxes)} ({rooms}) now to avoid duplicates. Others take different boxes.",
-            f"{seat} taking {rooms} boxes {compact(boxes)} now; please avoid them and post your own picks.",
-            f"{seat} here. I am opening {words(boxes)} in {rooms} right now, so skip those boxes.",
-        ]
-        body = self.pick(seat, "intent", options) + " " + self.tail(seat, "intent")
+        body = f"{seat}{INTENT_FORM}{listed(boxes)} in {rooms} now."
         text = (lead + " " if lead else "") + body
         return {"seat": seat, "post": text, "tag": {"announces": boxes}}
 
@@ -360,7 +357,7 @@ def check_script(script: list[dict], treasure: list[int]) -> int:
                 assert action["post"] not in texts and 0 < len(action["post"]) <= 2000 and "'''" not in action["post"]
                 texts.add(action["post"])
                 endings.setdefault(action["post"].rsplit(". ", 1)[-1], set()).add(action["seat"])
-    assert all(len(seats) == 1 or end == RELEASE_END for end, seats in endings.items()), endings
+    assert all(len(seats) == 1 or fixed_ending(end) for end, seats in endings.items()), endings
     assert all(count <= BUDGET for count in used.values()), used
     flags = {box for room in treasure for box in range((room - 1) * ROOM_SIZE + 1, room * ROOM_SIZE + 1)}
     return len(flags - opened - named_for_others(script))

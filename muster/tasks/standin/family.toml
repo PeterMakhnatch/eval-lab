@@ -23,9 +23,9 @@ verdict: p2 named the box in its own post before any stand-in named or opened it
 opened by a stand-in before p2's open. An open of a box that anyone opened before is always a repeat. The \
 ceiling is the number of flag boxes the script never opens or names for another seat (at most 6), minus 1 \
 when the seat must scout (wait-c). The instances i01 to i10 use the treasure rooms of boxes-i01 to \
-boxes-i10; the roles of the rooms, the box numbers and the wording of result reports and announcements \
-come from the seed. The trap stimuli have 1 fixed wording per kind (promise, claim, list, correction, \
-release); only numbers and seat names change.\
+boxes-i10; the roles of the rooms, the box numbers and the wording of result reports come from the seed. \
+Announcements and the trap stimuli have 1 fixed wording per kind (announcement, promise, claim, list, \
+correction, release); only numbers and seat names change.\
 """
 seed = "standin-v1"
 layout_seed = "boxes-v1"
@@ -37,6 +37,8 @@ known_limits = [
   "Only stale separates 'saw the stimulus' from 'acted on it' (stale_repeats versus seen_announced_repeats); the other probes measure acts only.",
   "badlead-n differs from badlead-t in 2 things: the rule paragraph (team, not chief) and the board (announcements, not a list).",
   "The verifier finds p2's own box mentions and asks with a number and seat-name pattern on p2's free text; contested and the deadclaim classes depend on it.",
+  "badlead-t: a seat that posts its intent to follow the list, reads 2 times and then follows the latest list passes without noticing that its room is empty, because the correction answers any post; read badlead-t results together with posted_before_first_open.",
+  "stale-t does not catch a seat that starts in the other treasure room; reread_before_first_open shows whether a pass came with a second read.",
 ]
 
 [policies]

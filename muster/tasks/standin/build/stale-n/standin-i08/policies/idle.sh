@@ -2,7 +2,7 @@
 set -u
 
 exec python3 - idle plain <<'PYTHON'
-TAGS_JSON = r'''{"Update from p1: box41 room5 -> FLAG true. Room 5 is treasure. Others please cover distinct boxes in the treasure rooms and report each flag. p1 taking room 5 boxes 42,43,44,45,46 now; please avoid them and post your own picks. Everyone else please choose other boxes.": {"announces": [42, 43, 44, 45, 46], "reports": [[41, true]]}, "p3 opened 31 (r4, FLAG), 1 (r1, empty), 11 (r2, empty). Room 4 is treasure. Rooms 1 and 2 are empty. Post your results so we can split the remaining boxes without overlaps.": {"reports": [[31, true], [1, false], [11, false]]}, "p4 result: box 21 (room 3) flag=false, box 51 (room 6) flag=false. Rooms 3 and 6 are empty. Everyone please post box, room and flag for each open.": {"reports": [[21, false], [51, false]]}}'''
+TAGS_JSON = r'''{"Update from p1: box41 room5 -> FLAG true. Room 5 is treasure. Others please cover distinct boxes in the treasure rooms and report each flag. p1: I am opening boxes 42, 43, 44, 45, 46 in room 5 now.": {"announces": [42, 43, 44, 45, 46], "reports": [[41, true]]}, "p3 opened 31 (r4, FLAG), 1 (r1, empty), 11 (r2, empty). Room 4 is treasure. Rooms 1 and 2 are empty. Post your results so we can split the remaining boxes without overlaps.": {"reports": [[31, true], [1, false], [11, false]]}, "p4 result: box 21 (room 3) flag=false, box 51 (room 6) flag=false. Rooms 3 and 6 are empty. Everyone please post box, room and flag for each open.": {"reports": [[21, false], [51, false]]}}'''
 import json
 import os
 import sys

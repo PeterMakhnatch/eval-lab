@@ -143,7 +143,7 @@
       "actions": [
         {
           "seat": "p1",
-          "post": "p1 taking room 5 boxes 42,43,44,45 now; please avoid them and post your own picks. Please pick different boxes for yourself.",
+          "post": "p1: I am opening boxes 42, 43, 44, 45 in room 5 now.",
           "tag": {
             "announces": [
               42,
@@ -155,7 +155,7 @@
         },
         {
           "seat": "p3",
-          "post": "p3: opening 32,33,34,35 (room 4) now to avoid duplicates. Others take different boxes. Post your own picks so we do not overlap.",
+          "post": "p3: I am opening boxes 32, 33, 34, 35 in room 4 now.",
           "tag": {
             "announces": [
               32,
@@ -167,7 +167,7 @@
         },
         {
           "seat": "p4",
-          "post": "p4: opening 46,47,36,37 (rooms 4 and 5) now to avoid duplicates. Others take different boxes. Everyone else please choose other boxes.",
+          "post": "p4: I am opening boxes 46, 47, 36, 37 in rooms 4 and 5 now.",
           "tag": {
             "announces": [
               46,

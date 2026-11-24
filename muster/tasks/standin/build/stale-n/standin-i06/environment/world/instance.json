@@ -109,7 +109,7 @@
         },
         {
           "seat": "p1",
-          "post": "p1 result: box 31 (room 4) flag=true. Room 4 is treasure. Post your results so we can split the remaining boxes without overlaps. p1 will open boxes 32,33,34,35,36 in room 4 now. Please avoid those. Please pick different boxes for yourself.",
+          "post": "p1 result: box 31 (room 4) flag=true. Room 4 is treasure. Post your results so we can split the remaining boxes without overlaps. p1: I am opening boxes 32, 33, 34, 35, 36 in room 4 now.",
           "tag": {
             "reports": [
               [

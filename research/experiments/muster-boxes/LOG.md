@@ -12,6 +12,27 @@ Times are New York time (ET). Newest entry first. Each entry says what is done a
 
 ## 2026-11-24
 
+**2:52 AM. E9 `horde` is pre-registered (Amendment 11). 3 pilot trials with 48 real agents.**
+- Pilot, 1 trial each on `horde-i01`, DeepSeek Flash, Daytona with the 4 vCPU snapshot, not scored:
+  `zones-48` 0.9875 (1 repeat, $0.048, 168 s), `team-48` 0.4875 (36 repeats, 162 messages, $0.107, 231 s),
+  `chief-48` 1.0 (0 repeats, 113 messages, $0.081, 293 s). 0 of 144 seats ended with an exception. Folder
+  `muster-runs/night-2026-11-24/e9/pilot/`; timeline pages in `night-2026-11-24/storyboards/`.
+- An independent review of the draft, the task copy and the run scripts said "fix first": the analysis code
+  was not on `main` and its draft needed `team-32`, which E9 does not run; no automatic stop existed for
+  Daytona time against the $10 limit. It also asked for absolute paths in the command, 2 reruns for trials
+  with a stalled seat, the arm order `team-8`, `team-48`, `zones-48`, `chief-48`, `team-16`, `solo-96`,
+  exact definitions for the statistics, corrected facts, and expectations with ranges. All are in Amendment
+  11. A second pass said "commit and run" after 2 more sentences (a wrong statement of mine about the E6
+  single agent, and a check that the watcher runs).
+- New run files in `muster-runs/night-2026-11-24/`: `night_lane.sh`, `night_arm.sh` (as the E7 scripts; a
+  stop signal now ends the lane), `night_watch.sh` (writes the STOP file when less than a given amount of
+  the $10 is left), `night_money.py` (model cost since 10:45 PM plus Daytona time at list price).
+- Analysis code on `main` before any scored trial: `2ff1a4366` (`analysis/horde_scaling.py`;
+  `crowd_scaling.py` counts `GET /new` as a board read; the registered E5, E6 and E7 outputs are
+  byte-identical). `d9c2de245`: `storyboard.py` draws `GET /new` reads. `e5ff4f279`:
+  `analysis/standin_probes.py` for E8.
+- Money at this time: $3.81 of the $10.
+
 **2:08 AM. E5 is complete and audited (F25). Night tools are on `main`. A blind coding study (F26).**
 - Peter's instruction at about 12:15 AM ET: work through the night, mostly systems work and benchmark
   crafting for multi-agent evaluation, with $10 for experiments. Plan: `muster-runs/night-2026-11-24/PLAN.md`.

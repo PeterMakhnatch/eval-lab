@@ -486,3 +486,174 @@ are not known.
 - E6 does not change: its trials count as Amendment 8 says. The E6 report names the 6 trials and gives the
   primary tests without them as a check after the result.
 - Nothing else changes.
+
+## Amendment 11 (2:52 AM ET, 2026-11-24, before any scored E9 trial): E9 `horde`, the plain team from 8 to 48 agents at 96 opens, and 2 rules at 48 agents
+
+Written after E5 to E7 and the E5 open arms (F19, F23, F24, F25). 3 pilot trials with a model exist and I know
+their results (below). No scored `horde` trial exists. An independent review of the draft, of the task copy
+and of the run scripts came before this commit. It found 2 blockers and 9 smaller points; all are closed here
+(`LOG.md`).
+
+**Question.** F19: at 24 opens in total, a talking team loses 15.5 points for each doubling from 2 to 8
+agents. F24: at 8 agents a fixed plan or a coordinator removes most of that loss. Does the loss of the plain
+team continue from 8 to 48 agents in a world that is 4 times as large? Does each rule still beat the plain
+team when 48 agents share the board?
+
+**Design**
+- Family `muster/tasks/horde` (landed at `1994fccbf` after 2 independent reviews): 240 boxes in 24 rooms of
+  10, 8 treasure rooms, 80 flag boxes, 96 opens in total. 1 agent has all 96 opens, or k agents have 96 / k
+  each: 12 at k = 8, 6 at k = 16, 2 at k = 48. The message channel is on in every team arm; `GET /new` returns
+  the messages that the agent's earlier `GET /new` calls did not return. Every team text has the same hint
+  how to wait (`sleep 10` and a read as 1 command). The `team-8`, `team-16` and `team-48` texts differ only
+  in their numbers. The best play that obeys the text scores 1.0 in every arm (`family.toml`, `[reference]`).
+- Arms (6): `solo-96`; `team-8`, `team-16`, `team-48` (the plain team text); `zones-48` (a fixed plan by seat
+  number: who scouts which room, and which positions of which treasure room each agent opens once the 8
+  treasure rooms are known); `chief-48` (p1 is the coordinator and posts a scouting list and a treasure list;
+  each other agent opens only the boxes under its name in p1's posts).
+- Not run for money in E9: `team-32`, `zones-8`, `zones-16`, `zones-32`, `chief-8`, `chief-16`, `chief-32`.
+  The family has them; the night's money does not.
+- Instances `horde-i01` to `horde-i07`, 1 attempt each: 7 trials for each arm, 42 trials. The choice of 7
+  layouts and 1 attempt is a money limit, fixed here before any scored trial.
+- Task copy: `muster-runs/night-2026-11-24/e9/tasks/horde`, taken with `git archive` at `1994fccbf` (tree of
+  the build `2c88a26454ea`). The lane uses the subset `e9/tasks-i01-i07/<arm>/horde-i0N`, copied from it
+  (1,771 files, hash in `e9/horde.pin.json`). If a task differs from the landed build by 1 byte, the trials
+  are void.
+- Runner: worktree `fable-night-run` at `1994fccbf`; Harbor checkout as in F19 (`6aeb609e`). Roster and turn
+  cap (30) as in Amendment 7: terminus-2, DeepSeek V4.1 Flash through OpenRouter, provider pin
+  `deepinfra/fp8`, thinking off. Backend: Daytona with the snapshot `muster-dind-mirror-4c8g` (4 vCPU, 8 GiB)
+  for every arm.
+- Scripted check (done, $0 of model cost): the `oracle` policy scores 1.0 on Daytona in 8 of 8 trials on the
+  2 vCPU mirror snapshot `muster-dind-mirror-v1`: `zones-48`, `chief-48` and `team-48` on `horde-i01`;
+  `chief-8`, `solo-96`, `zones-16`, `team-32` and `chief-32` on `horde-i02`. No scripted check ran on the 4
+  vCPU snapshot or for `team-8` and `team-16`. The 3 pilot trials are the only trials on the E9 backend.
+- Pilot (done, not scored, `e9/pilot/`): 1 trial each on `horde-i01`, 1 trial at a time. `zones-48` 0.9875 (1
+  repeat, 32 messages, $0.048, 168 s); `team-48` 0.4875 (36 repeats, 162 messages, $0.107, 231 s);
+  `chief-48` 1.0 (0 repeats, 113 messages, $0.081, 293 s). 0 of 144 seats ended with an exception, reached
+  the turn cap or ended with opens left; the most agent steps of a seat were 17. The pilot trials are in no
+  score. They changed nothing in the texts or in the family. They did set which arms the money allows:
+  `chief-48` is in E9 because its pilot cost was low. The scored arms run `horde-i01` again. The pilot had no
+  `team-8`, `team-16` or `solo-96` trial: their cost, time and turn-cap behaviour are not checked.
+- Lane: 1 lane, 2 trials at once, as 2 commands. Command 1 runs `team-8`, `team-48`, `zones-48`, `chief-48`
+  in this order. Command 2 runs `team-16`, `solo-96`. The 2 arms with the largest weights in the slope
+  (`team-8`, `team-48`) and the 3 arms with 48 agents run next to each other, so the primary tests are the
+  least exposed to a change over the night. Command 1:
+  `NIGHT_CAP=14.20 NIGHT_FLOOR=1.00 /Users/petermakhnatch/Developer/muster-runs/night-2026-11-24/night_lane.sh
+  e9 2 1 1.00 /Users/petermakhnatch/Developer/muster-runs/night-2026-11-24/e9/scored
+  /Users/petermakhnatch/Developer/muster-runs/night-2026-11-24/e9/tasks-i01-i07
+  /Users/petermakhnatch/Developer/muster-runs/e5/rosters/t2-or-flash-deepinfra.json
+  /Users/petermakhnatch/Developer/muster-runs/night-2026-11-24/harbor-daytona-mirror-4c8g.sh
+  /Users/petermakhnatch/Developer/eval-lab/.worktrees/fable-night-run team-8 team-48 zones-48 chief-48`.
+  Command 2 is the same with the arms `team-16 solo-96`. No other muster trial runs at the same time. No arm
+  starts after 6:30 AM ET: if an arm would start later, I write the STOP file. An arm that money or time
+  stops is reported as incomplete; its finished trials enter no contrast and are shown in the arm table with
+  their count.
+- Stop rule: when the newest 3 finished E9 trials have no reward, E9 stops (`night_arm.sh`; it leaves the
+  file `night-2026-11-24/STOP`, which also holds E8 until I remove it).
+- Counting and reruns as in Amendments 7, 9, 10 and 10a. A trial without a reward is unmeasured, never 0. A
+  trial that failed before a model call is unmeasured. A trial with a stalled seat (Amendment 10a,
+  `muster-runs/stalled.py`) is unmeasured: with 48 seats in a trial, 1 stalled seat voids the trial. An
+  unmeasured trial runs again, at most 2 times (`<arm>.r1`, then `<arm>.r2`), after command 2 ends, if the
+  money rule below allows it. Before a rerun, `python3 ~/Developer/muster-runs/stalled.py e9/scored/<arm>
+  --move e9/stalled` (run from `~/Developer/muster-runs/night-2026-11-24`) moves each trial with a stalled
+  seat out of the arm. Only the unmeasured instances go to `e9/tasks-rerun/<arm>.rN/`, copied from
+  `e9/tasks-i01-i07/<arm>/`; the lane command then runs with that tasks root and the arm name `<arm>.rN`.
+  The arm value uses `<arm>` and its reruns (linked into
+  `e9/final/<arm>`); a rerun fills the unmeasured trial of its instance and never replaces a trial with a
+  reward. The report gives the counts for each arm, and every contrast also with the stalled trials counted
+  with their rewards (from `e9/stalled`).
+- Money: Peter's limit for the night is $10: the model cost recorded since 10:45 PM ET on 2026-11-23 plus
+  Daytona time at list price ($0.168 for an hour of the 2 vCPU sandbox, $0.336 for the 4 vCPU sandbox), as
+  `night-2026-11-24/night_money.py` computes it. $3.81 is used at this time. Expected for E9: $2.3 of model
+  cost and $0.9 of Daytona time. Worst case: when the model route stalls, every trial runs to its 600 s limit
+  with little model cost, and the 42 trials cost $2.8 of Daytona time.
+  - An arm starts only when the OpenRouter account holds at least $1 plus $1 of reserve; when the balance
+    cannot be read, no arm starts.
+  - The runner stops an arm when the recorded model cost of E5, E6, E7 and the night reaches $14.20. This cap
+    counts model cost only.
+  - A watcher (`night_watch.sh 1.40`) runs `night_money.py` every 60 s and writes the STOP file when less
+    than $1.40 of the limit is left or when the number cannot be read. Trials in flight are not counted yet.
+    Before each command and each rerun I check that the watcher runs (`pgrep -f night_watch.sh`) and that
+    `night-2026-11-24/WATCH-END` does not exist; else the command does not start.
+  - Command 2 and each rerun start only if `night_money.py` shows at least $2.60 left. E8 needs about $2.1;
+    if less is left for it, E8 shrinks as Amendment 12 says.
+  - A trial that a stop kills before its `result.json` exists has a cost that no file records.
+
+**Analysis** (code landed at `2ff1a4366` on `main` before any scored trial:
+`analysis/horde_scaling.py --instances i01-i07 --ks 8,16,48 --arm solo-96=<dir> --arm team-8=<dir> --arm
+team-16=<dir> --arm team-48=<dir> --arm zones-48=<dir> --arm chief-48=<dir>`, with the arm folders of
+`e9/final/`; the output starts with the definitions that it uses)
+- Unit: 1 trial for each instance and arm, in points (reward x 100). The instance set is `horde-i01` to
+  `horde-i07` in every test. The arm value is the mean of the 7 instance values with a 95% percentile
+  bootstrap interval over the instances (`random.Random(0)`, 10,000 resamples of indices, ends at the sorted
+  values 250 and 9,749). With 7 values this interval covers less than 95%; the sign-flip test is the gate.
+- Contrasts pair by instance. The test is the exact two-sided sign-flip test over the 7 differences
+  (`sign_flip` in `crowd_scaling.py`: the statistic is the sum; a sign pattern counts when its absolute sum
+  is at least the observed one; zero differences stay in).
+- A contrast needs a reward in each of the 7 instances in both arms. Otherwise it is "not available". Every
+  contrast is also reported with unmeasured trials counted as 0.
+- **3 primary tests, Holm's rule with a fixed family of 3** (0.05 / 3 for the smallest p, then 0.05 / 2, then
+  0.05; it stops at the first failure; the family stays 3 when a test is not available; equal p values keep
+  the order P1, P2, P3):
+  - P1: the slope of the `team-k` score on log2 k over k = 8, 16, 48 (x = 3, 4, 5.585; least squares for each
+    instance; the mean of the 7 slopes). "Falls" if Holm's rule rejects and the 95% interval is strictly below
+    0; "rises" if it rejects and the interval is strictly above 0; else not resolved. The least-squares
+    weights of the 3 sizes are -0.35, -0.06 and +0.41, so P1 is almost `team-48 - team-8` divided by 2.6, and
+    `team-16` has little effect on it.
+  - P2: `zones-48 - team-48`. P3: `chief-48 - team-48`. A rule "helps" if Holm's rule rejects its test and
+    the lower end of the interval is strictly above 0; it "hurts" if Holm's rule rejects and the upper end is
+    strictly below 0; else not resolved.
+  - With 7 instances the smallest p is 2/128 = 0.0156 and the next is 4/128 = 0.031. So steps 1 and 2 of
+    Holm's rule (0.0167 and 0.025) need all 7 differences to be non-zero and of 1 sign. Step 3 (0.05) accepts
+    p up to 6/128 = 0.047. With 6 instances the smallest p is 0.031, so 1 missing instance stops a test at
+    steps 1 and 2.
+- **Secondary, without a correction:** `zones-48 - chief-48`; `solo-96 - arm` for each of the 5 team arms
+  against the 5-point margin of Amendment 7; `team-16 - team-8` and `team-48 - team-16`. For each arm, as a
+  mean for each trial: opens, new flags, new empty boxes, repeats (`duplicate_opens`), unused opens (96 minus
+  opens), messages, board reads (events of kind `msgs` plus `new`), seats that end with opens left, seats at
+  the 30-turn cap (agent steps at or above 30), seats with an exception, seats at the 600 s limit that are
+  not stalled, the median model-call time and the median time between agent steps, cost and wall time.
+- Obedience of `zones-48`: every open counts, a repeat too; an open is allowed when it is the seat's scout
+  box or in the seat's plan for the true treasure rooms (the plan of `muster/tasks/horde/reference.py`).
+- `chief-48`: the time to p1's first list (p1's first post that the parser reads as a list) and the opens
+  before it; strict obedience with parser v2
+  (`f1ed0404c`, `01f6f2b3e`; it was tuned on E7 posts after the E7 result). When more than 20% of the opens of
+  the arm cannot be classed, obedience is "not measured" and only the counts are given.
+- An independent audit recomputes the primary numbers from the event logs before the results are written.
+
+**Directional expectations (written after the 3 pilot trials, before any scored trial)**
+- `team-48` 45% (35 to 55), `team-16` 55% (45 to 65), `team-8` 65% (55 to 75). The slope is between -4 and
+  -12 points for each doubling: less steep than in E5, because the world is 4 times as large and the first
+  scouting round has work for 24 agents.
+- `zones-48` above 90%. `chief-48` 85% (75 to 95): I expect 1 or 2 of the 7 trials with a late or wrong list.
+  Both rules help against `team-48`, each by 30 points or more.
+- `solo-96` 92% (85 to 100). In E6 the single agent with 72 opens scored 70.5% in the same world, 0.94 of
+  the best scripted play (75.4%). With 96 opens the best play scores 100%; in `horde-i02` and `horde-i06` it
+  leaves no spare open, and in the other 5 layouts it leaves 1 to 7.
+- No team arm is above `solo-96`. `zones-48` and `chief-48` are within 15 points of it.
+
+**What E9 cannot show**
+- 7 layouts, 1 trial each, 1 model, 1 harness, 1 synthetic search task. The intervals are from 7 values.
+- The total budget is fixed, so the opens for each agent fall as the agents grow (12, 6, 2). The slope is
+  about that whole exchange, as in E5. It does not separate "more agents" from "fewer opens for each agent".
+  The game also changes in kind: at 8 agents each agent can scout 3 rooms; at 48 agents there are 2 agents
+  for each room, and 24 agents have no room to scout.
+- The world, the budget and the `team-k` text differ from E5 and E7 (240 boxes, 96 opens, `GET /new` and a
+  hint how to wait). Levels must not be compared across the experiments; only the direction can be.
+- The slope has 3 team sizes (8, 16, 48) and is almost the difference of the 2 ends. It cannot show the shape
+  between 16 and 48.
+- P2 and P3 test whether a rule beats the plain team at 48 agents. They do not test whether it reaches the
+  94% to 97% of F24.
+- Each rule paragraph also tells the agents to post each result at once and to keep reading until a stated
+  event. The `team-k` text has no such sentence. `rule-48 - team-48` measures the whole paragraph. `zones`
+  puts the solution of the coordination problem into the prompt. `chief` does not, but its text tells p1 what
+  kind of list to post.
+- The load grows with k: a trial with 48 agents starts 48 model sessions together, 2 such trials run at
+  once, and the pilot ran 1 at a time. 1 to 48 seat containers share 1 sandbox of 4 vCPU. Repeats depend on
+  timing (F20), so a slower route at 48 agents can change the score. The median model-call time for each arm
+  is reported. The stall of F23 came at 64 sessions that started together; such a stall shows as unmeasured
+  trials, not as a result.
+- The arms run over about 1.5 hours of 1 night. F25 does not exclude a shift of up to about 10 points over 8
+  hours on this route. `team-16` and `solo-96` run last.
+- The 30-turn cap binds the single agent with 96 opens more than any team agent. `solo-96` is the control
+  "1 agent with the whole budget under the same turn cap", not "the best a single agent can do".
+- `horde-i01` was seen in the pilot. The texts did not change after it.

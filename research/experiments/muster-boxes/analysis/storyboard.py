@@ -28,6 +28,8 @@ CARD = {"left": 34, "plot": 440, "right": 8, "strip": 0, "axis": 16, "space": 12
 CARD |= {"min": 3, "max": 22, "ticks": 6, "font": 9, "titled": False}
 BY_BOX = ("own", "unposted_box", "unread_box", "read_box")
 F13 = ("own", "unsent", "unread", "read")
+NEW_READ = ("new", "GET")
+BOARD_EVENTS = (("msg", "POST"), ("msgs", "GET"), NEW_READ)
 CSS = """
 :root { color-scheme: light dark; --bg: #ffffff; --fg: #1b1b1b; --muted: #666666;
   --grid: #d4d4d4; --zebra: #f3f3f3; --flag: #E69F00; --empty: #0072B2; --repeat: #CC79A7;
@@ -80,6 +82,7 @@ def load_module(name: str, path: Path) -> ModuleType:
 
 
 cs = load_module("storyboard_crowd_scaling", HERE / "crowd_scaling.py")
+MESSAGE_KINDS = getattr(cs, "MESSAGE_KINDS", (("msg", "POST"), ("msgs", "GET")))
 
 
 def seat_key(seat: str) -> int:
@@ -173,7 +176,8 @@ def repeat_row(e: dict, first: tuple, kinds: tuple[str, str], posts: list, reads
 
 
 def note_post(e: dict, chan: dict, c: Counter, posts: list, reads: dict) -> None:
-    cs.note_message(e, chan, c)
+    if (e["kind"], e["method"]) in MESSAGE_KINDS:
+        cs.note_message(e, chan, c)
     if e["method"] == "POST":
         text = e["response"]["text"]
         posts.append({"seq": e["seq"], "t": e["t"], "seat": e["seat"], "text": text})
@@ -194,7 +198,7 @@ def walk_story(kept: list[dict], budget: int) -> dict:
     flag_times: list[float] = []
     for e in kept:
         seat, kind, method = e["seat"], e["kind"], e["method"]
-        if (kind, method) in (("msg", "POST"), ("msgs", "GET")):
+        if (kind, method) in BOARD_EVENTS:
             note_post(e, chan, c, posts, reads)
         elif kind == "open" and method == "POST":
             box = e["response"]["box"]
@@ -211,7 +215,9 @@ def walk_story(kept: list[dict], budget: int) -> dict:
             opens[e["seq"]] = {"result": "flag" if flag else "empty"}
             flag_times.extend([e["t"]] if flag else [])
     story = {"opens": opens, "repeats": repeats, "flag_times": flag_times, "posts": posts}
-    return story | {"messages": c["messages"], "reads": c["reads"]}
+    reads_msgs = sum(1 for e in kept if (e["kind"], e["method"]) == ("msgs", "GET"))
+    reads_new = sum(1 for e in kept if (e["kind"], e["method"]) == NEW_READ)
+    return story | {"messages": c["messages"], "reads_msgs": reads_msgs, "reads_new": reads_new}
 
 
 def check_story(story: dict, c: Counter) -> None:
@@ -225,7 +231,9 @@ def check_story(story: dict, c: Counter) -> None:
         assert by_box[key] == c["repeat_" + key], (key, by_box, c)
     for key in F13:
         assert f13[key] == c["repeat_" + key], (key, f13, c)
-    assert story["messages"] == c["messages"] and story["reads"] == c["reads"]
+    counted_new = story["reads_new"] if NEW_READ in MESSAGE_KINDS else 0
+    assert story["messages"] == c["messages"] and c["reads_new"] == counted_new, c
+    assert c["reads"] == story["reads_msgs"] + counted_new, (c["reads"], story["reads_msgs"])
 
 
 def lane_stats(events: list[dict], seats: list[str], result: dict, t0: float) -> list[dict]:
@@ -257,7 +265,7 @@ def event_mark(e: dict, story: dict) -> dict | None:
         return {"kind": "open", "lane": e["seat"], "e": e} | story["opens"][e["seq"]]
     if key == ("msg", "POST"):
         return {"kind": "post", "lane": e["seat"], "e": e}
-    if key == ("msgs", "GET"):
+    if key in (("msgs", "GET"), NEW_READ):
         return {"kind": "read", "lane": e["seat"], "e": e}
     return None
 
@@ -343,7 +351,11 @@ def mark_title(mk: dict, m: dict) -> str:
     if mk["kind"] == "read":
         got = e["response"].get("messages") or []
         newest = max((x.get("id", 0) for x in got), default=0)
-        return f"{head}: read the board ({len(got)} messages, newest id {newest})"
+        if e["kind"] != "new":
+            return f"{head}: read the board ({len(got)} messages, newest id {newest})"
+        if "messages" not in e["response"]:
+            return f"{head}: read the board with GET /new (returned messages not in the log)"
+        return f"{head}: read the board with GET /new ({len(got)} new messages, newest id {newest})"
     error = (e.get("response") or {}).get("error") if isinstance(e.get("response"), dict) else None
     late = " (late)" if e.get("late") else ""
     detail = str(error if error is not None else e.get("response"))[:TEXT_CHARS]
@@ -429,7 +441,8 @@ def lane_text(lane: dict) -> str:
         return f"{c['refused']} refused"
     if not lane["times"]:
         return "no requests"
-    text = f"{c['open POST']} open · {c['msg POST']} post · {c['msgs GET']} read"
+    read = c["msgs GET"] + c["new GET"]
+    text = f"{c['open POST']} open · {c['msg POST']} post · {read} read"
     return text + (f" · {lane['error']}" if lane["error"] else "")
 
 
@@ -514,7 +527,7 @@ def legend_svg() -> str:
         ("open", "empty", "open: new empty box"),
         ("open", "repeat", "open: repeat of an opened box (slash; dashed line back to the first open)"),
         ("post", None, "post to the board (tick above the lane)"),
-        ("read", None, "board read, GET /msgs (hollow dot below)"),
+        ("read", None, "board read, GET /msgs or GET /new (hollow dot below)"),
         ("refused", None, "refused request (cross below)"),
     ]
     out = ['<svg xmlns="http://www.w3.org/2000/svg" class="legend" viewBox="0 0 1380 60" width="1380" height="60" style="max-width:100%;height:auto">']
@@ -533,6 +546,10 @@ def stat_html(m: dict) -> str:
     budget = len(m["seats"]) * m["inst"]["budget"]
     refused = sum(1 for mk in m["marks"] if mk["kind"] == "refused" and mk["lane"] != NO_TOKEN)
     reward = "unmeasured" if m["reward"] is None else f"{m['reward']:.3f}"
+    story = m["story"]
+    reads_label = "board reads"
+    if story["reads_new"]:
+        reads_label += f" ({story['reads_msgs']} GET /msgs + {story['reads_new']} GET /new)"
     items = [
         (reward, "reward"),
         (f"{opens} / {budget}", "opens used"),
@@ -541,7 +558,7 @@ def stat_html(m: dict) -> str:
         (results["repeat"], "repeats"),
         (budget - opens, "unused opens"),
         (m["story"]["messages"], "messages"),
-        (m["story"]["reads"], "board reads"),
+        (story["reads_msgs"] + story["reads_new"], reads_label),
         (refused, "refused (seat known)"),
         (m["anonymous"], "refused (no seat token)"),
         (m["treasure"], "treasure rooms"),

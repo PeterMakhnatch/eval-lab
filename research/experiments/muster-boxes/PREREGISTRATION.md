@@ -658,7 +658,7 @@ team-16=<dir> --arm team-48=<dir> --arm zones-48=<dir> --arm chief-48=<dir>`, wi
   "1 agent with the whole budget under the same turn cap", not "the best a single agent can do".
 - `horde-i01` was seen in the pilot. The texts did not change after it.
 
-## Amendment 12 (3:37 AM ET, 2026-11-24, before any E8 trial with a model): E8 `standin`, 4 behaviour probes for 1 agent among scripted teammates
+## Amendment 12 (3:35 AM ET, 2026-11-24, before any E8 trial with a model): E8 `standin`, 4 behaviour probes for 1 agent among scripted teammates
 
 Written after E5 to E7, the blind coding study (F26) and the research file
 `research-context/multi-agent/2026-11-24-behaviour-probe-designs-and-run-validity-evidence.md`. No `standin`

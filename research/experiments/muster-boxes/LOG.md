@@ -12,7 +12,7 @@ Times are New York time (ET). Newest entry first. Each entry says what is done a
 
 ## 2026-11-24
 
-**3:37 AM. E8 `standin` is pre-registered (Amendment 12). E9 runs. The task family `standin` is on `main`.**
+**3:35 AM. E8 `standin` is pre-registered (Amendment 12). E9 runs. The task family `standin` is on `main`.**
 - E9 timing: Amendment 11 was committed at 2:50:20 AM ET and pushed to a branch on the server at 2:51:42
   AM; the first scored trial started at 2:51:58 AM; the commit reached `main` at about 2:54 AM (the land
   queue held 4 to 5 lands of other lanes). `main` holds the same commit, `1b3d69092`.

@@ -150,6 +150,7 @@ def run(seed: int) -> RunResult:
     from evallab.sim.anatomy import AnatomySimulation
     from evallab.sim.execution import ExecutionSimulation
     from evallab.sim.hack import HackSimulation
+    from evallab.sim.hypotheses import HypothesisSimulation
     from evallab.sim.jobs import ProcessJobSimulation
     from evallab.sim.leases import LeaseSimulation
     from evallab.sim.lint import LintSimulation
@@ -194,6 +195,8 @@ def run(seed: int) -> RunResult:
             SurfaceSimulation(sim).run()
             sim.subsystem = "baked-script-overlap"
             OverlapSimulation(sim, root / "overlap").run()
+            sim.subsystem = "anatomy-hypotheses"
+            HypothesisSimulation(sim, root / "hypotheses").run()
         except InvariantViolation as exc:
             failure = exc
         except (Exception, ProcessCrash) as exc:

@@ -1433,7 +1433,9 @@ def build_hypotheses(package: Package, boundary: Mapping[str, Any], grader: Mapp
            f"Only {counts['tests']} test(s) / {counts['assertions']} assertion(s)",
            [_ev(f["file"], None, f"{f['tests']} tests / {f['assertions']} assertions") for f in rigor["test_files"]],
            "Implement only the single exercised path.")
-    if counts["tests"] == 0 and not rigor["fragment_files"] and (counts["files"] or package.text("tests/test.sh")):
+    scripted_reward = "python_writes_reward" in gate["mechanisms"]
+    if counts["tests"] == 0 and not rigor["fragment_files"] and (counts["files"] or package.text("tests/test.sh")) \
+            and not scripted_reward:
         _h(hyps, "WC-NO-TESTS-FOUND", "weak_check", 45, "static_probable",
            "No test functions were detected in tests/*; the grader may rely on exit status of a script alone",
            [_ev("tests/test.sh", None, "no test definitions parsed")],

@@ -89,5 +89,12 @@
     "seed": 1,
     "step": 166,
     "subsystem": "baked-script-overlap"
+  },
+  {
+    "found_at_utc": "2026-11-24T21:49:33.114580+00:00",
+    "invariant": "hypothesis_fires_WC-NO-TESTS-FOUND",
+    "seed": 494,
+    "step": 191,
+    "subsystem": "anatomy-hypotheses"
   }
 ]

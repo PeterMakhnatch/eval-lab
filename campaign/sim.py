@@ -1067,6 +1067,28 @@ def _change_foreign_reserves(path: Path, record: dict[str, Any], opens: bool) ->
     return change
 
 
+def _check_ledger_void_and_orphan_settle(run: Run, root: Path) -> None:
+    run.step = "money/ledger-void-orphan-settle"
+    now = evidence.parse_utc("2026-11-24T12:00:00Z")
+    assert now is not None
+    p1 = root / "void-reborn.jsonl"
+    p1.write_text("\n".join((
+        json.dumps({"event": "reserve", "campaign": "other", "arm": "a", "reserved_usd": 1.0, "provider": "openrouter", "ts_utc": "2026-11-24T11:50:00Z"}),
+        json.dumps({"event": "void", "campaign": "other", "arms": ["a"]}),
+        json.dumps({"event": "reserve", "campaign": "other", "arm": "a", "reserved_usd": 2.5, "provider": "openrouter", "ts_utc": "2026-11-24T11:55:00Z"}),
+    )) + "\n", encoding="utf-8")
+    f1 = ledger.foreign_open(p1, "own", "openrouter", now, 6.0, 1.0)
+    run.check(len(f1) == 1 and f1[0].reserved_usd == 2.5 and f1[0].line_number == 3, "void-does-not-swallow-reborn-reserve", repr(f1))
+    p2 = root / "orphan-settle.jsonl"
+    p2.write_text("\n".join((
+        json.dumps({"event": "settle", "campaign": "other", "arm": "b", "provider": "openrouter", "ts_utc": "2026-11-24T11:45:00Z"}),
+        json.dumps({"event": "reserve", "campaign": "other", "arm": "b", "reserved_usd": 3.0, "provider": "openrouter", "ts_utc": "2026-11-24T11:55:00Z"}),
+    )) + "\n", encoding="utf-8")
+    f2 = ledger.foreign_open(p2, "own", "openrouter", now, 6.0, 1.0)
+    run.check(len(f2) == 1 and f2[0].reserved_usd == 3.0 and f2[0].line_number == 2, "orphan-settle-does-not-swallow-reserve", repr(f2))
+    run.check(ledger._stamp("99999-01-01T00:00:00Z") is None, "stamp-overflow-returns-none", "expected None on overflow year")
+
+
 def _run_seed(seed: int) -> Run:
     assert 0 <= seed <= _MAX_SEED
     run, rng, case = Run(seed), Random(seed), scenario(seed)
@@ -1092,6 +1114,8 @@ def _run_seed(seed: int) -> Run:
         sim_keyenv.replay(run, seed, root / "keyenv")
         if seed == _ADMISSION_SEED:
             sim_admission.replay(run, seed, root / "admission")
+        if seed == 0:
+            _check_ledger_void_and_orphan_settle(run, root)
     return run
 
 

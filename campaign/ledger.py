@@ -11,7 +11,6 @@ from typing import Any
 
 MAX_LEDGER_BYTES = 256_000_000
 MAX_LEDGER_LINES = 1_000_000
-VOIDED = MAX_LEDGER_LINES
 
 Key = tuple[str, str]
 
@@ -110,7 +109,7 @@ def _stamp(text: Any) -> datetime | None:
         return None
     try:
         stamp = datetime.fromisoformat(text.replace("Z", "+00:00"))
-    except ValueError:
+    except (ValueError, OverflowError):
         return None
     return stamp if stamp.tzinfo is not None else stamp.replace(tzinfo=UTC)
 
@@ -131,13 +130,15 @@ def _foreign_lines(path: Path, campaign: str) -> tuple[dict[Key, list[tuple[int,
         if event == "void" and isinstance(item.get("arms"), list):
             for name in item["arms"]:
                 if isinstance(name, str):
-                    settles[(writer, name)] += VOIDED
+                    settles[(writer, name)] = len(reserves.get((writer, name), ()))
         if not isinstance(arm, str):
             continue
         if event == "reserve":
             reserves.setdefault((writer, arm), []).append((number, item))
         elif event == "settle":
-            settles[(writer, arm)] += 1
+            key = (writer, arm)
+            if settles[key] < len(reserves.get(key, ())):
+                settles[key] += 1
     return reserves, settles
 
 

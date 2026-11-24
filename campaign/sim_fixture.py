@@ -34,6 +34,7 @@ FOREIGN_YOUNG_AGE = 3601
 FOREIGN_YOUNG_MICRO = 300_000
 FOREIGN_ODD_MICRO = 450_000
 FOREIGN_SLOW_MICRO = 2_000_000
+FOREIGN_SWAP_MICRO = 400_000
 TWIN_SUFFIX = "-twin"
 PROBE_SECRET = "sk-sim-v1-0e6a5ec7e7"
 SECRET_TEXT = '{"data":{"label":"' + PROBE_SECRET + '","limit":100,"limit_remaining":null}}\n'
@@ -123,6 +124,7 @@ class Scenario:
     key_drop_at: float
     probe_seconds: float
     foreign_settle: bool
+    foreign_swap: bool
 
     def arm(self, name: str) -> ArmSpec:
         found = [arm for arm in self.arms if arm.name == name]
@@ -202,7 +204,8 @@ def _key_limit(rng: Random, balance: int, floor: int) -> dict[str, Any]:
     key = {"high": balance + 20_000_000, "flaky": balance + 20_000_000, "falling": balance + 5_000_000,
            "low": low}.get(mode, 0)
     return {"key_mode": mode, "key_micro": key, "key_drop_at": rng.uniform(0, 3000),
-            "probe_seconds": rng.choice(PROBE_DELAYS), "foreign_settle": rng.random() < 0.5}
+            "probe_seconds": rng.choice(PROBE_DELAYS), "foreign_settle": rng.random() < 0.5,
+            "foreign_swap": rng.random() < 0.5}
 
 
 def scenario(seed: int) -> Scenario:

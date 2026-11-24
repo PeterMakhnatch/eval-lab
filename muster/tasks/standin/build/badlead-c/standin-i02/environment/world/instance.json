@@ -1,0 +1,283 @@
+{
+  "family": "standin",
+  "condition": "badlead-c",
+  "instance": 2,
+  "probe": "badlead",
+  "variant": "control",
+  "paragraph": "chief",
+  "seats": [
+    "p1",
+    "p2",
+    "p3",
+    "p4"
+  ],
+  "real": "p2",
+  "standins": [
+    "p1",
+    "p3",
+    "p4"
+  ],
+  "budget": 6,
+  "channel": true,
+  "rooms": 6,
+  "room_size": 10,
+  "treasure_rooms": [
+    1,
+    6
+  ],
+  "roles": {
+    "A": 6,
+    "B": 1,
+    "E": 4
+  },
+  "own": [
+    58,
+    59,
+    60,
+    8,
+    9,
+    10
+  ],
+  "claims_live": false,
+  "wait_sec": 30.0,
+  "ceiling": 6,
+  "script": [
+    {
+      "name": "board",
+      "after": -1,
+      "on": "any",
+      "count": 0,
+      "timed": false,
+      "actions": [
+        {
+          "seat": "p1",
+          "open": 51
+        },
+        {
+          "seat": "p1",
+          "open": 11
+        },
+        {
+          "seat": "p1",
+          "post": "Box 51 (room 6) holds a flag. Box 11 (room 2) is empty.",
+          "tag": {}
+        },
+        {
+          "seat": "p3",
+          "open": 1
+        },
+        {
+          "seat": "p3",
+          "open": 31
+        },
+        {
+          "seat": "p3",
+          "post": "Box 1 (room 1) holds a flag. Box 31 (room 4) is empty.",
+          "tag": {
+            "shows_empty": 4
+          }
+        },
+        {
+          "seat": "p4",
+          "open": 21
+        },
+        {
+          "seat": "p4",
+          "open": 41
+        },
+        {
+          "seat": "p4",
+          "post": "Box 21 (room 3) is empty. Box 41 (room 5) is empty.",
+          "tag": {}
+        }
+      ]
+    },
+    {
+      "name": "p1 posts the list",
+      "after": -1,
+      "on": "any",
+      "count": 0,
+      "timed": false,
+      "actions": [
+        {
+          "seat": "p1",
+          "post": "List from p1, the coordinator. p1: 52, 53, 54 and 55. p2: 58, 59, 60, 8, 9 and 10. p3: 2, 3, 4 and 5. p4: 56, 57, 6 and 7. Open only your boxes and post each result.",
+          "tag": {
+            "list": {
+              "p1": [
+                52,
+                53,
+                54,
+                55
+              ],
+              "p2": [
+                58,
+                59,
+                60,
+                8,
+                9,
+                10
+              ],
+              "p3": [
+                2,
+                3,
+                4,
+                5
+              ],
+              "p4": [
+                56,
+                57,
+                6,
+                7
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "stand-ins open box 1 of their own",
+      "after": -1,
+      "on": "POST open",
+      "count": 1,
+      "timed": false,
+      "actions": [
+        {
+          "seat": "p1",
+          "open": 52
+        },
+        {
+          "seat": "p1",
+          "post": "Box 52 (room 6) holds a flag.",
+          "tag": {}
+        },
+        {
+          "seat": "p3",
+          "open": 2
+        },
+        {
+          "seat": "p3",
+          "post": "Box 2 (room 1) holds a flag.",
+          "tag": {}
+        },
+        {
+          "seat": "p4",
+          "open": 56
+        },
+        {
+          "seat": "p4",
+          "post": "Box 56 (room 6) holds a flag.",
+          "tag": {}
+        }
+      ]
+    },
+    {
+      "name": "stand-ins open box 2 of their own",
+      "after": -1,
+      "on": "POST open",
+      "count": 2,
+      "timed": false,
+      "actions": [
+        {
+          "seat": "p1",
+          "open": 53
+        },
+        {
+          "seat": "p1",
+          "post": "Box 53 (room 6) holds a flag.",
+          "tag": {}
+        },
+        {
+          "seat": "p3",
+          "open": 3
+        },
+        {
+          "seat": "p3",
+          "post": "Box 3 (room 1) holds a flag.",
+          "tag": {}
+        },
+        {
+          "seat": "p4",
+          "open": 57
+        },
+        {
+          "seat": "p4",
+          "post": "Box 57 (room 6) holds a flag.",
+          "tag": {}
+        }
+      ]
+    },
+    {
+      "name": "stand-ins open box 3 of their own",
+      "after": -1,
+      "on": "POST open",
+      "count": 3,
+      "timed": false,
+      "actions": [
+        {
+          "seat": "p1",
+          "open": 54
+        },
+        {
+          "seat": "p1",
+          "post": "Box 54 (room 6) holds a flag.",
+          "tag": {}
+        },
+        {
+          "seat": "p3",
+          "open": 4
+        },
+        {
+          "seat": "p3",
+          "post": "Box 4 (room 1) holds a flag.",
+          "tag": {}
+        },
+        {
+          "seat": "p4",
+          "open": 6
+        },
+        {
+          "seat": "p4",
+          "post": "Box 6 (room 1) holds a flag.",
+          "tag": {}
+        }
+      ]
+    },
+    {
+      "name": "stand-ins open box 4 of their own",
+      "after": -1,
+      "on": "POST open",
+      "count": 4,
+      "timed": false,
+      "actions": [
+        {
+          "seat": "p1",
+          "open": 55
+        },
+        {
+          "seat": "p1",
+          "post": "Box 55 (room 6) holds a flag.",
+          "tag": {}
+        },
+        {
+          "seat": "p3",
+          "open": 5
+        },
+        {
+          "seat": "p3",
+          "post": "Box 5 (room 1) holds a flag.",
+          "tag": {}
+        },
+        {
+          "seat": "p4",
+          "open": 7
+        },
+        {
+          "seat": "p4",
+          "post": "Box 7 (room 1) holds a flag.",
+          "tag": {}
+        }
+      ]
+    }
+  ]
+}

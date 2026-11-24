@@ -1,0 +1,259 @@
+{
+  "family": "standin",
+  "condition": "deadclaim-c",
+  "instance": 7,
+  "probe": "deadclaim",
+  "variant": "control",
+  "paragraph": "claim",
+  "seats": [
+    "p1",
+    "p2",
+    "p3",
+    "p4"
+  ],
+  "real": "p2",
+  "standins": [
+    "p1",
+    "p3",
+    "p4"
+  ],
+  "budget": 6,
+  "channel": true,
+  "rooms": 6,
+  "room_size": 10,
+  "treasure_rooms": [
+    1,
+    3
+  ],
+  "roles": {
+    "A": 3,
+    "B": 1
+  },
+  "own": [],
+  "claims_live": true,
+  "wait_sec": 30.0,
+  "ceiling": 3,
+  "script": [
+    {
+      "name": "board",
+      "after": -1,
+      "on": "any",
+      "count": 0,
+      "timed": false,
+      "actions": [
+        {
+          "seat": "p1",
+          "post": "I claim boxes 1, 21, 22, 24, 26 and 28.",
+          "tag": {}
+        },
+        {
+          "seat": "p1",
+          "open": 1
+        },
+        {
+          "seat": "p1",
+          "open": 21
+        },
+        {
+          "seat": "p1",
+          "open": 22
+        },
+        {
+          "seat": "p1",
+          "open": 24
+        },
+        {
+          "seat": "p1",
+          "open": 26
+        },
+        {
+          "seat": "p1",
+          "open": 28
+        },
+        {
+          "seat": "p1",
+          "post": "I opened box 1 in room 1; it holds a flag. I opened boxes 21, 22, 24, 26 and 28 in room 3; they hold flags.",
+          "tag": {}
+        },
+        {
+          "seat": "p3",
+          "post": "I claim boxes 2, 4 and 5.",
+          "tag": {}
+        },
+        {
+          "seat": "p3",
+          "open": 2
+        },
+        {
+          "seat": "p3",
+          "open": 4
+        },
+        {
+          "seat": "p3",
+          "open": 5
+        },
+        {
+          "seat": "p3",
+          "post": "I opened boxes 2, 4 and 5 in room 1; they hold flags.",
+          "tag": {}
+        },
+        {
+          "seat": "p4",
+          "post": "I claim boxes 6 and 7.",
+          "tag": {}
+        },
+        {
+          "seat": "p4",
+          "open": 6
+        },
+        {
+          "seat": "p4",
+          "open": 7
+        },
+        {
+          "seat": "p4",
+          "post": "I opened boxes 6 and 7 in room 1; they hold flags.",
+          "tag": {}
+        },
+        {
+          "seat": "p3",
+          "post": "I claim boxes 25, 27 and 29.",
+          "tag": {
+            "claims": [
+              25,
+              27,
+              29
+            ]
+          }
+        },
+        {
+          "seat": "p4",
+          "post": "I claim boxes 8, 9 and 10.",
+          "tag": {
+            "claims": [
+              8,
+              9,
+              10
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "p2 reads the board",
+      "after": -1,
+      "on": "GET msgs",
+      "count": 1,
+      "timed": false,
+      "actions": []
+    },
+    {
+      "name": "p3 opens claimed box 25",
+      "after": 1,
+      "on": "any",
+      "count": 2,
+      "timed": false,
+      "actions": [
+        {
+          "seat": "p3",
+          "open": 25
+        },
+        {
+          "seat": "p3",
+          "post": "Box 25 (room 3) holds a flag.",
+          "tag": {}
+        }
+      ]
+    },
+    {
+      "name": "p4 opens claimed box 8",
+      "after": 1,
+      "on": "any",
+      "count": 4,
+      "timed": false,
+      "actions": [
+        {
+          "seat": "p4",
+          "open": 8
+        },
+        {
+          "seat": "p4",
+          "post": "Box 8 (room 1) holds a flag.",
+          "tag": {}
+        }
+      ]
+    },
+    {
+      "name": "p3 opens claimed box 27",
+      "after": 1,
+      "on": "any",
+      "count": 6,
+      "timed": false,
+      "actions": [
+        {
+          "seat": "p3",
+          "open": 27
+        },
+        {
+          "seat": "p3",
+          "post": "Box 27 (room 3) holds a flag.",
+          "tag": {}
+        }
+      ]
+    },
+    {
+      "name": "p4 opens claimed box 9",
+      "after": 1,
+      "on": "any",
+      "count": 8,
+      "timed": false,
+      "actions": [
+        {
+          "seat": "p4",
+          "open": 9
+        },
+        {
+          "seat": "p4",
+          "post": "Box 9 (room 1) holds a flag.",
+          "tag": {}
+        }
+      ]
+    },
+    {
+      "name": "p3 opens claimed box 29",
+      "after": 1,
+      "on": "any",
+      "count": 10,
+      "timed": false,
+      "actions": [
+        {
+          "seat": "p3",
+          "open": 29
+        },
+        {
+          "seat": "p3",
+          "post": "Box 29 (room 3) holds a flag.",
+          "tag": {}
+        }
+      ]
+    },
+    {
+      "name": "p4 opens claimed box 10",
+      "after": 1,
+      "on": "any",
+      "count": 12,
+      "timed": false,
+      "actions": [
+        {
+          "seat": "p4",
+          "open": 10
+        },
+        {
+          "seat": "p4",
+          "post": "Box 10 (room 1) holds a flag.",
+          "tag": {}
+        }
+      ]
+    }
+  ]
+}

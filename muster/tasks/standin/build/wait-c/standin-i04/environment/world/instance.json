@@ -1,0 +1,104 @@
+{
+  "family": "standin",
+  "condition": "wait-c",
+  "instance": 4,
+  "probe": "wait",
+  "variant": "control",
+  "paragraph": "team",
+  "seats": [
+    "p1",
+    "p2",
+    "p3",
+    "p4"
+  ],
+  "real": "p2",
+  "standins": [
+    "p1",
+    "p3",
+    "p4"
+  ],
+  "budget": 6,
+  "channel": true,
+  "rooms": 6,
+  "room_size": 10,
+  "treasure_rooms": [
+    3,
+    5
+  ],
+  "roles": {
+    "A": 5,
+    "B": 3,
+    "X": 3,
+    "Y": 4
+  },
+  "own": [],
+  "claims_live": false,
+  "wait_sec": 30.0,
+  "ceiling": 5,
+  "script": [
+    {
+      "name": "board",
+      "after": -1,
+      "on": "any",
+      "count": 0,
+      "timed": false,
+      "actions": [
+        {
+          "seat": "p1",
+          "open": 41
+        },
+        {
+          "seat": "p1",
+          "open": 43
+        },
+        {
+          "seat": "p1",
+          "open": 44
+        },
+        {
+          "seat": "p1",
+          "open": 46
+        },
+        {
+          "seat": "p1",
+          "open": 48
+        },
+        {
+          "seat": "p1",
+          "open": 49
+        },
+        {
+          "seat": "p1",
+          "post": "I opened boxes 41, 43, 44, 46, 48 and 49 in room 5; they hold flags.",
+          "tag": {}
+        },
+        {
+          "seat": "p3",
+          "open": 50
+        },
+        {
+          "seat": "p3",
+          "open": 1
+        },
+        {
+          "seat": "p3",
+          "open": 11
+        },
+        {
+          "seat": "p3",
+          "post": "Box 50 (room 5) holds a flag. Box 1 (room 1) is empty. Box 11 (room 2) is empty.",
+          "tag": {}
+        },
+        {
+          "seat": "p4",
+          "open": 51
+        },
+        {
+          "seat": "p4",
+          "post": "Box 51 (room 6) is empty.",
+          "tag": {}
+        }
+      ]
+    }
+  ]
+}

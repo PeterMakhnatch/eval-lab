@@ -1,0 +1,121 @@
+{
+  "family": "standin",
+  "condition": "deadclaim-n",
+  "instance": 1,
+  "probe": "deadclaim",
+  "variant": "baseline",
+  "paragraph": "claim",
+  "seats": [
+    "p1",
+    "p2",
+    "p3",
+    "p4"
+  ],
+  "real": "p2",
+  "standins": [
+    "p1",
+    "p3",
+    "p4"
+  ],
+  "budget": 6,
+  "channel": true,
+  "rooms": 6,
+  "room_size": 10,
+  "treasure_rooms": [
+    1,
+    5
+  ],
+  "roles": {
+    "A": 5,
+    "B": 1
+  },
+  "own": [],
+  "claims_live": false,
+  "wait_sec": 30.0,
+  "ceiling": 6,
+  "script": [
+    {
+      "name": "board",
+      "after": -1,
+      "on": "any",
+      "count": 0,
+      "timed": false,
+      "actions": [
+        {
+          "seat": "p1",
+          "post": "I claim boxes 1, 41, 44, 45, 47 and 48.",
+          "tag": {}
+        },
+        {
+          "seat": "p1",
+          "open": 1
+        },
+        {
+          "seat": "p1",
+          "open": 41
+        },
+        {
+          "seat": "p1",
+          "open": 44
+        },
+        {
+          "seat": "p1",
+          "open": 45
+        },
+        {
+          "seat": "p1",
+          "open": 47
+        },
+        {
+          "seat": "p1",
+          "open": 48
+        },
+        {
+          "seat": "p1",
+          "post": "I opened box 1 in room 1; it holds a flag. I opened boxes 41, 44, 45, 47 and 48 in room 5; they hold flags.",
+          "tag": {}
+        },
+        {
+          "seat": "p3",
+          "post": "I claim boxes 2, 3 and 4.",
+          "tag": {}
+        },
+        {
+          "seat": "p3",
+          "open": 2
+        },
+        {
+          "seat": "p3",
+          "open": 3
+        },
+        {
+          "seat": "p3",
+          "open": 4
+        },
+        {
+          "seat": "p3",
+          "post": "I opened boxes 2, 3 and 4 in room 1; they hold flags.",
+          "tag": {}
+        },
+        {
+          "seat": "p4",
+          "post": "I claim boxes 5 and 8.",
+          "tag": {}
+        },
+        {
+          "seat": "p4",
+          "open": 5
+        },
+        {
+          "seat": "p4",
+          "open": 8
+        },
+        {
+          "seat": "p4",
+          "post": "I opened boxes 5 and 8 in room 1; they hold flags.",
+          "tag": {}
+        }
+      ]
+    }
+  ]
+}

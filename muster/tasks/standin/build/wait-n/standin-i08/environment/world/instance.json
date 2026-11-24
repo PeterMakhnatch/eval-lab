@@ -1,0 +1,122 @@
+{
+  "family": "standin",
+  "condition": "wait-n",
+  "instance": 8,
+  "probe": "wait",
+  "variant": "baseline",
+  "paragraph": "team",
+  "seats": [
+    "p1",
+    "p2",
+    "p3",
+    "p4"
+  ],
+  "real": "p2",
+  "standins": [
+    "p1",
+    "p3",
+    "p4"
+  ],
+  "budget": 6,
+  "channel": true,
+  "rooms": 6,
+  "room_size": 10,
+  "treasure_rooms": [
+    4,
+    5
+  ],
+  "roles": {
+    "A": 5,
+    "B": 4,
+    "X": 1,
+    "Y": 4
+  },
+  "own": [],
+  "claims_live": false,
+  "wait_sec": 30.0,
+  "ceiling": 6,
+  "script": [
+    {
+      "name": "board",
+      "after": -1,
+      "on": "any",
+      "count": 0,
+      "timed": false,
+      "actions": [
+        {
+          "seat": "p1",
+          "open": 41
+        },
+        {
+          "seat": "p1",
+          "open": 44
+        },
+        {
+          "seat": "p1",
+          "open": 45
+        },
+        {
+          "seat": "p1",
+          "open": 46
+        },
+        {
+          "seat": "p1",
+          "open": 47
+        },
+        {
+          "seat": "p1",
+          "open": 48
+        },
+        {
+          "seat": "p1",
+          "post": "I opened boxes 41, 44, 45, 46, 47 and 48 in room 5; they hold flags.",
+          "tag": {}
+        },
+        {
+          "seat": "p3",
+          "open": 49
+        },
+        {
+          "seat": "p3",
+          "open": 11
+        },
+        {
+          "seat": "p3",
+          "open": 21
+        },
+        {
+          "seat": "p3",
+          "post": "Box 49 (room 5) holds a flag. Box 11 (room 2) is empty. Box 21 (room 3) is empty.",
+          "tag": {}
+        },
+        {
+          "seat": "p4",
+          "open": 51
+        },
+        {
+          "seat": "p4",
+          "post": "Box 51 (room 6) is empty.",
+          "tag": {}
+        },
+        {
+          "seat": "p4",
+          "open": 1
+        },
+        {
+          "seat": "p4",
+          "open": 31
+        },
+        {
+          "seat": "p4",
+          "post": "Box 1 (room 1) is empty. Box 31 (room 4) holds a flag.",
+          "tag": {
+            "report": [
+              1,
+              31
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

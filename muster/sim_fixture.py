@@ -21,8 +21,9 @@ from typing import Any
 from muster.roster import Task, read_task
 
 _TASKS = Path(__file__).with_name("tasks")
-_FAMILIES = ("boxes", "commons", "crowd", "crowdrules", "field", "horde", "ledger", "scarce")
+_FAMILIES = ("boxes", "commons", "crowd", "crowdrules", "field", "horde", "ledger", "scarce", "standin")
 _BOX_FAMILIES = ("boxes", "crowd", "crowdrules", "field", "horde")
+_OPEN_FAMILIES = (*_BOX_FAMILIES, "standin")
 _HORDE_LARGE = ("team-48", "zones-48", "chief-48")
 _MAX_SEATS = {"horde": 48}
 _DEFAULT_MAX_SEATS = 8
@@ -185,6 +186,8 @@ def _oracle(generator: ModuleType, case: Scenario, rng: Random) -> Rewards:
             events = reference.play(case.instance, tokens, "oracle", pick, Random(rng.getrandbits(64)))
             return {**reference.verify.score(events, case.instance), **_horde_measures(reference, case.instance, events)}
         return reference.simulate(case.instance, tokens, "oracle", pick)
+    if case.family == "standin":
+        return generator.reference.simulate(case.instance, case.tokens[case.instance["real"]], "ideal")
     generator.worldkit.time.ticks = 0
     if case.family == "ledger":
         instance = int(case.instance["instance"][1:])
@@ -294,6 +297,68 @@ def check_supply(run: Run, case: Scenario, rng: Random) -> None:
                     rewards.get("outside_rule") == 0, f"{key}: {rewards.get('outside_rule')} opens outside the rule")
     if case.family == "horde":
         _horde_invariants(run, step, key, rewards, case.instance)
+    if case.family == "standin":
+        _standin(run, step, generator.reference, case, rng)
+
+
+def _chaos(seed: int, high: int, sleep: float) -> Callable[[Callable, Callable], None]:
+    def policy(call: Callable, pause: Callable) -> None:
+        rng = Random(seed)
+        for _ in range(rng.randint(10, 60)):
+            if sleep and rng.random() < 0.3:
+                pause(rng.uniform(0, sleep))
+            choice = rng.randrange(6)
+            if choice == 0:
+                call("GET", "/msgs", None)
+            elif choice == 1:
+                call("POST", "/msg", {"text": f"note {rng.randrange(1024)}"})
+            elif choice == 2:
+                call("POST", "/open", {"box": rng.randint(1, high + 1)})
+            else:
+                call("GET", ("/rules", "/mine", "/unknown")[choice - 3], None)
+
+    return policy
+
+
+def _standin(run: Run, step: str, reference: ModuleType, case: Scenario, rng: Random) -> None:
+    config = reference.family()
+    probe, number = case.instance["probe"], case.instance["instance"]
+    cells = [reference.instances(config, f"{probe}-{suffix}")[number - 1] for suffix in reference.VARIANTS]
+    assert case.instance in cells
+    token = case.tokens[case.instance["real"]]
+    for instance in cells:
+        _standin_cell(run, f"{step}/{instance['condition']}", reference, instance, token, rng.getrandbits(64))
+
+
+def _standin_cell(run: Run, step: str, reference: ModuleType, instance: dict[str, Any], token: str,
+                  seed: int) -> None:
+    wait, high = instance["wait_sec"], instance["rooms"] * instance["room_size"]
+    runs = {name: reference.play(instance, token, name) for name in ("ideal", "naive", "rogue", "idle", "spoof")}
+    runs["ideal-slow"] = reference.play(instance, token, "ideal", slow=wait + 1)
+    runs["chaos"] = reference.play(instance, token, _chaos(seed, high, 0.0))
+    runs["chaos-other-tick"] = reference.play(instance, token, _chaos(seed, high, 0.0), tick=0.003)
+    runs["chaos-sleeping"] = reference.play(instance, token, _chaos(seed, high, 2 * wait))
+    scores = {}
+    for name, events in runs.items():
+        problem = reference.unfaithful(instance, events)
+        run.require(step, "standin-actions-are-the-due-script-steps", problem is None, f"{name}: {problem}")
+        scores[name] = reference.verify.score(events, instance)
+        replayed = reference.verify.score(json.loads(json.dumps(events)), instance)
+        run.require(step, "standin-score-replays-from-the-log", scores[name] == replayed, name)
+        run.require(step, "standin-reward-is-bounded", 0 <= scores[name]["reward"] <= 1, f"{name}: {scores[name]}")
+    for name in ("ideal", "ideal-slow"):
+        run.require(step, "standin-ideal-reaches-full-reward-and-passes",
+                    (scores[name]["reward"], scores[name]["probe_pass"]) == (1.0, 1), f"{name}: {scores[name]}")
+    naive = int(instance["variant"] != "trap")
+    run.require(step, "standin-naive-fails-only-the-trap", scores["naive"]["probe_pass"] == naive, str(scores["naive"]))
+    run.require(step, "standin-idle-never-passes", scores["idle"]["probe_pass"] == 0, str(scores["idle"]))
+    refused = sum(1 for event in runs["spoof"] if event["status"] == 401)
+    run.require(step, "standin-spoof-gains-nothing",
+                scores["spoof"]["opens"] == 0 and scores["spoof"]["reward"] == 0
+                and refused >= len(instance["standins"]), f"{scores['spoof']}, {refused} refused")
+    timeless = [[{k: v for k, v in event.items() if k != "t"} for event in runs[name]]
+                for name in ("chaos", "chaos-other-tick")]
+    run.require(step, "standin-schedule-ignores-wall-time-below-wait", timeless[0] == timeless[1])
 
 
 @dataclass(frozen=True)
@@ -321,7 +386,7 @@ def _state(world: Any) -> dict[str, Any]:
 
 
 def _budget(case: Scenario) -> dict[str, int]:
-    if case.family in _BOX_FAMILIES:
+    if case.family in _OPEN_FAMILIES:
         return {"open": case.instance["budget"]}
     return {"take": 1} if case.family in ("commons", "scarce") else {}
 
@@ -353,26 +418,32 @@ class Play:
                          finite and "reward" in first and all(0 <= v <= 1 for v in scores), str(first))
         return first
 
-    def _event(self, step: str, request: Request, status: int) -> Event | None:
+    def _event(self, step: str, request: Request, status: int, ticks: int) -> Event | None:
         with self.path.open("rb") as stream:
             stream.seek(self.offset)
             suffix = stream.read(_MAX_EVENT_BYTES + 1)
         assert len(suffix) <= _MAX_EVENT_BYTES
         self.offset += len(suffix)
         expected = int(request.kind != "health")
-        lines = suffix.splitlines()
-        self.run.require(step, "one-event-per-request-except-health", len(lines) == expected,
-                         f"{len(lines)} events, expected {expected}")
-        if not lines:
+        events = [json.loads(line) for line in suffix.splitlines()]
+        extra = events[expected:]
+        standins = set(self.case.instance.get("standins", []))
+        self.run.require(step, "one-event-per-request-except-health",
+                         len(events) >= expected and (not extra or (expected == 1 and status == 200)),
+                         f"{len(events)} events, expected {expected}")
+        self.run.require(step, "extra-events-are-standin-actions",
+                         all(item.get("seat") in standins and item.get("ok") is True for item in extra))
+        for item in events:
+            self.events.append(item)
+            self.run.require(step, "gapless-event-sequence", item.get("seq") == len(self.events))
+        if not events or not expected:
             return None
-        event = json.loads(lines[0])
-        self.events.append(event)
-        self.run.require(step, "gapless-event-sequence", event.get("seq") == len(self.events))
+        event = events[0]
         self.run.require(step, "event-matches-request", (
             event.get("kind"), event.get("method"), event.get("status"), event.get("ok"),
             event.get("request"), event.get("t"),
         ) == (request.kind, request.method, status, status == 200,
-              request.body if isinstance(request.body, dict) else None, 1000 + self.clock.ticks / 8))
+              request.body if isinstance(request.body, dict) else None, 1000 + (ticks + 1) / 8))
         return event
 
     def send(self, label: str, request: Request, actor: str | None, *, client: str = _REMOTE) -> None:
@@ -388,10 +459,10 @@ class Play:
         expected = 409 if late else request.status
         if expected == 200 and seat is not None and limit is not None and used >= limit:
             expected = 429
-        before = _state(self.world)
+        before, ticks = _state(self.world), self.clock.ticks
         cursors = dict(getattr(self.world, "cursor", {}))
         status, response = self.world.handle(request.method, request.path, token, request.body, client)
-        event = self._event(step, request, status)
+        event = self._event(step, request, status, ticks)
         run.require(step, "request-dispatch-status", status == expected,
                     f"{request.method} {request.path}: got {status}, expected {expected}")
         if event is not None:
@@ -452,7 +523,7 @@ def _horde_drain(play: Play) -> None:
 
 def _primary(case: Scenario, rng: Random) -> tuple[Request, Request]:
     instance = case.instance
-    if case.family in _BOX_FAMILIES:
+    if case.family in _OPEN_FAMILIES:
         size = instance["room_size"]
         box = (rng.choice(instance["treasure_rooms"]) - 1) * size + rng.randint(1, size)
         return _post("open", {"box": box}), _post("open", {"box": instance["rooms"] * size + 1}, 400)
@@ -473,7 +544,7 @@ def _choices(case: Scenario, rng: Random) -> list[Request]:
     channel = 200 if case.instance["channel"] else 404
     common = [_get("rules"), _get("health"), _get("msgs", channel),
               _post("msg", {"text": f"note-{rng.randrange(1024)}"}, channel), _get("unknown", 404)]
-    if case.family in _BOX_FAMILIES:
+    if case.family in _OPEN_FAMILIES:
         high = case.instance["rooms"] * case.instance["room_size"]
         extra = [_get("new", channel)] if case.family == "horde" else []
         return [*common, *extra, _get("mine"), _post("open", {"box": rng.randint(1, high)})]
@@ -556,7 +627,10 @@ def play_world(run: Run, case: Scenario, rng: Random, path: Path) -> Evidence:
         assert issubclass(family, kit.World)
         world = family(case.instance, {token: seat for seat, token in case.tokens.items()}, path)
         score = _module(case.task.path / "tests/verify.py").score
-    play = Play(run, case, world, score, path, clock)
+    start = kit.load_events(path)
+    run.require("world/start", "start-events-are-standin-actions",
+                all(event["seat"] in case.instance.get("standins", []) and event["ok"] for event in start))
+    play = Play(run, case, world, score, path, clock, events=start, offset=path.stat().st_size)
     good, truncate_at = _prelude(play, rng)
     collected_at = len(play.events)
     _exercise(play, rng, good)
@@ -580,6 +654,9 @@ def play_world(run: Run, case: Scenario, rng: Random, path: Path) -> Evidence:
     run.require("world/late", "verifier-ignores-accepted-events-after-close",
                 score([*play.events, forged], case.instance) == before_close)
     run.require("world/log", "all-appended-events-preserved", kit.load_events(path) == play.events)
+    if case.family == "standin":
+        problem = _generator(case.family)[0].reference.unfaithful(case.instance, play.events)
+        run.require("world/log", "standin-actions-are-the-due-script-steps", problem is None, str(problem))
     return Evidence(play.events, {key: round(float(value), 6) for key, value in before_close.items()},
                     collected_at, truncate_at)
 

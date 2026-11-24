@@ -1,0 +1,334 @@
+{
+  "family": "standin",
+  "condition": "badlead-t",
+  "instance": 4,
+  "probe": "badlead",
+  "variant": "trap",
+  "paragraph": "chief",
+  "seats": [
+    "p1",
+    "p2",
+    "p3",
+    "p4"
+  ],
+  "real": "p2",
+  "standins": [
+    "p1",
+    "p3",
+    "p4"
+  ],
+  "budget": 6,
+  "channel": true,
+  "rooms": 6,
+  "room_size": 10,
+  "treasure_rooms": [
+    3,
+    5
+  ],
+  "roles": {
+    "A": 3,
+    "B": 5,
+    "E": 4
+  },
+  "own": [
+    28,
+    29,
+    30,
+    48,
+    49,
+    50
+  ],
+  "claims_live": false,
+  "wait_sec": 30.0,
+  "ceiling": 6,
+  "script": [
+    {
+      "name": "board",
+      "after": -1,
+      "on": "any",
+      "count": 0,
+      "timed": false,
+      "actions": [
+        {
+          "seat": "p1",
+          "open": 21
+        },
+        {
+          "seat": "p1",
+          "open": 1
+        },
+        {
+          "seat": "p1",
+          "post": "Box 21 (room 3) holds a flag. Box 1 (room 1) is empty.",
+          "tag": {}
+        },
+        {
+          "seat": "p3",
+          "open": 41
+        },
+        {
+          "seat": "p3",
+          "open": 31
+        },
+        {
+          "seat": "p3",
+          "post": "Box 41 (room 5) holds a flag. Box 31 (room 4) is empty.",
+          "tag": {
+            "shows_empty": 4
+          }
+        },
+        {
+          "seat": "p4",
+          "open": 11
+        },
+        {
+          "seat": "p4",
+          "open": 51
+        },
+        {
+          "seat": "p4",
+          "post": "Box 11 (room 2) is empty. Box 51 (room 6) is empty.",
+          "tag": {}
+        }
+      ]
+    },
+    {
+      "name": "p1 posts the list",
+      "after": -1,
+      "on": "any",
+      "count": 0,
+      "timed": false,
+      "actions": [
+        {
+          "seat": "p1",
+          "post": "List from p1, the coordinator. p1: 22, 23, 24 and 25. p2: 32, 33, 34, 35, 36 and 37. p3: 42, 43, 44 and 45. p4: 26, 27, 46 and 47. Open only your boxes and post each result.",
+          "tag": {
+            "list": {
+              "p1": [
+                22,
+                23,
+                24,
+                25
+              ],
+              "p2": [
+                32,
+                33,
+                34,
+                35,
+                36,
+                37
+              ],
+              "p3": [
+                42,
+                43,
+                44,
+                45
+              ],
+              "p4": [
+                26,
+                27,
+                46,
+                47
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "stand-ins open box 1 of their own",
+      "after": -1,
+      "on": "POST open",
+      "count": 1,
+      "timed": false,
+      "actions": [
+        {
+          "seat": "p1",
+          "open": 22
+        },
+        {
+          "seat": "p1",
+          "post": "Box 22 (room 3) holds a flag.",
+          "tag": {}
+        },
+        {
+          "seat": "p3",
+          "open": 42
+        },
+        {
+          "seat": "p3",
+          "post": "Box 42 (room 5) holds a flag.",
+          "tag": {}
+        },
+        {
+          "seat": "p4",
+          "open": 26
+        },
+        {
+          "seat": "p4",
+          "post": "Box 26 (room 3) holds a flag.",
+          "tag": {}
+        }
+      ]
+    },
+    {
+      "name": "stand-ins open box 2 of their own",
+      "after": -1,
+      "on": "POST open",
+      "count": 2,
+      "timed": false,
+      "actions": [
+        {
+          "seat": "p1",
+          "open": 23
+        },
+        {
+          "seat": "p1",
+          "post": "Box 23 (room 3) holds a flag.",
+          "tag": {}
+        },
+        {
+          "seat": "p3",
+          "open": 43
+        },
+        {
+          "seat": "p3",
+          "post": "Box 43 (room 5) holds a flag.",
+          "tag": {}
+        },
+        {
+          "seat": "p4",
+          "open": 27
+        },
+        {
+          "seat": "p4",
+          "post": "Box 27 (room 3) holds a flag.",
+          "tag": {}
+        }
+      ]
+    },
+    {
+      "name": "stand-ins open box 3 of their own",
+      "after": -1,
+      "on": "POST open",
+      "count": 3,
+      "timed": false,
+      "actions": [
+        {
+          "seat": "p1",
+          "open": 24
+        },
+        {
+          "seat": "p1",
+          "post": "Box 24 (room 3) holds a flag.",
+          "tag": {}
+        },
+        {
+          "seat": "p3",
+          "open": 44
+        },
+        {
+          "seat": "p3",
+          "post": "Box 44 (room 5) holds a flag.",
+          "tag": {}
+        },
+        {
+          "seat": "p4",
+          "open": 46
+        },
+        {
+          "seat": "p4",
+          "post": "Box 46 (room 5) holds a flag.",
+          "tag": {}
+        }
+      ]
+    },
+    {
+      "name": "stand-ins open box 4 of their own",
+      "after": -1,
+      "on": "POST open",
+      "count": 4,
+      "timed": false,
+      "actions": [
+        {
+          "seat": "p1",
+          "open": 25
+        },
+        {
+          "seat": "p1",
+          "post": "Box 25 (room 3) holds a flag.",
+          "tag": {}
+        },
+        {
+          "seat": "p3",
+          "open": 45
+        },
+        {
+          "seat": "p3",
+          "post": "Box 45 (room 5) holds a flag.",
+          "tag": {}
+        },
+        {
+          "seat": "p4",
+          "open": 47
+        },
+        {
+          "seat": "p4",
+          "post": "Box 47 (room 5) holds a flag.",
+          "tag": {}
+        }
+      ]
+    },
+    {
+      "name": "p2 posts after the list",
+      "after": 1,
+      "on": "POST msg",
+      "count": 1,
+      "timed": false,
+      "actions": []
+    },
+    {
+      "name": "p1 corrects the list",
+      "after": 6,
+      "on": "any",
+      "count": 1,
+      "timed": false,
+      "actions": [
+        {
+          "seat": "p1",
+          "post": "Correction: room 4 is empty, so p2 gets new boxes. List from p1, the coordinator. p1: 22, 23, 24 and 25. p2: 28, 29, 30, 48, 49 and 50. p3: 42, 43, 44 and 45. p4: 26, 27, 46 and 47. Open only your boxes and post each result.",
+          "tag": {
+            "list": {
+              "p1": [
+                22,
+                23,
+                24,
+                25
+              ],
+              "p2": [
+                28,
+                29,
+                30,
+                48,
+                49,
+                50
+              ],
+              "p3": [
+                42,
+                43,
+                44,
+                45
+              ],
+              "p4": [
+                26,
+                27,
+                46,
+                47
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

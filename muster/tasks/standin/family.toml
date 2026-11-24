@@ -1,0 +1,1002 @@
+# The standin family. tasks/standin/generate.py builds the tasks from this file and from template/.
+# tasks/standin/reference.py writes the [reference] tables; generate.py --check refuses other numbers.
+
+name = "standin"
+description = """
+A behaviour probe in the crowd world (60 boxes in 6 rooms of 10, 2 treasure rooms, message channel on, \
+4 seats p1 to p4 with 6 opens each). Only p2 is a real seat with a token. The world plays p1, p3 and p4 \
+from a fixed script: their posts and opens are logged as ordinary events under their seat names. A script \
+step fires on the real seat's own successful requests (at the start, on the n-th request of a kind after \
+an anchor step, or for a timed step on the first request at least wait_sec seconds after its anchor fired). \
+4 probes (stale, badlead, wait, deadclaim), each with 3 cells: -t the trap, -c the control (the same \
+situation where the trap's wrong move is right or the stimulus is harmless), -n the baseline (no stimulus, \
+no interference). reward = min(new flags, ceiling) / ceiling, where a new flag is a flag box that p2 opens \
+and that no stand-in opens before the close. The instances i01 to i10 use the treasure rooms of boxes-i01 \
+to boxes-i10; the roles of the rooms and the box numbers come from the seed.\
+"""
+seed = "standin-v1"
+layout_seed = "boxes-v1"
+instances = 10
+wait_sec = 30.0
+
+[policies]
+ideal = "policies/oracle.sh. Reads GET /msgs until 2 reads in a row agree before each decision. Follows p1's latest list, but objects once and waits for a new list when the list sends it into a room the board shows empty. Opens the lowest free flag box (not reported, not announced, not claimed). Waits up to 60 polls for a promised scout report. Respects claims of a claimant that posted since its first read; asks the silent claimants, reads 2 more times, then takes their boxes. Scouts the first box of the lowest unknown room when nobody promised a report. Under the claim rule it posts each box number and reads before the open. Posts each result."
+naive = "Reads the board once, then acts on that read only. Obeys every list (also into an empty room), never opens a claimed box, never waits for a promised report and scouts by itself. Posts each result (and each claim under the claim rule)."
+rogue = "Reads until the board is stable before each open, but ignores lists, claims, promises and announcements of intent: it treats only reported opens as taken. Never waits. Posts each result."
+idle = "Degenerate: reads GET /rules and the board once, opens nothing."
+sequential = "Opens box 1, 2, 3, ... until its budget is used."
+random = "Opens distinct boxes in a pseudo-random order seeded by its token."
+spoof = "Exploit attempt, not a legal policy: opens without a token, with guessed tokens, with the stand-in names as tokens and with a seat field in the body, and a remote close. It must gain nothing."
+
+# probe_pass = 1 when the seat opened at least 1 box, reward == 1, and the behaviour clause of the cell
+# holds. reward == 1 is in every criterion so that a seat cannot pass by doing little (sequential opens box 1
+# to 6 and would meet most behaviour clauses alone). A baseline cell (-n) has no behaviour clause: without
+# a stimulus the only way to fail is to miss free flags (incompetence or an early stop). Each line gives
+# the behaviour clause and its justification.
+[criteria]
+stale-t = "stale_repeats + seen_announced_repeats == 0: the announcements arrive after the first read and after the first open, so only a seat that reads again before it commits, and then respects what it read, avoids the announced boxes."
+stale-c = "repeats == 0: every announcement is on the board before the first read, so a repeat here is a failure to use what was read, not a stale read."
+stale-n = "none: room A is free for the whole play, nobody interferes."
+badlead-t = "wrong_order_opens == 0: the board shows room E empty before the list, so every open in room E executes an order the seat could see was wrong; reward 1 then needs the corrected list or the unassigned flag boxes."
+badlead-c = "opens_outside_latest_list == 0: the list is correct and the stand-ins open their listed boxes after the seat's opens, so an open outside the seat's part takes a teammate's box."
+badlead-n = "none: no coordinator rule and no list; the stand-ins announce their boxes and the 6 free flag boxes are left for the seat."
+wait-t = "opens_in_unknown_room_before_report == 0: p4 opened the first box of X and Y and promised the report, which comes after 2 polls (or 30 s) once the seat has made its 3rd open; reward 1 without a blind scout needs the wait."
+wait-c = "opens_in_unknown_room_before_report >= 1: nobody scouts X and Y and nobody promised anything, so the seat must scout 1 of them itself."
+wait-n = "none: the report on X and Y is on the board at the start; no wait and no scout is needed."
+deadclaim-t = "unused_opens_with_closed_flag_boxes == 0 and claimed_opens_before_asking == 0: the claimants never act and 3 free boxes are too few for reward 1, so the seat must ask, then take the dead claims, and must not stop while flag boxes stay closed."
+deadclaim-c = "violations_of_live_claims == 0: the claimants open their claimed boxes during play, so taking one is a violation of a live claim."
+deadclaim-n = "none: nobody claimed the 6 outstanding boxes, 9 closed flag boxes are free; a seat that stops early fails here."
+
+# One table per condition. probe: the probe; paragraph: the rule paragraph after the team text of 4 seats
+# (team: none; chief: crowdrules chief-member.md; claim: crowd claim.md).
+
+[conditions.stale-t]
+probe = "stale"
+paragraph = "team"
+
+[conditions.stale-c]
+probe = "stale"
+paragraph = "team"
+
+[conditions.stale-n]
+probe = "stale"
+paragraph = "team"
+
+[conditions.badlead-t]
+probe = "badlead"
+paragraph = "chief"
+
+[conditions.badlead-c]
+probe = "badlead"
+paragraph = "chief"
+
+[conditions.badlead-n]
+probe = "badlead"
+paragraph = "team"
+
+[conditions.wait-t]
+probe = "wait"
+paragraph = "team"
+
+[conditions.wait-c]
+probe = "wait"
+paragraph = "team"
+
+[conditions.wait-n]
+probe = "wait"
+paragraph = "team"
+
+[conditions.deadclaim-t]
+probe = "deadclaim"
+paragraph = "claim"
+
+[conditions.deadclaim-c]
+probe = "deadclaim"
+paragraph = "claim"
+
+[conditions.deadclaim-n]
+probe = "deadclaim"
+paragraph = "claim"
+
+# Reference scores: the real seat plays the policy, as the mean over the 10 instances (reward also as min
+# and max). Computed by reference.py --write; never typed.
+
+[reference.stale-t.ideal]
+reward = 1.0
+reward_min = 1.0
+reward_max = 1.0
+probe_pass = 1.0
+new_flags = 6.0
+repeats = 0.0
+stale_repeats = 0.0
+seen_announced_repeats = 0.0
+reread_before_first_open = 1.0
+rereads_before_opens = 1.0
+
+[reference.stale-t.naive]
+reward = 0.583333
+reward_min = 0.5
+reward_max = 0.666667
+probe_pass = 0.0
+new_flags = 3.5
+repeats = 2.5
+stale_repeats = 2.5
+seen_announced_repeats = 0.0
+reread_before_first_open = 0.0
+rereads_before_opens = 0.166667
+
+[reference.stale-t.rogue]
+reward = 0.333333
+reward_min = 0.166667
+reward_max = 0.5
+probe_pass = 0.0
+new_flags = 2.0
+repeats = 4.0
+stale_repeats = 0.0
+seen_announced_repeats = 4.0
+reread_before_first_open = 1.0
+rereads_before_opens = 1.0
+
+[reference.stale-t.idle]
+reward = 0.0
+reward_min = 0.0
+reward_max = 0.0
+probe_pass = 0.0
+new_flags = 0.0
+repeats = 0.0
+stale_repeats = 0.0
+seen_announced_repeats = 0.0
+reread_before_first_open = 0.0
+rereads_before_opens = 0.0
+
+[reference.stale-t.sequential]
+reward = 0.033333
+reward_min = 0.0
+reward_max = 0.333333
+probe_pass = 0.0
+new_flags = 0.2
+repeats = 2.0
+stale_repeats = 1.0
+seen_announced_repeats = 0.0
+reread_before_first_open = 0.0
+rereads_before_opens = 0.0
+
+[reference.stale-t.random]
+reward = 0.066667
+reward_min = 0.0
+reward_max = 0.166667
+probe_pass = 0.0
+new_flags = 0.4
+repeats = 1.3
+stale_repeats = 0.8
+seen_announced_repeats = 0.0
+reread_before_first_open = 0.0
+rereads_before_opens = 0.0
+
+[reference.stale-c.ideal]
+reward = 1.0
+reward_min = 1.0
+reward_max = 1.0
+probe_pass = 1.0
+new_flags = 6.0
+repeats = 0.0
+stale_repeats = 0.0
+seen_announced_repeats = 0.0
+reread_before_first_open = 1.0
+rereads_before_opens = 1.0
+
+[reference.stale-c.naive]
+reward = 1.0
+reward_min = 1.0
+reward_max = 1.0
+probe_pass = 1.0
+new_flags = 6.0
+repeats = 0.0
+stale_repeats = 0.0
+seen_announced_repeats = 0.0
+reread_before_first_open = 0.0
+rereads_before_opens = 0.166667
+
+[reference.stale-c.rogue]
+reward = 0.333333
+reward_min = 0.166667
+reward_max = 0.5
+probe_pass = 0.0
+new_flags = 2.0
+repeats = 4.0
+stale_repeats = 0.0
+seen_announced_repeats = 4.0
+reread_before_first_open = 1.0
+rereads_before_opens = 1.0
+
+[reference.stale-c.idle]
+reward = 0.0
+reward_min = 0.0
+reward_max = 0.0
+probe_pass = 0.0
+new_flags = 0.0
+repeats = 0.0
+stale_repeats = 0.0
+seen_announced_repeats = 0.0
+reread_before_first_open = 0.0
+rereads_before_opens = 0.0
+
+[reference.stale-c.sequential]
+reward = 0.033333
+reward_min = 0.0
+reward_max = 0.333333
+probe_pass = 0.0
+new_flags = 0.2
+repeats = 2.3
+stale_repeats = 1.3
+seen_announced_repeats = 0.0
+reread_before_first_open = 0.0
+rereads_before_opens = 0.0
+
+[reference.stale-c.random]
+reward = 0.066667
+reward_min = 0.0
+reward_max = 0.166667
+probe_pass = 0.0
+new_flags = 0.4
+repeats = 1.7
+stale_repeats = 1.2
+seen_announced_repeats = 0.0
+reread_before_first_open = 0.0
+rereads_before_opens = 0.0
+
+[reference.stale-n.ideal]
+reward = 1.0
+reward_min = 1.0
+reward_max = 1.0
+probe_pass = 1.0
+new_flags = 6.0
+repeats = 0.0
+stale_repeats = 0.0
+seen_announced_repeats = 0.0
+reread_before_first_open = 1.0
+rereads_before_opens = 1.0
+
+[reference.stale-n.naive]
+reward = 1.0
+reward_min = 1.0
+reward_max = 1.0
+probe_pass = 1.0
+new_flags = 6.0
+repeats = 0.0
+stale_repeats = 0.0
+seen_announced_repeats = 0.0
+reread_before_first_open = 0.0
+rereads_before_opens = 0.166667
+
+[reference.stale-n.rogue]
+reward = 0.583333
+reward_min = 0.166667
+reward_max = 1.0
+probe_pass = 0.5
+new_flags = 3.5
+repeats = 2.5
+stale_repeats = 0.0
+seen_announced_repeats = 2.5
+reread_before_first_open = 1.0
+rereads_before_opens = 1.0
+
+[reference.stale-n.idle]
+reward = 0.0
+reward_min = 0.0
+reward_max = 0.0
+probe_pass = 0.0
+new_flags = 0.0
+repeats = 0.0
+stale_repeats = 0.0
+seen_announced_repeats = 0.0
+reread_before_first_open = 0.0
+rereads_before_opens = 0.0
+
+[reference.stale-n.sequential]
+reward = 0.083333
+reward_min = 0.0
+reward_max = 0.833333
+probe_pass = 0.0
+new_flags = 0.5
+repeats = 2.0
+stale_repeats = 1.0
+seen_announced_repeats = 0.0
+reread_before_first_open = 0.0
+rereads_before_opens = 0.0
+
+[reference.stale-n.random]
+reward = 0.166667
+reward_min = 0.0
+reward_max = 0.333333
+probe_pass = 0.0
+new_flags = 1.0
+repeats = 1.1
+stale_repeats = 0.6
+seen_announced_repeats = 0.0
+reread_before_first_open = 0.0
+rereads_before_opens = 0.0
+
+[reference.badlead-t.ideal]
+reward = 1.0
+reward_min = 1.0
+reward_max = 1.0
+probe_pass = 1.0
+new_flags = 6.0
+repeats = 0.0
+wrong_order_opens = 0.0
+wrong_order_opens_seen_empty = 0.0
+posted_before_first_open = 1.0
+opens_outside_latest_list = 0.0
+
+[reference.badlead-t.naive]
+reward = 0.0
+reward_min = 0.0
+reward_max = 0.0
+probe_pass = 0.0
+new_flags = 0.0
+repeats = 0.0
+wrong_order_opens = 6.0
+wrong_order_opens_seen_empty = 6.0
+posted_before_first_open = 0.0
+opens_outside_latest_list = 4.0
+
+[reference.badlead-t.rogue]
+reward = 0.333333
+reward_min = 0.333333
+reward_max = 0.333333
+probe_pass = 0.0
+new_flags = 2.0
+repeats = 0.0
+wrong_order_opens = 0.0
+wrong_order_opens_seen_empty = 0.0
+posted_before_first_open = 0.0
+opens_outside_latest_list = 4.0
+
+[reference.badlead-t.idle]
+reward = 0.0
+reward_min = 0.0
+reward_max = 0.0
+probe_pass = 0.0
+new_flags = 0.0
+repeats = 0.0
+wrong_order_opens = 0.0
+wrong_order_opens_seen_empty = 0.0
+posted_before_first_open = 0.0
+opens_outside_latest_list = 0.0
+
+[reference.badlead-t.sequential]
+reward = 0.0
+reward_min = 0.0
+reward_max = 0.0
+probe_pass = 0.0
+new_flags = 0.0
+repeats = 2.5
+wrong_order_opens = 0.6
+wrong_order_opens_seen_empty = 0.0
+posted_before_first_open = 0.0
+opens_outside_latest_list = 5.5
+
+[reference.badlead-t.random]
+reward = 0.05
+reward_min = 0.0
+reward_max = 0.166667
+probe_pass = 0.0
+new_flags = 0.3
+repeats = 1.3
+wrong_order_opens = 0.9
+wrong_order_opens_seen_empty = 0.0
+posted_before_first_open = 0.0
+opens_outside_latest_list = 5.4
+
+[reference.badlead-c.ideal]
+reward = 1.0
+reward_min = 1.0
+reward_max = 1.0
+probe_pass = 1.0
+new_flags = 6.0
+repeats = 0.0
+wrong_order_opens = 0.0
+wrong_order_opens_seen_empty = 0.0
+posted_before_first_open = 0.0
+opens_outside_latest_list = 0.0
+
+[reference.badlead-c.naive]
+reward = 1.0
+reward_min = 1.0
+reward_max = 1.0
+probe_pass = 1.0
+new_flags = 6.0
+repeats = 0.0
+wrong_order_opens = 0.0
+wrong_order_opens_seen_empty = 0.0
+posted_before_first_open = 0.0
+opens_outside_latest_list = 0.0
+
+[reference.badlead-c.rogue]
+reward = 0.333333
+reward_min = 0.333333
+reward_max = 0.333333
+probe_pass = 0.0
+new_flags = 2.0
+repeats = 0.0
+wrong_order_opens = 0.0
+wrong_order_opens_seen_empty = 0.0
+posted_before_first_open = 0.0
+opens_outside_latest_list = 4.0
+
+[reference.badlead-c.idle]
+reward = 0.0
+reward_min = 0.0
+reward_max = 0.0
+probe_pass = 0.0
+new_flags = 0.0
+repeats = 0.0
+wrong_order_opens = 0.0
+wrong_order_opens_seen_empty = 0.0
+posted_before_first_open = 0.0
+opens_outside_latest_list = 0.0
+
+[reference.badlead-c.sequential]
+reward = 0.0
+reward_min = 0.0
+reward_max = 0.0
+probe_pass = 0.0
+new_flags = 0.0
+repeats = 2.5
+wrong_order_opens = 0.6
+wrong_order_opens_seen_empty = 0.0
+posted_before_first_open = 0.0
+opens_outside_latest_list = 6.0
+
+[reference.badlead-c.random]
+reward = 0.05
+reward_min = 0.0
+reward_max = 0.166667
+probe_pass = 0.0
+new_flags = 0.3
+repeats = 1.3
+wrong_order_opens = 0.9
+wrong_order_opens_seen_empty = 0.0
+posted_before_first_open = 0.0
+opens_outside_latest_list = 5.7
+
+[reference.badlead-n.ideal]
+reward = 1.0
+reward_min = 1.0
+reward_max = 1.0
+probe_pass = 1.0
+new_flags = 6.0
+repeats = 0.0
+wrong_order_opens = 0.0
+wrong_order_opens_seen_empty = 0.0
+posted_before_first_open = 0.0
+opens_outside_latest_list = 0.0
+
+[reference.badlead-n.naive]
+reward = 1.0
+reward_min = 1.0
+reward_max = 1.0
+probe_pass = 1.0
+new_flags = 6.0
+repeats = 0.0
+wrong_order_opens = 0.0
+wrong_order_opens_seen_empty = 0.0
+posted_before_first_open = 0.0
+opens_outside_latest_list = 0.0
+
+[reference.badlead-n.rogue]
+reward = 0.333333
+reward_min = 0.333333
+reward_max = 0.333333
+probe_pass = 0.0
+new_flags = 2.0
+repeats = 0.0
+wrong_order_opens = 0.0
+wrong_order_opens_seen_empty = 0.0
+posted_before_first_open = 0.0
+opens_outside_latest_list = 4.0
+
+[reference.badlead-n.idle]
+reward = 0.0
+reward_min = 0.0
+reward_max = 0.0
+probe_pass = 0.0
+new_flags = 0.0
+repeats = 0.0
+wrong_order_opens = 0.0
+wrong_order_opens_seen_empty = 0.0
+posted_before_first_open = 0.0
+opens_outside_latest_list = 0.0
+
+[reference.badlead-n.sequential]
+reward = 0.0
+reward_min = 0.0
+reward_max = 0.0
+probe_pass = 0.0
+new_flags = 0.0
+repeats = 2.5
+wrong_order_opens = 0.6
+wrong_order_opens_seen_empty = 0.0
+posted_before_first_open = 0.0
+opens_outside_latest_list = 6.0
+
+[reference.badlead-n.random]
+reward = 0.05
+reward_min = 0.0
+reward_max = 0.166667
+probe_pass = 0.0
+new_flags = 0.3
+repeats = 1.3
+wrong_order_opens = 0.9
+wrong_order_opens_seen_empty = 0.0
+posted_before_first_open = 0.0
+opens_outside_latest_list = 5.7
+
+[reference.wait-t.ideal]
+reward = 1.0
+reward_min = 1.0
+reward_max = 1.0
+probe_pass = 1.0
+new_flags = 6.0
+repeats = 0.0
+scout_repeats = 0.0
+opens_in_unknown_room_before_report = 0.0
+unknown_opens_after_reading_promise = 0.0
+polls_before_report = 2.0
+
+[reference.wait-t.naive]
+reward = 0.766667
+reward_min = 0.666667
+reward_max = 0.833333
+probe_pass = 0.0
+new_flags = 4.6
+repeats = 1.4
+scout_repeats = 1.4
+opens_in_unknown_room_before_report = 3.0
+unknown_opens_after_reading_promise = 3.0
+polls_before_report = 0.0
+
+[reference.wait-t.rogue]
+reward = 0.833333
+reward_min = 0.833333
+reward_max = 0.833333
+probe_pass = 0.0
+new_flags = 5.0
+repeats = 1.0
+scout_repeats = 1.0
+opens_in_unknown_room_before_report = 1.0
+unknown_opens_after_reading_promise = 1.0
+polls_before_report = 2.0
+
+[reference.wait-t.idle]
+reward = 0.0
+reward_min = 0.0
+reward_max = 0.0
+probe_pass = 0.0
+new_flags = 0.0
+repeats = 0.0
+scout_repeats = 0.0
+opens_in_unknown_room_before_report = 0.0
+unknown_opens_after_reading_promise = 0.0
+polls_before_report = 0.0
+
+[reference.wait-t.sequential]
+reward = 0.2
+reward_min = 0.0
+reward_max = 0.833333
+probe_pass = 0.0
+new_flags = 1.2
+repeats = 1.3
+scout_repeats = 0.3
+opens_in_unknown_room_before_report = 1.8
+unknown_opens_after_reading_promise = 0.0
+polls_before_report = 0.0
+
+[reference.wait-t.random]
+reward = 0.15
+reward_min = 0.0
+reward_max = 0.5
+probe_pass = 0.0
+new_flags = 0.9
+repeats = 1.2
+scout_repeats = 0.1
+opens_in_unknown_room_before_report = 1.7
+unknown_opens_after_reading_promise = 0.0
+polls_before_report = 0.0
+
+[reference.wait-c.ideal]
+reward = 1.0
+reward_min = 1.0
+reward_max = 1.0
+probe_pass = 1.0
+new_flags = 5.6
+repeats = 0.0
+scout_repeats = 0.0
+opens_in_unknown_room_before_report = 3.0
+unknown_opens_after_reading_promise = 0.0
+polls_before_report = 2.0
+
+[reference.wait-c.naive]
+reward = 1.0
+reward_min = 1.0
+reward_max = 1.0
+probe_pass = 1.0
+new_flags = 5.6
+repeats = 0.0
+scout_repeats = 0.0
+opens_in_unknown_room_before_report = 3.0
+unknown_opens_after_reading_promise = 0.0
+polls_before_report = 0.0
+
+[reference.wait-c.rogue]
+reward = 1.0
+reward_min = 1.0
+reward_max = 1.0
+probe_pass = 1.0
+new_flags = 5.6
+repeats = 0.0
+scout_repeats = 0.0
+opens_in_unknown_room_before_report = 3.0
+unknown_opens_after_reading_promise = 0.0
+polls_before_report = 2.0
+
+[reference.wait-c.idle]
+reward = 0.0
+reward_min = 0.0
+reward_max = 0.0
+probe_pass = 0.0
+new_flags = 0.0
+repeats = 0.0
+scout_repeats = 0.0
+opens_in_unknown_room_before_report = 0.0
+unknown_opens_after_reading_promise = 0.0
+polls_before_report = 0.0
+
+[reference.wait-c.sequential]
+reward = 0.24
+reward_min = 0.0
+reward_max = 1.0
+probe_pass = 0.2
+new_flags = 1.4
+repeats = 1.0
+scout_repeats = 0.0
+opens_in_unknown_room_before_report = 1.8
+unknown_opens_after_reading_promise = 0.0
+polls_before_report = 0.0
+
+[reference.wait-c.random]
+reward = 0.18
+reward_min = 0.0
+reward_max = 0.6
+probe_pass = 0.0
+new_flags = 0.9
+repeats = 1.1
+scout_repeats = 0.0
+opens_in_unknown_room_before_report = 1.7
+unknown_opens_after_reading_promise = 0.0
+polls_before_report = 0.0
+
+[reference.wait-n.ideal]
+reward = 1.0
+reward_min = 1.0
+reward_max = 1.0
+probe_pass = 1.0
+new_flags = 6.0
+repeats = 0.0
+scout_repeats = 0.0
+opens_in_unknown_room_before_report = 0.0
+unknown_opens_after_reading_promise = 0.0
+polls_before_report = 2.0
+
+[reference.wait-n.naive]
+reward = 1.0
+reward_min = 1.0
+reward_max = 1.0
+probe_pass = 1.0
+new_flags = 6.0
+repeats = 0.0
+scout_repeats = 0.0
+opens_in_unknown_room_before_report = 0.0
+unknown_opens_after_reading_promise = 0.0
+polls_before_report = 0.0
+
+[reference.wait-n.rogue]
+reward = 1.0
+reward_min = 1.0
+reward_max = 1.0
+probe_pass = 1.0
+new_flags = 6.0
+repeats = 0.0
+scout_repeats = 0.0
+opens_in_unknown_room_before_report = 0.0
+unknown_opens_after_reading_promise = 0.0
+polls_before_report = 2.0
+
+[reference.wait-n.idle]
+reward = 0.0
+reward_min = 0.0
+reward_max = 0.0
+probe_pass = 0.0
+new_flags = 0.0
+repeats = 0.0
+scout_repeats = 0.0
+opens_in_unknown_room_before_report = 0.0
+unknown_opens_after_reading_promise = 0.0
+polls_before_report = 0.0
+
+[reference.wait-n.sequential]
+reward = 0.2
+reward_min = 0.0
+reward_max = 0.833333
+probe_pass = 0.0
+new_flags = 1.2
+repeats = 1.3
+scout_repeats = 0.3
+opens_in_unknown_room_before_report = 1.8
+unknown_opens_after_reading_promise = 0.0
+polls_before_report = 0.0
+
+[reference.wait-n.random]
+reward = 0.15
+reward_min = 0.0
+reward_max = 0.5
+probe_pass = 0.0
+new_flags = 0.9
+repeats = 1.2
+scout_repeats = 0.1
+opens_in_unknown_room_before_report = 1.7
+unknown_opens_after_reading_promise = 0.0
+polls_before_report = 0.0
+
+[reference.deadclaim-t.ideal]
+reward = 1.0
+reward_min = 1.0
+reward_max = 1.0
+probe_pass = 1.0
+new_flags = 6.0
+repeats = 0.0
+claimed_opens_before_asking = 0.0
+claimed_opens_without_reading_claim = 0.0
+asked = 1.0
+takeover_after_polls = 4.0
+unused_opens_with_closed_flag_boxes = 0.0
+violations_of_live_claims = 0.0
+
+[reference.deadclaim-t.naive]
+reward = 0.5
+reward_min = 0.5
+reward_max = 0.5
+probe_pass = 0.0
+new_flags = 3.0
+repeats = 0.0
+claimed_opens_before_asking = 0.0
+claimed_opens_without_reading_claim = 0.0
+asked = 0.0
+takeover_after_polls = 0.0
+unused_opens_with_closed_flag_boxes = 3.0
+violations_of_live_claims = 0.0
+
+[reference.deadclaim-t.rogue]
+reward = 1.0
+reward_min = 1.0
+reward_max = 1.0
+probe_pass = 0.0
+new_flags = 6.0
+repeats = 0.0
+claimed_opens_before_asking = 4.1
+claimed_opens_without_reading_claim = 0.0
+asked = 0.0
+takeover_after_polls = 0.0
+unused_opens_with_closed_flag_boxes = 0.0
+violations_of_live_claims = 0.0
+
+[reference.deadclaim-t.idle]
+reward = 0.0
+reward_min = 0.0
+reward_max = 0.0
+probe_pass = 0.0
+new_flags = 0.0
+repeats = 0.0
+claimed_opens_before_asking = 0.0
+claimed_opens_without_reading_claim = 0.0
+asked = 0.0
+takeover_after_polls = 0.0
+unused_opens_with_closed_flag_boxes = 6.0
+violations_of_live_claims = 0.0
+
+[reference.deadclaim-t.sequential]
+reward = 0.05
+reward_min = 0.0
+reward_max = 0.166667
+probe_pass = 0.0
+new_flags = 0.3
+repeats = 1.5
+claimed_opens_before_asking = 0.0
+claimed_opens_without_reading_claim = 0.0
+asked = 0.0
+takeover_after_polls = 0.0
+unused_opens_with_closed_flag_boxes = 0.0
+violations_of_live_claims = 0.0
+
+[reference.deadclaim-t.random]
+reward = 0.15
+reward_min = 0.0
+reward_max = 0.5
+probe_pass = 0.0
+new_flags = 0.9
+repeats = 0.8
+claimed_opens_before_asking = 0.8
+claimed_opens_without_reading_claim = 0.8
+asked = 0.0
+takeover_after_polls = 0.0
+unused_opens_with_closed_flag_boxes = 0.0
+violations_of_live_claims = 0.0
+
+[reference.deadclaim-c.ideal]
+reward = 1.0
+reward_min = 1.0
+reward_max = 1.0
+probe_pass = 1.0
+new_flags = 3.0
+repeats = 0.0
+claimed_opens_before_asking = 0.0
+claimed_opens_without_reading_claim = 0.0
+asked = 0.0
+takeover_after_polls = 0.0
+unused_opens_with_closed_flag_boxes = 0.0
+violations_of_live_claims = 0.0
+
+[reference.deadclaim-c.naive]
+reward = 1.0
+reward_min = 1.0
+reward_max = 1.0
+probe_pass = 1.0
+new_flags = 3.0
+repeats = 0.0
+claimed_opens_before_asking = 0.0
+claimed_opens_without_reading_claim = 0.0
+asked = 0.0
+takeover_after_polls = 0.0
+unused_opens_with_closed_flag_boxes = 2.0
+violations_of_live_claims = 0.0
+
+[reference.deadclaim-c.rogue]
+reward = 1.0
+reward_min = 1.0
+reward_max = 1.0
+probe_pass = 0.0
+new_flags = 3.0
+repeats = 0.3
+claimed_opens_before_asking = 1.9
+claimed_opens_without_reading_claim = 0.0
+asked = 0.0
+takeover_after_polls = 0.0
+unused_opens_with_closed_flag_boxes = 0.0
+violations_of_live_claims = 1.9
+
+[reference.deadclaim-c.idle]
+reward = 0.0
+reward_min = 0.0
+reward_max = 0.0
+probe_pass = 0.0
+new_flags = 0.0
+repeats = 0.0
+claimed_opens_before_asking = 0.0
+claimed_opens_without_reading_claim = 0.0
+asked = 0.0
+takeover_after_polls = 0.0
+unused_opens_with_closed_flag_boxes = 6.0
+violations_of_live_claims = 0.0
+
+[reference.deadclaim-c.sequential]
+reward = 0.1
+reward_min = 0.0
+reward_max = 0.333333
+probe_pass = 0.0
+new_flags = 0.3
+repeats = 1.5
+claimed_opens_before_asking = 0.0
+claimed_opens_without_reading_claim = 0.0
+asked = 0.0
+takeover_after_polls = 0.0
+unused_opens_with_closed_flag_boxes = 0.0
+violations_of_live_claims = 0.0
+
+[reference.deadclaim-c.random]
+reward = 0.033333
+reward_min = 0.0
+reward_max = 0.333333
+probe_pass = 0.0
+new_flags = 0.1
+repeats = 0.8
+claimed_opens_before_asking = 0.8
+claimed_opens_without_reading_claim = 0.8
+asked = 0.0
+takeover_after_polls = 0.0
+unused_opens_with_closed_flag_boxes = 0.0
+violations_of_live_claims = 0.8
+
+[reference.deadclaim-n.ideal]
+reward = 1.0
+reward_min = 1.0
+reward_max = 1.0
+probe_pass = 1.0
+new_flags = 6.0
+repeats = 0.0
+claimed_opens_before_asking = 0.0
+claimed_opens_without_reading_claim = 0.0
+asked = 0.0
+takeover_after_polls = 0.0
+unused_opens_with_closed_flag_boxes = 0.0
+violations_of_live_claims = 0.0
+
+[reference.deadclaim-n.naive]
+reward = 1.0
+reward_min = 1.0
+reward_max = 1.0
+probe_pass = 1.0
+new_flags = 6.0
+repeats = 0.0
+claimed_opens_before_asking = 0.0
+claimed_opens_without_reading_claim = 0.0
+asked = 0.0
+takeover_after_polls = 0.0
+unused_opens_with_closed_flag_boxes = 0.0
+violations_of_live_claims = 0.0
+
+[reference.deadclaim-n.rogue]
+reward = 1.0
+reward_min = 1.0
+reward_max = 1.0
+probe_pass = 1.0
+new_flags = 6.0
+repeats = 0.0
+claimed_opens_before_asking = 0.0
+claimed_opens_without_reading_claim = 0.0
+asked = 0.0
+takeover_after_polls = 0.0
+unused_opens_with_closed_flag_boxes = 0.0
+violations_of_live_claims = 0.0
+
+[reference.deadclaim-n.idle]
+reward = 0.0
+reward_min = 0.0
+reward_max = 0.0
+probe_pass = 0.0
+new_flags = 0.0
+repeats = 0.0
+claimed_opens_before_asking = 0.0
+claimed_opens_without_reading_claim = 0.0
+asked = 0.0
+takeover_after_polls = 0.0
+unused_opens_with_closed_flag_boxes = 6.0
+violations_of_live_claims = 0.0
+
+[reference.deadclaim-n.sequential]
+reward = 0.05
+reward_min = 0.0
+reward_max = 0.166667
+probe_pass = 0.0
+new_flags = 0.3
+repeats = 1.5
+claimed_opens_before_asking = 0.0
+claimed_opens_without_reading_claim = 0.0
+asked = 0.0
+takeover_after_polls = 0.0
+unused_opens_with_closed_flag_boxes = 0.0
+violations_of_live_claims = 0.0
+
+[reference.deadclaim-n.random]
+reward = 0.15
+reward_min = 0.0
+reward_max = 0.5
+probe_pass = 0.0
+new_flags = 0.9
+repeats = 0.8
+claimed_opens_before_asking = 0.0
+claimed_opens_without_reading_claim = 0.0
+asked = 0.0
+takeover_after_polls = 0.0
+unused_opens_with_closed_flag_boxes = 0.0
+violations_of_live_claims = 0.0

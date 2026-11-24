@@ -1,0 +1,173 @@
+{
+  "family": "standin",
+  "condition": "stale-c",
+  "instance": 1,
+  "probe": "stale",
+  "variant": "control",
+  "paragraph": "team",
+  "seats": [
+    "p1",
+    "p2",
+    "p3",
+    "p4"
+  ],
+  "real": "p2",
+  "standins": [
+    "p1",
+    "p3",
+    "p4"
+  ],
+  "budget": 6,
+  "channel": true,
+  "rooms": 6,
+  "room_size": 10,
+  "treasure_rooms": [
+    1,
+    5
+  ],
+  "roles": {
+    "A": 5,
+    "B": 1
+  },
+  "own": [],
+  "claims_live": false,
+  "wait_sec": 30.0,
+  "ceiling": 6,
+  "script": [
+    {
+      "name": "board",
+      "after": -1,
+      "on": "any",
+      "count": 0,
+      "timed": false,
+      "actions": [
+        {
+          "seat": "p3",
+          "open": 41
+        },
+        {
+          "seat": "p3",
+          "open": 11
+        },
+        {
+          "seat": "p3",
+          "open": 21
+        },
+        {
+          "seat": "p3",
+          "post": "Box 41 (room 5) holds a flag. Box 11 (room 2) is empty. Box 21 (room 3) is empty.",
+          "tag": {}
+        },
+        {
+          "seat": "p4",
+          "open": 31
+        },
+        {
+          "seat": "p4",
+          "open": 51
+        },
+        {
+          "seat": "p4",
+          "post": "Box 31 (room 4) is empty. Box 51 (room 6) is empty.",
+          "tag": {}
+        },
+        {
+          "seat": "p1",
+          "open": 1
+        },
+        {
+          "seat": "p1",
+          "post": "Box 1 (room 1) holds a flag. I open boxes 2, 3, 4, 5 and 6 now.",
+          "tag": {
+            "announces": [
+              2,
+              3,
+              4,
+              5,
+              6
+            ]
+          }
+        },
+        {
+          "seat": "p1",
+          "open": 2
+        },
+        {
+          "seat": "p1",
+          "open": 3
+        },
+        {
+          "seat": "p1",
+          "open": 4
+        },
+        {
+          "seat": "p1",
+          "open": 5
+        },
+        {
+          "seat": "p1",
+          "open": 6
+        }
+      ]
+    },
+    {
+      "name": "p3 takes the lowest boxes of A",
+      "after": -1,
+      "on": "any",
+      "count": 0,
+      "timed": false,
+      "actions": [
+        {
+          "seat": "p3",
+          "post": "Room 5 is a treasure room. I open boxes 42, 43 and 44 now.",
+          "tag": {
+            "announces": [
+              42,
+              43,
+              44
+            ]
+          }
+        },
+        {
+          "seat": "p3",
+          "open": 42
+        },
+        {
+          "seat": "p3",
+          "open": 43
+        },
+        {
+          "seat": "p3",
+          "open": 44
+        }
+      ]
+    },
+    {
+      "name": "p4 takes the highest boxes of A",
+      "after": -1,
+      "on": "any",
+      "count": 0,
+      "timed": false,
+      "actions": [
+        {
+          "seat": "p4",
+          "post": "I open boxes 49 and 50 now.",
+          "tag": {
+            "announces": [
+              49,
+              50
+            ]
+          }
+        },
+        {
+          "seat": "p4",
+          "open": 49
+        },
+        {
+          "seat": "p4",
+          "open": 50
+        }
+      ]
+    }
+  ]
+}

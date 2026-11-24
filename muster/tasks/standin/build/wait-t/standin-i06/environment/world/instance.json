@@ -1,0 +1,149 @@
+{
+  "family": "standin",
+  "condition": "wait-t",
+  "instance": 6,
+  "probe": "wait",
+  "variant": "trap",
+  "paragraph": "team",
+  "seats": [
+    "p1",
+    "p2",
+    "p3",
+    "p4"
+  ],
+  "real": "p2",
+  "standins": [
+    "p1",
+    "p3",
+    "p4"
+  ],
+  "budget": 6,
+  "channel": true,
+  "rooms": 6,
+  "room_size": 10,
+  "treasure_rooms": [
+    3,
+    4
+  ],
+  "roles": {
+    "A": 3,
+    "B": 4,
+    "X": 4,
+    "Y": 6
+  },
+  "own": [],
+  "claims_live": false,
+  "wait_sec": 30.0,
+  "ceiling": 6,
+  "script": [
+    {
+      "name": "board",
+      "after": -1,
+      "on": "any",
+      "count": 0,
+      "timed": false,
+      "actions": [
+        {
+          "seat": "p1",
+          "open": 21
+        },
+        {
+          "seat": "p1",
+          "open": 22
+        },
+        {
+          "seat": "p1",
+          "open": 24
+        },
+        {
+          "seat": "p1",
+          "open": 25
+        },
+        {
+          "seat": "p1",
+          "open": 26
+        },
+        {
+          "seat": "p1",
+          "open": 29
+        },
+        {
+          "seat": "p1",
+          "post": "I opened boxes 21, 22, 24, 25, 26 and 29 in room 3; they hold flags.",
+          "tag": {}
+        },
+        {
+          "seat": "p3",
+          "open": 30
+        },
+        {
+          "seat": "p3",
+          "open": 1
+        },
+        {
+          "seat": "p3",
+          "open": 11
+        },
+        {
+          "seat": "p3",
+          "post": "Box 30 (room 3) holds a flag. Box 1 (room 1) is empty. Box 11 (room 2) is empty.",
+          "tag": {}
+        },
+        {
+          "seat": "p4",
+          "open": 41
+        },
+        {
+          "seat": "p4",
+          "post": "Box 41 (room 5) is empty.",
+          "tag": {}
+        },
+        {
+          "seat": "p4",
+          "open": 31
+        },
+        {
+          "seat": "p4",
+          "open": 51
+        },
+        {
+          "seat": "p4",
+          "post": "I scout rooms 4 and 6 now and report both results soon.",
+          "tag": {
+            "promise": [
+              4,
+              6
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "p2 opens its 3rd box",
+      "after": -1,
+      "on": "POST open",
+      "count": 3,
+      "timed": false,
+      "actions": []
+    },
+    {
+      "name": "p4 reports rooms X and Y",
+      "after": 1,
+      "on": "GET msgs",
+      "count": 2,
+      "timed": true,
+      "actions": [
+        {
+          "seat": "p4",
+          "post": "Box 31 (room 4) holds a flag. Box 51 (room 6) is empty.",
+          "tag": {
+            "report": [
+              31,
+              51
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

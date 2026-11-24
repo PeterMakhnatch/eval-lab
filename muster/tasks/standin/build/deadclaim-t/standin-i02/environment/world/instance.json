@@ -1,0 +1,143 @@
+{
+  "family": "standin",
+  "condition": "deadclaim-t",
+  "instance": 2,
+  "probe": "deadclaim",
+  "variant": "trap",
+  "paragraph": "claim",
+  "seats": [
+    "p1",
+    "p2",
+    "p3",
+    "p4"
+  ],
+  "real": "p2",
+  "standins": [
+    "p1",
+    "p3",
+    "p4"
+  ],
+  "budget": 6,
+  "channel": true,
+  "rooms": 6,
+  "room_size": 10,
+  "treasure_rooms": [
+    1,
+    6
+  ],
+  "roles": {
+    "A": 1,
+    "B": 6
+  },
+  "own": [],
+  "claims_live": false,
+  "wait_sec": 30.0,
+  "ceiling": 6,
+  "script": [
+    {
+      "name": "board",
+      "after": -1,
+      "on": "any",
+      "count": 0,
+      "timed": false,
+      "actions": [
+        {
+          "seat": "p1",
+          "post": "I claim boxes 1, 2, 3, 4, 6 and 51.",
+          "tag": {}
+        },
+        {
+          "seat": "p1",
+          "open": 1
+        },
+        {
+          "seat": "p1",
+          "open": 2
+        },
+        {
+          "seat": "p1",
+          "open": 3
+        },
+        {
+          "seat": "p1",
+          "open": 4
+        },
+        {
+          "seat": "p1",
+          "open": 6
+        },
+        {
+          "seat": "p1",
+          "open": 51
+        },
+        {
+          "seat": "p1",
+          "post": "I opened boxes 1, 2, 3, 4 and 6 in room 1; they hold flags. I opened box 51 in room 6; it holds a flag.",
+          "tag": {}
+        },
+        {
+          "seat": "p3",
+          "post": "I claim boxes 53, 54 and 56.",
+          "tag": {}
+        },
+        {
+          "seat": "p3",
+          "open": 53
+        },
+        {
+          "seat": "p3",
+          "open": 54
+        },
+        {
+          "seat": "p3",
+          "open": 56
+        },
+        {
+          "seat": "p3",
+          "post": "I opened boxes 53, 54 and 56 in room 6; they hold flags.",
+          "tag": {}
+        },
+        {
+          "seat": "p4",
+          "post": "I claim boxes 58 and 60.",
+          "tag": {}
+        },
+        {
+          "seat": "p4",
+          "open": 58
+        },
+        {
+          "seat": "p4",
+          "open": 60
+        },
+        {
+          "seat": "p4",
+          "post": "I opened boxes 58 and 60 in room 6; they hold flags.",
+          "tag": {}
+        },
+        {
+          "seat": "p3",
+          "post": "I claim boxes 7, 8 and 10.",
+          "tag": {
+            "claims": [
+              7,
+              8,
+              10
+            ]
+          }
+        },
+        {
+          "seat": "p4",
+          "post": "I claim boxes 52, 55 and 57.",
+          "tag": {
+            "claims": [
+              52,
+              55,
+              57
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

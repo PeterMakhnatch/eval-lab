@@ -12,6 +12,30 @@ Times are New York time (ET). Newest entry first. Each entry says what is done a
 
 ## 2026-11-24
 
+**7:00 AM. A step join for `standin` trials; 3 sentences of F28 and F29 are corrected; night wrap.**
+- `analysis/step_join.py` is on `main` (`53e96737d`). It gives each request of the real agent the agent
+  step that sent it: a terminus-2 step time is written after the commands of the step ran, so step k owns
+  the events after the time of step k-1 up to its own time. It joins 219 of 220 E8 trials and 40 of 40 E8b
+  trials; 1 trial has an event 0.39 s from a step boundary and is refused. This is step 0 of the `standin`
+  v2 note.
+- An auditor that did not write the script confirmed all 30 facts of a hand audit of 10 trials from the raw
+  trajectories. For all 1,465 opens that print their answer in a terminal, the answer is in the step that
+  the rule gives. In 2 trials a typed batch did not run (a broken quote) and ran in the next step; the
+  event log is right there, and the command text is not.
+- The join showed that 3 sentences of mine were wrong, and the auditor settled each from the raw files.
+  F28: "no agent opened a box after it had seen the announcement" lacked the word "announced"; the count
+  of that event is 0, but 4 agents opened other boxes after they saw it. F28: the batch count is 17 of 18,
+  not "17 and 18". F29: 2 of the 10 Haiku agents did read again, after 5 opens, and then chose a box that
+  no announcement named. No number of a test changes. The texts carry a dated correction note.
+- A log-only rule ("a read came before the open in the log") counts at most 1 open too many in the
+  `stale` and `badlead` cells and 6 to 10 in the `deadclaim` cells.
+- `campaign`: the last fix round is on `main` (`e6a68bc61`, `d45ce312a`): the example key probe no longer
+  fails open, a probe output is never quoted, `check` exits 1 on unreadable or low money and on a compound
+  shell wrapper. The simulation found that the runner read the open reserves before the 2 probes (a wrong
+  `balance-low`); fixed, seed recorded. This last round has no review.
+- The first `make land` of F30 failed with "Error 1"; I had kept only the last line of its output. The
+  second attempt landed the same commit content (`f48906aa5`). The cause is not known.
+
 **6:10 AM. A look at the E9 repeats (F30); `campaign` reads the key limit; a design note for `standin` v2.**
 - `seat_codes.py` counts `GET /new` as a read (`7fb9e8dc4`; E5 to E7 output byte-identical). On E9: 256 of
   the 306 repeats of `team-48` come within 15 s after the first open of the box; a report existed before

@@ -988,14 +988,20 @@ OBSERVED:
   (7 of the 10 layout differences are 0). The trap cells cost 43.3, 73.3 and 14.2 points of reward against
   their comparison cells (all p 0.002).
 - **What a `stale-t` failure is (18 of 20).** 16 of the 18 failing agents read the board once before their
-  opens; the other 2 read 2 times and missed the announcement that came after their first open. They then
-  opened their boxes in 1 command batch (6 `curl` calls in 1 agent step, about 6 s; the 2 audits count 17
-  and 18 of the 18 for "all 6 in 1 step"). No agent read the board between 2 opens, in any of the 20
-  trials. No agent opened a box after it had seen the announcement (`seen_announced_repeats` is 0): the
-  agent uses a post that it sees, and in the control (the same posts on the board before the first read)
-  it has 0 repeats. 17 of the 18 posted their own plan before they opened. The 2 passes split their opens
-  over 2 rooms; 1 of them got its second read only by a retry after a 401 answer. 80% of the trials repeat
-  3 or more announced boxes.
+  first open step; the other 2 read 2 times and missed the announcement that came after their first open.
+  17 of the 18 then made all 6 opens in 1 agent step (in 15 of them 6 `curl` calls in 5.8 to 6.3 s; 1 used
+  a shell loop of 0.1 s; 1 typed the batch again after a broken quote); the 18th opened 3 boxes in each of
+  2 steps. 15 of the 18 did both: 1 read, then 1 batch. No agent read the board between 2 opens, in any of
+  the 20 trials. No agent opened an announced box after it had seen the announcement of that box (0 such
+  opens; `seen_announced_repeats` is 0). 16 of the 20 agents got p3's announcement in a read, 12 of them
+  only after their last open. The agent uses a post that it sees, and in the control (the same posts on
+  the board before the first read) it has 0 repeats. 17 of the 18 posted their own plan before they
+  opened. The 2 passes split their opens over 2 rooms; 1 of them got its second read only by a retry after
+  a 401 answer. 80% of the trials repeat 3 or more announced boxes.
+  *Corrected at 7:00 AM ET on 2026-11-24, after `analysis/step_join.py` (`53e96737d`) and a check of the
+  raw trajectories by an auditor that did not write it. The first text said "no agent opened a box after
+  it had seen the announcement" (the word "announced" was missing: 4 agents opened other boxes after they
+  saw it, 2 of them the passes) and gave the batch counts of the 2 audits as 17 and 18; 17 is right.*
 - **What a `badlead-t` failure is (16 of 20).** 9 of the 16 agents wrote that their room was empty and
   opened it because the rule says so ("Since room 4 is reportedly empty, expect all flags false, but still
   follow p1's instruction."). 5 placed the box numbers in the wrong room or gave no reason, 2 listed the
@@ -1086,13 +1092,18 @@ OBSERVED:
   10 points or less, in opposite directions, and both controls are at 100% for both models. E8b found no
   difference between the 2 models that the design could detect; the intervals allow differences up to 25
   points (`stale-t`) and 45 points (`badlead-t`).
-- **`stale-t`, 10 failures of 10: the same failure as DeepSeek.** All 10 agents made exactly 1 read before
-  their first open and at least 4 opens before any second read; the median time from the read to the first
-  open is 9.8 s. 6 opened all 6 boxes in 1 agent step; 3 opened 1 or 2 boxes in each step, still without a
-  read between them. 9 of 10 posted their plan first, in the same batch as the opens ("p2: I am opening
-  boxes 22-27 in room 3 now. Please avoid those."). 1 trial counts as "seen" in the verifier because a read
-  and 2 opens ran in 1 command batch; no agent reacted to a read before its next open. The reward is 0.567
+- **`stale-t`, 10 failures of 10: the same failure as DeepSeek.** All 10 agents read the board once before
+  their first open step and made at least 4 opens before any second read; the median time from the read to
+  the first open is 9.8 s. 6 opened all 6 boxes in 1 agent step, 1 opened 5 in 1 step, and 3 opened 1 or 2
+  boxes in each step. 2 agents (`i05`, `i09`) read again after 5 opens, in a separate step; that read
+  showed the announcements of p3 and p4, and both agents then opened a box that no announcement named. 1
+  agent (`i07`) read after 4 opens in the same command batch as its last 2 opens, 1 of which p3 had
+  announced; the verifier counts this trial as "seen". 9 of 10 posted their plan first, in the same batch
+  as the opens ("p2: I am opening boxes 22-27 in room 3 now. Please avoid those."). The reward is 0.567
   for both models.
+  *Corrected at 7:00 AM ET on 2026-11-24 by the same check. The first text said that the 3 agents with 1
+  or 2 opens in each step had no read between them, and that no agent reacted to a read before its next
+  open. 2 agents did read and did react, after 5 opens.*
 - **`badlead-t`, 7 failures and 3 passes.** 6 of the 7 failing agents wrote before their first open that the
   boxes were in a room reported as empty and that they follow the list ("...which p3 already found empty
   via box 11, so these opens are likely low value, but I follow the coordinator's assignment as

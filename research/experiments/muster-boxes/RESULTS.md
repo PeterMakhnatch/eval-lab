@@ -341,9 +341,10 @@ text. Details: F28.
 
 - OBSERVED, primary (Holm's rule over 4 tests): the first 3 probes elicit their behaviour; the fourth does not
   resolve.
-- OBSERVED, `stale`: in 18 of 20 trap trials the agent read the board once and then opened its 6 boxes in 1
-  command batch. No agent opened a box after it had seen the announcement, and no agent read the board
-  between 2 opens.
+- OBSERVED, `stale`: 17 of the 18 failing agents made all 6 opens in 1 command batch, and 16 of the 18 had
+  read the board once before their first open (15 did both). No agent opened an announced box after it had
+  seen the announcement of that box, and no agent read the board between 2 opens. (Corrected 7:00 AM ET on
+  2026-11-24: the first text said "opened a box", without "announced".)
 - OBSERVED, `badlead`: 9 of the 16 failing agents wrote that the room was empty and opened it because the
   rule says to follow the list. All 4 passes posted an objection first and then followed the corrected list.
 - OBSERVED, `wait`: the report came by the 30 s rule of the script in 20 of 20 trials. 8 of the 16 failing
@@ -368,7 +369,8 @@ its own spend limit.
 | `badlead` | 30% | 100% | 70 points [40, 100], p 0.0156 | 20% |
 
 - OBSERVED: both tests pass Holm's rule; `badlead` passes by 1 trial. Haiku fails in the same way: all 10
-  `stale-t` agents read once and did not read again before their opens; 6 of the 7 failing `badlead-t`
+  `stale-t` agents read once before their first open and made 4 or more opens before a second read (2 read
+  again after 5 opens and then chose a box that no announcement named); 6 of the 7 failing `badlead-t`
   agents wrote that the room was empty and followed the list. All 10 Haiku agents name the empty room
   (DeepSeek: 13 of 20); the 3 that pass post an objection first.
 - OBSERVED: no difference between the 2 models shows (10 points or less in each trap cell). The design can

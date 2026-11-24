@@ -17,6 +17,10 @@ _EMPTY_RE = re.compile(
     r"0\s+flags?|flags?\"?\s*[=:]?\s*0\b|has\s+0\b|not\s+(?:a\s+)?treasure",
     re.I,
 )
+_CONDITIONAL_EMPTY_RE = re.compile(
+    r"\b(?:if|whether|unless|suppose|assuming|except)\b|\?",
+    re.I,
+)
 _FLAG_POS_RE = re.compile(r"flag\"?\s*[=:]?\s*true|\btrue\b|found\s+(?:a\s+)?flag|\btreasure\b", re.I)
 _DISCOVERY_KINDS = frozenset({"open", "probe", "scan"})
 _REPORT_KINDS = frozenset({"msg", "notice"})
@@ -102,7 +106,7 @@ def _parse_msg_room_signals(
         c_boxes = [int(m.group(1)) for m in _BOX_SINGLE_RE.finditer(clause)]
         if room_size and room_size > 0:
             c_rooms |= {(b - 1) // room_size + 1 for b in c_boxes if b >= 1}
-        if _EMPTY_RE.search(clause):
+        if _EMPTY_RE.search(clause) and not _CONDITIONAL_EMPTY_RE.search(clause):
             empty_rooms |= c_rooms
         elif _FLAG_POS_RE.search(clause) and c_boxes:
             for bx in c_boxes[:8]:

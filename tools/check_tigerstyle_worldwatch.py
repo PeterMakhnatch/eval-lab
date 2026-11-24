@@ -52,9 +52,10 @@ def _collect_targets(root: Path) -> list[tuple[Path, str]]:
     checker = root / "tools" / "check_tigerstyle_worldwatch.py"
     if checker.is_file():
         files.append((checker, "checker"))
-    exp_analyze = root / "research" / "experiments" / "worldwatch-probes" / "analyze.py"
-    if exp_analyze.is_file():
-        files.append((exp_analyze, "worldwatch"))
+    for exp_name in ("analyze.py", "offline_corpus_audit.py"):
+        exp_py = root / "research" / "experiments" / "worldwatch-probes" / exp_name
+        if exp_py.is_file():
+            files.append((exp_py, "worldwatch"))
     assert 0 < len(files) <= MAX_FILES
     return files
 

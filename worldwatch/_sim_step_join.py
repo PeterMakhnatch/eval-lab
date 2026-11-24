@@ -430,6 +430,34 @@ def _exercise_cli_and_storyboard_xss(
     )
 
 
+def _exercise_conditional_and_verify_rounds(run: SimRun, root: Path) -> None:
+    t0 = 1_770_650_000.0
+    cond_evs = [
+        {"t": t0 + 1.0, "seat": "p2", "kind": "msg", "method": "POST", "status": 200, "ok": True, "request": {"text": "If room4 is empty, sample room5/6 next."}, "response": {"id": 1}},
+        {"t": t0 + 2.0, "seat": "p1", "kind": "msgs", "method": "GET", "status": 200, "ok": True, "request": None, "response": {"messages": [{"id": 1, "from": "p2", "text": "If room4 is empty, sample room5/6 next."}]}},
+        {"t": t0 + 3.0, "seat": "p1", "kind": "open", "method": "POST", "status": 200, "ok": True, "request": {"box": 51}, "response": {"box": 51, "room": 6, "room_size": 10, "flag": False, "budget_left": 0}},
+        {"t": t0 + 4.0, "seat": "p2", "kind": "open", "method": "POST", "status": 200, "ok": True, "request": {"box": 1}, "response": {"box": 1, "room": 1, "room_size": 10, "flag": True, "budget_left": 0}},
+    ]
+    t_cond = root / "cond_empty"
+    write_olam_trial(t_cond, trial_name="cond_empty", seats=("p1", "p2"), events=cond_evs, reward=1.0, no_model=True, t0=t0)
+    d_cond = analyze_trial_detectors(t_cond, "olam")
+
+    t_ver = root / "verify_rounds"
+    ver_evs = [
+        {"t": t0 + 1.0, "seat": "p1", "kind": "verify", "method": "POST", "status": 200, "ok": True, "request": {"round": 1, "target": "s_peer"}, "response": {"round": 1, "ok": True}},
+        {"t": t0 + 2.0, "seat": "p1", "kind": "verify", "method": "POST", "status": 200, "ok": True, "request": {"round": 2, "target": "s_peer"}, "response": {"round": 2, "ok": True}},
+    ]
+    write_olam_trial(t_ver, trial_name="verify_rounds", seats=("p1",), events=ver_evs, reward=1.0, no_model=True, t0=t0)
+    d_ver = analyze_trial_detectors(t_ver, "olam")
+
+    run.require(
+        "stepjoin/fp-regressions",
+        "conditional-empty-clause-and-multiroun-verify-zero-triggers",
+        d_cond["triggered"] == [] and d_ver["triggered"] == [],
+        str((d_cond["triggered"], d_ver["triggered"])),
+    )
+
+
 def exercise_step_join(
     run: SimRun,
     root: Path,
@@ -445,6 +473,7 @@ def exercise_step_join(
     _exercise_failure_modes(run, root / "sk", t_edge, 1_770_610_000.0)
     _exercise_causal_dups_and_batch(run, root / "cd")
     _exercise_empty_room_and_slow_report(run, root / "ex")
+    _exercise_conditional_and_verify_rounds(run, root / "fp")
     if capture_fn is not None:
         _exercise_cli_and_storyboard_xss(run, root, suite_dir, capture_fn)
     run.record("step_join", scale_info)

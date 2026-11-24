@@ -82,11 +82,16 @@ def _dup_action_target(row: Mapping[str, Any]) -> str | None:
     kind = str(row.get("kind") or "")
     if not kind or kind in _EXTRA_DUP_SKIP:
         return None
-    for container in (as_map(row.get("request")), as_map(row.get("response"))):
+    req, resp = as_map(row.get("request")), as_map(row.get("response"))
+    rnd = strict_int(req.get("round")) if kind == "verify" else None
+    if rnd is None and kind == "verify":
+        rnd = strict_int(resp.get("round"))
+    prefix = f"{kind}@r{rnd}" if rnd is not None else kind
+    for container in (req, resp):
         for key in _EXTRA_TARGET_KEYS:
             val = container.get(key)
             if isinstance(val, (str, int)) and not isinstance(val, bool):
-                return f"{kind}:{key}={val}"
+                return f"{prefix}:{key}={val}"
     return None
 
 

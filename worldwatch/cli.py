@@ -24,10 +24,14 @@ from worldwatch.render import (
     render_compare,
     render_detectors,
     render_preflight,
+    render_step_join,
+    render_storyboard,
     render_tail,
     render_validity,
     to_json,
 )
+from worldwatch.step_join import DEFAULT_STEP_MARGIN_S, run_step_join
+from worldwatch.storyboard import DEFAULT_MAX_STORYBOARD_TRIALS, run_storyboard
 from worldwatch.stream import TailEngine, run_tail_loop
 from worldwatch.validity import run_validity
 
@@ -59,6 +63,26 @@ def _ratio_float(text: str) -> float:
         raise argparse.ArgumentTypeError(f"not a float: {text!r}") from None
     if not math.isfinite(val) or not 0.0 <= val <= 1.0:
         raise argparse.ArgumentTypeError(f"must be between 0.0 and 1.0: {text!r}")
+    return val
+
+
+def _nonneg_float(text: str) -> float:
+    try:
+        val = float(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not a float: {text!r}") from None
+    if not math.isfinite(val) or val < 0.0:
+        raise argparse.ArgumentTypeError(f"must be a non-negative finite float: {text!r}")
+    return val
+
+
+def _pos_int(text: str) -> int:
+    try:
+        val = int(text, 10)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not an integer: {text!r}") from None
+    if val < 1:
+        raise argparse.ArgumentTypeError(f"must be >= 1: {text!r}")
     return val
 
 
@@ -187,6 +211,39 @@ def _configure_compare_and_preflight(subs: Any) -> None:
     p_pre.set_defaults(handler=_cmd_preflight)
 
 
+def _cmd_step_join(args: argparse.Namespace) -> int:
+    report = run_step_join(args.path, margin_s=args.margin_s)
+    print(to_json(report) if args.json else render_step_join(report))
+    return 0
+
+
+def _cmd_storyboard(args: argparse.Namespace) -> int:
+    report = run_storyboard(
+        args.path,
+        html_path=args.html,
+        margin_s=args.margin_s,
+        max_trials=args.max_trials,
+    )
+    print(to_json(report) if args.json else render_storyboard(report))
+    return 0
+
+
+def _configure_step_join_and_storyboard(subs: Any) -> None:
+    p_sj = subs.add_parser("step-join", help="join world/board events to ATIF agent steps")
+    p_sj.add_argument("path", type=Path, help="trial or job directory")
+    p_sj.add_argument("--margin-s", type=_nonneg_float, default=DEFAULT_STEP_MARGIN_S)
+    p_sj.add_argument("--json", action="store_true", help="emit JSON report")
+    p_sj.set_defaults(handler=_cmd_step_join)
+
+    p_sb = subs.add_parser("storyboard", help="render CSP-strict interactive trial step storyboard")
+    p_sb.add_argument("path", type=Path, help="trial or job directory")
+    p_sb.add_argument("--html", type=Path, default=None, help="atomic dark-theme HTML storyboard path")
+    p_sb.add_argument("--margin-s", type=_nonneg_float, default=DEFAULT_STEP_MARGIN_S)
+    p_sb.add_argument("--max-trials", type=_pos_int, default=DEFAULT_MAX_STORYBOARD_TRIALS)
+    p_sb.add_argument("--json", action="store_true", help="emit JSON report")
+    p_sb.set_defaults(handler=_cmd_storyboard)
+
+
 def _cmd_sim(args: argparse.Namespace) -> int:
     from worldwatch import sim
 
@@ -227,6 +284,7 @@ def parser() -> argparse.ArgumentParser:
     p_cert.set_defaults(handler=_cmd_certify)
 
     _configure_compare_and_preflight(subs)
+    _configure_step_join_and_storyboard(subs)
 
     p_sim = subs.add_parser("sim", help="deterministic simulation testing (check, hunt, replay)")
     sim_subs = p_sim.add_subparsers(dest="sim_command", required=True)

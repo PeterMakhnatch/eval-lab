@@ -7,6 +7,11 @@ from pathlib import Path
 from typing import Any
 
 from worldwatch._chain import find_bespoke_board_log, find_olam_event_log, read_jsonl_static
+from worldwatch._detectors_extra import (
+    rule_batch_blind_act,
+    rule_empty_room_open,
+    rule_slow_report,
+)
 from worldwatch._detectors_rules import (
     _hit,
     _row_seat,
@@ -29,6 +34,7 @@ from worldwatch.model import (
     nonneg_int,
     strict_int,
 )
+from worldwatch.step_join import join_trial_steps
 
 _CONDITIONAL_RELEASE_RE = re.compile(r"\b(?:unless|until|except\s+if|except\s+when)\b[^.;!\n]*")
 _RELEASE_WORD_RE = re.compile(
@@ -313,7 +319,12 @@ def _rule_message_neglect(events: list[dict[str, Any]], bundle: TrialBundle) -> 
     )
 
 
-def analyze_trial_detectors(trial_dir: Path, ecosystem: str) -> dict[str, Any]:
+def analyze_trial_detectors(
+    trial_dir: Path,
+    ecosystem: str,
+    *,
+    step_join: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     bundle = load_trial_bundle(trial_dir, ecosystem)
     if ecosystem == "bespoke":
         ev_path = find_bespoke_board_log(trial_dir)
@@ -329,7 +340,12 @@ def analyze_trial_detectors(trial_dir: Path, ecosystem: str) -> dict[str, Any]:
             if ev_path is not None
             else ([], None, None)
         )
-    dup_unseen, dup_seen = rule_duplicates(events, bundle)
+    joined_map = (
+        step_join
+        if step_join is not None
+        else join_trial_steps(trial_dir, ecosystem, bundle=bundle, events=events)
+    )
+    dup_unseen, dup_seen = rule_duplicates(events, bundle, step_join=joined_map)
     claim_churn = rule_claim_churn(events, bundle)
     misreport = rule_misreport(events, bundle)
     early_stop = rule_early_stop(events, bundle)
@@ -338,6 +354,9 @@ def analyze_trial_detectors(trial_dir: Path, ecosystem: str) -> dict[str, Any]:
     silent = _rule_silent_seat(events, bundle, ev_path is not None)
     friction = _rule_tool_friction(events, bundle)
     neglect = _rule_message_neglect(events, bundle)
+    batch_blind = rule_batch_blind_act(events, bundle, joined_map)
+    empty_room = rule_empty_room_open(events, bundle, step_join=joined_map)
+    slow_rep = rule_slow_report(events, bundle, joined_map)
     hits_list = (
         dup_unseen,
         dup_seen,
@@ -350,6 +369,9 @@ def analyze_trial_detectors(trial_dir: Path, ecosystem: str) -> dict[str, Any]:
         silent,
         friction,
         neglect,
+        batch_blind,
+        empty_room,
+        slow_rep,
     )
     assert tuple(h.name for h in hits_list) == DETECTOR_NAMES
     detectors_map = {h.name: h.as_dict() for h in hits_list}

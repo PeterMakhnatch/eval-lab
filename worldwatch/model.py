@@ -57,6 +57,9 @@ DETECTOR_NAMES = (
     "silent_seat",
     "tool_friction_storm",
     "message_neglect_decay",
+    "batch_blind_act",
+    "empty_room_open",
+    "slow_report",
 )
 
 NO_MODEL_AGENTS = frozenset({

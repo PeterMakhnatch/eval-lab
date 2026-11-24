@@ -9,6 +9,10 @@ from pathlib import Path
 from random import Random
 from typing import Any
 
+from worldwatch._sim_step_join import (
+    inject_extra_detector_events,
+    write_extra_detector_trajectories,
+)
 from worldwatch.model import DETECTOR_NAMES, parse_strict_json
 from worldwatch.sim_fixture import (
     encode_jsonl,
@@ -222,15 +226,16 @@ def exercise_all_detectors(
         fault_evs.append({"t": t0 + 8.8, "seat": "p2", "kind": "open", "method": "POST", "status": 200, "ok": True, "request": {"box": 88}, "response": {"box": 88, "flag": False, "budget_left": 0}})
     if "early_stop_with_budget" not in active_subset:
         fault_evs.append({"t": t0 + 8.9, "seat": "p1", "kind": "rules", "method": "GET", "status": 200, "ok": True, "request": None, "response": {"budget_left": 0}})
+    seats_cfg = inject_extra_detector_events(active_subset, fault_evs, t0)
     if "tool_friction_storm" in active_subset:
-        storm_n = max(9, len(fault_evs))
+        storm_n = max(9, 3 * len(seats_cfg), len(fault_evs))
         for idx in range(storm_n):
             fault_evs.append({"t": t0 + 9.0 + idx * 0.05, "seat": "p1", "kind": "probe_bad", "method": "POST", "status": 400, "ok": False, "request": {}, "response": {"error": "bad"}})
     fault_evs.append({"t": t0 + 12.0, "seat": None, "kind": "admin.close", "method": "POST", "status": 200, "ok": True, "request": {}, "response": {"closed": True}})
 
-    seats_cfg = ("p1", "p2", "p3") if "silent_seat" in active_subset else ("p1", "p2")
     rew_val = 0.4 if "early_stop_with_budget" in active_subset else 1.0
     write_olam_trial(det_root / "t1_faults", trial_name="t1_faults", seats=seats_cfg, events=fault_evs, reward=rew_val, no_model=True, t0=t0)
+    write_extra_detector_trajectories(det_root / "t1_faults", active_subset, t0)
 
     rc, out, err, exc = capture_fn(["detectors", str(det_root), "--json"])
     run.require("detectors/cli", "exit-zero-and-no-exc", rc == 0 and not exc, f"rc={rc} err={err} exc={exc}")

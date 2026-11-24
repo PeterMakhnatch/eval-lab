@@ -287,3 +287,65 @@ def render_preflight(report: Mapping[str, Any]) -> str:
         ]
         lines.extend(["", table(["severity", "code", "task", "message"], f_rows)])
     return sanitize_surrogates("\n".join(lines))
+
+
+def render_step_join(report: Mapping[str, Any]) -> str:
+    summary = report.get("summary") or {}
+    lines = [
+        f"step-join on {sanitize_surrogates(str(report['path']))}: "
+        f"{report.get('trials_joined', 0)}/{report.get('trials_scanned', 0)} joined "
+        f"(margin={report.get('margin_s', 0.5):g}s, {report.get('ecosystems', {})})",
+        f"summary: seats={summary.get('seats_joined', 0)}/{summary.get('seats_total', 0)}, "
+        f"matched={summary.get('events_matched', 0)}, unmatched={summary.get('events_unmatched', 0)}, "
+        f"edge={summary.get('edge_events', 0)}, batch>=2={summary.get('batch_opens_trials', 0)}, "
+        f"same_step={summary.get('same_step_read_act_trials', 0)}",
+    ]
+    trials = report.get("trials") or []
+    if trials:
+        rows = [
+            [
+                shorten(str(t.get("trial") or ""), 36),
+                t.get("ecosystem", "-"),
+                t.get("join_status", "-"),
+                f"{t.get('seats_joined', 0)}/{t.get('seats_total', 0)}",
+                (t.get("summary") or {}).get("events_matched", 0),
+                (t.get("summary") or {}).get("events_unmatched", 0),
+                (t.get("summary") or {}).get("edge_events", 0),
+                (t.get("summary") or {}).get("batch_opens_max", 0),
+                (t.get("summary") or {}).get("read_and_act_same_step", 0),
+            ]
+            for t in trials[:100]
+        ]
+        lines.extend(["", table(["trial", "eco", "status", "seats", "match", "unmatch", "edge", "batch", "same_ra"], rows, right=(4, 5, 6, 7, 8))])
+    return sanitize_surrogates("\n".join(lines))
+
+
+def render_storyboard(report: Mapping[str, Any]) -> str:
+    summary = report.get("summary") or {}
+    lines = [
+        f"storyboard on {sanitize_surrogates(str(report['path']))}: "
+        f"rendered {report.get('trials_rendered', 0)}/{report.get('trials_total', 0)} "
+        f"(joined={report.get('trials_joined', 0)}, margin={report.get('margin_s', 0.5):g}s, truncated={report.get('truncated', False)})",
+        f"summary: flagged={summary.get('trials_flagged', 0)}, broken_chains={summary.get('broken_chains', 0)}, "
+        f"seats={summary.get('seats_joined', 0)}/{summary.get('seats_total', 0)}, edge={summary.get('edge_events', 0)}, "
+        f"same_step={summary.get('read_and_act_same_step', 0)}, batch_max={summary.get('batch_opens_max', 0)}",
+    ]
+    if report.get("html_path"):
+        lines.append(f"html: {sanitize_surrogates(str(report['html_path']))}")
+    trials = report.get("trials") or []
+    if trials:
+        rows = [
+            [
+                shorten(str(t.get("trial") or ""), 36),
+                t.get("ecosystem", "-"),
+                t.get("join_status", "-"),
+                "broken" if t.get("chain_ok") is False else ("ok" if t.get("chain_ok") is True else "unhashed"),
+                num(t.get("reward"), 3),
+                (t.get("summary") or {}).get("read_and_act_same_step", 0),
+                (t.get("summary") or {}).get("batch_opens_max", 0),
+                ", ".join(t.get("triggered") or ()) or "-",
+            ]
+            for t in trials[:100]
+        ]
+        lines.extend(["", table(["trial", "eco", "join", "chain", "reward", "same_ra", "batch", "triggered"], rows, right=(4, 5, 6))])
+    return sanitize_surrogates("\n".join(lines))

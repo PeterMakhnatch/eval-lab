@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Mapping
 from typing import Any
 
@@ -22,6 +23,13 @@ from worldwatch.model import (
 _META_POST_KINDS = frozenset({"msg", "notice", "ask_creditor", "private_belief", "script.seed", "script.round"})
 _POOL_EXEMPT_KINDS = frozenset({"submit_choice", "report_value", "report_unknown", "flag_misreport", "verify"})
 _TERMINAL_ANSWER_KINDS = frozenset({"submit_choice", "report_value", "report_unknown", "answer", "submit_answer", "finalize"})
+_EXTRA_DUP_SKIP = frozenset({
+    "msg", "msgs", "new", "dms", "notice", "notices", "pledge", "pledges",
+    "claim", "claims", "rules", "status", "health", "admin.close", "ask_creditor",
+    "private_belief", "game", "task_state", "team_state", "round_state", "audit_log",
+    "final_probe", "script.seed", "script.round", "mine",
+})
+_EXTRA_TARGET_KEYS = ("room", "target", "resource", "item", "node", "cell")
 
 
 def _row_seat(row: Mapping[str, Any], bundle: TrialBundle) -> str | None:
@@ -44,42 +52,134 @@ def _hit(name: str, count: int, seats: list[str], evidence: dict[str, Any]) -> D
     )
 
 
+def joined_event_steps(step_join: Mapping[str, Any] | None) -> dict[str, dict[int, int]]:
+    if step_join is None:
+        return {}
+    out: dict[str, dict[int, int]] = {}
+    for s_raw in as_list(step_join.get("seats")):
+        s_map = as_map(s_raw)
+        seat = s_map.get("seat")
+        if not isinstance(seat, str) or not seat or s_map.get("joined") is not True:
+            continue
+        seq_map: dict[int, int] = {}
+        for st_raw in as_list(s_map.get("steps")):
+            st_map = as_map(st_raw)
+            s_idx = nonneg_int(st_map.get("step_index"))
+            if s_idx is None:
+                continue
+            for seq_val in as_list(st_map.get("event_seqs")):
+                sq = strict_int(seq_val)
+                if sq is not None:
+                    seq_map[sq] = s_idx
+        out[seat] = seq_map
+    return out
+
+
+def _dup_action_target(row: Mapping[str, Any]) -> str | None:
+    base = shared_action_target(row)
+    if base is not None:
+        return base
+    kind = str(row.get("kind") or "")
+    if not kind or kind in _EXTRA_DUP_SKIP:
+        return None
+    for container in (as_map(row.get("request")), as_map(row.get("response"))):
+        for key in _EXTRA_TARGET_KEYS:
+            val = container.get(key)
+            if isinstance(val, (str, int)) and not isinstance(val, bool):
+                return f"{kind}:{key}={val}"
+    return None
+
+
+def _target_mentioned_in_post(target: str, text: str) -> bool:
+    if not text or ":" not in target or "=" not in target:
+        return False
+    _, _, kv = target.partition(":")
+    key, _, val = kv.partition("=")
+    if not val:
+        return False
+    esc_val = re.escape(val)
+    pat = rf"\b{re.escape(key)}(?:es|s)?\"?\s*[#=:]?\s*{esc_val}(?!\d)"
+    return re.search(pat, text, re.I) is not None
+
+
 def _record_olam_comm(
     row: Mapping[str, Any],
     seat: str,
     seq: int,
+    seat_steps: Mapping[str, Mapping[int, int]],
     seen_msgs: dict[str, set[int]],
-    posts_by_seat: dict[str, list[tuple[int, int]]],
+    seen_msg_step: dict[str, dict[int, int]],
+    posts_by_seat: dict[str, list[tuple[int, int, str]]],
 ) -> bool:
     kind = str(row.get("kind") or "")
     method = str(row.get("method") or "")
     resp = as_map(row.get("response"))
+    req = as_map(row.get("request"))
     if row.get("ok") and method == "POST" and kind in ("msg", "notice", "claim"):
         mid = strict_int(resp.get("id"))
         if mid is not None:
-            posts_by_seat.setdefault(seat, []).append((seq, mid))
+            txt = str(req.get("text") or resp.get("text") or "")
+            posts_by_seat.setdefault(seat, []).append((seq, mid, txt))
         return True
     if row.get("ok") and method == "GET" and kind in ("msgs", "new", "dms", "notices", "claims"):
         bucket = seen_msgs.setdefault(seat, set())
+        r_step = seat_steps.get(seat, {}).get(seq)
+        step_bucket = seen_msg_step.setdefault(seat, {})
         for lkey in ("messages", "notices", "claims", "dms"):
             for item in as_list(resp.get(lkey)):
                 mid = strict_int(as_map(item).get("id"))
                 if mid is not None:
                     bucket.add(mid)
+                    if r_step is not None:
+                        prev_st = step_bucket.get(mid)
+                        step_bucket[mid] = r_step if prev_st is None else min(prev_st, r_step)
         return True
     return False
+
+
+def _classify_olam_dup(
+    seat: str,
+    seq: int,
+    first_seat: str,
+    first_seq: int,
+    target: str,
+    seat_steps: Mapping[str, Mapping[int, int]],
+    seen_msgs: Mapping[str, set[int]],
+    seen_msg_step: Mapping[str, Mapping[int, int]],
+    posts_by_seat: Mapping[str, list[tuple[int, int, str]]],
+) -> tuple[bool, bool]:
+    s_map = seat_steps.get(seat)
+    act_step = s_map.get(seq) if s_map is not None else None
+    used_causal = act_step is not None
+    if first_seat == seat:
+        return True, used_causal
+    qual_mids = [
+        mid
+        for p_seq, mid, txt in posts_by_seat.get(first_seat, ())
+        if p_seq < seq and (p_seq > first_seq or _target_mentioned_in_post(target, txt))
+    ]
+    if act_step is not None:
+        st_reads = seen_msg_step.get(seat, {})
+        return any(mid in st_reads and st_reads[mid] < act_step for mid in qual_mids), True
+    read_ids = seen_msgs.get(seat, set())
+    return any(mid in read_ids for mid in qual_mids), False
 
 
 def rule_duplicates(
     events: list[dict[str, Any]],
     bundle: TrialBundle,
+    *,
+    step_join: Mapping[str, Any] | None = None,
 ) -> tuple[DetectorHit, DetectorHit]:
+    seat_steps = joined_event_steps(step_join)
     if bundle.ecosystem == "bespoke":
-        return _bespoke_duplicates(events, bundle)
+        return _bespoke_duplicates(events, bundle, seat_steps)
     seen_msgs: dict[str, set[int]] = {}
-    posts_by_seat: dict[str, list[tuple[int, int]]] = {}
+    seen_msg_step: dict[str, dict[int, int]] = {}
+    posts_by_seat: dict[str, list[tuple[int, int, str]]] = {}
     first_by_target: dict[str, tuple[str, int]] = {}
     unseen_cnt = seen_cnt = 0
+    unseen_causal = seen_causal = False
     unseen_seats: list[str] = []
     seen_seats: list[str] = []
     for idx, row in enumerate(events, start=1):
@@ -88,15 +188,14 @@ def rule_duplicates(
         seat = _row_seat(row, bundle)
         if seat is None:
             continue
-        raw_seq = strict_int(row.get("seq"))
-        seq = raw_seq if raw_seq is not None else idx
-        if _record_olam_comm(row, seat, seq, seen_msgs, posts_by_seat) or row.get("method") != "POST":
+        seq = strict_int(row.get("seq")) or idx
+        if _record_olam_comm(row, seat, seq, seat_steps, seen_msgs, seen_msg_step, posts_by_seat) or row.get("method") != "POST":
             continue
         resp = as_map(row.get("response"))
         err_txt = str(resp.get("error") or "").lower()
         if not row.get("ok") and not (row.get("status") == 409 and "already" in err_txt):
             continue
-        target = shared_action_target(row)
+        target = _dup_action_target(row)
         if target is None:
             continue
         prior = first_by_target.get(target)
@@ -104,35 +203,41 @@ def rule_duplicates(
             if row.get("ok"):
                 first_by_target[target] = (seat, seq)
             continue
-        first_seat, first_seq = prior
-        if first_seat == seat or any(
-            p_seq > first_seq and mid in seen_msgs.get(seat, set())
-            for p_seq, mid in posts_by_seat.get(first_seat, ())
-        ):
+        is_seen, causal = _classify_olam_dup(
+            seat, seq, prior[0], prior[1], target, seat_steps, seen_msgs, seen_msg_step, posts_by_seat,
+        )
+        if is_seen:
             seen_cnt += 1
+            seen_causal = seen_causal or causal
             seen_seats.append(seat)
         else:
             unseen_cnt += 1
+            unseen_causal = unseen_causal or causal
             unseen_seats.append(seat)
     rew_inf = int(bundle.rewards.get("informed_duplicates", 0) or 0) + int(bundle.rewards.get("stale_repeats", 0) or 0)
     seen_cnt = max(seen_cnt, rew_inf)
+    u_mode = "step_causal" if unseen_causal else "log_order"
+    s_mode = "step_causal" if seen_causal else "log_order"
     return (
-        _hit("dup_unseen", unseen_cnt, unseen_seats, {"unseen_duplicates": unseen_cnt}),
-        _hit("dup_seen", seen_cnt, seen_seats, {"seen_duplicates": seen_cnt}),
+        _hit("dup_unseen", unseen_cnt, unseen_seats, {"unseen_duplicates": unseen_cnt, "causal_mode": u_mode}),
+        _hit("dup_seen", seen_cnt, seen_seats, {"seen_duplicates": seen_cnt, "causal_mode": s_mode}),
     )
 
 
 def _bespoke_duplicates(
     events: list[dict[str, Any]],
     bundle: TrialBundle,
+    seat_steps: Mapping[str, Mapping[int, int]],
 ) -> tuple[DetectorHit, DetectorHit]:
     seen_seqs: dict[str, set[int]] = {}
+    seen_seq_step: dict[str, dict[int, int]] = {}
     posts_by_seat: dict[str, list[int]] = {}
     owners: dict[str, str] = {}
     unseen_cnt = seen_cnt = 0
+    unseen_causal = seen_causal = False
     unseen_seats: list[str] = []
     seen_seats: list[str] = []
-    for row in events:
+    for idx, row in enumerate(events, start=1):
         ev = str(row.get("event") or "")
         seat = _row_seat(row, bundle)
         if seat is None:
@@ -142,36 +247,47 @@ def _bespoke_duplicates(
             posts_by_seat.setdefault(seat, []).append(b_seq)
         elif ev in ("inbox", "read"):
             bucket = seen_seqs.setdefault(seat, set())
+            r_step = seat_steps.get(seat, {}).get(idx)
+            st_bucket = seen_seq_step.setdefault(seat, {})
             for s in as_list(row.get("seqs")):
                 si = strict_int(s)
                 if si is not None:
                     bucket.add(si)
-        elif ev in ("guard_claim_granted", "edit", "write"):
+                    if r_step is not None:
+                        prev_st = st_bucket.get(si)
+                        st_bucket[si] = r_step if prev_st is None else min(prev_st, r_step)
+        elif ev in ("guard_claim_granted", "edit", "write", "guard_claim_denied"):
             pref = str(row.get("prefix") or row.get("path") or "")
-            if pref:
-                prev = owners.get(pref)
-                if prev is None:
-                    owners[pref] = seat
-                elif prev != seat:
-                    if any(s in seen_seqs.get(seat, set()) for s in posts_by_seat.get(prev, ())):
-                        seen_cnt += 1
-                        seen_seats.append(seat)
-                    else:
-                        unseen_cnt += 1
-                        unseen_seats.append(seat)
-        elif ev == "guard_claim_denied":
-            pref = str(row.get("prefix") or "")
+            if not pref:
+                continue
             prev = owners.get(pref)
-            if prev and prev != seat:
-                if any(s in seen_seqs.get(seat, set()) for s in posts_by_seat.get(prev, ())):
-                    seen_cnt += 1
-                    seen_seats.append(seat)
-                else:
-                    unseen_cnt += 1
-                    unseen_seats.append(seat)
+            if prev is None:
+                if ev != "guard_claim_denied":
+                    owners[pref] = seat
+                continue
+            if prev == seat:
+                continue
+            act_step = seat_steps.get(seat, {}).get(idx)
+            if act_step is not None:
+                st_reads = seen_seq_step.get(seat, {})
+                is_seen = any(s in st_reads and st_reads[s] < act_step for s in posts_by_seat.get(prev, ()))
+                causal = True
+            else:
+                is_seen = any(s in seen_seqs.get(seat, set()) for s in posts_by_seat.get(prev, ()))
+                causal = False
+            if is_seen:
+                seen_cnt += 1
+                seen_causal = seen_causal or causal
+                seen_seats.append(seat)
+            else:
+                unseen_cnt += 1
+                unseen_causal = unseen_causal or causal
+                unseen_seats.append(seat)
+    u_mode = "step_causal" if unseen_causal else "log_order"
+    s_mode = "step_causal" if seen_causal else "log_order"
     return (
-        _hit("dup_unseen", unseen_cnt, unseen_seats, {"unseen_duplicates": unseen_cnt}),
-        _hit("dup_seen", seen_cnt, seen_seats, {"seen_duplicates": seen_cnt}),
+        _hit("dup_unseen", unseen_cnt, unseen_seats, {"unseen_duplicates": unseen_cnt, "causal_mode": u_mode}),
+        _hit("dup_seen", seen_cnt, seen_seats, {"seen_duplicates": seen_cnt, "causal_mode": s_mode}),
     )
 
 

@@ -23,6 +23,7 @@ from worldwatch._sim_cases import (
     exercise_validity_and_baselines,
 )
 from worldwatch._sim_f1_f12 import exercise_redteam_regressions
+from worldwatch._sim_step_join import exercise_step_join
 from worldwatch._sim_workflow import exercise_compare_and_preflight
 from worldwatch.cli import main as worldwatch_main
 from worldwatch.model import canonical_json
@@ -69,6 +70,7 @@ def _single_pass(seed: int) -> tuple[SimRun, str]:
         exercise_bespoke_and_malformed(run, root / "s5", Random(f"{seed}:bespoke"), _capture_cli)
         exercise_redteam_regressions(run, root / "s6", _capture_cli)
         exercise_compare_and_preflight(run, root / "s7", Random(f"{seed}:workflow"), _capture_cli)
+        exercise_step_join(run, root / "s8", Random(f"{seed}:stepjoin"), _capture_cli)
     digest = hashlib.sha256(canonical_json(run.digest_items).encode("utf-8")).hexdigest()
     return run, digest
 

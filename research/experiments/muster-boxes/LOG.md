@@ -12,7 +12,7 @@ Times are New York time (ET). Newest entry first. Each entry says what is done a
 
 ## 2026-11-24
 
-**7:00 AM. A step join for `standin` trials; 3 sentences of F28 and F29 are corrected; night wrap.**
+**6:54 AM. A step join for `standin` trials; 3 sentences of F28 and F29 are corrected; night wrap.**
 - `analysis/step_join.py` is on `main` (`53e96737d`). It gives each request of the real agent the agent
   step that sent it: a terminus-2 step time is written after the commands of the step ran, so step k owns
   the events after the time of step k-1 up to its own time. It joins 219 of 220 E8 trials and 40 of 40 E8b
@@ -35,6 +35,16 @@ Times are New York time (ET). Newest entry first. Each entry says what is done a
   `balance-low`); fixed, seed recorded. This last round has no review.
 - The first `make land` of F30 failed with "Error 1"; I had kept only the last line of its output. The
   second attempt landed the same commit content (`f48906aa5`). The cause is not known.
+- The corrections were committed at 6:54 AM and are on `main` as `ef8426efb` (6:57 AM). Their notes first
+  said "7:00 AM"; the label is now the commit time.
+- Wrap: worktrees `fable-campaign4`, `fable-campaign5` and `fable-night-run-e8` are removed with their
+  merged branches; `fable-e5-run` stays (it holds the pinned E5 runner). 0 Daytona sandboxes exist. The
+  auditors' own scripts are copied from `/tmp` to `muster-runs/night-2026-11-24/audits/`. Library:
+  `research-context` `2e596a1f`. Night money: $8.89 of $10 (model $4.58, Daytona time at list price
+  $4.31); the last paid trial ended at 5:31:49 AM.
+- Open for the next session: the OpenRouter API key limit (Peter); the 2 E8b pairs that did not run
+  (40 trials); `standin` v2 wave 1 after the note; a paid `campaign` run with a real stop; a review of the
+  last `campaign` fix round (`d45ce312a`).
 
 **6:10 AM. A look at the E9 repeats (F30); `campaign` reads the key limit; a design note for `standin` v2.**
 - `seat_codes.py` counts `GET /new` as a read (`7fb9e8dc4`; E5 to E7 output byte-identical). On E9: 256 of

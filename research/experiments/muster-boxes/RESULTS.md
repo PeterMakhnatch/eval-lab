@@ -343,7 +343,7 @@ text. Details: F28.
   resolve.
 - OBSERVED, `stale`: 17 of the 18 failing agents made all 6 opens in 1 command batch, and 16 of the 18 had
   read the board once before their first open (15 did both). No agent opened an announced box after it had
-  seen the announcement of that box, and no agent read the board between 2 opens. (Corrected 7:00 AM ET on
+  seen the announcement of that box, and no agent read the board between 2 opens. (Corrected 6:54 AM ET on
   2026-11-24: the first text said "opened a box", without "announced".)
 - OBSERVED, `badlead`: 9 of the 16 failing agents wrote that the room was empty and opened it because the
   rule says to follow the list. All 4 passes posted an objection first and then followed the corrected list.

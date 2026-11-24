@@ -998,7 +998,7 @@ OBSERVED:
   the board before the first read) it has 0 repeats. 17 of the 18 posted their own plan before they
   opened. The 2 passes split their opens over 2 rooms; 1 of them got its second read only by a retry after
   a 401 answer. 80% of the trials repeat 3 or more announced boxes.
-  *Corrected at 7:00 AM ET on 2026-11-24, after `analysis/step_join.py` (`53e96737d`) and a check of the
+  *Corrected at 6:54 AM ET on 2026-11-24, after `analysis/step_join.py` (`53e96737d`) and a check of the
   raw trajectories by an auditor that did not write it. The first text said "no agent opened a box after
   it had seen the announcement" (the word "announced" was missing: 4 agents opened other boxes after they
   saw it, 2 of them the passes) and gave the batch counts of the 2 audits as 17 and 18; 17 is right.*
@@ -1101,7 +1101,7 @@ OBSERVED:
   announced; the verifier counts this trial as "seen". 9 of 10 posted their plan first, in the same batch
   as the opens ("p2: I am opening boxes 22-27 in room 3 now. Please avoid those."). The reward is 0.567
   for both models.
-  *Corrected at 7:00 AM ET on 2026-11-24 by the same check. The first text said that the 3 agents with 1
+  *Corrected at 6:54 AM ET on 2026-11-24 by the same check. The first text said that the 3 agents with 1
   or 2 opens in each step had no read between them, and that no agent reacted to a read before its next
   open. 2 agents did read and did react, after 5 opens.*
 - **`badlead-t`, 7 failures and 3 passes.** 6 of the 7 failing agents wrote before their first open that the

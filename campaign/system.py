@@ -6,6 +6,7 @@ import os
 import socket
 import subprocess
 import time
+from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import IO, Protocol
@@ -13,22 +14,22 @@ from typing import IO, Protocol
 MAX_CAPTURE_BYTES = 4_000_000
 MAX_PROCESSES = 100_000
 PS_TIMEOUT_SECONDS = 30
-EDGE = frozenset(" \t\n\"'=")
+
+Row = tuple[int, int, int, str]
+WalkError = Callable[[OSError], None]
+Walk = Callable[[Path, WalkError], Iterator[tuple[str, list[str], list[str]]]]
 
 
-def command_matches(command: str, needle: str) -> bool:
-    assert needle
-    start = command.find(needle)
-    for _ in range(len(command) + 1):
-        if start < 0:
-            return False
-        end = start + len(needle)
-        before = start == 0 or command[start - 1] in EDGE
-        after = end == len(command) or command[end] in EDGE
-        if before and after:
-            return True
-        start = command.find(needle, start + 1)
-    return False
+def parse_rows(text: str) -> list[Row]:
+    rows: list[Row] = []
+    lines = text.splitlines()
+    assert len(lines) <= MAX_PROCESSES
+    for line in lines:
+        parts = line.split(None, 3)
+        if len(parts) < 4 or not all(part.isdigit() for part in parts[:3]):
+            continue
+        rows.append((int(parts[0]), int(parts[1]), int(parts[2]), parts[3]))
+    return rows
 
 
 class System(Protocol):
@@ -52,7 +53,9 @@ class System(Protocol):
 
     def start_time(self, pid: int) -> str | None: ...
 
-    def processes(self, needles: list[str]) -> list[tuple[int, int, str]]: ...
+    def processes(self) -> list[Row]: ...
+
+    def walk(self, root: Path, onerror: WalkError) -> Iterator[tuple[str, list[str], list[str]]]: ...
 
     def try_lock(self, path: Path, owner: int) -> bool: ...
 
@@ -81,7 +84,7 @@ class RealSystem:
         assert argv and timeout > 0 and owner > 0
         try:
             done = subprocess.run(argv, capture_output=True, timeout=timeout, check=False)
-        except (OSError, subprocess.TimeoutExpired):
+        except (OSError, subprocess.SubprocessError):
             return None, ""
         return done.returncode, done.stdout[:MAX_CAPTURE_BYTES].decode("utf-8", errors="replace")
 
@@ -108,7 +111,7 @@ class RealSystem:
         return None if self.alive(pid) else -1
 
     def signal_group(self, pgid: int, number: int) -> None:
-        assert pgid > 1
+        assert pgid > 1 and pgid != os.getpgrp()
         with contextlib.suppress(ProcessLookupError):
             os.killpg(pgid, number)
 
@@ -127,31 +130,26 @@ class RealSystem:
         try:
             done = subprocess.run(["ps", "-o", "lstart=", "-p", str(pid)], capture_output=True,
                                   timeout=PS_TIMEOUT_SECONDS, check=False)
-        except (OSError, subprocess.TimeoutExpired):
+        except (OSError, subprocess.SubprocessError):
             return None
         text = done.stdout.decode("utf-8", errors="replace").strip()
         return text if done.returncode == 0 and text else None
 
-    def processes(self, needles: list[str]) -> list[tuple[int, int, str]]:
-        assert needles
-        done = subprocess.run(["ps", "-axww", "-o", "pid=,pgid=,command="], capture_output=True,
-                              timeout=PS_TIMEOUT_SECONDS, check=False)
+    def processes(self) -> list[Row]:
+        try:
+            done = subprocess.run(["ps", "-axww", "-o", "pid=,ppid=,pgid=,command="], capture_output=True,
+                                  timeout=PS_TIMEOUT_SECONDS, check=False)
+        except subprocess.SubprocessError as error:
+            raise OSError(f"ps failed: {error}") from error
         if done.returncode != 0:
             raise OSError(f"ps ended with {done.returncode}")
-        found: list[tuple[int, int, str]] = []
-        lines = done.stdout.decode("utf-8", errors="replace").splitlines()
-        assert len(lines) <= MAX_PROCESSES
-        for line in lines:
-            parts = line.split(None, 2)
-            if len(parts) < 3 or not parts[0].isdigit() or not parts[1].isdigit():
-                continue
-            pid, pgid = int(parts[0]), int(parts[1])
-            if pid == os.getpid():
-                continue
-            matched = [needle for needle in needles if command_matches(parts[2], needle)]
-            if matched:
-                found.append((pid, pgid, matched[0]))
-        return found
+        rows = parse_rows(done.stdout.decode("utf-8", errors="replace"))
+        if not rows:
+            raise OSError("ps listed no process")
+        return rows
+
+    def walk(self, root: Path, onerror: WalkError) -> Iterator[tuple[str, list[str], list[str]]]:
+        return os.walk(root, onerror=onerror)
 
     def try_lock(self, path: Path, owner: int) -> bool:
         assert path not in self._locks and owner == os.getpid()

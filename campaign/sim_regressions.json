@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "seed": 730820162355091945,
+    "step": "run/duplicate",
+    "invariant": "lane-lock",
+    "detail": "{}",
+    "known": false
+  }
+]

@@ -2,15 +2,17 @@ from __future__ import annotations
 
 import json
 import math
+import os
+import shutil
 import signal
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from random import Random
 from typing import Any
 
-from campaign.system import command_matches
+from campaign.system import Row, WalkError
 
 BASE = datetime(2026, 11, 24, tzinfo=UTC)
 MICRO = 1_000_000
@@ -22,7 +24,12 @@ MUSTER_GRACE = 120.0
 STOP_GRACE = 180
 OTHER_PID = 4242
 OTHER_START = "Mon Nov 23 09:00:00 2026"
+SHELL_PID = 700
 RANK = {"top-death": 0, "harbor": 1, "trial": 2}
+FOREIGN_WINDOW_SECONDS = 6 * 3600
+FOREIGN_YOUNG_AGE = 3601
+FOREIGN_YOUNG_MICRO = 300_000
+TWIN_SUFFIX = "-twin"
 
 
 def iso(seconds: float, precise: bool = True) -> str:
@@ -93,6 +100,13 @@ class Scenario:
     pid_reuse: str
     cap_root_missing_at: float | None
     operator_top_only: bool
+    strays: bool
+    ancestor_mentions: bool
+    churn: bool
+    ps_fail_rate: float
+    operator_second_term: bool
+    twin: bool
+    foreign_lines: bool
 
     def arm(self, name: str) -> ArmSpec:
         found = [arm for arm in self.arms if arm.name == name]
@@ -143,6 +157,13 @@ def _process_faults(rng: Random) -> dict[str, Any]:
         "pid_reuse": rng.choice(("", "", "", "start", "nostart")),
         "cap_root_missing_at": rng.uniform(0, 1500) if rng.random() < 0.08 else None,
         "operator_top_only": rng.random() < 0.6,
+        "strays": rng.random() < 0.35,
+        "ancestor_mentions": rng.random() < 0.3,
+        "churn": rng.random() < 0.3,
+        "ps_fail_rate": rng.choice((0.0, 0.0, 0.0, 0.05)),
+        "operator_second_term": rng.random() < 0.15,
+        "twin": rng.random() < 0.3,
+        "foreign_lines": rng.random() < 0.35,
     }
 
 
@@ -207,16 +228,18 @@ def toml_text(data: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def plan_data(case: Scenario, root: Path) -> dict[str, Any]:
+def plan_data(case: Scenario, root: Path, twin: bool = False) -> dict[str, Any]:
+    suffix = TWIN_SUFFIX if twin else ""
+    roots = [str(root / "other"), str(root / "out")] + ([str(root / f"out{TWIN_SUFFIX}")] if case.twin else [])
     data: dict[str, Any] = {
-        "schema": "campaign-plan/v1", "id": f"sim-{case.seed % 100_000}",
-        "output_root": str(root / "out"), "state_root": str(root / "state"), "max_trials_at_once": case.total,
-        "command": {"argv": ["fake-harbor", "{tasks}", "{out}", "{attempts}", "{concurrency}", "{harbor}"],
+        "schema": "campaign-plan/v1", "id": f"sim-{case.seed % 100_000}{suffix}",
+        "output_root": str(root / f"out{suffix}"), "state_root": str(root / f"state{suffix}"),
+        "max_trials_at_once": case.total,
+        "command": {"argv": ["fake-harbor", "{tasks}", "--out", "{out}", "{attempts}", "{concurrency}", "{harbor}"],
                     "cwd": str(root), "env": {"FAKE_ARM": "{arm}"}},
         "harbor": {"program": str(root / "bin" / "harbor"), "run_args": ["--env", "sim", "--ek", "snap=sim-v1"]},
         "money": {"provider": "sim", "probe": ["fake-balance"], "probe_timeout_seconds": 30,
-                  "floor_usd": usd(case.floor_micro), "cap_usd": usd(case.cap_micro),
-                  "cap_roots": [str(root / "other"), str(root / "out")],
+                  "floor_usd": usd(case.floor_micro), "cap_usd": usd(case.cap_micro), "cap_roots": roots,
                   "unknown_seat_usd": usd(case.unknown_seat_micro), "ledger": str(root / "ledger" / "spend.jsonl")},
         "watch": {"poll_seconds": case.poll, "max_arm_minutes": case.max_arm_minutes,
                   "stop_grace_seconds": STOP_GRACE, "stop_file": str(root / "STOP"), "no_reward_streak": case.streak},
@@ -234,6 +257,25 @@ def plan_data(case: Scenario, root: Path) -> dict[str, Any]:
     return data
 
 
+def _foreign_ledger(path: Path) -> None:
+    young, old = iso(-FOREIGN_YOUNG_AGE, precise=False), iso(-8 * 3600, precise=False)
+    lines = [
+        {"ts_utc": young, "event": "reserve", "experiment": "night", "arm": "team-8", "provider": "sim",
+         "reserved_usd": usd(FOREIGN_YOUNG_MICRO)},
+        {"ts_utc": old, "event": "reserve", "experiment": "e7", "arm": "old-1", "provider": "sim",
+         "reserved_usd": 5.0},
+        {"ts_utc": young, "event": "reserve", "experiment": "night", "arm": "done-1", "provider": "sim",
+         "reserved_usd": 4.0},
+        {"ts_utc": young, "event": "settle", "experiment": "night", "arm": "done-1", "status": "ended"},
+        {"ts_utc": young, "event": "reserve", "experiment": "night", "arm": "elsewhere", "provider": "openrouter",
+         "reserved_usd": 3.0},
+        {"ts_utc": young, "event": "reserve", "experiment": "night", "arm": "void-1", "provider": "sim",
+         "reserved_usd": 2.0},
+        {"ts_utc": young, "event": "void", "experiment": "night", "arms": ["void-1"], "reason": "test"},
+    ]
+    path.write_text("".join(json.dumps(line) + "\n" for line in lines), encoding="utf-8")
+
+
 def write_supply(case: Scenario, root: Path) -> None:
     for arm in case.arms:
         for name in arm.instances:
@@ -247,6 +289,13 @@ def write_supply(case: Scenario, root: Path) -> None:
         (trial / "result.json").write_text(json.dumps({"trial_name": trial.name, "seat_results": [seat]}))
     (root / "other").mkdir(exist_ok=True)
     (root / "ledger").mkdir()
+    if case.churn:
+        (root / "other" / "churn-0" / "tmp").mkdir(parents=True)
+    if case.twin:
+        (root / "out").mkdir()
+        (root / f"out{TWIN_SUFFIX}").mkdir()
+    if case.foreign_lines:
+        _foreign_ledger(root / "ledger" / "spend.jsonl")
 
 
 class BrokenStream:
@@ -297,11 +346,17 @@ class FakeJob:
     unstoppable: bool
     top_exit: int | None = None
     harbor_exit: int | None = None
-    ended_at: float | None = None
+    top_end_at: float | None = None
+    harbor_end_at: float | None = None
     harbor_term_at: float | None = None
     muster_term_at: float | None = None
     done_at: float | None = None
     abandoned: bool = False
+    runner_terms: int = 0
+    first_term_at: float | None = None
+    top_alive_at_term: bool = False
+    operator_termed: bool = False
+    operator_killed: bool = False
 
     @property
     def top_alive(self) -> bool:
@@ -314,6 +369,12 @@ class FakeJob:
     @property
     def alive(self) -> bool:
         return self.top_alive or self.harbor_alive
+
+    @property
+    def gone_at(self) -> float | None:
+        if self.top_end_at is None or self.harbor_end_at is None:
+            return None
+        return max(self.top_end_at, self.harbor_end_at)
 
     def harbor_end(self) -> tuple[float, int] | None:
         ends: list[tuple[float, int]] = []
@@ -344,6 +405,7 @@ class Truth:
 
 SpawnHook = Callable[[list[str], int], None]
 ProbeHook = Callable[[int], None]
+SleepHook = Callable[[], None]
 
 
 def _write(path: Path, data: Any) -> None:
@@ -383,11 +445,17 @@ class World:
         self.spawn_hook: SpawnHook | None = None
         self.probe_hook: ProbeHook | None = None
         self.in_probe_hook = False
+        self.sleep_hook: SleepHook | None = None
+        self.in_sleep_hook = False
         self.next_pid = 5000
         self.calls: list[str] = []
         self.lock_errors: list[str] = []
         self.failed_spawns: set[str] = set()
         self.others: dict[int, str] = {}
+        self.strays: dict[int, tuple[int, str]] = {}
+        self.bad_signals: list[str] = []
+        self.ps_failed_at: float | None = None
+        self.churned = 0
 
     def now(self) -> float:
         return self.t
@@ -397,6 +465,12 @@ class World:
 
     def sleep(self, seconds: float) -> None:
         self.advance(seconds)
+        if self.sleep_hook is not None and not self.in_sleep_hook:
+            self.in_sleep_hook = True
+            try:
+                self.sleep_hook()
+            finally:
+                self.in_sleep_hook = False
 
     def host(self) -> str:
         return "sim-host"
@@ -472,8 +546,8 @@ class World:
         crash_at = self.t + rng.uniform(10, 600) if rng.random() < case.crash_rate else None
         death = self.t + rng.uniform(10, 400) if rng.random() < case.top_death_rate else None
         return FakeJob(
-            pid=pid, harbor_pid=pid + 1, owner=owner, out=Path(argv[2]), concurrency=int(argv[4]),
-            trials=self._trials(pid, Path(argv[1]), int(argv[3])), started=self.t, crash_at=crash_at,
+            pid=pid, harbor_pid=pid + 1, owner=owner, out=Path(argv[3]), concurrency=int(argv[5]),
+            trials=self._trials(pid, Path(argv[1]), int(argv[4])), started=self.t, crash_at=crash_at,
             top_death_at=death, cleanup=rng.choice(case.cleanups),
             ignore_term=rng.random() < case.ignore_term_rate, hang=rng.choice(case.hangs),
             unstoppable=rng.random() < case.unstoppable_rate,
@@ -482,8 +556,8 @@ class World:
     def spawn(self, argv: list[str], cwd: Path, env: dict[str, str], log: Path, owner: int) -> int:
         assert owner in self.live_owners and cwd == self.root
         self.calls.append(argv[0])
-        out = Path(argv[2])
-        assert argv[0] == "fake-harbor" and env == {"FAKE_ARM": out.name}, (argv, env)
+        out = Path(argv[3])
+        assert argv[0] == "fake-harbor" and argv[2] == "--out" and env == {"FAKE_ARM": out.name}, (argv, env)
         if out.name == self.case.spawn_fail_arm and out.name not in self.failed_spawns:
             self.failed_spawns.add(out.name)
             raise OSError("simulated failure to start the trial command")
@@ -491,10 +565,13 @@ class World:
             self.spawn_hook(argv, owner)
         log.open("xb").close()
         pid = self.next_pid
-        self.next_pid += 2
+        self.next_pid += 4
         job = self._job(pid, owner, argv)
         out.mkdir(parents=True)
         self.jobs[pid] = job
+        if self.case.strays:
+            self.strays[pid + 2] = (pid + 2, f"python3 /sim/tidegauge live {out}")
+            self.strays[pid + 3] = (pid + 2, f"vim {out}.job.json")
         self._fill_slots(job, self.t)
         return pid
 
@@ -504,28 +581,40 @@ class World:
     def poll(self, pid: int) -> int | None:
         return self.jobs[pid].top_exit
 
+    def _end_top(self, job: FakeJob, code: int, at: float) -> None:
+        job.top_exit, job.top_end_at = code, at
+
     def _end_harbor(self, job: FakeJob, code: int, at: float) -> None:
-        job.harbor_exit = code
+        job.harbor_exit, job.harbor_end_at = code, at
         if job.top_alive:
-            job.top_exit = 130 if job.muster_term_at is not None else code
-        job.ended_at = at
+            self._end_top(job, 130 if job.muster_term_at is not None else code, at)
 
     def _signal_top(self, job: FakeJob, number: int) -> None:
         if not job.top_alive:
             return
         if number == signal.SIGKILL or job.muster_term_at is not None:
-            job.top_exit, job.ended_at = (-9 if number == signal.SIGKILL else 130), self.t
+            self._end_top(job, -9 if number == signal.SIGKILL else 130, self.t)
             return
         job.muster_term_at = self.t
         if job.harbor_alive and job.harbor_term_at is None:
             job.harbor_term_at = self.t
 
+    def _protected_group(self, pgid: int) -> bool:
+        return pgid in (SHELL_PID, OTHER_PID) or pgid in self.live_owners or pgid in self.strays
+
     def signal_group(self, pgid: int, number: int) -> None:
         assert pgid > 1 and number in (signal.SIGTERM, signal.SIGKILL)
+        if self._protected_group(pgid):
+            self.bad_signals.append(f"signal {number} to group {pgid} at {self.t:.0f}")
+            return
         job = self._job_of(pgid)
         if job is None:
             return
         if pgid == job.pid:
+            if number == signal.SIGTERM:
+                job.runner_terms += 1
+                if job.first_term_at is None:
+                    job.first_term_at, job.top_alive_at_term = self.t, job.top_alive
             self._signal_top(job, number)
             return
         if job.unstoppable:
@@ -538,16 +627,21 @@ class World:
             job.harbor_term_at = self.t
 
     def operator_kill(self, job: FakeJob, top_only: bool) -> None:
+        job.operator_killed = True
         if job.top_alive:
-            job.top_exit, job.ended_at = -9, self.t
+            self._end_top(job, -9, self.t)
         if job.harbor_alive and not top_only:
-            job.harbor_exit = -9
+            job.harbor_exit, job.harbor_end_at = -9, self.t
+
+    def operator_term(self, job: FakeJob) -> None:
+        job.operator_termed = True
+        self._signal_top(job, signal.SIGTERM)
 
     def alive(self, pid: int) -> bool:
         job = self._job_of(pid)
         if job is not None:
             return job.top_alive if pid == job.pid else job.harbor_alive
-        return pid in self.live_owners or pid in self.others
+        return pid in self.live_owners or pid in self.others or pid in self.strays
 
     def start_time(self, pid: int) -> str | None:
         job = self._job_of(pid)
@@ -555,19 +649,40 @@ class World:
             return f"sim {job.started:.0f} {pid}"
         return self.others.get(pid)
 
-    def processes(self, needles: list[str]) -> list[tuple[int, int, str]]:
-        found = []
+    def _shell_row(self) -> Row:
+        command = "sh -c campaign-loop"
+        first = self.case.lanes[0].arms[0]
+        if self.case.ancestor_mentions:
+            command = f"sh -c campaign run plan.toml --out {self.root / 'out' / first}"
+        return SHELL_PID, 1, SHELL_PID, command
+
+    def processes(self) -> list[Row]:
+        if self.case.ps_fail_rate and self.rng.random() < self.case.ps_fail_rate:
+            self.ps_failed_at = self.t
+            raise OSError("ps failed: simulated timeout")
+        rows: list[Row] = [self._shell_row()]
+        rows += [(owner, SHELL_PID, SHELL_PID, "python3 -m campaign run plan.toml") for owner in sorted(self.live_owners)]
+        rows += [(pid, 1, pgid, command) for pid, (pgid, command) in sorted(self.strays.items())]
+        rows += [(pid, 1, pid, "sleep 1000") for pid in sorted(self.others)]
         for job in self.jobs.values():
-            commands = []
             if job.top_alive:
-                commands.append((job.pid, f"python3 fake-muster --out {job.out} --attempts 2"))
+                rows.append((job.pid, job.owner, job.pid, f"python3 fake-muster {job.out.parent} --attempts 2 "
+                                                          f"--concurrency 2 --out {job.out}"))
             if job.harbor_alive:
-                commands.append((job.harbor_pid, f"/sim/harbor run -c {job.out}.job.json --quiet --yes"))
-            for pid, command in commands:
-                matched = [needle for needle in needles if command_matches(command, needle)]
-                if matched:
-                    found.append((pid, pid, matched[0]))
-        return found
+                parent = job.pid if job.top_alive else 1
+                rows.append((job.harbor_pid, parent, job.harbor_pid,
+                             f"/sim/python3 /sim/harbor run -c {job.out}.job.json --quiet --yes --env sim"))
+        return rows
+
+    def walk(self, root: Path, onerror: WalkError) -> Iterator[tuple[str, list[str], list[str]]]:
+        churn_at = os.path.realpath(self.root / "other")
+        for dirpath, dirnames, filenames in os.walk(root, onerror=onerror):
+            yield dirpath, dirnames, filenames
+            if self.case.churn and dirpath == churn_at:
+                for name in [name for name in dirnames if name.startswith("churn-")]:
+                    shutil.rmtree(Path(dirpath) / name)
+                self.churned += 1
+                (Path(dirpath) / f"churn-{self.churned}" / "tmp").mkdir(parents=True)
 
     def try_lock(self, path: Path, owner: int) -> bool:
         assert owner in self.live_owners
@@ -645,7 +760,7 @@ class World:
             if moment > until:
                 return
             if kind == "top-death":
-                job.top_exit, job.ended_at = code, moment
+                self._end_top(job, code, moment)
             elif kind == "harbor":
                 self._end_harbor(job, code, moment)
             else:
@@ -663,11 +778,8 @@ class World:
             self._step_job(job, until)
         self.t = until
 
-    def truth_streak(self, since: datetime, until: float = math.inf) -> bool:
-        done = sorted((datetime.fromisoformat(end), path, ok) for end, path, ok in self.truth.finished)
-        limit = BASE + timedelta(seconds=until) if math.isfinite(until) else None
-        last = [ok for end, _, ok in done if end >= since and (limit is None or end <= limit)][-self.case.streak:]
+    def truth_streak(self, output_root: Path, since: datetime) -> bool:
+        done = sorted((datetime.fromisoformat(end), path, ok) for end, path, ok in self.truth.finished
+                      if Path(path).parent.parent == output_root)
+        last = [ok for end, _, ok in done if end >= since][-self.case.streak:]
         return len(last) == self.case.streak and not any(last)
-
-    def end_times(self, start: float) -> list[float]:
-        return [trial.end for trial in self.truth.trials.values() if trial.end is not None and trial.end >= start]

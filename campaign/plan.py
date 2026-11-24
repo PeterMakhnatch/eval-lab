@@ -21,6 +21,7 @@ MAX_PLAN_BYTES = 1_000_000
 RERUN_TAG = ".r1-m"
 MIN_STOP_GRACE_SECONDS = 180
 MAX_BALANCE_USD = 100_000.0
+DEFAULT_FOREIGN_WINDOW_HOURS = 6.0
 
 
 class PlanError(Exception):
@@ -66,6 +67,7 @@ class Plan:
     cap_roots: tuple[Path, ...]
     unknown_seat_usd: float
     ledger: Path
+    foreign_reserve_window_hours: float
     poll_seconds: float
     max_arm_minutes: float
     stop_grace_seconds: float
@@ -249,6 +251,9 @@ def _command(data: Any) -> tuple[tuple[str, ...], Path, tuple[tuple[str, str], .
     missing = [name for name in REQUIRED_FIELDS if name not in _fields(argv)]
     if missing:
         raise PlanError(f"command.argv misses fields: {', '.join(missing)}")
+    if ("--out", "{out}") not in zip(argv, argv[1:], strict=False) and "--out={out}" not in argv:
+        raise PlanError('command.argv must pass the arm folder as "--out", "{out}" or "--out={out}", so that '
+                        "the runner can find the processes of an arm by their command line")
     if "harbor" not in _fields(texts):
         raise PlanError("command must pass {harbor} in argv or env, so that the plan fixes the backend")
     return argv, _path(table, "cwd", "command"), tuple(env)
@@ -267,7 +272,7 @@ def _harbor(data: Any) -> tuple[Path, tuple[str, ...]]:
 def _money(data: Any) -> dict[str, Any]:
     required = {"provider", "probe", "probe_timeout_seconds", "floor_usd", "cap_usd", "cap_roots",
                 "unknown_seat_usd", "ledger"}
-    table = _keys(data, "money", required, set())
+    table = _keys(data, "money", required, {"foreign_reserve_window_hours"})
     roots = table["cap_roots"]
     if not isinstance(roots, list) or not 1 <= len(roots) <= 64:
         raise PlanError("money.cap_roots must be a list of 1 to 64 paths")
@@ -280,6 +285,10 @@ def _money(data: Any) -> dict[str, Any]:
         "cap_roots": tuple(_path_value(root, "money.cap_roots") for root in roots),
         "unknown_seat_usd": _number(table, "unknown_seat_usd", "money", 0.0001, 1_000),
         "ledger": _path(table, "ledger", "money"),
+        "foreign_reserve_window_hours": (
+            _number(table, "foreign_reserve_window_hours", "money", 0.1, 720)
+            if "foreign_reserve_window_hours" in table else DEFAULT_FOREIGN_WINDOW_HOURS
+        ),
     }
 
 

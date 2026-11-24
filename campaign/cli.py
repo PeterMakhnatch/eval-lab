@@ -7,6 +7,7 @@ import os
 import signal
 import sys
 from collections.abc import Callable, Sequence
+from datetime import UTC, datetime
 from pathlib import Path
 from types import FrameType
 from typing import Any
@@ -73,7 +74,7 @@ def _drive(plan: Plan, lane: str | None, expand: Expand) -> int:
 
 def cmd_check(args: argparse.Namespace) -> int:
     plan = load(args.plan)
-    lines, problems = report.check(plan)
+    lines, problems = report.check(plan, datetime.now(UTC))
     print("\n".join(lines))
     for problem in problems:
         print(f"problem: {problem}")

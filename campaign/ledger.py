@@ -3,12 +3,17 @@ from __future__ import annotations
 import json
 import math
 import os
+from collections import Counter
 from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 MAX_LEDGER_BYTES = 256_000_000
 MAX_LEDGER_LINES = 1_000_000
+VOIDED = MAX_LEDGER_LINES
+
+Key = tuple[str, str]
 
 
 class LedgerError(Exception):
@@ -37,6 +42,14 @@ class ArmLedger:
         }
 
 
+@dataclass(frozen=True)
+class ForeignReserve:
+    writer: str
+    arm: str
+    reserved_usd: float
+    ts_utc: str
+
+
 def append(path: Path, record: dict[str, Any]) -> None:
     assert record.get("event") in ("reserve", "settle"), record
     line = json.dumps(record, sort_keys=False, allow_nan=False) + "\n"
@@ -50,7 +63,7 @@ def append(path: Path, record: dict[str, Any]) -> None:
         os.close(descriptor)
 
 
-def entries(path: Path, campaign: str) -> list[dict[str, Any]]:
+def _lines(path: Path) -> list[tuple[int, dict[str, Any]]]:
     if not path.exists():
         return []
     try:
@@ -70,10 +83,70 @@ def entries(path: Path, campaign: str) -> list[dict[str, Any]]:
             item = json.loads(line)
         except ValueError as error:
             raise LedgerError(f"{path}:{number} is not JSON; the ledger is damaged") from error
-        if isinstance(item, dict) and item.get("campaign") == campaign:
+        if isinstance(item, dict):
+            found.append((number, item))
+    return found
+
+
+def entries(path: Path, campaign: str) -> list[dict[str, Any]]:
+    found = []
+    for number, item in _lines(path):
+        if item.get("campaign") == campaign:
             if item.get("event") not in ("reserve", "settle") or not isinstance(item.get("arm"), str):
                 raise LedgerError(f"{path}:{number} is not a reserve or settle line of an arm")
             found.append(item)
+    return found
+
+
+def _amount(value: Any) -> float:
+    valid = not isinstance(value, bool) and isinstance(value, int | float) and math.isfinite(value)
+    return float(value) if valid else 0.0
+
+
+def _stamp(text: Any) -> datetime | None:
+    if not isinstance(text, str):
+        return None
+    try:
+        stamp = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return stamp if stamp.tzinfo is not None else stamp.replace(tzinfo=UTC)
+
+
+def _foreign_lines(path: Path, campaign: str) -> tuple[dict[Key, list[dict[str, Any]]], Counter[Key]]:
+    reserves: dict[Key, list[dict[str, Any]]] = {}
+    settles: Counter[Key] = Counter()
+    for _, item in _lines(path):
+        writer = item.get("campaign") or item.get("experiment")
+        if not isinstance(writer, str) or item.get("campaign") == campaign:
+            continue
+        event, arm = item.get("event"), item.get("arm")
+        if event == "void" and isinstance(item.get("arms"), list):
+            for name in item["arms"]:
+                if isinstance(name, str):
+                    settles[(writer, name)] += VOIDED
+        if not isinstance(arm, str):
+            continue
+        if event == "reserve":
+            reserves.setdefault((writer, arm), []).append(item)
+        elif event == "settle":
+            settles[(writer, arm)] += 1
+    return reserves, settles
+
+
+def foreign_open(path: Path, campaign: str, provider: str, now: datetime, window_hours: float) -> list[ForeignReserve]:
+    assert window_hours > 0 and now.tzinfo is not None
+    reserves, settles = _foreign_lines(path, campaign)
+    oldest = now - timedelta(hours=window_hours)
+    found = []
+    for key, items in sorted(reserves.items()):
+        for item in items[settles[key]:]:
+            if item.get("provider") != provider:
+                continue
+            stamp = _stamp(item.get("ts_utc"))
+            if stamp is not None and stamp <= oldest:
+                continue
+            found.append(ForeignReserve(key[0], key[1], _amount(item.get("reserved_usd")), str(item.get("ts_utc"))))
     return found
 
 
@@ -84,9 +157,7 @@ def state(path: Path, campaign: str) -> dict[str, ArmLedger]:
         arm.lane = str(item.get("lane", arm.lane))
         if item["event"] == "reserve":
             arm.reserves += 1
-            amount = item.get("reserved_usd")
-            valid = not isinstance(amount, bool) and isinstance(amount, int | float) and math.isfinite(amount)
-            arm.reserved_usd += float(amount) if valid else 0.0
+            arm.reserved_usd += _amount(item.get("reserved_usd"))
         else:
             arm.settles += 1
             arm.statuses.append(str(item.get("status")))

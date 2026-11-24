@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import shlex
 from collections import Counter
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -63,7 +64,22 @@ def _rerun_form(plan: Plan) -> str:
     return shlex.join(render(arg, values) for arg in plan.argv)
 
 
-def check(plan: Plan) -> tuple[list[str], list[str]]:
+def _foreign_lines(plan: Plan, problems: list[str], now: datetime) -> list[str]:
+    window = plan.foreign_reserve_window_hours
+    head = (f"money lock {plan.ledger.name}.lock beside the ledger; open reserves of other writers in the ledger "
+            f"(provider {plan.provider}, younger than {window:g} h) count against the balance:")
+    try:
+        found = ledger.foreign_open(plan.ledger, plan.id, plan.provider, now, window)
+    except ledger.LedgerError as error:
+        problems.append(str(error))
+        return [head, "  unreadable"]
+    shown = [f"  {item.writer} {item.arm}: ${item.reserved_usd:.2f} since {item.ts_utc}" for item in found[:32]]
+    total = sum(item.reserved_usd for item in found)
+    return [head, *(shown or ["  none"]), f"  total ${total:.2f} in {len(found)} open reserves"]
+
+
+def check(plan: Plan, now: datetime) -> tuple[list[str], list[str]]:
+    assert now.tzinfo is not None
     problems = _place_problems(plan)
     lines = [
         f"plan {plan.path}",
@@ -73,6 +89,7 @@ def check(plan: Plan) -> tuple[list[str], list[str]]:
         f"money: floor ${plan.floor_usd:.2f}, cap ${plan.cap_usd:.2f} of recorded cost (a seat without a "
         f"cost counts ${plan.unknown_seat_usd:.4f}), ledger {plan.ledger}, provider {plan.provider}",
         f"cap roots: {' '.join(str(root) for root in plan.cap_roots)}",
+        *_foreign_lines(plan, problems, now),
         f"balance probe ({plan.probe_timeout_seconds:.0f} s): {shlex.join(plan.probe)}",
         f"watch: poll {plan.poll_seconds:.0f} s, arm limit {plan.max_arm_minutes:.0f} min, stop grace "
         f"{plan.stop_grace_seconds:.0f} s, STOP file {plan.stop_file}, stop after "

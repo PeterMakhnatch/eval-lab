@@ -13,15 +13,20 @@ from typing import Any, Protocol
 
 from campaign import evidence, ledger
 from campaign.plan import MAX_BALANCE_USD, Lane, Plan, arm_command, base_arm, sha256_file
-from campaign.system import System
+from campaign.system import Row, System
 
 NUMBER = re.compile(r"-?[0-9]+(\.[0-9]+)?")
 MAX_LANE_ITEMS = 4096
 TERMINAL = ("STOP", "DONE")
 UNSTOPPED = ("harbor-alive", "orphan", "lane-held")
+GLOBAL = ("stop-file", "cap", "cap-root", "streak", "interrupted", "crash", "tick-limit")
+WAIT_NOTE_SECONDS = 60.0
+MUSTER_FORM = "muster"
+HARBOR_FORM = "harbor"
 
 Emit = Callable[[dict[str, str]], None]
-Listing = list[tuple[int, int, str]]
+Match = tuple[int, int, str, str]
+Listing = list[Match]
 
 
 class Stream(Protocol):
@@ -54,6 +59,12 @@ class Job:
     started: float
     start_time: str | None
     termed: bool = False
+    stop: Stop | None = None
+    phase: int = 0
+    stop_at: float = 0.0
+    deadline: float = 0.0
+    noted_at: float = 0.0
+    harbor_termed: set[int] = field(default_factory=set)
 
 
 @dataclass
@@ -104,12 +115,55 @@ def write_atomic(path: Path, text: str) -> None:
     os.replace(staged, path)
 
 
-def arm_needles(plan: Plan, outs: list[str]) -> list[str]:
-    needles = []
-    for out in sorted(set(outs)):
-        folder = str(plan.output_root / out)
-        needles += [folder, f"{folder}.job.json"]
-    return needles
+def _ends_token(command: str, text: str) -> bool:
+    assert text
+    start = command.find(text)
+    for _ in range(len(command) + 1):
+        if start < 0:
+            return False
+        end = start + len(text)
+        if end == len(command) or command[end].isspace():
+            return True
+        start = command.find(text, start + 1)
+    return False
+
+
+def command_form(command: str, folder: str) -> str:
+    assert folder.startswith("/")
+    if _ends_token(command, " run -c " + folder + ".job.json"):
+        return HARBOR_FORM
+    if _ends_token(command, " --out " + folder) or _ends_token(command, " --out=" + folder):
+        return MUSTER_FORM
+    return ""
+
+
+def protected_ids(rows: list[Row], me: int) -> set[int]:
+    parents = {pid: (ppid, pgid) for pid, ppid, pgid, _ in rows}
+    protected = {0, 1, me}
+    pid = me
+    for _ in range(len(parents) + 1):
+        if pid not in parents:
+            break
+        ppid, pgid = parents[pid]
+        protected |= {pid, pgid}
+        if ppid <= 1 or ppid in protected:
+            break
+        pid = ppid
+    return protected
+
+
+def arm_matches(rows: list[Row], plan: Plan, outs: list[str], protected: set[int]) -> Listing:
+    folders = [(out, str(plan.output_root / out)) for out in sorted(set(outs))]
+    found: Listing = []
+    for pid, _, pgid, command in rows:
+        if pid in protected:
+            continue
+        for out, folder in folders:
+            kind = command_form(command, folder)
+            if kind:
+                found.append((pid, pgid, out, kind))
+                break
+    return found
 
 
 class EventLog:
@@ -152,6 +206,7 @@ class Runner:
         self.sha = plan.sha256
         self.wrapper = plan.wrapper_text()
         self.lanes = [LaneRun(lane, list(lane.arms)) for lane in lanes]
+        self.protected: set[int] = {0, 1, owner}
         since = evidence.parse_utc(system.utc())
         assert since is not None
         self.since: datetime = since
@@ -179,31 +234,58 @@ class Runner:
                 if run.job is None:
                     self._advance(run)
             except Stop as stop:
-                self._end(run, stop)
+                self._raised(run, stop)
         return any(not run.ended for run in self.lanes)
 
-    def interrupt(self, reason: str, detail: str) -> None:
-        for run in self.lanes:
-            if not run.ended and run.job is not None:
-                self._term(run.job)
-        for run in self.lanes:
-            if run.ended:
-                continue
-            job, stop = run.job, Stop(reason, detail)
-            try:
-                if job is not None:
-                    stop = self._halt(run, stop)
-            except Exception as error:
-                run.job = None
-                stop = self._failed_stop(job, reason, f"{detail}; stopping the arm failed: {error}")
+    def _raised(self, run: LaneRun, stop: Stop) -> None:
+        if stop.reason in GLOBAL:
+            self._stop_all(stop)
+        if run.job is None:
             self._end(run, stop)
 
-    def _failed_stop(self, job: Job | None, reason: str, detail: str) -> Stop:
+    def _stop_all(self, stop: Stop) -> None:
+        for run in self.lanes:
+            if not run.ended and run.job is not None and run.job.stop is None:
+                self._begin_stop(run, stop)
+
+    def interrupt(self, reason: str, detail: str) -> None:
+        stop = Stop(reason, detail)
+        for run in self.lanes:
+            if not run.ended and run.job is not None and run.job.stop is None:
+                self._guarded(run, lambda each: self._begin_stop(each, stop))
+        rounds = math.ceil(2 * self.plan.stop_grace_seconds) + 4
+        for _ in range(rounds):
+            busy = [run for run in self.lanes if not run.ended and run.job is not None]
+            if not busy:
+                break
+            for run in busy:
+                self._guarded(run, self._step_stop)
+            if any(not run.ended and run.job is not None for run in self.lanes):
+                self.system.sleep(1)
+        for run in self.lanes:
+            if not run.ended and run.job is not None:
+                job, run.job = run.job, None
+                self._end(run, self._alive_stop(job, self._listing([job.step.out]), "the stop wait ran out"))
+            elif not run.ended:
+                self._end(run, stop)
+
+    def _guarded(self, run: LaneRun, action: Callable[[LaneRun], None]) -> None:
+        try:
+            action(run)
+        except Stop as stop:
+            if run.job is None:
+                self._end(run, stop)
+        except Exception as error:
+            job, run.job = run.job, None
+            self._end(run, self._failed_stop(job, f"stopping the arm failed: {error!r}"))
+
+    def _failed_stop(self, job: Job | None, detail: str) -> Stop:
         if job is None:
-            return Stop(reason, detail)
+            return Stop("crash", detail)
         listing = self._listing([job.step.out])
         if listing != [] or self.system.poll(job.pid) is None:
-            return Stop("harbor-alive", f"{detail}; a paid job may still run: {job.step.out}; treat it as running")
+            return self._alive_stop(job, listing, detail)
+        reason = job.stop.reason if job.stop is not None else "crash"
         return Stop(reason, f"{detail}; {job.step.out} no longer runs; its reserve stays open until the next run")
 
     def exit_code(self) -> int:
@@ -241,11 +323,15 @@ class Runner:
         if not outs:
             return []
         try:
-            return self.system.processes(arm_needles(self.plan, outs))
+            rows = self.system.processes()
         except (OSError, ValueError):
             return None
+        self.protected = protected_ids(rows, self.owner)
+        return arm_matches(rows, self.plan, outs, self.protected)
 
     def _signal(self, pgid: int, number: int) -> None:
+        if pgid <= 1 or pgid in self.protected:
+            return
         try:
             self.system.signal_group(pgid, number)
         except OSError:
@@ -283,7 +369,7 @@ class Runner:
         if listing is None:
             raise Stop("orphan", "cannot list processes with ps; check for a running arm by hand")
         if listing:
-            shown = ", ".join(f"pid {pid} ({Path(needle).name})" for pid, _, needle in listing[:8])
+            shown = ", ".join(f"pid {pid} ({kind} of {out})" for pid, _, out, kind in listing[:8])
             raise Stop("orphan", f"processes of an earlier runner still run: {shown}; a paid job may "
                                  "still spend; run again after they end")
         child, child_start = info.get("child"), info.get("child_start")
@@ -307,7 +393,7 @@ class Runner:
     def _settle(self, lane: str, out: str, status: str, code: int | None) -> dict[str, Any]:
         folder = self.plan.output_root / out
         try:
-            actual = evidence.scan_cost([folder] if folder.exists() else []).record()
+            actual = evidence.scan_cost([folder] if folder.exists() else [], self.system.walk).record()
         except OSError as error:
             actual = {"error": f"cannot read {folder}: {error}"}
         record = {
@@ -350,19 +436,26 @@ class Runner:
             return "the ledger has a reserve line for it"
         return ""
 
-    def _open_reserved(self) -> float:
-        total = 0.0
+    def _open_reserved(self) -> tuple[float, float]:
+        own = 0.0
         for arm in self._state().values():
             if arm.open and arm.reserves:
-                total += arm.reserved_usd * (arm.reserves - arm.settles) / arm.reserves
-        return total
+                own += arm.reserved_usd * (arm.reserves - arm.settles) / arm.reserves
+        now = evidence.parse_utc(self.system.utc())
+        assert now is not None
+        try:
+            foreign = ledger.foreign_open(self.plan.ledger, self.plan.id, self.plan.provider, now,
+                                          self.plan.foreign_reserve_window_hours)
+        except ledger.LedgerError as error:
+            raise Stop("ledger", str(error)) from error
+        return own, sum(item.reserved_usd for item in foreign)
 
     def _charged(self) -> float:
         missing = [root for root in self.plan.cap_roots if root != self.plan.output_root and not root.is_dir()]
         if missing:
             raise Stop("cap-root", f"cap root {missing[0]} is not a folder; its cost would count as $0")
         try:
-            cost = evidence.scan_cost([root for root in self.plan.cap_roots if root.is_dir()])
+            cost = evidence.scan_cost([root for root in self.plan.cap_roots if root.is_dir()], self.system.walk)
         except OSError as error:
             raise Stop("cap-root", f"cannot read the cap roots: {error}") from error
         return cost.charged(self.plan.unknown_seat_usd)
@@ -377,14 +470,15 @@ class Runner:
                                  "since this runner started have no reward")
 
     def _gate_balance(self, step: Step) -> float:
-        held = self._open_reserved()
+        own, foreign = self._open_reserved()
         balance, problem = read_balance(self.system, self.plan, self.owner)
         if balance is None:
             raise Stop("balance-unreadable", problem)
-        need = round(self.plan.floor_usd + step.reserve_usd + held, 6)
+        need = round(self.plan.floor_usd + step.reserve_usd + own + foreign, 6)
         if balance < need:
             raise Stop("balance-low", f"balance ${balance:.2f} is below floor ${self.plan.floor_usd:.2f} + "
-                                      f"reserve ${step.reserve_usd:.2f} + open reserves ${held:.2f}")
+                                      f"reserve ${step.reserve_usd:.2f} + open reserves ${own:.2f} + open "
+                                      f"reserves of other writers in the ledger ${foreign:.2f}")
         return balance
 
     def _advance(self, run: LaneRun) -> None:
@@ -415,8 +509,11 @@ class Runner:
             return
         raise AssertionError("a lane holds more items than MAX_LANE_ITEMS")
 
+    def money_lock(self) -> Path:
+        return self.plan.ledger.with_name(self.plan.ledger.name + ".lock")
+
     def _start_locked(self, run: LaneRun, step: Step) -> bool:
-        lock = self.plan.state_root / "money.lock"
+        lock = self.money_lock()
         try:
             if not self.system.try_lock(lock, self.owner):
                 return False
@@ -473,17 +570,18 @@ class Runner:
     def _watch(self, run: LaneRun) -> None:
         job = run.job
         assert job is not None
+        if job.stop is not None:
+            self._step_stop(run)
+            return
         code = self.system.poll(job.pid)
-        if code is not None:
-            listing = self._listing([job.step.out])
-            if listing == []:
-                self._finish(run, "ended" if code == 0 else "exit", code)
-                if code != 0:
-                    raise Stop("arm-exit", f"{job.step.out} ended with exit code {code}")
-                gap = self._pilot_gap(job.step)
-                if gap:
-                    raise Stop("pilot", gap)
-                return
+        if code is not None and self._listing([job.step.out]) == []:
+            self._finish(run, "ended" if code == 0 else "exit", code)
+            if code != 0:
+                raise Stop("arm-exit", f"{job.step.out} ended with exit code {code}")
+            gap = self._pilot_gap(job.step)
+            if gap:
+                raise Stop("pilot", gap)
+            return
         stop = self._watch_reason(job)
         if stop is None:
             return
@@ -492,48 +590,73 @@ class Runner:
                 write_atomic(self.plan.stop_file, f"streak {self.system.utc()} {stop.detail}\n")
             except OSError as error:
                 stop = Stop("streak", f"{stop.detail}; cannot write the STOP file: {error.strerror}")
-        raise self._halt(run, stop)
-
-    def _wait_gone(self, job: Job) -> list[str]:
-        rounds = math.ceil(self.plan.stop_grace_seconds)
-        listing: Listing | None = None
-        for index in range(rounds + 1):
-            listing = self._listing([job.step.out])
-            if self.system.poll(job.pid) is not None and listing == []:
-                return []
-            if index < rounds:
-                self.system.sleep(1)
-        if listing is None:
-            return ["unknown (ps failed)"]
-        return [f"{pid} (group {pgid})" for pid, pgid, _ in listing[:16]] or [f"group {job.pid}"]
+        if stop.reason in GLOBAL:
+            self._stop_all(stop)
+        else:
+            self._begin_stop(run, stop)
 
     def _term(self, job: Job) -> None:
         if not job.termed:
             job.termed = True
             self._signal(job.pid, signal.SIGTERM)
 
-    def _stop_arm(self, job: Job) -> list[str]:
-        self._term(job)
-        left = self._wait_gone(job)
-        if not left:
-            return []
-        self._signal(job.pid, signal.SIGKILL)
-        groups = {pgid for _, pgid, _ in self._listing([job.step.out]) or [] if pgid not in (job.pid, 0, 1)}
-        for pgid in sorted(groups):
-            self._signal(pgid, signal.SIGTERM)
-        return self._wait_gone(job)
+    def _term_harbor(self, job: Job, listing: Listing) -> None:
+        for pid, pgid, _, kind in listing:
+            if kind == HARBOR_FORM and pid == pgid and pgid != job.pid and pgid not in job.harbor_termed:
+                job.harbor_termed.add(pgid)
+                self._signal(pgid, signal.SIGTERM)
 
-    def _halt(self, run: LaneRun, stop: Stop) -> Stop:
+    def _begin_stop(self, run: LaneRun, stop: Stop) -> None:
         job = run.job
-        assert job is not None
-        left = self._stop_arm(job)
-        if left:
+        assert job is not None and job.stop is None
+        now = self.system.now()
+        job.stop, job.phase, job.stop_at, job.noted_at = stop, 1, now, now
+        job.deadline = now + self.plan.stop_grace_seconds
+        self._term(job)
+        if self.system.poll(job.pid) is not None:
+            self._term_harbor(job, self._listing([job.step.out]) or [])
+        limit = 2 * self.plan.stop_grace_seconds
+        self.say("STOPPING", run.lane.name, f"{job.step.out}: {stop.reason}: sent TERM; waiting up to "
+                                            f"{limit:.0f} s for {job.step.out} to stop; do not kill this runner",
+                 stop.reason, job.step.out)
+
+    def _step_stop(self, run: LaneRun) -> None:
+        job = run.job
+        assert job is not None and job.stop is not None
+        listing = self._listing([job.step.out])
+        code = self.system.poll(job.pid)
+        if code is not None and listing == []:
+            self._finish(run, job.stop.reason, code)
+            raise job.stop
+        now = self.system.now()
+        if now >= job.deadline and job.phase == 1:
+            job.phase, job.deadline = 2, now + self.plan.stop_grace_seconds
+            self._signal(job.pid, signal.SIGKILL)
+            self._term_harbor(job, listing or [])
+        elif now >= job.deadline:
             run.job = None
-            return Stop("harbor-alive", f"{stop.reason}: {stop.detail}; a paid job still runs: {job.step.out} "
-                                        f"pids {', '.join(left)}; its reserve stays open; stop these "
-                                        "processes by hand, then run again")
-        self._finish(run, stop.reason, self.system.poll(job.pid))
-        return stop
+            raise self._alive_stop(job, listing, "")
+        if now - job.noted_at >= WAIT_NOTE_SECONDS:
+            job.noted_at = now
+            left = "unknown (ps failed)" if listing is None else str(len(listing))
+            self.say("WAIT", run.lane.name, f"{job.step.out}: still stopping after {now - job.stop_at:.0f} s "
+                                            f"({job.stop.reason}); processes left: {left}; do not kill this runner")
+
+    def _alive_stop(self, job: Job, listing: Listing | None, extra: str) -> Stop:
+        cause = job.stop or Stop("crash", "the runner stopped")
+        folder = self.plan.output_root / job.step.out
+        groups = sorted({pgid for _, pgid, _, _ in listing or []} | {job.pid})
+        pids = "unknown (ps failed)" if listing is None else ", ".join(str(pid) for pid, _, _, _ in listing[:16])
+        term = "; ".join(f"kill -TERM -{group}" for group in groups)
+        kill = "; ".join(f"kill -KILL -{group}" for group in groups)
+        detail = f"{cause.reason}: {cause.detail}"
+        if extra:
+            detail += f"; {extra}"
+        return Stop("harbor-alive", f"{detail}; a paid job still runs: {job.step.out} (job folder {folder}), "
+                                    f"pids {pids or 'none listed'}; its reserve stays open. Run: {term}; wait "
+                                    f"120 s; if they still run: {kill}. A KILL can leave Daytona sandboxes "
+                                    "that still cost money: check `daytona sandbox list` and delete the "
+                                    f"sandboxes of {job.step.out}. Then run again")
 
     def _pilot_gap(self, step: Step) -> str:
         if not step.pilot:

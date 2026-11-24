@@ -4,12 +4,14 @@ import json
 import math
 import os
 from collections import Counter
+from collections.abc import Iterator
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from campaign.plan import RERUN_TAG
+from campaign.system import Walk, WalkError
 
 MAX_WALK_DIRS = 2_000_000
 MAX_TRIALS = 1_000_000
@@ -146,6 +148,8 @@ def _seat_cost(seat: Any, totals: Counter[str]) -> float:
 def _result_cost(path: Path, totals: Counter[str]) -> tuple[float, bool]:
     result = read_json(path)
     if not isinstance(result, dict):
+        if not path.exists():
+            return 0.0, False
         if "__" in path.parent.name:
             totals["unreadable_results"] += 1
         return 0.0, False
@@ -161,8 +165,18 @@ def _result_cost(path: Path, totals: Counter[str]) -> tuple[float, bool]:
     return sum(_seat_cost(seat, totals) for seat in seats), True
 
 
-def _raise(error: OSError) -> None:
-    raise error
+def _walk_errors(root: Path) -> WalkError:
+    def handle(error: OSError) -> None:
+        vanished = isinstance(error, FileNotFoundError | NotADirectoryError)
+        if vanished and error.filename is not None and Path(error.filename) != root:
+            return
+        raise error
+
+    return handle
+
+
+def _os_walk(root: Path, onerror: WalkError) -> Iterator[tuple[str, list[str], list[str]]]:
+    return os.walk(root, onerror=onerror)
 
 
 def distinct_roots(roots: tuple[Path, ...] | list[Path]) -> list[Path]:
@@ -170,12 +184,12 @@ def distinct_roots(roots: tuple[Path, ...] | list[Path]) -> list[Path]:
     return [root for root in real if not any(other in root.parents for other in real)]
 
 
-def scan_cost(roots: tuple[Path, ...] | list[Path]) -> Cost:
+def scan_cost(roots: tuple[Path, ...] | list[Path], walk: Walk = _os_walk) -> Cost:
     totals: Counter[str] = Counter()
     recorded = 0.0
     visited = 0
     for root in distinct_roots(roots):
-        for dirpath, dirnames, filenames in os.walk(root, onerror=_raise):
+        for dirpath, dirnames, filenames in walk(root, _walk_errors(root)):
             visited += 1
             assert visited <= MAX_WALK_DIRS, "too many folders under the cap roots"
             dirnames.sort()

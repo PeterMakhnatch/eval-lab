@@ -5,6 +5,7 @@ import contextlib
 import copy
 import io
 import json
+import os
 import re
 import shutil
 import sys
@@ -21,16 +22,24 @@ from campaign import evidence, fill, ledger, report
 from campaign.plan import RERUN_TAG, Plan, PlanError, base_arm, load, parse, sha256_file
 from campaign.runner import TERMINAL, UNSTOPPED, EventLog, Runner, Stop, expand_first_run
 from campaign.sim_fixture import (
+    BASE,
+    FOREIGN_WINDOW_SECONDS,
+    FOREIGN_YOUNG_AGE,
+    FOREIGN_YOUNG_MICRO,
+    MUSTER_GRACE,
     OTHER_PID,
     OTHER_START,
     STOP_GRACE,
+    TWIN_SUFFIX,
     BrokenStream,
     FakeJob,
     Scenario,
     World,
+    iso,
     plan_data,
     scenario,
     toml_text,
+    usd,
     write_supply,
 )
 
@@ -43,6 +52,8 @@ _DEFAULT_HUNT_SEED = 1_124_007
 _MAX_HUNT_SEEDS = 1_000_000
 _MAX_STEPS = 4000
 _MAX_RESUMES = 12
+_GLOBAL_FLAGS = ("stop-file", "cap", "cap-root")
+_SHUTDOWN = ("interrupted", "crash", "tick-limit")
 
 
 @dataclass(frozen=True)
@@ -77,10 +88,12 @@ class Proc:
     start_sha: str
     mode: str
     lanes: tuple[str, ...]
+    plan_path: Path
     killed: bool = False
     done: bool = False
     terminal: Counter[str] = field(default_factory=Counter)
     reasons: dict[str, str] = field(default_factory=dict)
+    stopping: dict[str, str] = field(default_factory=dict)
 
 
 Mutation = Callable[[dict[str, Any]], None]
@@ -92,6 +105,9 @@ def _mutations() -> dict[str, Mutation]:
 
     def no_harbor(d: dict[str, Any]) -> None:
         d["command"]["argv"] = [arg for arg in d["command"]["argv"] if arg != "{harbor}"]
+
+    def out_without_flag(d: dict[str, Any]) -> None:
+        d["command"]["argv"] = [arg for arg in d["command"]["argv"] if arg != "--out"]
 
     return {
         "unknown-top-key": lambda d: d.update(extra=1),
@@ -106,6 +122,7 @@ def _mutations() -> dict[str, Mutation]:
         "lane-unknown-arm": lambda d: d["lanes"][0]["arms"].append("ghost"),
         "too-many-at-once": at_once,
         "argv-without-out": lambda d: d["command"].update(argv=[a for a in d["command"]["argv"] if a != "{out}"]),
+        "out-without-flag": out_without_flag,
         "unknown-field": lambda d: d["command"]["argv"].append("{model}"),
         "no-harbor": no_harbor,
         "expected-above-reserve": lambda d: d["arms"][0].update(expected_usd=d["arms"][0]["reserve_usd"] + 1),
@@ -115,6 +132,8 @@ def _mutations() -> dict[str, Mutation]:
         "bad-schema": lambda d: d.update(schema="campaign-plan/v0"),
         "nan-floor": lambda d: d["money"].update(floor_usd=float("nan")),
         "state-inside-output": lambda d: d.update(state_root=d["output_root"] + "/state"),
+        "grace-too-short": lambda d: d["watch"].update(stop_grace_seconds=60),
+        "window-zero": lambda d: d["money"].update(foreign_reserve_window_hours=0),
     }
 
 
@@ -158,6 +177,25 @@ def _examples(run: Run) -> None:
                       "e7-reserves", repr(reserves))
 
 
+def _open_in_window(path: Path, campaign: str, now: float, skip: str) -> float:
+    reserves: dict[str, list[dict[str, Any]]] = {}
+    settles: Counter[str] = Counter()
+    for item in ledger.entries(path, campaign):
+        if item["event"] == "reserve":
+            reserves.setdefault(item["arm"], []).append(item)
+        else:
+            settles[item["arm"]] += 1
+    oldest = evidence.parse_utc(iso(now - FOREIGN_WINDOW_SECONDS, precise=False))
+    assert oldest is not None
+    total = 0.0
+    for arm, items in reserves.items():
+        for item in items[settles[arm]:]:
+            stamp = evidence.parse_utc(item.get("ts_utc"))
+            if arm != skip and (stamp is None or stamp > oldest):
+                total += float(item["reserved_usd"])
+    return total
+
+
 class Sim:
     def __init__(self, run: Run, case: Scenario, root: Path) -> None:
         self.run = run
@@ -167,25 +205,42 @@ class Sim:
         self.world.spawn_hook = self._on_spawn
         self.world.probe_hook = self._probe_hook if case.concurrent_probe else None
         self.plan_path = root / "plan.toml"
+        self.twin_path = root / f"plan{TWIN_SUFFIX}.toml"
         self.procs: dict[int, Proc] = {}
         self.next_owner = 1000
         self.phase = "run"
         self.spawned: dict[str, int] = {}
         self.last_job: dict[tuple[int, str], int] = {}
-        self.pending: list[tuple[float, tuple[str, ...]]] = []
-        self.operator: list[tuple[float, str, bool]] = []
-        self.tried: set[str] = set()
+        self.pending: list[tuple[float, Path, tuple[str, ...]]] = []
+        self.operator: list[tuple[float, Path, str, bool]] = []
+        self.tried: set[tuple[Path, str]] = set()
         self.resumes = 0
         self.fired: set[str] = set()
-        self.events = 0
+        self.events: Counter[str] = Counter()
         self.interrupting = 0
-        self.step_started = 0.0
+        self.frozen = 0.0
+        self.plans: dict[Path, Plan] = {}
+        self.flag_since: dict[str, float] = {}
+        self.ticking = 0
+        self.side_tick_at = 0.0
+        self.world.sleep_hook = self._sleep_hook
 
-    def plan(self) -> Plan:
-        return load(self.plan_path)
+    def plan(self, path: Path | None = None) -> Plan:
+        return load(path or self.plan_path)
 
-    def start(self, lanes: tuple[str, ...], mode: str, broken_after: int = 0) -> Proc:
-        plan = self.plan()
+    def plan_paths(self) -> list[Path]:
+        return [self.plan_path, *([self.twin_path] if self.case.twin else [])]
+
+    def root_plan(self, output_root: Path) -> Plan:
+        if output_root not in self.plans:
+            for path in self.plan_paths():
+                plan = load(path)
+                self.plans[plan.output_root] = plan
+        return self.plans[output_root]
+
+    def start(self, lanes: tuple[str, ...], mode: str, plan_path: Path | None = None, broken_after: int = 0) -> Proc:
+        path = plan_path or self.plan_path
+        plan = self.plan(path)
         owner = self.next_owner
         self.next_owner += 1
         self.world.live_owners.add(owner)
@@ -198,7 +253,7 @@ class Sim:
 
         expand = expand_first_run if mode == "run" else fill.expand_rerun
         runner = Runner(plan, self.world, owner, emit, [plan.lane(name) for name in lanes], expand)
-        proc = Proc(owner, runner, plan.sha256, mode, lanes)
+        proc = Proc(owner, runner, plan.sha256, mode, lanes, path)
         self.procs[owner] = proc
         runner.open()
         return proc
@@ -209,8 +264,9 @@ class Sim:
     def alive_jobs(self) -> list[FakeJob]:
         return [job for job in self.world.jobs.values() if job.alive]
 
-    def lane_jobs(self, lane: str) -> list[FakeJob]:
-        return [job for job in self.alive_jobs() if self.lane_of(job.out.name) == lane]
+    def lane_jobs(self, plan: Plan, lane: str) -> list[FakeJob]:
+        return [job for job in self.alive_jobs()
+                if job.out.parent == plan.output_root and self.lane_of(job.out.name) == lane]
 
     def rewarded(self, out: Path, skip: frozenset[str]) -> set[str]:
         return {trial.name for path, trial in self.world.truth.trials.items()
@@ -237,36 +293,55 @@ class Sim:
         self.world.kill_owner(proc.owner)
 
     def _on_event(self, owner: int, event: dict[str, str]) -> None:
-        self.events += 1
-        proc, lane, reason = self.procs[owner], event["lane"], event["reason"]
-        if event["kind"] not in TERMINAL:
-            return
+        proc = self.procs[owner]
+        kind, lane, reason = event["kind"], event["lane"], event["reason"]
+        plan = proc.runner.plan
+        self.events[str(plan.state_root)] += 1
+        saved, self.run.step = self.run.step, f"{self.phase}/{kind.lower()}/{reason or 'done'}"
+        if kind == "STOPPING":
+            self._judge(proc, event)
+            proc.stopping[lane] = reason
+        if kind in TERMINAL:
+            self._terminal(proc, event)
+        self.run.step = saved
+
+    def _judge(self, proc: Proc, event: dict[str, str]) -> None:
+        self.run.check(self._stop_is_true(proc, event), "stop-reason-is-true",
+                       f"{event['reason']} in lane {event['lane']} before {event['before']}")
+
+    def _terminal(self, proc: Proc, event: dict[str, str]) -> None:
+        kind, lane, reason = event["kind"], event["lane"], event["reason"]
+        plan = proc.runner.plan
         proc.terminal[lane] += 1
         proc.reasons[lane] = reason or "done"
-        saved, self.run.step = self.run.step, f"{self.phase}/{event['kind'].lower()}/{reason or 'done'}"
-        alive = [job.out.name for job in self.lane_jobs(lane)]
+        alive = [job.out.name for job in self.lane_jobs(plan, lane)]
         if reason not in UNSTOPPED:
             self.run.check(not alive, "stopped-means-gone", f"lane {lane} ends while {alive} run")
-        if event["kind"] == "STOP":
-            self.run.check(self._stop_is_true(proc, event), "stop-reason-is-true",
-                           f"{reason} in lane {lane} before {event['before']}")
+        pending = proc.stopping.pop(lane, None)
+        if kind == "STOP" and reason != pending:
+            self._judge(proc, event)
         if reason == "harbor-alive":
-            unsignalled = [job.out.name for job in self.lane_jobs(lane)
+            self._harbor_alive(plan, lane)
+        if reason == "orphan":
+            key = (proc.plan_path, lane)
+            self.operator.append((self.world.t + 60, proc.plan_path, lane,
+                                  not self.case.operator_top_only or key in self.tried))
+            self.tried.add(key)
+        if kind == "DONE" and proc.mode == "run":
+            missing = [arm for arm in plan.lane(lane).arms
+                       if str(plan.output_root / arm) not in self.spawned and not (plan.output_root / arm).exists()]
+            self.run.check(not missing, "done-means-all-started", f"lane {lane} missed {missing}")
+
+    def _harbor_alive(self, plan: Plan, lane: str) -> None:
+        jobs = self.lane_jobs(plan, lane)
+        if not self.case.ps_fail_rate:
+            unsignalled = [job.out.name for job in jobs
                            if job.harbor_alive and job.harbor_term_at is None and not job.unstoppable]
             self.run.check(not unsignalled, "harbor-signalled", f"Harbor of {unsignalled} never got a TERM")
-        self.run.step = saved
-        if reason == "orphan":
-            self.operator.append((self.world.t + 60, lane, not self.case.operator_top_only or lane in self.tried))
-            self.tried.add(lane)
-        if reason == "harbor-alive":
-            for job in self.lane_jobs(lane):
-                job.abandoned = True
-            self.operator.append((self.world.t + 600, lane, True))
-        if event["kind"] == "DONE" and proc.mode == "run":
-            plan = proc.runner.plan
-            missing = [arm for arm in plan.lane(lane).arms
-                       if arm not in self.spawned and not (plan.output_root / arm).exists()]
-            self.run.check(not missing, "done-means-all-started", f"lane {lane} missed {missing}")
+        for job in jobs:
+            job.abandoned = True
+        path = self.plan_path if plan.output_root == self.plan().output_root else self.twin_path
+        self.operator.append((self.world.t + 600, path, lane, True))
 
     def _job_reason(self, proc: Proc, lane: str, reason: str) -> bool:
         plan = proc.runner.plan
@@ -280,13 +355,21 @@ class Sim:
         if reason == "arm-exit":
             return job.top_exit not in (None, 0)
         assert reason == "timeout"
-        return self.world.t - job.started >= plan.max_arm_minutes * 60
+        limit = plan.max_arm_minutes * 60
+        gone = job.gone_at
+        return self.world.t - job.started >= limit and (gone is None or gone >= job.started + limit)
 
     def _held(self, plan: Plan, skip: str) -> float:
         held = 0.0
         for name, item in ledger.state(plan.ledger, plan.id).items():
             if name != skip and item.open and item.reserves:
                 held += item.reserved_usd * (item.reserves - item.settles) / item.reserves
+        for path in self.plan_paths():
+            other = self.plan(path)
+            if other.id != plan.id:
+                held += _open_in_window(plan.ledger, other.id, self.world.t, "")
+        if self.case.foreign_lines and self.world.t < FOREIGN_WINDOW_SECONDS - FOREIGN_YOUNG_AGE:
+            held += usd(FOREIGN_YOUNG_MICRO)
         return held
 
     def _balance_low(self, proc: Proc, before: str) -> bool:
@@ -299,34 +382,33 @@ class Sim:
         return probe.value < round(plan.floor_usd + reserve + self._held(plan, ""), 6)
 
     def _orphan_is_true(self, proc: Proc, lane: str) -> bool:
-        if self.lane_jobs(lane):
+        plan = proc.runner.plan
+        if self.lane_jobs(plan, lane) or self.world.ps_failed_at == self.world.t:
             return True
-        info = evidence.read_json(proc.runner.plan.lane_dir() / f"{lane}.json")
+        info = evidence.read_json(plan.lane_dir() / f"{lane}.json")
         if not isinstance(info, dict) or not isinstance(info.get("child"), int):
             return False
         start = info.get("child_start")
         return isinstance(start, str) and self.world.start_time(info["child"]) == start
-
-    def _streak_in_window(self, proc: Proc) -> bool:
-        moments = [self.step_started, *self.world.end_times(self.step_started), self.world.t]
-        return any(self.world.truth_streak(proc.runner.since, moment) for moment in moments)
 
     def _stop_is_true(self, proc: Proc, event: dict[str, str]) -> bool:
         reason, lane, before = event["reason"], event["lane"], event["before"]
         plan, world = proc.runner.plan, self.world
         truths: dict[str, Callable[[], bool]] = {
             "stop-file": lambda: plan.stop_file.exists(),
-            "plan-changed": lambda: sha256_file(self.plan_path) != proc.start_sha,
+            "plan-changed": lambda: sha256_file(proc.plan_path) != proc.start_sha,
             "cap": lambda: world.truth.charged_micro >= self.case.cap_micro,
             "cap-root": lambda: any(not root.is_dir() for root in plan.cap_roots if root != plan.output_root),
-            "streak": lambda: self._streak_in_window(proc),
+            "streak": lambda: world.truth_streak(plan.output_root, proc.runner.since),
             "balance-low": lambda: self._balance_low(proc, before),
             "orphan": lambda: self._orphan_is_true(proc, lane),
-            "harbor-alive": lambda: bool(self.lane_jobs(lane)),
+            "harbor-alive": lambda: bool(self.lane_jobs(plan, lane)) or world.ps_failed_at == world.t,
             "spawn": lambda: before == self.case.spawn_fail_arm,
             "detector": lambda: self.case.detector_fail,
-            "interrupted": lambda: self.interrupting == proc.owner,
+            "ledger": lambda: plan.ledger.exists() and not os.access(plan.ledger, os.W_OK),
         }
+        if reason in _SHUTDOWN:
+            return self.interrupting == proc.owner
         if reason == "balance-unreadable":
             probe = world.probes.get(proc.owner)
             return probe is not None and probe.time == world.t and probe.value is None
@@ -340,23 +422,23 @@ class Sim:
     def _on_spawn(self, argv: list[str], owner: int) -> None:
         proc = self.procs[owner]
         plan, world, check = proc.runner.plan, self.world, self.run.check
-        out = Path(argv[2])
+        out = Path(argv[3])
         name, base = out.name, base_arm(out.name)
         lane = plan.lane_of(base)
         saved, self.run.step = self.run.step, f"{self.phase}/spawn"
-        check(name not in self.spawned and not out.exists(), "single-start", name)
-        check(int(argv[4]) == lane.concurrency, "lane-concurrency", f"{name} got {argv[4]}")
-        busy = [job.out.name for job in self.lane_jobs(lane.name)]
+        check(str(out) not in self.spawned and not out.exists(), "single-start", str(out))
+        check(int(argv[5]) == lane.concurrency, "lane-concurrency", f"{name} got {argv[5]}")
+        busy = [job.out.name for job in self.lane_jobs(plan, lane.name)]
         check(not busy, "one-arm-per-lane", f"{name} starts while {busy} runs")
-        load = sum(job.concurrency for job in self.alive_jobs()) + lane.concurrency
-        check(load <= plan.max_trials_at_once, "trials-at-once", f"{load} > {plan.max_trials_at_once}")
+        load = sum(job.concurrency for job in self.alive_jobs() if job.out.parent == plan.output_root)
+        check(load + lane.concurrency <= plan.max_trials_at_once, "trials-at-once", f"{load} + {lane.concurrency}")
         lines = [item for item in ledger.entries(plan.ledger, plan.id) if item["arm"] == name]
         check(bool(lines) and lines[-1]["event"] == "reserve", "reserve-before-start", f"{name}: {lines}")
         self._spawn_money(proc, name)
         check(not plan.stop_file.exists(), "stop-file-before-start", name)
-        check(not world.truth_streak(proc.runner.since), "streak-before-start", name)
-        check(sha256_file(self.plan_path) == proc.start_sha, "plan-unchanged-at-start", name)
-        wrapper = Path(argv[5])
+        check(not world.truth_streak(plan.output_root, proc.runner.since), "streak-before-start", name)
+        check(sha256_file(proc.plan_path) == proc.start_sha, "plan-unchanged-at-start", name)
+        wrapper = Path(argv[6])
         same = wrapper == plan.wrapper_path() and wrapper.read_text() == plan.wrapper_text()
         check(same and "snap=sim-v1" in wrapper.read_text(), "wrapper-from-plan", str(wrapper))
         if RERUN_TAG in name:
@@ -365,7 +447,7 @@ class Sim:
             earlier = lane.arms[: lane.arms.index(base)]
             short = [arm for arm in earlier if plan.arm(arm).pilot and self.pilot_short(plan, arm)]
             check(not short, "pilot-gate", f"{name} starts after short pilot {short}")
-        self.spawned[name] = owner
+        self.spawned[str(out)] = owner
         self.last_job[(owner, lane.name)] = world.next_pid
         self.run.step = saved
 
@@ -377,14 +459,14 @@ class Sim:
         probe = world.probes.get(proc.owner)
         value = probe.value if probe is not None and probe.time == world.t else None
         check(value is not None and value >= need - 1e-9, "balance-before-start",
-              f"{name}: balance {value} below floor + reserve + open reserves of other arms {need}")
+              f"{name}: balance {value} below floor + reserve + every open reserve in the ledger {need}")
         check(world.truth.charged_micro < self.case.cap_micro, "cap-before-start", name)
         missing = [str(root) for root in plan.cap_roots if root != plan.output_root and not root.is_dir()]
         check(not missing, "cap-roots-present", f"{name} starts while {missing} is missing")
 
     def _rerun_truth(self, plan: Plan, name: str, argv: list[str]) -> None:
         match = re.fullmatch(rf"([a-z0-9-]+){re.escape(RERUN_TAG)}([0-9]+)", name)
-        self.run.check(match is not None and int(match.group(2)) == int(argv[3]), "one-rerun-round", name)
+        self.run.check(match is not None and int(match.group(2)) == int(argv[4]), "one-rerun-round", name)
         if match is None:
             return
         base = match.group(1)
@@ -405,34 +487,79 @@ class Sim:
         staged = sorted(path.name for path in Path(argv[1]).iterdir())
         self.run.check(staged == want, "rerun-covers-unmeasured", f"{name}: {staged} != {want}")
 
-    def _conditions(self) -> tuple[dict[str, bool], set[int]]:
-        plan = self.plan()
+    def _observe(self) -> None:
+        plan, world = self.plan(), self.world
         flags = {
             "stop-file": plan.stop_file.exists(),
-            "cap": self.world.truth.charged_micro >= self.case.cap_micro,
+            "cap": world.truth.charged_micro >= self.case.cap_micro,
             "cap-root": any(not root.is_dir() for root in plan.cap_roots if root != plan.output_root),
         }
-        streak = {proc.owner for proc in self.procs.values()
-                  if not proc.done and not proc.killed and self.world.truth_streak(proc.runner.since)}
-        return flags, streak
+        for proc in self.procs.values():
+            if not proc.done and not proc.killed:
+                flags[f"streak:{proc.owner}"] = world.truth_streak(proc.runner.plan.output_root, proc.runner.since)
+        for name, active in flags.items():
+            if not active:
+                self.flag_since.pop(name, None)
+            elif name not in self.flag_since:
+                self.flag_since[name] = world.t
 
-    def _step_checks(self, flags: dict[str, bool], streak: set[int]) -> None:
+    def _watched(self) -> list[FakeJob]:
+        live = {proc.owner for proc in self.procs.values() if not proc.done and not proc.killed}
+        return [job for job in self.alive_jobs()
+                if job.owner in live and job.owner in self.world.live_owners and not job.abandoned]
+
+    def _term_checks(self, slack: float) -> None:
+        watched = self._watched()
+        for name, since in sorted(self.flag_since.items()):
+            if self.world.t < since + slack:
+                continue
+            owner = int(name.split(":")[1]) if name.startswith("streak:") else 0
+            late = [job.out.name for job in watched
+                    if job.runner_terms == 0 and job.started <= since and owner in (0, job.owner)]
+            self.run.check(not late, f"{name.split(':')[0]}-terms-running",
+                           f"{late} got no TERM {self.world.t - since:.0f} s after {name} became true")
+
+    def _sleep_hook(self) -> None:
+        saved, self.run.step = self.run.step, f"{self.phase}/inside-a-wait"
+        self._observe()
+        self._term_checks(self.case.poll + 1)
+        self.run.step = saved
+        if self.world.t < self.side_tick_at:
+            return
+        self.side_tick_at = self.world.t + self.case.poll
+        for proc in list(self.procs.values()):
+            if proc.owner in (self.ticking, self.interrupting) or proc.done or proc.killed:
+                continue
+            if not proc.runner.tick():
+                self.finish_proc(proc)
+
+    def _muster_grace(self, job: FakeJob) -> bool:
+        if job.first_term_at is None or not job.top_alive_at_term or job.unstoppable:
+            return True
+        if job.operator_termed or job.operator_killed:
+            return True
+        if job.top_death_at is not None and job.top_death_at <= job.first_term_at + MUSTER_GRACE:
+            return True
+        return self.world.t < job.first_term_at + MUSTER_GRACE + 2 or not job.alive
+
+    def _process_checks(self) -> None:
         self.run.step = f"{self.phase}/watch"
-        plan = self.plan()
+        world, plan = self.world, self.plan()
         alive = self.alive_jobs()
-        per_lane = Counter(self.lane_of(job.out.name) for job in alive)
+        per_lane = Counter((job.out.parent, self.lane_of(job.out.name)) for job in alive)
         self.run.check(all(count <= 1 for count in per_lane.values()), "one-arm-per-lane", repr(per_lane))
-        load = sum(job.concurrency for job in alive)
-        self.run.check(load <= plan.max_trials_at_once, "trials-at-once", f"{load}")
-        watched = [job for job in alive if job.owner in self.world.live_owners and not job.abandoned]
-        for condition, active in flags.items():
-            if active:
-                self.run.check(not watched, f"{condition}-stops-running", repr([j.out.name for j in watched]))
-        late = [job.out.name for job in watched if job.owner in streak]
-        self.run.check(not late, "streak-stops-running", repr(late))
-        limit = plan.max_arm_minutes * 60 + 2 * STOP_GRACE + 2 * self.case.poll
-        for job in watched:
-            self.run.check(self.world.t - job.started < limit, "watchdog", f"{job.out.name}")
+        load = Counter()
+        for job in alive:
+            load[job.out.parent] += job.concurrency
+        self.run.check(all(value <= plan.max_trials_at_once for value in load.values()), "trials-at-once", repr(load))
+        for job in world.jobs.values():
+            self.run.check(job.runner_terms <= 1, "top-term-once", f"{job.out.name} got {job.runner_terms} TERMs")
+            self.run.check(self._muster_grace(job), "gone-within-muster-grace",
+                           f"{job.out.name} runs {world.t - (job.first_term_at or 0):.0f} s after 1 TERM")
+        self.run.check(not world.bad_signals, "never-signal-others", repr(world.bad_signals[:3]))
+        limit = plan.max_arm_minutes * 60 + 2 * STOP_GRACE + 2 * self.case.poll + self.frozen
+        for job in self._watched():
+            self.run.check(world.t - job.started < limit, "watchdog", f"{job.out.name}")
 
     def _faults(self) -> None:
         t, case = self.world.t, self.case
@@ -451,10 +578,18 @@ class Sim:
             self.fired.add("kill")
             live[0].killed = True
             self.world.kill_owner(live[0].owner)
-            self.pending.append((t + case.kill_delay, live[0].lanes))
+            self.pending.append((t + case.kill_delay, live[0].plan_path, live[0].lanes))
         elif case.interrupt_at is not None and t >= case.interrupt_at and "hup" not in self.fired and live:
             self.fired.add("hup")
             self._interrupt(live[-1])
+
+    def _second_terms(self) -> None:
+        if not self.case.operator_second_term:
+            return
+        for job in self.world.jobs.values():
+            due = job.muster_term_at is not None and self.world.t >= job.muster_term_at + 30
+            if due and job.top_alive and not job.operator_termed:
+                self.world.operator_term(job)
 
     def _interrupt(self, proc: Proc) -> None:
         ledger_file = proc.runner.plan.ledger
@@ -462,30 +597,32 @@ class Sim:
         if broken:
             ledger_file.chmod(0o444)
         self.interrupting = proc.owner
+        started = self.world.t
         try:
             proc.runner.interrupt("interrupted", "simulated HUP")
         finally:
             self.interrupting = 0
+            self.frozen += self.world.t - started
             if broken:
                 ledger_file.chmod(0o644)
         self.finish_proc(proc)
-        self.pending.append((self.world.t + 30, proc.lanes))
+        self.pending.append((self.world.t + 30, proc.plan_path, proc.lanes))
 
     def _operator(self) -> None:
         due = [item for item in self.operator if item[0] <= self.world.t]
         self.operator = [item for item in self.operator if item[0] > self.world.t]
-        for _, lane, full in due:
-            for job in self.lane_jobs(lane):
+        for _, path, lane, full in due:
+            for job in self.lane_jobs(self.plan(path), lane):
                 self.world.operator_kill(job, top_only=not full)
-            self.pending.append((self.world.t + 5, (lane,)))
+            self.pending.append((self.world.t + 5, path, (lane,)))
 
     def _resume(self) -> None:
-        due = [lanes for when, lanes in self.pending if when <= self.world.t]
+        due = [(path, lanes) for when, path, lanes in self.pending if when <= self.world.t]
         self.pending = [item for item in self.pending if item[0] > self.world.t]
-        for lanes in due:
+        for path, lanes in due:
             if self.resumes < _MAX_RESUMES:
                 self.resumes += 1
-                self.start(lanes, "run")
+                self.start(lanes, "run", path)
 
     def _probe_hook(self, owner: int) -> None:
         for proc in list(self.procs.values()):
@@ -498,14 +635,18 @@ class Sim:
 
     def loop(self) -> None:
         for _ in range(_MAX_STEPS):
-            self.step_started = self.world.t
             if self.phase == "run":
                 self._faults()
-            flags, streak = self._conditions()
+            self._second_terms()
+            self._observe()
             for proc in list(self.procs.values()):
+                self.ticking = proc.owner
                 if not proc.done and not proc.killed and not proc.runner.tick():
                     self.finish_proc(proc)
-            self._step_checks(flags, streak)
+            self.ticking = 0
+            self.run.step = f"{self.phase}/watch"
+            self._term_checks(0)
+            self._process_checks()
             self._operator()
             self._resume()
             if self._quiet():
@@ -521,20 +662,28 @@ class Sim:
                 ok = count <= 1 if proc.killed else count == 1
                 self.run.check(ok, "one-stop-line", f"owner {proc.owner} lane {lane}: {count} lines")
         self.run.check(not self.world.lock_errors, "lane-lock", repr(self.world.lock_errors[:3]))
-        log = self.plan().state_root / "campaign.log"
-        lines = len(log.read_text(encoding="utf-8").splitlines()) if log.exists() else 0
-        self.run.check(lines == self.events, "event-log-complete", f"{lines} log lines for {self.events} events")
+        for state_root, count in sorted(self.events.items()):
+            log = Path(state_root) / "campaign.log"
+            lines = len(log.read_text(encoding="utf-8").splitlines()) if log.exists() else 0
+            self.run.check(lines == count, "event-log-complete", f"{log}: {lines} log lines for {count} events")
 
 
 def _purity(sim: Sim) -> None:
     sim.run.step = "check"
     plan = sim.plan()
-    lines, _ = report.check(plan)
+    before = plan.ledger.read_bytes() if plan.ledger.exists() else None
+    lines, _ = report.check(plan, BASE)
     for lane in plan.lanes:
         want = f"lane {lane.name}: {lane.concurrency} trials at once: {' -> '.join(lane.arms)}"
         sim.run.check(any(line.strip() == want for line in lines), "check-shows-order", want)
-    untouched = not plan.state_root.exists() and not plan.ledger.exists() and not sim.world.calls
+    after = plan.ledger.read_bytes() if plan.ledger.exists() else None
+    untouched = not plan.state_root.exists() and before == after and not sim.world.calls
     sim.run.check(untouched, "check-writes-nothing", repr(sim.world.calls))
+    if sim.case.foreign_lines:
+        shown = any(line.strip().startswith("night team-8: $0.30") for line in lines)
+        hidden = not any(line.strip().startswith(("e7 old-1", "night done-1", "night elsewhere", "night void-1"))
+                         for line in lines)
+        sim.run.check(shown and hidden, "check-shows-foreign-reserves", repr(lines))
 
 
 def _files(folder: Path) -> list[str]:
@@ -553,18 +702,20 @@ def _dry_run(sim: Sim) -> None:
 
 def _ledger_end(sim: Sim) -> None:
     sim.run.step = "end/ledger"
-    plan = sim.plan()
-    lines = ledger.entries(plan.ledger, plan.id)
-    events = Counter((item["arm"], item["event"]) for item in lines)
-    for arm in sorted({item["arm"] for item in lines}):
-        reserves, settles = events[(arm, "reserve")], events[(arm, "settle")]
-        failed = sum(1 for item in lines if item["arm"] == arm and item.get("status") == "spawn-failed")
-        sim.run.check(reserves <= 1 + failed, "single-start", f"{arm} has {reserves} reserves, {failed} failed")
-        sim.run.check(settles == reserves, "settle-after-end", f"{arm}: {reserves} reserves, {settles} settles")
-        order = [item["event"] for item in lines if item["arm"] == arm]
-        sim.run.check(order[0] == "reserve", "reserve-before-start", f"{arm}: {order}")
-    for name in sim.spawned:
-        sim.run.check(events[(name, "reserve")] >= 1, "reserve-before-start", name)
+    for path in sim.plan_paths():
+        plan = sim.plan(path)
+        lines = ledger.entries(plan.ledger, plan.id)
+        events = Counter((item["arm"], item["event"]) for item in lines)
+        for arm in sorted({item["arm"] for item in lines}):
+            reserves, settles = events[(arm, "reserve")], events[(arm, "settle")]
+            failed = sum(1 for item in lines if item["arm"] == arm and item.get("status") == "spawn-failed")
+            sim.run.check(reserves <= 1 + failed, "single-start", f"{arm} has {reserves} reserves, {failed} failed")
+            sim.run.check(settles == reserves, "settle-after-end", f"{arm}: {reserves} reserves, {settles} settles")
+            order = [item["event"] for item in lines if item["arm"] == arm]
+            sim.run.check(order[0] == "reserve", "reserve-before-start", f"{arm}: {order}")
+        for out in sim.spawned:
+            if Path(out).parent == plan.output_root:
+                sim.run.check(events[(Path(out).name, "reserve")] >= 1, "reserve-before-start", out)
 
 
 def _detected(plan: Plan, name: str) -> frozenset[str]:
@@ -643,11 +794,16 @@ def _run_phases(sim: Sim) -> None:
     groups = [(name,) for name in every] if case.per_lane_runners else [every]
     _stale_lane_file(sim)
     for index, lanes in enumerate(groups):
-        sim.start(lanes, "run", case.closed_output_after if index == 0 else 0)
+        sim.start(lanes, "run", None, case.closed_output_after if index == 0 else 0)
+    if case.twin:
+        sim.start(every, "run", sim.twin_path)
     if case.duplicate:
-        twin = sim.start((every[0],), "run")
+        first = next(proc for proc in sim.procs.values() if every[0] in proc.lanes)
+        holding = first.terminal[every[0]] == 0
+        duplicate = sim.start((every[0],), "run")
         sim.run.step = "run/duplicate"
-        sim.run.check(twin.reasons.get(every[0]) == "lane-held", "lane-lock", repr(twin.reasons))
+        held = duplicate.reasons.get(every[0]) == "lane-held"
+        sim.run.check(held == holding, "lane-lock", f"first lane running {holding}, duplicate {duplicate.reasons}")
     sim.loop()
     sim.phase = "fill"
     stop_file = sim.plan().stop_file
@@ -672,6 +828,8 @@ def _run_seed(seed: int) -> Run:
         _examples(run)
         write_supply(case, root)
         (root / "plan.toml").write_text(toml_text(plan_data(case, root)), encoding="utf-8")
+        if case.twin:
+            (root / f"plan{TWIN_SUFFIX}.toml").write_text(toml_text(plan_data(case, root, True)), encoding="utf-8")
         sim = Sim(run, case, root)
         _purity(sim)
         _run_phases(sim)
@@ -807,4 +965,4 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    sys.exit(main())

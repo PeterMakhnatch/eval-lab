@@ -907,3 +907,101 @@ folders of `e8/final/`; the output starts with the definitions that it uses)
   comparison cell some minutes later. The cells with 1 attempt run last and have half the trials.
 - 1 model, 1 harness, 10 layouts, 10 or 20 trials for each cell, 1 synthetic search task. A second model is
   needed before a pass rate can be called a property of a model.
+
+## Amendment 12a (5:16 AM ET, 2026-11-24, before any `standin` trial with the second model): E8b, the 4 primary contrasts of E8 with Claude Haiku 5.5
+
+Written after the E8 trials with DeepSeek V4.1 Flash ended. I know the E8 numbers of the registered analysis
+(`e8/analysis/e8.txt`, not yet audited): 220 of 220 trials measured; `probe_pass` is 10% in `stale-t`, 20%
+in `badlead-t` and 20% in `wait-t`, and 100% in their comparison cells; tests 1 to 3 pass (90, 80 and 80
+points, p 0.002); test 4 does not resolve (`left` is 10% in `deadclaim-r` and 5% in `deadclaim-n`). No
+`standin` trial with Claude Haiku 5.5 exists. An independent review of this text came before the commit
+(`LOG.md`).
+
+**Question.** Does a model of another family fall into the same 4 traps? A probe family is useful as a
+benchmark only when its result can differ between models. E8b is a small replication; it has less power than
+E8.
+
+**Design**
+- Everything is as in Amendment 12 (family at `35624d017`, task copy and pin, runner worktree, Harbor
+  checkout, Daytona snapshot, 30 turns, verdicts, void rule, stop rule, the 7:00 AM ET STOP), except the
+  model: roster `night-2026-11-24/rosters/t2-or-haiku55-anthropic.json` (terminus-2,
+  `openrouter/anthropic/claude-haiku-5.5`, provider pin `anthropic`, no fallback, thinking off). The roster
+  gives the list price to the cost record: $0.10 for 1 million input tokens, $0.50 for 1 million output
+  tokens, $0.01 for cached input. Other differences that come with the model: terminus-2 sets no
+  temperature, so each provider's default applies; Harbor adds Anthropic cache breakpoints for Claude only;
+  the roster has no cache-write price ($0.125 for 1 million tokens), so the recorded cost can be lower than
+  the bill. The pilot compares the OpenRouter balance before and after its 2 trials with their recorded
+  cost (the account is shared with other lanes, so the balance gives an upper bound).
+- 8 cells, the 2 cells of each primary test: `stale-t`, `stale-c`, `badlead-t`, `badlead-c`, `wait-t`,
+  `wait-n`, `deadclaim-r`, `deadclaim-n`. 10 instances, 1 attempt: 80 trials. The other 5 cells do not run
+  (money).
+- Pilot (not scored, folder `e8b/pilot/`): 1 trial of `stale-t` and 1 of `deadclaim-r` on `standin-i01`.
+  It can stop E8b for a plumbing fault: no reward, `script_faithful` 0, an agent that cannot reach the
+  world, or a seat without a recorded cost. It cannot change the cells or the analysis. It also gives the
+  cost: with c = the higher recorded model cost of the 2 pilot trials, E8b starts only if
+  40 x (c + $0.008) is at most the money left minus $0.35 (`night_money.py`; $0.008 is the Daytona time of a
+  trial of 170 s). Else E8b does not run.
+- Lanes: 2 at once, 8 trials at once in each. Each lane runs its 2 pairs as 2 commands. Lane A: `stale-t`,
+  `stale-c`, then `wait-t`, `wait-n`. Lane B: `badlead-t`, `badlead-c`, then `deadclaim-r`, `deadclaim-n`.
+  The second commands start only when both first commands have ended and 40 x (c' + $0.008) is at most
+  the money left minus $0.35, with c' = the mean recorded model cost of the scored E8b trials so far. If
+  they do not start, E8b has the `stale` and `badlead` pairs only: their triggers count requests and do not
+  depend on the pace of the model, and they had the largest effects in E8. First command of lane A, with
+  `N=/Users/petermakhnatch/Developer/muster-runs/night-2026-11-24`: `NIGHT_CAP=14.20 NIGHT_FLOOR=1.00
+  $N/night_lane.sh e8b 8 1 0.25 $N/e8b/scored $N/e8/tasks/standin $N/rosters/t2-or-haiku55-anthropic.json
+  /Users/petermakhnatch/Developer/muster-runs/e5/harbor-daytona-mirror.sh
+  /Users/petermakhnatch/Developer/eval-lab/.worktrees/fable-night-run-e8 stale-t stale-c`; the other 3
+  commands are the same with their cells. No other muster trial runs at the same time. The watcher
+  (`night_watch.sh 0.30`) of Amendment 12 stays; before each command I check that it runs and I write the
+  gate values to `e8b/gates.log`.
+- Counting as in Amendment 12. An unmeasured trial (no reward, void, stalled seat) runs again once after both
+  lanes end, if at least $0.45 is left, with the tasks root `e8b/tasks-rerun/r1` and the output root
+  `e8b/rerun1`. The cell value uses the measured trials (linked into `e8b/final/<cell>`).
+- Money: expected $0.5 to $1.0 (the model cost of a trial is not known before the pilot). The cap on the
+  recorded model cost stays $14.20.
+
+**Analysis**
+- For Haiku alone: `analysis/standin_probes.py` at `3c4b19d1d` with the 8 arms of `e8b/final/` and
+  `--planned-trials 10`. The same unit, the same exact sign-flip test, the same 4 primary tests and the same
+  fixed Holm family of 4 as Amendment 12. With 1 attempt an instance value is 0 or 1; a test passes step 1
+  of Holm's rule only when at least 8 of the 10 instance differences are not 0 and all of them have 1 sign.
+  A test that does not resolve is the likely result for a difference below about 70 points.
+- Between the models, secondary and without a correction: `e8b/compare_models.py deepseek=$N/e8/final
+  haiku=$N/e8b/final --json $N/e8b/analysis/compare.json` (sha256 `e44ecdfbcd100ca8` at the start, in
+  `muster-runs`, checked on fixture trials against the registered script; B - A = Haiku - DeepSeek). For
+  each of the 8 cells: the instance value of Haiku minus the instance mean of DeepSeek's trials
+  (`probe_pass`; `left` in the 2 `deadclaim` cells). For each of the 4 probes: the contrast of Haiku minus
+  the contrast of DeepSeek, by instance. Mean in points, 95% percentile bootstrap over the 10 instances
+  (`random.Random(0)`, 10,000 resamples), exact sign-flip p. These are descriptions: no verdict word comes
+  from them.
+- An independent audit recomputes the numbers before the results are written.
+
+**Directional expectations (written before any trial with Haiku)**
+- I have no earlier trial of Haiku 5.5 in a muster world. The expectations come from E8 and from the idea
+  that the traps catch a habit of the harness loop (1 read, then act), not a weakness of 1 model.
+- `stale`: trap 40% or less, control 80% or more; the contrast has the sign of E8.
+- `badlead`: trap between 20% and 70% (I expect that Haiku notices the empty room more often than DeepSeek
+  and posts before it opens); control 80% or more.
+- `wait`: trap 50% or less; baseline 80% or more.
+- `deadclaim`: `left` 20% or less in `deadclaim-r` and in `deadclaim-n`; the contrast is near 0, as in E8.
+- Between the models: Haiku's `probe_pass` is equal or higher than DeepSeek's in each of the 3 trap cells,
+  and the largest difference is in `badlead-t`. DeepSeek's trap rates (10% to 20%) are near 0, so "equal or
+  higher" is a weak prediction; only the size of the `badlead-t` difference is an informative test.
+- I expect the signs of tests 1 to 3 to repeat. I do not expect all 3 to pass Holm's rule with 10 trials
+  for each cell.
+
+**What E8b cannot show**
+- 10 trials for each cell and 1 attempt: only a very large contrast resolves. A difference between the
+  models below about 60 points cannot be told from noise; at 40 points the sign-flip p is below 0.05 in
+  about 1 of 3 runs.
+- Haiku has 1 trial for each instance and DeepSeek 2, so Haiku's instance values are noisier.
+- The comparison cells were at 100% for DeepSeek. A ceiling there hides any difference between the models
+  in the controls.
+- Temperature, caching and provider differ with the model and cannot be separated from it.
+- The 2 models ran at different times of 1 night, through different providers. Haiku's model calls can be
+  faster or slower than DeepSeek's; in `wait-t` that changes how often the report comes by the 30 s rule.
+  The timing lines of the analysis show it.
+- Thinking is off for both models. 1 harness, 1 synthetic search task, the same 10 layouts.
+- I wrote the expectations after I saw DeepSeek's results. They are not independent of them.
+- The baselines and the controls outside the 4 pairs do not run for Haiku, so "how much of a failure is the
+  trap" has less support than in E8.

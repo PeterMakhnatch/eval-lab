@@ -12,6 +12,20 @@ Times are New York time (ET). Newest entry first. Each entry says what is done a
 
 ## 2026-11-24
 
+**5:16 AM. E8 ended; E8b (a second model, Claude Haiku 5.5) is pre-registered (Amendment 12a).**
+- E8: both first commands ended at 4:58 AM; before the second commands `night_money.py` showed $1.76 left
+  (the rule needs $0.90), the watcher ran and no stop file existed (`e8/gates.log`; the gate of 4:24 AM is
+  in that file too, written after the fact). The last cell ended at 5:08 AM. 220 of 220 trials are
+  measured, 0 void, 0 stalled, no rerun. I ran the registered analysis after the last cell ended; the
+  independent audit is in work.
+- E8b: $1.47 of the $10 was left after E8, and Claude Haiku 5.5 has about the price of DeepSeek Flash on
+  OpenRouter. The 4 primary pairs run with 1 attempt (80 trials) after a 2-trial pilot that also measures
+  the cost; a money rule can cut E8b to the `stale` and `badlead` pairs or cancel it. An independent review
+  of the text said "commit and run" after 6 sentence changes (other differences that come with the model,
+  the higher pilot cost in the rule, 2 commands for each lane, the power of the comparison between models,
+  a weak prediction named as weak, 3 more limits). The comparison script `e8b/compare_models.py` is outside
+  the repository; its hash is in the amendment.
+
 **4:31 AM. E9 is complete and audited (F27). E8: the scripted check and the pilot passed; the lanes run.**
 - E9: 42 of 42 trials have a reward, 0 stalled seats, 0 reruns. All 3 primary tests pass. Command 1 ended
   at 3:53 AM; before command 2 `night_money.py` showed $3.74 left (the rule needs $2.60), the watcher ran

@@ -86,9 +86,11 @@ def rule_text(config: dict, instance: dict, seat: str) -> str | None:
     if rule == "chief":
         return fill(part("chief-lead" if seat == "p1" else "chief-member"), common)
     zone = reference.zones(config, agents)[seat]
+    steps = "Steps 1 and 3 use" if zone["scout"] else "Step 3 uses"
     common |= {
         "start": zone_start(config, zone),
         "fill": zone_fill(config, zone),
+        "uses": f"{steps} all {budget} of your opens.",
         "example_first": reference.box_at(config, EXAMPLE_ROOM, 1),
         "example_last": reference.box_at(config, EXAMPLE_ROOM, config["room_size"]),
     }

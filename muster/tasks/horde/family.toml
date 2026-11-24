@@ -17,6 +17,7 @@ rooms = 24
 room_size = 10
 treasure_rooms = 8
 total_budget = 96
+known_limits = ["Reads through GET /new have event kind new; tools that count only kind msgs as a read undercount the reads of this family."]
 
 [policies]
 oracle = "The best play that obeys the condition's rule; it reaches 1.0 in every condition. solo-96: scan the rooms from room 1 with 1 box each, stay in a treasure room until it is empty, stop after the 8th treasure room (16 empty first boxes + 80 flags = 96 opens). team-k: seat n scouts the first box of the rooms r with (r - 1) mod k = n - 1 and posts each result as JSON {room, box, flag}; when all 24 rooms are on the board, every seat cuts the 72 closed treasure boxes into blocks by opens left in seat order and opens its own block. zones-k: the plan of reference.py (the same scouts; then seat n opens its positions of the treasure room of rank ((n - 1) mod 8) + 1). chief-k: p1 posts the scouting list (the team-k scouts) and, when all 24 rooms are on the board, the block list, at most 16 seats in each post; every seat opens every box that any list of p1 gives it and posts each result."

@@ -5,5 +5,12 @@
     "invariant": "lane-lock",
     "detail": "{}",
     "known": false
+  },
+  {
+    "seed": 11023865144473682854,
+    "step": "run/stop/balance-low",
+    "invariant": "stop-reason-is-true",
+    "detail": "balance-low in lane l2 before l2-arm0",
+    "known": false
   }
 ]

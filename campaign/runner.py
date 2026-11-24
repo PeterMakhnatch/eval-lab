@@ -123,10 +123,11 @@ def _read_probe(system: System, argv: tuple[str, ...], label: str, timeout: floa
     if none_ok and value == "none":
         return None, ""
     if not NUMBER.fullmatch(value):
-        return None, f"the {label} printed {value[:40]!r}, not a number"
+        shape = ", starting with '{'" if value.startswith("{") else ""
+        return None, f"the {label} printed {len(value)} characters{shape}, not a number (output not shown)"
     number = float(value)
     if not math.isfinite(number) or number > MAX_BALANCE_USD:
-        return None, f"the {label} printed {value[:40]}, above the sane bound ${MAX_BALANCE_USD:.0f}"
+        return None, f"the {label} printed a number above the sane bound ${MAX_BALANCE_USD:.0f}"
     return number, ""
 
 
@@ -514,10 +515,10 @@ class Runner:
                                  "since this runner started have no reward")
 
     def _gate_balance(self, step: Step) -> float:
-        own, foreign = self._open_reserved()
         funds, problem = read_funds(self.system, self.plan, self.owner)
         if funds is None:
             raise Stop("balance-unreadable", problem)
+        own, foreign = self._open_reserved()
         balance = funds.usable()
         need = round(self.plan.floor_usd + step.reserve_usd + own + foreign, 6)
         if balance < need:

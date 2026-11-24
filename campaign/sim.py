@@ -40,6 +40,7 @@ from campaign.sim_fixture import (
     MUSTER_GRACE,
     OTHER_PID,
     OTHER_START,
+    PROBE_SECRET,
     SHELL_PID,
     STOP_GRACE,
     TWIN_SUFFIX,
@@ -169,8 +170,23 @@ def _schema(run: Run, case: Scenario, root: Path, rng: Random) -> None:
             run.check(True, "plan-schema-refuses", name)
 
 
+_WRAPPER_CASES = (
+    (("keys", "run", "--", "uv", "run", "--no-sync", "muster", "run", "--out", "{out}"), False),
+    (("sh", "-c", "python3 child.py; true"), True),
+    (("keys", "run", "--", "sh", "-c", "python3 child.py {out}; true"), True),
+    (("env", "A=1", "nohup", "bash", "-lc", "muster run && true"), True),
+    (("keys", "run", "--", "env", "-i", "B=2", "/bin/zsh", "-ec", "a | b"), True),
+    (("sh", "-c", "a\nb"), True),
+    (("/bin/sh", "-c", "exec python3 muster.py --out {out}"), False),
+    (("python3", "-c", "import a; a.run()"), False),
+    (("nohup", "sh", "x.sh;"), False),
+)
+
+
 def _examples(run: Run) -> None:
     run.step = "examples"
+    for argv, flagged in _WRAPPER_CASES:
+        run.check(bool(report.wrapper_problem(argv)) == flagged, "wrapper-shape", repr(argv))
     for path in sorted(_PLANS.glob("*.toml")):
         try:
             plan = load(path)
@@ -183,6 +199,7 @@ def _examples(run: Run) -> None:
             want = [("a", 4, ("solo-24", "zones-8", "chief-8", "zones-4", "chief-4")),
                     ("b", 4, ("team-8", "share-8", "team-4", "share-4"))]
             run.check(order == want, "e7-order", repr(order))
+            run.check(not report.wrapper_problem(plan.argv), "e7-argv-direct", repr(plan.argv[:6]))
             run.check(plan.harbor_run_args[-1] == "dind_snapshot=muster-dind-mirror-v1", "e7-sandbox-image",
                       repr(plan.harbor_run_args))
             reserves = {arm.name: arm.reserve_usd for arm in plan.arms}
@@ -237,6 +254,7 @@ class Sim:
         self.in_tick: set[int] = set()
         self.side_tick_at = 0.0
         self.world.sleep_hook = self._sleep_hook
+        self.world.observe_hook = self._observe_hook
 
     def plan(self, path: Path | None = None) -> Plan:
         return load(path or self.plan_path)
@@ -311,6 +329,7 @@ class Sim:
         plan = proc.runner.plan
         self.events[str(plan.state_root)] += 1
         saved, self.run.step = self.run.step, f"{self.phase}/{kind.lower()}/{reason or 'done'}"
+        self.run.check(PROBE_SECRET not in event["text"], "probe-output-private", event["text"][:80])
         if kind == "WAIT" and reason == "money-lock":
             proc.lock_notes += 1
         if kind == "STOPPING":
@@ -541,21 +560,29 @@ class Sim:
 
     def _term_checks(self, step_start: float | None) -> None:
         watched = self._watched()
-        slack = self.case.poll + self.plan().probe_timeout_seconds + 1
+        slack = self.case.poll + 3 * self.plan().probe_timeout_seconds + 1
         for name, since in sorted(self.flag_since.items()):
             due = (step_start is not None and since <= step_start) or self.world.t >= since + slack
             if not due:
                 continue
             owner = int(name.split(":")[1]) if name.startswith("streak:") else 0
             late = [job.out.name for job in watched
-                    if job.runner_terms == 0 and job.started <= since and owner in (0, job.owner)]
+                    if job.started <= since and owner in (0, job.owner)
+                    and (job.first_term_at is None or job.first_term_at > since + slack)]
             self.run.check(not late, f"{name.split(':')[0]}-terms-running",
-                           f"{late} got no TERM {self.world.t - since:.0f} s after {name} became true")
+                           f"{late} got no TERM within {slack:.0f} s after {name} became true at {since:.0f} s")
+
+    def _observe_hook(self) -> None:
+        saved, self.run.step = self.run.step, f"{self.phase}/inside-a-probe"
+        self._observe()
+        self._term_checks(None)
+        self.run.step = saved
 
     def _sleep_hook(self) -> None:
         saved, self.run.step = self.run.step, f"{self.phase}/inside-a-wait"
         waiting = self.world.hold_end(self.world.t) is not None
-        if self.phase == "run" and self.case.stop_in_lock_wait and waiting and "stop" not in self.fired:
+        busy = waiting and bool(self.alive_jobs())
+        if self.phase == "run" and self.case.stop_in_lock_wait and busy and "stop" not in self.fired:
             self.fired.add("stop")
             self.plan().stop_file.write_text("operator during a lock wait\n", encoding="utf-8")
         self._observe()
@@ -582,17 +609,23 @@ class Sim:
 
     def _lock_liveness(self, proc: Proc, mark: int, notes: int) -> None:
         attempts = [item for item in self.world.lock_attempts[mark:] if item[0] == proc.owner]
-        fails = [item for item in attempts if not item[2]]
-        if not fails:
-            return
-        first = fails[0][1]
+        episodes: list[list[tuple[int, float, bool, bool]]] = [[]]
+        for item in attempts:
+            episodes[-1].append(item)
+            if item[2]:
+                episodes.append([])
         saved, self.run.step = self.run.step, f"{self.phase}/money-lock"
-        if any(item[1] - first >= LOCK_NOTE_SECONDS for item in fails):
-            self.run.check(proc.lock_notes > notes, "money-lock-wait-line", f"owner {proc.owner} waited silently")
-        won = any(item[2] and item[1] >= first for item in attempts)
-        end = self.world.hold_end(first)
-        if not won and end is not None and all(item[3] for item in fails):
-            limit = proc.runner.plan.probe_timeout_seconds
+        long = 0
+        for episode in episodes:
+            fails = [item for item in episode if not item[2]]
+            if fails and any(item[1] - fails[0][1] >= LOCK_NOTE_SECONDS for item in fails):
+                long += 1
+        self.run.check(proc.lock_notes - notes >= long, "money-lock-wait-line",
+                       f"owner {proc.owner}: {long} waits of 5 s or more, {proc.lock_notes - notes} WAIT lines")
+        fails = [item for item in episodes[-1] if not item[2]]
+        end = self.world.hold_end(fails[0][1]) if fails else None
+        if fails and end is not None and all(item[3] for item in fails):
+            first, limit = fails[0][1], proc.runner.plan.probe_timeout_seconds
             self.run.check(end + LOCK_RETRY_SECONDS > first + limit, "money-lock-liveness",
                            f"owner {proc.owner} gave up at {first:.1f} s; the lock was free at {end:.1f} s, "
                            f"within {limit:.0f} s")
@@ -622,7 +655,7 @@ class Sim:
             self.run.check(self._muster_grace(job), "gone-within-muster-grace",
                            f"{job.out.name} runs {world.t - (job.first_term_at or 0):.0f} s after 1 TERM")
         self.run.check(not world.bad_signals, "never-signal-others", repr(world.bad_signals[:3]))
-        limit = (plan.max_arm_minutes * 60 + 2 * STOP_GRACE + 2 * self.case.poll + plan.probe_timeout_seconds
+        limit = (plan.max_arm_minutes * 60 + 2 * STOP_GRACE + 2 * self.case.poll + 3 * plan.probe_timeout_seconds
                  + self.frozen)
         for job in self._watched():
             self.run.check(world.t - job.started < limit, "watchdog", f"{job.out.name}")
@@ -728,14 +761,17 @@ class Sim:
         self.run.check(not self.world.lock_errors, "lane-lock", repr(self.world.lock_errors[:3]))
         for state_root, count in sorted(self.events.items()):
             log = Path(state_root) / "campaign.log"
-            lines = len(log.read_text(encoding="utf-8").splitlines()) if log.exists() else 0
+            text = log.read_text(encoding="utf-8") if log.exists() else ""
+            lines = len(text.splitlines())
             self.run.check(lines == count, "event-log-complete", f"{log}: {lines} log lines for {count} events")
+            self.run.check(PROBE_SECRET not in text, "probe-output-private", str(log))
 
 
-def _check_funds(sim: Sim, lines: list[str]) -> None:
-    world = sim.world
+def _check_funds(sim: Sim, lines: list[str], problems: list[str]) -> None:
+    world, plan = sim.world, sim.plan()
     probe = world.probes.get(SHELL_PID)
     failed = probe is None or probe.value is None or world.key_failed.get(SHELL_PID) == world.t
+    low = False
     if failed:
         want = "money now: unreadable"
     else:
@@ -744,15 +780,18 @@ def _check_funds(sim: Sim, lines: list[str]) -> None:
         usable = probe.value if key is None else min(probe.value, key)
         binding = "key limit left" if key is not None and key < probe.value else "account credits"
         want = f"{binding} binds: ${usable:.2f}"
+        low = usable < round(plan.floor_usd + min(plan.arm(lane.arms[0]).reserve_usd for lane in plan.lanes), 6)
     shown = [line for line in lines if line.startswith("money now:")]
     sim.run.check(len(shown) == 1 and want in shown[0], "check-shows-funds", f"want {want!r} in {shown}")
+    money = [problem for problem in problems if problem.startswith("money: ")]
+    sim.run.check(bool(money) == (failed or low), "check-funds-problem", f"failed {failed}, low {low}: {money}")
 
 
 def _purity(sim: Sim) -> None:
     sim.run.step = "check"
     plan = sim.plan()
     before = plan.ledger.read_bytes() if plan.ledger.exists() else None
-    lines, _ = report.check(plan, BASE, read_funds(sim.world, plan, SHELL_PID))
+    lines, problems = report.check(plan, BASE, read_funds(sim.world, plan, SHELL_PID))
     for lane in plan.lanes:
         want = f"lane {lane.name}: {lane.concurrency} trials at once: {' -> '.join(lane.arms)}"
         sim.run.check(any(line.strip() == want for line in lines), "check-shows-order", want)
@@ -760,7 +799,8 @@ def _purity(sim: Sim) -> None:
     probes_only = set(sim.world.calls) <= {"fake-balance", "fake-key-limit"}
     untouched = not plan.state_root.exists() and before == after and probes_only
     sim.run.check(untouched, "check-writes-nothing", repr(sim.world.calls))
-    _check_funds(sim, lines)
+    sim.run.check(not any(PROBE_SECRET in line for line in lines + problems), "probe-output-private", "check")
+    _check_funds(sim, lines, problems)
     if sim.case.foreign_lines:
         shown = ["night team-8: $0.30"]
         if sim.case.foreign_lines == "odd":

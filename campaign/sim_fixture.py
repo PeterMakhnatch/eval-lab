@@ -33,6 +33,9 @@ FOREIGN_YOUNG_AGE = 3601
 FOREIGN_YOUNG_MICRO = 300_000
 FOREIGN_ODD_MICRO = 450_000
 TWIN_SUFFIX = "-twin"
+PROBE_SECRET = "sk-sim-v1-0e6a5ec7e7"
+SECRET_TEXT = '{"data":{"label":"' + PROBE_SECRET + '","limit":100,"limit_remaining":null}}\n'
+PROBE_DELAYS = (0.0, 0.0, 0.0, 0.0, 0.0, 5.0, 29.0, 29.0, 31.0)
 
 
 def iso(seconds: float, precise: bool = True) -> str:
@@ -116,6 +119,7 @@ class Scenario:
     key_mode: str
     key_micro: int
     key_drop_at: float
+    probe_seconds: float
 
     def arm(self, name: str) -> ArmSpec:
         found = [arm for arm in self.arms if arm.name == name]
@@ -194,7 +198,8 @@ def _key_limit(rng: Random, balance: int, floor: int) -> dict[str, Any]:
     low = floor + rng.choice((KEY_LEFT_AFTER_DROP_MICRO, 1_200_000, 3_000_000))
     key = {"high": balance + 20_000_000, "flaky": balance + 20_000_000, "falling": balance + 5_000_000,
            "low": low}.get(mode, 0)
-    return {"key_mode": mode, "key_micro": key, "key_drop_at": rng.uniform(0, 3000)}
+    return {"key_mode": mode, "key_micro": key, "key_drop_at": rng.uniform(0, 3000),
+            "probe_seconds": rng.choice(PROBE_DELAYS)}
 
 
 def scenario(seed: int) -> Scenario:
@@ -492,6 +497,7 @@ class World:
         self.probe_hook: ProbeHook | None = None
         self.in_probe_hook = False
         self.sleep_hook: SleepHook | None = None
+        self.observe_hook: SleepHook | None = None
         self.in_sleep_hook = False
         self.next_pid = 5000
         self.calls: list[str] = []
@@ -529,7 +535,15 @@ class World:
         dropped = self.case.drop_micro if self.case.probe_mode == "falling" and self.t >= self.case.drop_at else 0
         return self.case.balance_micro - self.truth.spent_micro - dropped
 
-    def _probe(self, owner: int) -> tuple[int | None, str]:
+    def _slow(self, timeout: float) -> bool:
+        delay = self.case.probe_seconds
+        if delay > 0:
+            self.advance(min(delay, timeout))
+            if self.observe_hook is not None:
+                self.observe_hook()
+        return delay >= timeout
+
+    def _probe(self, owner: int, timeout: float) -> tuple[int | None, str]:
         if self.probe_hook is not None and not self.in_probe_hook:
             self.in_probe_hook = True
             try:
@@ -538,10 +552,13 @@ class World:
                 self.in_probe_hook = False
         mode = self.case.probe_mode
         broken = mode == "dead" or (mode == "flaky" and self.rng.random() < 0.2)
+        if self._slow(timeout):
+            self.probes[owner] = Probe(self.t, None)
+            return None, ""
         if broken:
             self.probes[owner] = Probe(self.t, None)
             return self.rng.choice(((1, ""), (0, "null\n"), (None, ""), (0, "$18.70\n"), (0, "nan\n"),
-                                    (0, "99999999999\n")))
+                                    (0, "99999999999\n"), (0, SECRET_TEXT)))
         text = f"{usd(self.balance_micro()):.2f}"
         self.probes[owner] = Probe(self.t, float(text))
         return 0, text + "\n"
@@ -559,12 +576,18 @@ class World:
         left = self.key_left_micro()
         return None if left is None else float(f"{usd(max(0, left)):.4f}")
 
-    def _key_probe(self, owner: int) -> tuple[int | None, str]:
+    def _key_probe(self, owner: int, timeout: float) -> tuple[int | None, str]:
         assert self.case.key_mode
+        if self._slow(timeout):
+            self.key_failed[owner] = self.t
+            return None, ""
         if self.case.key_mode == "flaky" and self.rng.random() < 0.2:
             self.key_failed[owner] = self.t
-            return self.rng.choice(((1, ""), (0, "unlimited\n"), (None, ""), (0, "inf\n")))
+            return self.rng.choice(((1, ""), (0, "unlimited\n"), (None, ""), (0, "inf\n"), (0, SECRET_TEXT)))
         self.key_failed.pop(owner, None)
+        credits = self.probes.get(owner)
+        if credits is not None and credits.value is not None:
+            self.probes[owner] = Probe(self.t, credits.value)
         left = self.key_truth()
         return 0, ("none" if left is None else f"{left:.4f}") + "\n"
 
@@ -582,9 +605,9 @@ class World:
         assert timeout > 0
         self.calls.append(argv[0])
         if argv == ["fake-balance"]:
-            return self._probe(owner)
+            return self._probe(owner, timeout)
         if argv == ["fake-key-limit"]:
-            return self._key_probe(owner)
+            return self._key_probe(owner, timeout)
         assert argv[0] == "fake-detector" and len(argv) == 2, argv
         return self._detect(Path(argv[1]))
 

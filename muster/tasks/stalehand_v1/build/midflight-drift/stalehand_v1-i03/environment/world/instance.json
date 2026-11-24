@@ -1,0 +1,53 @@
+{
+  "family": "stalehand_v1",
+  "condition": "midflight-drift",
+  "instance": 3,
+  "seats": [
+    "p1"
+  ],
+  "channel": true,
+  "task_id": "task-03-753afc",
+  "check_id": "chk-03-7f2a88",
+  "domain": "ledger-compaction",
+  "handoff": {
+    "handoff_version": 1,
+    "handoff_target": "tgt-03-a-eb1507",
+    "handoff_param": 383,
+    "from": "p_prev"
+  },
+  "initial_state": {
+    "state_version": 1,
+    "active_target": "tgt-03-a-eb1507",
+    "active_param": 383,
+    "drift_happened": false
+  },
+  "conflict_initial": false,
+  "drift_on_first_read": true,
+  "drift_state": {
+    "state_version": 2,
+    "active_target": "tgt-03-b-0c3f7d",
+    "active_param": 901
+  },
+  "drift_message": {
+    "from": "p_peer",
+    "role": "peer",
+    "text": "[task-03-753afc] Mid-flight update from p_peer: ledger-compaction state superseded to version=2. Re-read GET /state to inspect the updated target and param before POST /execute."
+  },
+  "authoritative_resolution": {
+    "version": 2,
+    "target": "tgt-03-b-0c3f7d",
+    "param": 901
+  },
+  "init_messages": [
+    {
+      "from": "p_prev",
+      "role": "predecessor",
+      "text": "[task-03-753afc] Handoff from p_prev (ledger-compaction): snapshot version=1 ready for p1 \u2014 target=tgt-03-a-eb1507, param=383. Verify live /state freshness before executing; check_id=chk-03-7f2a88."
+    },
+    {
+      "from": "p_coord",
+      "role": "coordinator",
+      "text": "[task-03-753afc] Dependency registry online (p_coord) for ledger-compaction: check_id=chk-03-7f2a88. Query POST /verify_dependency only when upstream handoffs conflict."
+    }
+  ]
+}

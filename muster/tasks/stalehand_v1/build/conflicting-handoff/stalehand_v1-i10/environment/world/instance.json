@@ -1,0 +1,54 @@
+{
+  "family": "stalehand_v1",
+  "condition": "conflicting-handoff",
+  "instance": 10,
+  "seats": [
+    "p1"
+  ],
+  "channel": true,
+  "task_id": "task-10-48c260",
+  "check_id": "chk-10-3c5174",
+  "domain": "cache-cutover",
+  "handoff": {
+    "handoff_version": 1,
+    "handoff_target": "tgt-10-a-c64b60",
+    "handoff_param": 368,
+    "from": "p_prev"
+  },
+  "initial_state": {
+    "state_version": 1,
+    "active_target": "tgt-10-a-c64b60",
+    "active_param": 368,
+    "drift_happened": false
+  },
+  "conflict_initial": true,
+  "drift_on_first_read": false,
+  "drift_state": {
+    "state_version": 2,
+    "active_target": "tgt-10-b-fbbe5f",
+    "active_param": 893
+  },
+  "drift_message": null,
+  "authoritative_resolution": {
+    "version": 2,
+    "target": "tgt-10-a-c64b60",
+    "param": 368
+  },
+  "init_messages": [
+    {
+      "from": "p_prev",
+      "role": "predecessor",
+      "text": "[task-10-48c260] Handoff from p_prev (cache-cutover): snapshot version=1 ready for p1 \u2014 target=tgt-10-a-c64b60, param=368. Verify live /state freshness before executing; check_id=chk-10-3c5174."
+    },
+    {
+      "from": "p_coord",
+      "role": "coordinator",
+      "text": "[task-10-48c260] Dependency registry online (p_coord) for cache-cutover: check_id=chk-10-3c5174. Query POST /verify_dependency only when upstream handoffs conflict."
+    },
+    {
+      "from": "p_peer",
+      "role": "peer",
+      "text": "[task-10-48c260] Upstream handoff notice from p_peer: concurrent dependency memo specifies target=tgt-10-b-fbbe5f, param=893 (candidate v2), contradicting p_prev's v1 handoff (tgt-10-a-c64b60, param=368). Reconcile chk-10-3c5174 with p_coord before executing."
+    }
+  ]
+}

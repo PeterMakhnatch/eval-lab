@@ -1,0 +1,49 @@
+{
+  "family": "stalehand_v1",
+  "condition": "silent-supersede",
+  "instance": 6,
+  "seats": [
+    "p1"
+  ],
+  "channel": true,
+  "task_id": "task-06-ad5eb8",
+  "check_id": "chk-06-aa6e67",
+  "domain": "shard-cutover",
+  "handoff": {
+    "handoff_version": 1,
+    "handoff_target": "tgt-06-a-23ac82",
+    "handoff_param": 448,
+    "from": "p_prev"
+  },
+  "initial_state": {
+    "state_version": 1,
+    "active_target": "tgt-06-a-23ac82",
+    "active_param": 448,
+    "drift_happened": false
+  },
+  "conflict_initial": false,
+  "drift_on_first_read": true,
+  "drift_state": {
+    "state_version": 2,
+    "active_target": "tgt-06-b-9ca367",
+    "active_param": 765
+  },
+  "drift_message": null,
+  "authoritative_resolution": {
+    "version": 2,
+    "target": "tgt-06-b-9ca367",
+    "param": 765
+  },
+  "init_messages": [
+    {
+      "from": "p_prev",
+      "role": "predecessor",
+      "text": "[task-06-ad5eb8] Handoff from p_prev (shard-cutover): snapshot version=1 ready for p1 \u2014 target=tgt-06-a-23ac82, param=448. Verify live /state freshness before executing; check_id=chk-06-aa6e67."
+    },
+    {
+      "from": "p_coord",
+      "role": "coordinator",
+      "text": "[task-06-ad5eb8] Dependency registry online (p_coord) for shard-cutover: check_id=chk-06-aa6e67. Query POST /verify_dependency only when upstream handoffs conflict."
+    }
+  ]
+}

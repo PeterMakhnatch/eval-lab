@@ -1,0 +1,53 @@
+{
+  "family": "stalehand_v1",
+  "condition": "midflight-drift",
+  "instance": 1,
+  "seats": [
+    "p1"
+  ],
+  "channel": true,
+  "task_id": "task-01-a786fc",
+  "check_id": "chk-01-bb244a",
+  "domain": "replica-failover",
+  "handoff": {
+    "handoff_version": 1,
+    "handoff_target": "tgt-01-a-c293a3",
+    "handoff_param": 292,
+    "from": "p_prev"
+  },
+  "initial_state": {
+    "state_version": 1,
+    "active_target": "tgt-01-a-c293a3",
+    "active_param": 292,
+    "drift_happened": false
+  },
+  "conflict_initial": false,
+  "drift_on_first_read": true,
+  "drift_state": {
+    "state_version": 2,
+    "active_target": "tgt-01-b-d0e10b",
+    "active_param": 817
+  },
+  "drift_message": {
+    "from": "p_peer",
+    "role": "peer",
+    "text": "[task-01-a786fc] Mid-flight update from p_peer: replica-failover state superseded to version=2. Re-read GET /state to inspect the updated target and param before POST /execute."
+  },
+  "authoritative_resolution": {
+    "version": 2,
+    "target": "tgt-01-b-d0e10b",
+    "param": 817
+  },
+  "init_messages": [
+    {
+      "from": "p_prev",
+      "role": "predecessor",
+      "text": "[task-01-a786fc] Handoff from p_prev (replica-failover): snapshot version=1 ready for p1 \u2014 target=tgt-01-a-c293a3, param=292. Verify live /state freshness before executing; check_id=chk-01-bb244a."
+    },
+    {
+      "from": "p_coord",
+      "role": "coordinator",
+      "text": "[task-01-a786fc] Dependency registry online (p_coord) for replica-failover: check_id=chk-01-bb244a. Query POST /verify_dependency only when upstream handoffs conflict."
+    }
+  ]
+}

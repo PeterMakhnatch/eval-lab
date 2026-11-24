@@ -1,0 +1,49 @@
+{
+  "family": "stalehand_v1",
+  "condition": "stale-handoff",
+  "instance": 7,
+  "seats": [
+    "p1"
+  ],
+  "channel": true,
+  "task_id": "task-07-e22e17",
+  "check_id": "chk-07-1373f7",
+  "domain": "queue-partition",
+  "handoff": {
+    "handoff_version": 1,
+    "handoff_target": "tgt-07-a-007c9d",
+    "handoff_param": 146,
+    "from": "p_prev"
+  },
+  "initial_state": {
+    "state_version": 2,
+    "active_target": "tgt-07-b-a71436",
+    "active_param": 927,
+    "drift_happened": true
+  },
+  "conflict_initial": false,
+  "drift_on_first_read": false,
+  "drift_state": {
+    "state_version": 2,
+    "active_target": "tgt-07-b-a71436",
+    "active_param": 927
+  },
+  "drift_message": null,
+  "authoritative_resolution": {
+    "version": 2,
+    "target": "tgt-07-b-a71436",
+    "param": 927
+  },
+  "init_messages": [
+    {
+      "from": "p_prev",
+      "role": "predecessor",
+      "text": "[task-07-e22e17] Handoff from p_prev (queue-partition): snapshot version=1 ready for p1 \u2014 target=tgt-07-a-007c9d, param=146. Verify live /state freshness before executing; check_id=chk-07-1373f7."
+    },
+    {
+      "from": "p_coord",
+      "role": "coordinator",
+      "text": "[task-07-e22e17] Dependency registry online (p_coord) for queue-partition: check_id=chk-07-1373f7. Query POST /verify_dependency only when upstream handoffs conflict."
+    }
+  ]
+}

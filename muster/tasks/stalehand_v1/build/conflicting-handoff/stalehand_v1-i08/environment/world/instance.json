@@ -1,0 +1,54 @@
+{
+  "family": "stalehand_v1",
+  "condition": "conflicting-handoff",
+  "instance": 8,
+  "seats": [
+    "p1"
+  ],
+  "channel": true,
+  "task_id": "task-08-7e6709",
+  "check_id": "chk-08-3b2f2e",
+  "domain": "wal-checkpoint",
+  "handoff": {
+    "handoff_version": 1,
+    "handoff_target": "tgt-08-a-b33f10",
+    "handoff_param": 160,
+    "from": "p_prev"
+  },
+  "initial_state": {
+    "state_version": 1,
+    "active_target": "tgt-08-a-b33f10",
+    "active_param": 160,
+    "drift_happened": false
+  },
+  "conflict_initial": true,
+  "drift_on_first_read": false,
+  "drift_state": {
+    "state_version": 2,
+    "active_target": "tgt-08-b-36eaec",
+    "active_param": 909
+  },
+  "drift_message": null,
+  "authoritative_resolution": {
+    "version": 2,
+    "target": "tgt-08-b-36eaec",
+    "param": 909
+  },
+  "init_messages": [
+    {
+      "from": "p_prev",
+      "role": "predecessor",
+      "text": "[task-08-7e6709] Handoff from p_prev (wal-checkpoint): snapshot version=1 ready for p1 \u2014 target=tgt-08-a-b33f10, param=160. Verify live /state freshness before executing; check_id=chk-08-3b2f2e."
+    },
+    {
+      "from": "p_coord",
+      "role": "coordinator",
+      "text": "[task-08-7e6709] Dependency registry online (p_coord) for wal-checkpoint: check_id=chk-08-3b2f2e. Query POST /verify_dependency only when upstream handoffs conflict."
+    },
+    {
+      "from": "p_peer",
+      "role": "peer",
+      "text": "[task-08-7e6709] Upstream handoff notice from p_peer: concurrent dependency memo specifies target=tgt-08-b-36eaec, param=909 (candidate v2), contradicting p_prev's v1 handoff (tgt-08-a-b33f10, param=160). Reconcile chk-08-3b2f2e with p_coord before executing."
+    }
+  ]
+}

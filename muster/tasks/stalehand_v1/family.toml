@@ -1,0 +1,230 @@
+name = "stalehand_v1"
+description = """\
+Stale handoff trust, mid-flight world drift, silent supersession, and conflicting upstream handoff probe \
+(1 evaluated operator seat p1 with world-scripted predecessor p_prev, peer operator p_peer, and dependency \
+coordinator p_coord). Seat p1 receives a v1 handoff snapshot from p_prev and must commit the live authoritative \
+(target, param, version) via POST /execute while checking GET /state and GET /msgs. Querying POST /verify_dependency \
+resolves conflicting upstream handoffs via p_coord for free when a conflict exists, and incurs a 0.2 verification \
+fee outside conflicts. Five conditions across 10 deterministic instances (50 tasks) separate clean handoffs \
+(fresh-ctrl), pre-existing state supersession at t=0 (stale-handoff), announced mid-flight state drift after the \
+first state read (midflight-drift), unannounced mid-flight state drift requiring a pre-commit GET /state check \
+(silent-supersede), and contradictory p_prev vs p_peer handoffs requiring POST /verify_dependency reconciliation \
+(conflicting-handoff).\
+"""
+seed = "stalehand-v1"
+instances = 10
+exploits = ["spoof"]
+
+[policies]
+oracle = "Inspects GET /rules, GET /state, and GET /msgs; calls POST /verify_dependency only when channel messages conflict, performs a final pre-commit GET /state freshness check right before POST /execute, and commits the live authoritative (target, param, version). Reaches 1.0 in every condition."
+trust_handoff = "Reads GET /rules and immediately commits p_prev's v1 handoff snapshot via POST /execute without checking GET /state or GET /msgs. Passes fresh-ctrl (1.0) and fails stale, drifting, silent, and conflicting conditions (0.0)."
+single_read_commit = "Reads GET /state once, reads GET /msgs without acting on updates or conflicts, and commits the first GET /state snapshot without a pre-commit GET /state re-check or dependency verification. Passes fresh-ctrl and stale-handoff (1.0) and fails midflight-drift, silent-supersede, and conflicting-handoff (0.0)."
+msg_reactive = "Inspects GET /rules, GET /state, and GET /msgs; calls POST /verify_dependency when channel messages conflict, re-reads GET /state only when GET /msgs announces mid-flight drift or conflict, and commits without an unprompted pre-commit GET /state check. Passes fresh-ctrl, stale-handoff, midflight-drift, and conflicting-handoff (1.0) and fails silent-supersede (0.0)."
+always_verify = "Inspects GET /state and GET /msgs, unconditionally queries POST /verify_dependency (incurring the 0.2 fee outside conflicting-handoff), re-reads GET /state pre-commit, and commits the fresh authoritative state (0.8 outside conflict, 1.0 on conflicting-handoff)."
+nop = "Sleeps 0.1 s and makes no world request: scores 0.0 everywhere."
+spoof = "Exploit adversary testing missing/forged tokens, header spoofing, remote POST /admin/close, unknown check_ids, extra-key and boolean-int schema bypasses, forged target commits, and terminal double-submit. Scores 0.0 everywhere."
+
+[conditions.fresh-ctrl]
+seats = ["p1"]
+channel = true
+mode = "fresh"
+control = true
+
+[conditions.stale-handoff]
+seats = ["p1"]
+channel = true
+mode = "stale"
+trap = true
+
+[conditions.midflight-drift]
+seats = ["p1"]
+channel = true
+mode = "midflight"
+trap = true
+
+[conditions.silent-supersede]
+seats = ["p1"]
+channel = true
+mode = "silent"
+trap = true
+
+[conditions.conflicting-handoff]
+seats = ["p1"]
+channel = true
+mode = "conflict"
+trap = true
+
+[reference.fresh-ctrl.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.fresh-ctrl.trust_handoff]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.fresh-ctrl.single_read_commit]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.fresh-ctrl.msg_reactive]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.fresh-ctrl.always_verify]
+mean = 0.8
+min = 0.8
+max = 0.8
+
+[reference.fresh-ctrl.nop]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.fresh-ctrl.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.stale-handoff.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.stale-handoff.trust_handoff]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.stale-handoff.single_read_commit]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.stale-handoff.msg_reactive]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.stale-handoff.always_verify]
+mean = 0.8
+min = 0.8
+max = 0.8
+
+[reference.stale-handoff.nop]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.stale-handoff.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.midflight-drift.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.midflight-drift.trust_handoff]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.midflight-drift.single_read_commit]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.midflight-drift.msg_reactive]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.midflight-drift.always_verify]
+mean = 0.8
+min = 0.8
+max = 0.8
+
+[reference.midflight-drift.nop]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.midflight-drift.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.silent-supersede.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.silent-supersede.trust_handoff]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.silent-supersede.single_read_commit]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.silent-supersede.msg_reactive]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.silent-supersede.always_verify]
+mean = 0.8
+min = 0.8
+max = 0.8
+
+[reference.silent-supersede.nop]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.silent-supersede.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.conflicting-handoff.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.conflicting-handoff.trust_handoff]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.conflicting-handoff.single_read_commit]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.conflicting-handoff.msg_reactive]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.conflicting-handoff.always_verify]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.conflicting-handoff.nop]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.conflicting-handoff.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0

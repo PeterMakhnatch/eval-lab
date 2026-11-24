@@ -1,0 +1,49 @@
+{
+  "family": "stalehand_v1",
+  "condition": "silent-supersede",
+  "instance": 5,
+  "seats": [
+    "p1"
+  ],
+  "channel": true,
+  "task_id": "task-05-00f63b",
+  "check_id": "chk-05-442c86",
+  "domain": "snapshot-seal",
+  "handoff": {
+    "handoff_version": 1,
+    "handoff_target": "tgt-05-a-2e75e2",
+    "handoff_param": 382,
+    "from": "p_prev"
+  },
+  "initial_state": {
+    "state_version": 1,
+    "active_target": "tgt-05-a-2e75e2",
+    "active_param": 382,
+    "drift_happened": false
+  },
+  "conflict_initial": false,
+  "drift_on_first_read": true,
+  "drift_state": {
+    "state_version": 2,
+    "active_target": "tgt-05-b-73db6f",
+    "active_param": 780
+  },
+  "drift_message": null,
+  "authoritative_resolution": {
+    "version": 2,
+    "target": "tgt-05-b-73db6f",
+    "param": 780
+  },
+  "init_messages": [
+    {
+      "from": "p_prev",
+      "role": "predecessor",
+      "text": "[task-05-00f63b] Handoff from p_prev (snapshot-seal): snapshot version=1 ready for p1 \u2014 target=tgt-05-a-2e75e2, param=382. Verify live /state freshness before executing; check_id=chk-05-442c86."
+    },
+    {
+      "from": "p_coord",
+      "role": "coordinator",
+      "text": "[task-05-00f63b] Dependency registry online (p_coord) for snapshot-seal: check_id=chk-05-442c86. Query POST /verify_dependency only when upstream handoffs conflict."
+    }
+  ]
+}

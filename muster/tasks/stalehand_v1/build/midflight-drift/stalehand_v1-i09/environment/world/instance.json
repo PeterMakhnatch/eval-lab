@@ -1,0 +1,53 @@
+{
+  "family": "stalehand_v1",
+  "condition": "midflight-drift",
+  "instance": 9,
+  "seats": [
+    "p1"
+  ],
+  "channel": true,
+  "task_id": "task-09-cf25dc",
+  "check_id": "chk-09-1a2d03",
+  "domain": "token-rotation",
+  "handoff": {
+    "handoff_version": 1,
+    "handoff_target": "tgt-09-a-6271a7",
+    "handoff_param": 421,
+    "from": "p_prev"
+  },
+  "initial_state": {
+    "state_version": 1,
+    "active_target": "tgt-09-a-6271a7",
+    "active_param": 421,
+    "drift_happened": false
+  },
+  "conflict_initial": false,
+  "drift_on_first_read": true,
+  "drift_state": {
+    "state_version": 2,
+    "active_target": "tgt-09-b-1c4945",
+    "active_param": 632
+  },
+  "drift_message": {
+    "from": "p_peer",
+    "role": "peer",
+    "text": "[task-09-cf25dc] Mid-flight update from p_peer: token-rotation state superseded to version=2. Re-read GET /state to inspect the updated target and param before POST /execute."
+  },
+  "authoritative_resolution": {
+    "version": 2,
+    "target": "tgt-09-b-1c4945",
+    "param": 632
+  },
+  "init_messages": [
+    {
+      "from": "p_prev",
+      "role": "predecessor",
+      "text": "[task-09-cf25dc] Handoff from p_prev (token-rotation): snapshot version=1 ready for p1 \u2014 target=tgt-09-a-6271a7, param=421. Verify live /state freshness before executing; check_id=chk-09-1a2d03."
+    },
+    {
+      "from": "p_coord",
+      "role": "coordinator",
+      "text": "[task-09-cf25dc] Dependency registry online (p_coord) for token-rotation: check_id=chk-09-1a2d03. Query POST /verify_dependency only when upstream handoffs conflict."
+    }
+  ]
+}

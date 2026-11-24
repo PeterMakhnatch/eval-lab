@@ -1,0 +1,49 @@
+{
+  "family": "stalehand_v1",
+  "condition": "silent-supersede",
+  "instance": 2,
+  "seats": [
+    "p1"
+  ],
+  "channel": true,
+  "task_id": "task-02-9bbc9d",
+  "check_id": "chk-02-c5a05f",
+  "domain": "route-rebalance",
+  "handoff": {
+    "handoff_version": 1,
+    "handoff_target": "tgt-02-a-9912b1",
+    "handoff_param": 420,
+    "from": "p_prev"
+  },
+  "initial_state": {
+    "state_version": 1,
+    "active_target": "tgt-02-a-9912b1",
+    "active_param": 420,
+    "drift_happened": false
+  },
+  "conflict_initial": false,
+  "drift_on_first_read": true,
+  "drift_state": {
+    "state_version": 2,
+    "active_target": "tgt-02-b-237db0",
+    "active_param": 526
+  },
+  "drift_message": null,
+  "authoritative_resolution": {
+    "version": 2,
+    "target": "tgt-02-b-237db0",
+    "param": 526
+  },
+  "init_messages": [
+    {
+      "from": "p_prev",
+      "role": "predecessor",
+      "text": "[task-02-9bbc9d] Handoff from p_prev (route-rebalance): snapshot version=1 ready for p1 \u2014 target=tgt-02-a-9912b1, param=420. Verify live /state freshness before executing; check_id=chk-02-c5a05f."
+    },
+    {
+      "from": "p_coord",
+      "role": "coordinator",
+      "text": "[task-02-9bbc9d] Dependency registry online (p_coord) for route-rebalance: check_id=chk-02-c5a05f. Query POST /verify_dependency only when upstream handoffs conflict."
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "family": "stalehand_v1",
+  "condition": "conflicting-handoff",
+  "instance": 3,
+  "seats": [
+    "p1"
+  ],
+  "channel": true,
+  "task_id": "task-03-753afc",
+  "check_id": "chk-03-7f2a88",
+  "domain": "ledger-compaction",
+  "handoff": {
+    "handoff_version": 1,
+    "handoff_target": "tgt-03-a-eb1507",
+    "handoff_param": 383,
+    "from": "p_prev"
+  },
+  "initial_state": {
+    "state_version": 1,
+    "active_target": "tgt-03-a-eb1507",
+    "active_param": 383,
+    "drift_happened": false
+  },
+  "conflict_initial": true,
+  "drift_on_first_read": false,
+  "drift_state": {
+    "state_version": 2,
+    "active_target": "tgt-03-b-0c3f7d",
+    "active_param": 901
+  },
+  "drift_message": null,
+  "authoritative_resolution": {
+    "version": 2,
+    "target": "tgt-03-a-eb1507",
+    "param": 383
+  },
+  "init_messages": [
+    {
+      "from": "p_prev",
+      "role": "predecessor",
+      "text": "[task-03-753afc] Handoff from p_prev (ledger-compaction): snapshot version=1 ready for p1 \u2014 target=tgt-03-a-eb1507, param=383. Verify live /state freshness before executing; check_id=chk-03-7f2a88."
+    },
+    {
+      "from": "p_coord",
+      "role": "coordinator",
+      "text": "[task-03-753afc] Dependency registry online (p_coord) for ledger-compaction: check_id=chk-03-7f2a88. Query POST /verify_dependency only when upstream handoffs conflict."
+    },
+    {
+      "from": "p_peer",
+      "role": "peer",
+      "text": "[task-03-753afc] Upstream handoff notice from p_peer: concurrent dependency memo specifies target=tgt-03-b-0c3f7d, param=901 (candidate v2), contradicting p_prev's v1 handoff (tgt-03-a-eb1507, param=383). Reconcile chk-03-7f2a88 with p_coord before executing."
+    }
+  ]
+}

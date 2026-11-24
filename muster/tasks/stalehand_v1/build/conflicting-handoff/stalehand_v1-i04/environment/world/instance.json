@@ -1,0 +1,54 @@
+{
+  "family": "stalehand_v1",
+  "condition": "conflicting-handoff",
+  "instance": 4,
+  "seats": [
+    "p1"
+  ],
+  "channel": true,
+  "task_id": "task-04-42dcb3",
+  "check_id": "chk-04-d0af3b",
+  "domain": "ingress-drain",
+  "handoff": {
+    "handoff_version": 1,
+    "handoff_target": "tgt-04-a-da4590",
+    "handoff_param": 498,
+    "from": "p_prev"
+  },
+  "initial_state": {
+    "state_version": 1,
+    "active_target": "tgt-04-a-da4590",
+    "active_param": 498,
+    "drift_happened": false
+  },
+  "conflict_initial": true,
+  "drift_on_first_read": false,
+  "drift_state": {
+    "state_version": 2,
+    "active_target": "tgt-04-b-65e8e8",
+    "active_param": 912
+  },
+  "drift_message": null,
+  "authoritative_resolution": {
+    "version": 2,
+    "target": "tgt-04-b-65e8e8",
+    "param": 912
+  },
+  "init_messages": [
+    {
+      "from": "p_prev",
+      "role": "predecessor",
+      "text": "[task-04-42dcb3] Handoff from p_prev (ingress-drain): snapshot version=1 ready for p1 \u2014 target=tgt-04-a-da4590, param=498. Verify live /state freshness before executing; check_id=chk-04-d0af3b."
+    },
+    {
+      "from": "p_coord",
+      "role": "coordinator",
+      "text": "[task-04-42dcb3] Dependency registry online (p_coord) for ingress-drain: check_id=chk-04-d0af3b. Query POST /verify_dependency only when upstream handoffs conflict."
+    },
+    {
+      "from": "p_peer",
+      "role": "peer",
+      "text": "[task-04-42dcb3] Upstream handoff notice from p_peer: concurrent dependency memo specifies target=tgt-04-b-65e8e8, param=912 (candidate v2), contradicting p_prev's v1 handoff (tgt-04-a-da4590, param=498). Reconcile chk-04-d0af3b with p_coord before executing."
+    }
+  ]
+}

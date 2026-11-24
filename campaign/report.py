@@ -12,7 +12,7 @@ from campaign.plan import Plan, PlanError, arm_command, render
 from campaign.runner import Funds, Stop
 
 SHELLS = frozenset(("sh", "bash", "zsh", "dash", "ksh"))
-SHELL_JOINERS = (";", "&&", "|", "\n")
+SHELL_JOINERS = (";", "&", "|", "(", "\n")
 
 
 def _lane_lines(plan: Plan) -> list[str]:
@@ -43,11 +43,11 @@ def _arm_lines(plan: Plan, problems: list[str]) -> list[str]:
     return lines
 
 
-def wrapper_problem(argv: tuple[str, ...]) -> str:
+def _after_prefixes(argv: tuple[str, ...]) -> int:
     index, after_env = 0, False
     for _ in range(len(argv)):
         if index >= len(argv):
-            return ""
+            return index
         word = argv[index]
         name = Path(word).name
         if name == "keys" and argv[index + 1:index + 3] == ("run", "--"):
@@ -57,15 +57,31 @@ def wrapper_problem(argv: tuple[str, ...]) -> str:
         elif after_env and ("=" in word or word.startswith("-")):
             index += 1
         else:
-            break
-    if index + 2 >= len(argv) or Path(argv[index]).name not in SHELLS:
+            return index
+    return index
+
+
+def _shell_script(argv: tuple[str, ...], index: int) -> tuple[str, str] | None:
+    if index >= len(argv) or Path(argv[index]).name not in SHELLS:
+        return None
+    flags: list[str] = []
+    for position in range(index + 1, len(argv) - 1):
+        word = argv[position]
+        if not word.startswith("-") or word == "--":
+            return None
+        flags.append(word)
+        if "c" in word[1:]:
+            return " ".join(flags), argv[position + 1]
+    return None
+
+
+def wrapper_problem(argv: tuple[str, ...]) -> str:
+    found = _shell_script(argv, _after_prefixes(argv))
+    if found is None or not any(joiner in found[1] for joiner in SHELL_JOINERS):
         return ""
-    flag, script = argv[index + 1], argv[index + 2]
-    if not (flag.startswith("-") and "c" in flag) or not any(joiner in script for joiner in SHELL_JOINERS):
-        return ""
-    return (f"command.argv runs {Path(argv[index]).name} {flag} with a script that joins commands (';', '&&', '|' "
-            "or a newline); that shell may not pass TERM on, so the arm would run until the KILL after "
-            "stop_grace_seconds; start the arm directly (keys run -- uv run ...)")
+    return (f"command.argv runs {Path(argv[_after_prefixes(argv)]).name} {found[0]} with a script that joins "
+            "commands (';', '&', '|', '(' or a newline); that shell may not pass TERM on, so the arm would run "
+            "until the KILL after stop_grace_seconds; start the arm directly (keys run -- uv run ...)")
 
 
 def _place_problems(plan: Plan) -> list[str]:
@@ -123,6 +139,8 @@ def _rules() -> list[str]:
         "  6. keep command.argv starting with `keys run -- uv run ...`; do not wrap it in `sh -c '...; ...'`",
         "  7. the API key can have its own spend limit below the account credits; set key_limit_probe so the "
         "smaller number gates each start",
+        "  8. run `campaign check PLAN` with network access just before `run`, and start only if it exits 0",
+        "  9. run `fill` with a detector only when no other lane in the same process runs an arm",
     ]
 
 

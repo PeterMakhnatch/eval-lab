@@ -82,13 +82,25 @@ def cmd_check(args: argparse.Namespace) -> int:
     return 1 if problems else 0
 
 
+def _refuse_wrapper(plan: Plan) -> bool:
+    problem = report.wrapper_problem(plan.argv)
+    if problem:
+        print(f"campaign: refused: {problem}", file=sys.stderr)
+    return bool(problem)
+
+
 def cmd_run(args: argparse.Namespace) -> int:
-    return _drive(load(args.plan), args.lane, expand_first_run)
+    plan = load(args.plan)
+    if _refuse_wrapper(plan):
+        return 2
+    return _drive(plan, args.lane, expand_first_run)
 
 
 def cmd_fill(args: argparse.Namespace) -> int:
     plan = load(args.plan)
     if not args.dry_run:
+        if _refuse_wrapper(plan):
+            return 2
         return _drive(plan, args.lane, fill.expand_rerun)
     try:
         lines = fill.dry_run(plan, RealSystem(), os.getpid(), _lanes(plan, args.lane))

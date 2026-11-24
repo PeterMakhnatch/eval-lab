@@ -32,6 +32,7 @@ FOREIGN_WINDOW_SECONDS = 6 * 3600
 FOREIGN_YOUNG_AGE = 3601
 FOREIGN_YOUNG_MICRO = 300_000
 FOREIGN_ODD_MICRO = 450_000
+FOREIGN_SLOW_MICRO = 2_000_000
 TWIN_SUFFIX = "-twin"
 PROBE_SECRET = "sk-sim-v1-0e6a5ec7e7"
 SECRET_TEXT = '{"data":{"label":"' + PROBE_SECRET + '","limit":100,"limit_remaining":null}}\n'
@@ -120,6 +121,7 @@ class Scenario:
     key_micro: int
     key_drop_at: float
     probe_seconds: float
+    foreign_settle: bool
 
     def arm(self, name: str) -> ArmSpec:
         found = [arm for arm in self.arms if arm.name == name]
@@ -199,7 +201,7 @@ def _key_limit(rng: Random, balance: int, floor: int) -> dict[str, Any]:
     key = {"high": balance + 20_000_000, "flaky": balance + 20_000_000, "falling": balance + 5_000_000,
            "low": low}.get(mode, 0)
     return {"key_mode": mode, "key_micro": key, "key_drop_at": rng.uniform(0, 3000),
-            "probe_seconds": rng.choice(PROBE_DELAYS)}
+            "probe_seconds": rng.choice(PROBE_DELAYS), "foreign_settle": rng.random() < 0.5}
 
 
 def scenario(seed: int) -> Scenario:
@@ -307,7 +309,7 @@ def _odd_foreign_lines(young: str) -> list[dict[str, Any]]:
     ]
 
 
-def _foreign_ledger(path: Path, odd: bool) -> None:
+def _foreign_ledger(path: Path, odd: bool, slow: bool) -> None:
     young, old = iso(-FOREIGN_YOUNG_AGE, precise=False), iso(-8 * 3600, precise=False)
     lines = [
         {"ts_utc": young, "event": "reserve", "experiment": "night", "arm": "team-8", "provider": "sim",
@@ -323,6 +325,9 @@ def _foreign_ledger(path: Path, odd: bool) -> None:
          "reserved_usd": 2.0},
         {"ts_utc": young, "event": "void", "experiment": "night", "arms": ["void-1"], "reason": "test"},
     ] + (_odd_foreign_lines(young) if odd else [])
+    if slow:
+        lines.append({"ts_utc": young, "event": "reserve", "experiment": "night", "arm": "slow-1", "provider": "sim",
+                      "reserved_usd": usd(FOREIGN_SLOW_MICRO)})
     path.write_text("".join(json.dumps(line) + "\n" for line in lines), encoding="utf-8")
 
 
@@ -345,7 +350,7 @@ def write_supply(case: Scenario, root: Path) -> None:
         (root / "out").mkdir()
         (root / f"out{TWIN_SUFFIX}").mkdir()
     if case.foreign_lines:
-        _foreign_ledger(root / "ledger" / "spend.jsonl", case.foreign_lines == "odd")
+        _foreign_ledger(root / "ledger" / "spend.jsonl", case.foreign_lines == "odd", case.foreign_settle)
 
 
 class BrokenStream:
@@ -495,6 +500,7 @@ class World:
         self.truth = Truth(charged_micro=case.preexisting_micro)
         self.spawn_hook: SpawnHook | None = None
         self.probe_hook: ProbeHook | None = None
+        self.probe_start_hook: ProbeHook | None = None
         self.in_probe_hook = False
         self.sleep_hook: SleepHook | None = None
         self.observe_hook: SleepHook | None = None
@@ -544,6 +550,8 @@ class World:
         return delay >= timeout
 
     def _probe(self, owner: int, timeout: float) -> tuple[int | None, str]:
+        if self.probe_start_hook is not None:
+            self.probe_start_hook(owner)
         if self.probe_hook is not None and not self.in_probe_hook:
             self.in_probe_hook = True
             try:

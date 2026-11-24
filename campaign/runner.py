@@ -481,11 +481,11 @@ class Runner:
             return "the ledger has a reserve line for it"
         return ""
 
-    def _open_reserved(self) -> tuple[float, float]:
-        own = 0.0
-        for arm in self._state().values():
+    def _open_items(self) -> dict[tuple[str, str], float]:
+        items: dict[tuple[str, str], float] = {}
+        for name, arm in self._state().items():
             if arm.open and arm.reserves:
-                own += arm.reserved_usd * (arm.reserves - arm.settles) / arm.reserves
+                items[("own", name)] = arm.reserved_usd * (arm.reserves - arm.settles) / arm.reserves
         now = evidence.parse_utc(self.system.utc())
         assert now is not None
         try:
@@ -493,7 +493,10 @@ class Runner:
                                           self.plan.foreign_reserve_window_hours, self.plan.largest_reserve_usd())
         except ledger.LedgerError as error:
             raise Stop("ledger", str(error)) from error
-        return own, sum(item.reserved_usd for item in foreign)
+        for index, item in enumerate(foreign):
+            key = ("foreign", f"{item.writer} {item.arm} {item.ts_utc} {index}")
+            items[key] = items.get(key, 0.0) + item.reserved_usd
+        return items
 
     def _charged(self) -> float:
         missing = [root for root in self.plan.cap_roots if root != self.plan.output_root and not root.is_dir()]
@@ -515,10 +518,14 @@ class Runner:
                                  "since this runner started have no reward")
 
     def _gate_balance(self, step: Step) -> float:
+        before = self._open_items()
         funds, problem = read_funds(self.system, self.plan, self.owner)
         if funds is None:
             raise Stop("balance-unreadable", problem)
-        own, foreign = self._open_reserved()
+        after = self._open_items()
+        either = {key: max(before.get(key, 0.0), after.get(key, 0.0)) for key in before.keys() | after.keys()}
+        own = sum(amount for key, amount in either.items() if key[0] == "own")
+        foreign = sum(amount for key, amount in either.items() if key[0] == "foreign")
         balance = funds.usable()
         need = round(self.plan.floor_usd + step.reserve_usd + own + foreign, 6)
         if balance < need:

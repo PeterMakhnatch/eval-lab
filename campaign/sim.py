@@ -34,6 +34,7 @@ from campaign.runner import (
 from campaign.sim_fixture import (
     BASE,
     FOREIGN_ODD_MICRO,
+    FOREIGN_SLOW_MICRO,
     FOREIGN_WINDOW_SECONDS,
     FOREIGN_YOUNG_AGE,
     FOREIGN_YOUNG_MICRO,
@@ -180,6 +181,10 @@ _WRAPPER_CASES = (
     (("/bin/sh", "-c", "exec python3 muster.py --out {out}"), False),
     (("python3", "-c", "import a; a.run()"), False),
     (("nohup", "sh", "x.sh;"), False),
+    (("sh", "-e", "-c", "a; b"), True),
+    (("bash", "-c", "muster run & wait"), True),
+    (("sh", "-c", "(exec muster run)"), True),
+    (("sh", "-e", "x.sh", "-c", "a; b"), False),
 )
 
 
@@ -253,6 +258,9 @@ class Sim:
         self.flag_since: dict[str, float] = {}
         self.in_tick: set[int] = set()
         self.side_tick_at = 0.0
+        self.held_before: dict[int, dict[str, float]] = {}
+        self.slow_settled = False
+        self.world.probe_start_hook = self._probe_start
         self.world.sleep_hook = self._sleep_hook
         self.world.observe_hook = self._observe_hook
 
@@ -393,16 +401,41 @@ class Sim:
         gone = job.gone_at
         return self.world.t - job.started >= limit and (gone is None or gone >= job.started + limit)
 
-    def _held(self, plan: Plan, skip: str) -> float:
-        held = 0.0
+    def _held_items(self, plan: Plan, skip: str) -> dict[str, float]:
+        items: dict[str, float] = {}
         for name, item in ledger.state(plan.ledger, plan.id).items():
             if name != skip and item.open and item.reserves:
-                held += item.reserved_usd * (item.reserves - item.settles) / item.reserves
+                items[f"own {name}"] = item.reserved_usd * (item.reserves - item.settles) / item.reserves
         for path in self.plan_paths():
             other = self.plan(path)
             if other.id != plan.id:
-                held += _open_in_window(plan.ledger, other.id, self.world.t, "")
-        return held + self._foreign_truth()
+                items[f"plan {other.id}"] = _open_in_window(plan.ledger, other.id, self.world.t, "")
+        young = self.case.foreign_lines and self.world.t < FOREIGN_WINDOW_SECONDS - FOREIGN_YOUNG_AGE
+        items["foreign"] = self._foreign_truth()
+        items["foreign slow-1"] = usd(FOREIGN_SLOW_MICRO) if young and self._slow_open() else 0.0
+        return items
+
+    def _held(self, plan: Plan, skip: str, owner: int = 0) -> float:
+        now = self._held_items(plan, skip)
+        before = self.held_before.get(owner, {})
+        return sum(max(now.get(key, 0.0), before.get(key, 0.0)) for key in now.keys() | before.keys())
+
+    def _slow_open(self) -> bool:
+        return self.case.foreign_settle and not self.slow_settled
+
+    def _probe_start(self, owner: int) -> None:
+        proc = self.procs.get(owner)
+        plan = proc.runner.plan if proc is not None else self.plan()
+        self.held_before[owner] = self._held_items(plan, "")
+
+    def _settle_slow(self) -> None:
+        if self.phase != "run" or not self.procs or not self.case.foreign_lines or not self._slow_open():
+            return
+        self.slow_settled = True
+        line = {"ts_utc": iso(self.world.t, precise=False), "event": "settle", "experiment": "night", "arm": "slow-1",
+                "status": "ended"}
+        with self.plan().ledger.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(line) + "\n")
 
     def _foreign_truth(self) -> float:
         if not self.case.foreign_lines or self.world.t >= FOREIGN_WINDOW_SECONDS - FOREIGN_YOUNG_AGE:
@@ -426,7 +459,7 @@ class Sim:
             return False
         arm = plan.arm(base_arm(before))
         reserve = arm.rerun_reserve_usd if RERUN_TAG in before else arm.reserve_usd
-        return usable < round(plan.floor_usd + reserve + self._held(plan, ""), 6)
+        return usable < round(plan.floor_usd + reserve + self._held(plan, "", proc.owner), 6)
 
     def _orphan_is_true(self, proc: Proc, lane: str) -> bool:
         plan = proc.runner.plan
@@ -503,7 +536,7 @@ class Sim:
         plan, world, check = proc.runner.plan, self.world, self.run.check
         arm = plan.arm(base_arm(name))
         reserve = arm.rerun_reserve_usd if RERUN_TAG in name else arm.reserve_usd
-        need = round(plan.floor_usd + reserve + self._held(plan, name), 6)
+        need = round(plan.floor_usd + reserve + self._held(plan, name, proc.owner), 6)
         value = self._usable(proc.owner)
         if world.key_failed.get(proc.owner) == world.t:
             value = None
@@ -573,6 +606,7 @@ class Sim:
                            f"{late} got no TERM within {slack:.0f} s after {name} became true at {since:.0f} s")
 
     def _observe_hook(self) -> None:
+        self._settle_slow()
         saved, self.run.step = self.run.step, f"{self.phase}/inside-a-probe"
         self._observe()
         self._term_checks(None)
@@ -809,7 +843,8 @@ def _purity(sim: Sim) -> None:
         guessed = sim.case.foreign_lines != "odd" or any("str-1" in line and "not a number" in line for line in lines)
         hidden = ("e7 old-1", "night done-1", "night elsewhere", "night void-1", "- run-arm-2")
         shown_hidden = [line for line in lines if line.strip().startswith(hidden)]
-        total = f"total ${sim._foreign_truth():.2f} in "
+        slow = usd(FOREIGN_SLOW_MICRO) if sim.case.foreign_settle else 0.0
+        total = f"total ${sim._foreign_truth() + slow:.2f} in "
         sim.run.check(not missing and guessed and not shown_hidden and any(total in line for line in lines),
                       "check-shows-foreign-reserves", f"missing {missing}, hidden shown {shown_hidden}, want {total}")
 

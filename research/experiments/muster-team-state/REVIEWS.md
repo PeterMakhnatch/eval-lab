@@ -200,3 +200,15 @@ All 31 `rv4-s` policies pass 0 of 10 and 0 of 30 held-out in every condition tha
 Changes: every displayed figure is a whole number of crates (amounts, monthly totals, part shares and range offsets on the factor grid; chain totals on the factor-squared grid). The generator asserts remainder 0 for every first figure and bounds the gap in the share of figures divisible by the factor squared between faulty and right replies at 15 points per facet. 2 new regressions (`month` and `part` remainder) with status `fixed` (8 findings). Card: 36 PASS, 0 FAIL, 0 NOT_CHECKED.
 
 The same held-out test with the same rule on 5 new v2.5 seeds (none rejected): no round-3 selector in `month`, `part`, `range` or `mixed` shows a dependency. The remainder selectors fall to their controls (`month` 10/50 against 10/50, `part` 12/50 against 12/50). The 7 careful policies score 1.0 in 1,680 episodes; no blind cell that was 1.0 drops. Remaining signals on the 10 built instances: sentence length passes `part` 5 of 10 and `range` 8 of 10 (the reply form shows the scope, as intended); a policy that repairs part, range and crate by form and guesses the month passes `mixed` 6 of 10 (was 4).
+
+## Round 5 on the landed versions (held-out instances)
+
+Fresh workers reviewed `main` at `78c455390` on the built instances and on new seeds (a scratch copy of the generator; the lab builds instances from the generator). Each fixed a decision rule before the run.
+
+| Family | Worker | Result |
+|---|---|---|
+| `depot` v4.1 | `rv5-d-holdout` | 0 findings. On 3 new seeds (21 of 24 seeds fail the generator's own batch checks), the oracle, the 5 careful policies and the 5 sound narrower routes score 1.0 in every held-out episode; no stored guessing policy exceeds its exact chance by 2 standard errors (12,720 episodes). |
+| `dossier` v3.3 | `rv5-s-skills` | 1 open finding. A writer that never reads the watch list and ranks reports by peer occupancy, the time band of current reports and its own report counts passes `mix-probe` 5 of 10 built, 19 of 30 held-out and 52 of 100 further held-out instances. Cause: `mix` has exactly 2 watched sites per zone, and current watched reports are drawn from times 21 to 40 while off-watch reports are drawn from 1 to 40. 8 reader cells passed more than 2 of 10 and 6 of 30, but on 100 further instances they score 12 to 23 of 100, near the chance of 1/6 (16.7). |
+| `inquiry` v2.5 | `rv5-q-skills` | 0 findings. 218 new selector cells (grid position, divisibility by other numbers, digit sums, range density, chain arithmetic) on 50 held-out instances per facet: none meets the rule. |
+
+INFERRED: `mix-probe` measures watch-list selection only above a baseline of about 1 in 2 for a writer that uses this layout. Fix before the pilot: draw off-watch report times from the same law as watched reports, and vary the number of watched sites per zone.

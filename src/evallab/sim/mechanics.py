@@ -9,6 +9,7 @@ from typing import Any
 from evallab.package_anatomy import (
     _HOOK_CLASSES_BY_RUNNER,
     _test_sources,
+    analyze_package,
     grader_script_mechanics,
     load_package,
 )
@@ -60,6 +61,10 @@ _REWARD_ZERO = "echo 0 > /logs/verifier/reward.txt"
 _REWARD_ONE = "echo 1 > /logs/verifier/reward.txt"
 _REWARD_EVIDENCE_LIMIT = 6
 _REWARD_SOURCE = "def test_reward():\n    target = 'reward.txt'\n"
+_EVALUATOR_SOURCE = "import sys\n\nopen(sys.argv[-1], 'w').write('1')\n"
+_REWARD_ARG = ("python3 /tests/evaluate.py \\", "--reward /logs/verifier/reward.txt")
+_REWARD_ARG_COMMAND = "python3 /tests/evaluate.py --reward /logs/verifier/reward.txt"
+_NO_TESTS = "WC-NO-TESTS-FOUND"
 
 
 def _reset(plan: _Plan) -> dict[str, Any]:
@@ -111,6 +116,7 @@ class _Plan:
     wrapper: str
     wrapped_runner: str
     wrapper_split: bool
+    python_arg: bool
 
     @property
     def unconditional(self) -> bool:
@@ -120,6 +126,7 @@ class _Plan:
 @dataclass(slots=True)
 class _Lines:
     reward_clear: _Hit | None = None
+    reward_arg: _Hit | None = None
     set_plus_e: list[_Hit] = field(default_factory=list)
     or_true: _Hit | None = None
     early_exit: _Hit | None = None
@@ -182,6 +189,7 @@ def _plan(rng: Random) -> _Plan:
         wrapper=rng.choice(_WRAPPERS),
         wrapped_runner=rng.choice(_WRAPPED),
         wrapper_split=_flag(rng),
+        python_arg=_flag(rng),
     )
     assert plan.exit_trigger in _EXIT_TRIGGERS
     assert plan.saved_status in _SAVED_STATUS and plan.late_status in _SAVED_STATUS
@@ -201,7 +209,7 @@ def _mechanisms(plan: _Plan) -> list[str]:
         found.append("structured_report")
     if plan.log_grep:
         found.append("log_grep")
-    if plan.python_writes:
+    if plan.python_writes or plan.python_arg:
         found.append("python_writes_reward")
     if plan.unconditional and not found:
         found.append("exit_code")
@@ -217,9 +225,9 @@ def _present(hits: tuple[_Hit | None, ...]) -> list[_Hit]:
 
 
 def _reward_lines(lines: _Lines) -> list[dict[str, Any]]:
-    found = [*_present((lines.reward_clear,)), *lines.zeros, *lines.echoes]
+    found = [*_present((lines.reward_clear, lines.reward_arg)), *lines.zeros, *lines.echoes]
     assert found == sorted(found)
-    assert len(found) <= 1 + _REWARD_EVIDENCE_LIMIT + 2
+    assert len(found) <= 2 + _REWARD_EVIDENCE_LIMIT + 2
     return _evidence("tests/test.sh", found[:_REWARD_EVIDENCE_LIMIT])
 
 
@@ -243,7 +251,7 @@ def _isolation(plan: _Plan) -> dict[str, bool]:
 
 def _bare(plan: _Plan) -> list[str]:
     names = {"pytest"}
-    if plan.python_isolated:
+    if plan.python_isolated or plan.python_arg:
         names.add("python3")
     names.update(plan.extra_bare)
     if plan.wrapper != "none":
@@ -361,6 +369,10 @@ def _render_tail(script: _Script, recorded: _Lines, plan: _Plan) -> None:
         recorded.cd = script.add("cd /app")
     if plan.exit_trigger != "none":
         script.add(_EXIT_LINE[plan.exit_trigger])
+    if plan.python_arg:
+        start, _ = script.add(_REWARD_ARG[0])
+        script.add(_REWARD_ARG[1])
+        recorded.reward_arg = (start, _REWARD_ARG_COMMAND)
     for _ in range(plan.zero_count):
         recorded.zeros.append(script.add(_REWARD_ZERO))
     for _ in range(plan.unconditional_count):
@@ -368,6 +380,7 @@ def _render_tail(script: _Script, recorded: _Lines, plan: _Plan) -> None:
     assert len(recorded.zeros) == plan.zero_count
     assert len(recorded.echoes) == plan.unconditional_count
     assert (recorded.cd is not None) is (plan.workdir_mode == "cd")
+    assert (recorded.reward_arg is not None) is plan.python_arg
 
 
 class MechanicsSimulation:
@@ -391,6 +404,7 @@ class MechanicsSimulation:
             mask=plan.mask_set_plus_e,
             saved=plan.saved_status,
             late=plan.late_status,
+            arg=plan.python_arg,
         )
         self._require_bash()
         package = load_package(self.root)
@@ -399,6 +413,7 @@ class MechanicsSimulation:
         self._check_reward(result, plan, lines)
         self._check_env(result, plan, lines)
         self._check_fields(result, plan, lines)
+        self._check_no_tests(plan)
         self.sim.require(self.sim.step - self.start_step <= _STEP_BUDGET, "mechanics_step_budget")
 
     def _write(self, script: str, plan: _Plan) -> None:
@@ -407,6 +422,8 @@ class MechanicsSimulation:
         (tests / "test.sh").write_text(script, encoding="utf-8")
         if plan.python_writes:
             (tests / "test_reward.py").write_text(_REWARD_SOURCE, encoding="utf-8")
+        if plan.python_arg:
+            (tests / "evaluate.py").write_text(_EVALUATOR_SOURCE, encoding="utf-8")
         assert (tests / "test.sh").is_file()
 
     def _require_bash(self) -> None:
@@ -434,6 +451,13 @@ class MechanicsSimulation:
             gate["structured_report_count_check"] == ("structured_report" in mechanisms),
             "mechanics_structured_report_count_check",
         )
+
+    def _check_no_tests(self, plan: _Plan) -> None:
+        card = analyze_package(self.root)
+        ids = [hypothesis["id"] for hypothesis in card["vulnerability_hypotheses"]]
+        scripted = plan.python_writes or plan.python_arg
+        self.sim.begin("mechanics-no-tests", scripted=scripted)
+        self.sim.require((_NO_TESTS in ids) is not scripted, "mechanics_no_tests_finding")
 
     def _check_env(self, result: dict[str, Any], plan: _Plan, lines: _Lines) -> None:
         sim = self.sim

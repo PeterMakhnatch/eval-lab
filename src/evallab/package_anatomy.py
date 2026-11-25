@@ -8,6 +8,7 @@ import io
 import json
 import os
 import re
+import shlex
 import sys
 import tarfile
 import tomllib
@@ -677,16 +678,65 @@ def _status_gated(lines: Sequence[str], start: int) -> bool:
     return False
 
 
+_PY_RUNNER = re.compile(r"(?:\S*/)?python(?:3(?:\.\d+)?)?")
+_SHELL_OPERATORS = frozenset({";", ";;", "&&", "||", "|", "&", "(", ")"})
+_REDIRECTS = frozenset({">", ">>", ">|", "&>", "&>>"})
+_REWARD_WORD = re.compile(r"(?:^|[/=])reward\.(?:txt|json)$")
+
+
+def _shell_words(command: str) -> list[str]:
+    lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
+    lexer.whitespace_split = True
+    try:
+        return list(lexer)
+    except ValueError:
+        return command.split()
+
+
+def _python_gets_reward_path(words: Sequence[str]) -> bool:
+    runner = False
+    script = False
+    for index, word in enumerate(words):
+        if word in _SHELL_OPERATORS:
+            runner, script = False, False
+        elif not runner:
+            runner = bool(_PY_RUNNER.fullmatch(word))
+        elif not script:
+            script = word.endswith(".py")
+            runner = script or word.startswith("-")
+        elif _REWARD_WORD.search(word) and words[index - 1] not in _REDIRECTS:
+            return True
+    return False
+
+
+def _reward_path_commands(test_sh: str) -> list[tuple[int, int, str]]:
+    logical = _logical_lines(test_sh)
+    ends = [start - 1 for start, _ in logical[1:]] + [len(test_sh.splitlines())] * bool(logical)
+    found: list[tuple[int, int, str]] = []
+    for (start, text), end in zip(logical, ends, strict=True):
+        assert start <= end
+        if _REWARD_FILE.search(text) and _python_gets_reward_path(_shell_words(text)):
+            found.append((start, end, re.sub(r"\s+", " ", text)[:200]))
+    return found
+
+
+def _with_commands(hits: list[tuple[int, str]], commands: Sequence[tuple[int, int, str]]) -> list[tuple[int, str]]:
+    inside = [hit for hit in hits if any(start <= hit[0] <= end for start, end, _ in commands)]
+    merged = sorted([*(hit for hit in hits if hit not in inside), *((start, text) for start, _, text in commands)])
+    return merged[:6]
+
+
 def _reward_gate(test_sh: str, sources: Sequence[TestSource]) -> dict[str, Any]:
     mechanisms: list[str] = []
-    reward_lines = _find(test_sh, r"reward\.(?:txt|json)", limit=6)
+    commands = _reward_path_commands(test_sh)
+    reward_lines = _with_commands(_find(test_sh, r"reward\.(?:txt|json)", limit=6), commands)
     if re.search(r"\$\?|\$\{?RC\}?|\bRC=|\bif\s+\S.*;\s*then\s+echo\s+1|&&\s*echo\s+1", test_sh):
         mechanisms.append("exit_code")
     if re.search(r"junit|--json-report|ctrf|report\.json|expected_report|jq\s|xml\.etree|passed.*failed", test_sh, re.I):
         mechanisms.append("structured_report")
     if re.search(r"grep\s+-[a-zA-Z]*q[a-zA-Z]*\s+['\"]?(?:PASS|passed|OK|ok\b|✓)", test_sh, re.I):
         mechanisms.append("log_grep")
-    if any(re.search(r"reward\.(?:txt|json)", source.text) for source in sources):
+    if commands or any(re.search(r"reward\.(?:txt|json)", source.text) for source in sources):
         mechanisms.append("python_writes_reward")
     unconditional = False
     depth = 0

@@ -215,5 +215,215 @@
     "seed": 25,
     "step": 159,
     "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T17:22:34.305972+00:00",
+    "invariant": "mechanics_reward_write_lines",
+    "seed": 0,
+    "step": 159,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T17:22:34.305972+00:00",
+    "invariant": "mechanics_reward_write_lines",
+    "seed": 3,
+    "step": 159,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T17:22:34.305972+00:00",
+    "invariant": "mechanics_mechanisms",
+    "seed": 5,
+    "step": 157,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T17:22:34.305972+00:00",
+    "invariant": "mechanics_mechanisms",
+    "seed": 6,
+    "step": 157,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T17:22:34.305972+00:00",
+    "invariant": "mechanics_reward_write_lines",
+    "seed": 7,
+    "step": 159,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T17:22:34.305972+00:00",
+    "invariant": "mechanics_mechanisms",
+    "seed": 11,
+    "step": 154,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T17:22:34.305972+00:00",
+    "invariant": "mechanics_mechanisms",
+    "seed": 15,
+    "step": 158,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T17:22:34.305972+00:00",
+    "invariant": "mechanics_mechanisms",
+    "seed": 17,
+    "step": 158,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T17:22:34.305972+00:00",
+    "invariant": "mechanics_mechanisms",
+    "seed": 19,
+    "step": 157,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T17:22:34.305972+00:00",
+    "invariant": "mechanics_reward_write_lines",
+    "seed": 22,
+    "step": 157,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T17:22:34.305972+00:00",
+    "invariant": "mechanics_mechanisms",
+    "seed": 25,
+    "step": 158,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T17:22:34.305972+00:00",
+    "invariant": "mechanics_reward_write_lines",
+    "seed": 27,
+    "step": 158,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T17:22:34.305972+00:00",
+    "invariant": "mechanics_reward_write_lines",
+    "seed": 29,
+    "step": 154,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T17:22:34.305972+00:00",
+    "invariant": "mechanics_mechanisms",
+    "seed": 30,
+    "step": 158,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T17:22:34.305972+00:00",
+    "invariant": "mechanics_reward_write_lines",
+    "seed": 31,
+    "step": 158,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T17:22:34.305972+00:00",
+    "invariant": "mechanics_reward_write_lines",
+    "seed": 35,
+    "step": 158,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T17:22:34.305972+00:00",
+    "invariant": "mechanics_mechanisms",
+    "seed": 36,
+    "step": 158,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T17:22:34.305972+00:00",
+    "invariant": "mechanics_reward_write_lines",
+    "seed": 38,
+    "step": 158,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T17:22:34.305972+00:00",
+    "invariant": "mechanics_reward_write_lines",
+    "seed": 39,
+    "step": 158,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T17:22:34.305972+00:00",
+    "invariant": "mechanics_reward_write_lines",
+    "seed": 40,
+    "step": 157,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T17:22:34.305972+00:00",
+    "invariant": "mechanics_mechanisms",
+    "seed": 43,
+    "step": 158,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T17:22:34.305972+00:00",
+    "invariant": "mechanics_reward_write_lines",
+    "seed": 44,
+    "step": 158,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T17:22:34.305972+00:00",
+    "invariant": "mechanics_mechanisms",
+    "seed": 45,
+    "step": 158,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T17:22:34.305972+00:00",
+    "invariant": "mechanics_reward_write_lines",
+    "seed": 46,
+    "step": 154,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T17:22:34.305972+00:00",
+    "invariant": "mechanics_mechanisms",
+    "seed": 49,
+    "step": 157,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T17:22:34.305972+00:00",
+    "invariant": "mechanics_mechanisms",
+    "seed": 51,
+    "step": 154,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T17:22:34.305972+00:00",
+    "invariant": "mechanics_reward_write_lines",
+    "seed": 54,
+    "step": 157,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T17:22:34.305972+00:00",
+    "invariant": "mechanics_mechanisms",
+    "seed": 55,
+    "step": 157,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T17:22:34.305972+00:00",
+    "invariant": "mechanics_mechanisms",
+    "seed": 57,
+    "step": 157,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T17:22:34.305972+00:00",
+    "invariant": "mechanics_reward_write_lines",
+    "seed": 59,
+    "step": 157,
+    "subsystem": "grader-script-mechanics"
   }
 ]

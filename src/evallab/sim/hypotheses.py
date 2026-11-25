@@ -78,7 +78,13 @@ _MECHANISMS = (
     ("log_grep",),
     ("none_detected",),
 )
-_OPERANDS = {"relative": "tests", "absent": "", "inside": "/app/tests", "outside": "/tests"}
+_OPERANDS = {
+    "relative": "tests",
+    "absent": "",
+    "option_value": "--basetemp /tmp/pytest-base",
+    "inside": "/app/tests",
+    "outside": "/tests",
+}
 _TEST_STEMS = ("test_alpha", "test_beta", "test_gamma", "test_delta", "test_omega")
 _NAMED_WORDS = ("harness", "leak", "expected", "golden", "answer", "solution", "reference", "verif", "grader", "oracle")
 _PLAIN_WORDS = ("data", "cache", "vendor", "assets", "fonts", "locale")

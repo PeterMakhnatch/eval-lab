@@ -413,8 +413,18 @@ def _layout(package: Package, facts: Mapping[str, Any]) -> tuple[str, list[str]]
     return ("separate_verifier" if signals else "single_container"), signals
 
 
-_VALUE_FLAGS = frozenset({"-k", "-m", "-p", "-c", "-o", "-n", "--rootdir", "--timeout", "--maxfail", "--tb", "--junitxml",
-                          "--import-mode", "--cov", "--ignore", "--deselect"})
+_VALUE_FLAGS = frozenset({
+    "-W", "-c", "-k", "-m", "-n", "-o", "-p", "-r", "--assert", "--basetemp", "--capture", "--code-highlight", "--color",
+    "--confcutdir", "--config-file", "--deselect", "--doctest-glob", "--doctest-report", "--durations", "--durations-min",
+    "--ignore", "--ignore-glob", "--import-mode", "--junit-prefix", "--junit-xml", "--junitprefix", "--junitxml",
+    "--last-failed-no-failures", "--lfnf", "--log-auto-indent", "--log-cli-date-format", "--log-cli-format",
+    "--log-cli-level", "--log-date-format", "--log-disable", "--log-file", "--log-file-date-format", "--log-file-format",
+    "--log-file-level", "--log-file-mode", "--log-format", "--log-level", "--maxfail", "--override-ini", "--pastebin",
+    "--pdbcls", "--pythonwarnings", "--rootdir", "--show-capture", "--tb", "--verbosity", "--timeout", "--timeout-method",
+    "--cov", "--cov-report", "--cov-config", "--cov-fail-under", "--numprocesses", "--maxprocesses", "--dist", "--tx",
+    "--reruns", "--reruns-delay", "--json-report-file", "--html", "--report-log", "--ctrf", "--random-order-seed",
+    "--random-order-bucket",
+})
 
 
 def _runner_operands(line: str) -> list[str]:

@@ -72,7 +72,13 @@ _REWARD_ARG = ("python3 /tests/evaluate.py \\", "--reward /logs/verifier/reward.
 _REWARD_ARG_COMMAND = "python3 /tests/evaluate.py --reward /logs/verifier/reward.txt"
 _NO_TESTS = "WC-NO-TESTS-FOUND"
 _PYTEST_HOOKS = ("conftest.py", "pytest.ini", "tox.ini", "setup.cfg", "pyproject.toml")
-_OPERANDS = {"relative": "tests", "absent": "", "inside": "/app/tests", "outside": "/tests"}
+_OPERANDS = {
+    "relative": "tests",
+    "absent": "",
+    "option_value": "--basetemp /tmp/pytest-base",
+    "inside": "/app/tests",
+    "outside": "/tests",
+}
 
 
 def _run(template: str, plan: _Plan) -> str:

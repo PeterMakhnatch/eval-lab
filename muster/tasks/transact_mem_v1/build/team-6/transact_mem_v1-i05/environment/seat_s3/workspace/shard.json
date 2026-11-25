@@ -1,0 +1,14 @@
+{
+  "task_id": "tm-05-60e7c1",
+  "domain": "rdma-pfc-deadlock",
+  "seat": "s3",
+  "shards": [
+    {
+      "shard_id": "s3",
+      "subsystem": "storage",
+      "bit_index": 2,
+      "clue_bit": 0,
+      "shard_key": "fcb879ebc4e7"
+    }
+  ]
+}

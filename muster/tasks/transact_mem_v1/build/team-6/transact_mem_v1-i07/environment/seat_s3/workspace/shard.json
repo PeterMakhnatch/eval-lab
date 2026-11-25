@@ -1,0 +1,14 @@
+{
+  "task_id": "tm-07-f52ac7",
+  "domain": "etcd-quorum-split",
+  "seat": "s3",
+  "shards": [
+    {
+      "shard_id": "s3",
+      "subsystem": "storage",
+      "bit_index": 2,
+      "clue_bit": 1,
+      "shard_key": "f01cd29cac3b"
+    }
+  ]
+}

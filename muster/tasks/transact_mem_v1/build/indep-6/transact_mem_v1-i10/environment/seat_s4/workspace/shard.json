@@ -1,0 +1,14 @@
+{
+  "task_id": "tm-10-028a13",
+  "domain": "k8s-coredns-brownout",
+  "seat": "s4",
+  "shards": [
+    {
+      "shard_id": "s4",
+      "subsystem": "control_plane",
+      "bit_index": 3,
+      "clue_bit": 1,
+      "shard_key": "eb0979931da5"
+    }
+  ]
+}

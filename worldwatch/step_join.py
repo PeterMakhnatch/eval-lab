@@ -36,16 +36,16 @@ _SLEEP_RE = re.compile(r"\bsleep\s+([0-9]+(?:\.[0-9]+)?)\b")
 _TEXT_REQ_RE = re.compile(
     r"/(verify_dependency|private_belief|report_unknown|flag_misreport|submit_choice|submit_answer|"
     r"ask_creditor|report_value|commit_round|final_probe|round_state|task_state|team_state|"
-    r"audit_log|contribute|transfer|finalize|contract|notices|pledges|prepare|release|reveals|"
-    r"handoff|barrier|execute|claims|leases|prereq|status|verify|notice|pledge|answer|commit|"
-    r"report|rates|shift|check|stage|inbox|rules|state|claim|probe|epoch|ledger|msgs|open|"
+    r"authority|audit_log|contribute|transfer|finalize|contract|notices|pledges|prepare|release|"
+    r"reveals|handoff|barrier|execute|claims|leases|prereq|status|verify|notice|pledge|answer|"
+    r"commit|report|rates|shift|check|stage|inbox|rules|state|claim|probe|epoch|ledger|msgs|open|"
     r"mine|take|work|drop|game|plan|spec|scan|new|dms|msg|dm|ack)\b"
 )
 
 _OLAM_READ_KINDS = frozenset({
     "msgs", "new", "dms", "notices", "inbox", "claims", "barrier", "epoch",
     "contract", "rates", "reveals", "handoff", "probe", "report", "check",
-    "stage", "prereq", "leases", "state", "status", "spec", "plan",
+    "stage", "prereq", "leases", "state", "status", "spec", "plan", "authority",
     "task_state", "team_state", "round_state", "audit_log",
     "final_probe", "mine", "game", "pledges", "ledger",
 })

@@ -22,13 +22,13 @@ from worldwatch.model import (
 READ_ONLY_KINDS = frozenset({
     "rules", "spec", "msgs", "new", "dms", "notices", "inbox", "leases", "claims",
     "pledges", "state", "status", "rates", "reveals", "audit_log", "task_state",
-    "team_state", "round_state", "final_probe", "mine", "game",
+    "team_state", "round_state", "final_probe", "mine", "game", "authority",
 })
 AUTH_STATE_KINDS = frozenset({
     "spec", "notices", "leases", "inbox", "state", "ledger", "rates", "contract",
-    "status", "task_state", "round_state", "audit_log", "claims", "stage", "prereq",
+    "status", "task_state", "round_state", "audit_log", "claims", "stage", "prereq", "authority",
 })
-DEDICATED_AUTH_KINDS = frozenset({"leases", "state", "ledger", "rates", "contract"})
+DEDICATED_AUTH_KINDS = frozenset({"leases", "state", "ledger", "rates", "contract", "authority"})
 _IFACE_ERRS = frozenset({
     "interface_mismatch", "interface_mismatch_commit", "contract_mismatch",
     "schema_mismatch", "spec_mismatch", "digest_mismatch", "incompatible_interface",

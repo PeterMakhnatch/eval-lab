@@ -1,0 +1,14 @@
+{
+  "task_id": "tm-03-adc17d",
+  "domain": "tls-ocsp-staple-skew",
+  "seat": "s3",
+  "shards": [
+    {
+      "shard_id": "s3",
+      "subsystem": "storage",
+      "bit_index": 2,
+      "clue_bit": 0,
+      "shard_key": "65a245efeb31"
+    }
+  ]
+}

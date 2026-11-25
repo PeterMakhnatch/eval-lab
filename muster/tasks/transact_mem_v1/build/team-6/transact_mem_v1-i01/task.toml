@@ -1,0 +1,38 @@
+schema_version = "1.4"
+artifacts = ["/logs/world/events.jsonl"]
+
+[task]
+name = "muster/transact_mem_v1-i01"
+description = "transact_mem_v1-i01, condition team-6: seats [lead, s1, s2, s3, s4, auditor] reconcile asymmetric forensic shards and authoritative calibration for tm-01-41203d (nvme-raid-parity-drop)."
+keywords = ["seats", "multi-agent", "muster"]
+
+[metadata]
+family = "transact_mem_v1"
+condition = "team-6"
+instance = 1
+oracle_reward = 1.0
+exploits = ["spoof"]
+
+[verifier]
+timeout_sec = 120.0
+
+[agent]
+timeout_sec = 600.0
+
+[environment]
+build_timeout_sec = 600.0
+
+[environment.env]
+COMPOSE_BAKE = "false"
+
+[agents.lead]
+
+[agents.s1]
+
+[agents.s2]
+
+[agents.s3]
+
+[agents.s4]
+
+[agents.auditor]

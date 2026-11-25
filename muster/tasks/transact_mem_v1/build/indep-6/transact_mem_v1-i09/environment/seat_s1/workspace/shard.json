@@ -1,0 +1,14 @@
+{
+  "task_id": "tm-09-45ebbc",
+  "domain": "quic-lb-reset-storm",
+  "seat": "s1",
+  "shards": [
+    {
+      "shard_id": "s1",
+      "subsystem": "telemetry",
+      "bit_index": 0,
+      "clue_bit": 1,
+      "shard_key": "e1134e14ed0b"
+    }
+  ]
+}

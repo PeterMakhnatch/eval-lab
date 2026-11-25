@@ -13,7 +13,7 @@ from worldwatch.model import InputError, as_list, as_map, finite_float, nonneg_i
 
 _SPLIT_RE = re.compile(r"[^a-z0-9]+")
 _GUARD_TOKENS = frozenset({
-    "sk_guard", "skguard", "claimlock", "guard", "guarded", "fenced", "fence", "barrier", "interlock", "lockguard",
+    "sk_guard", "skguard", "claimlock", "guard", "guarded", "fenced", "fence", "barrier", "interlock", "lockguard", "verified",
 })
 _S0K_TOKENS = frozenset({"indep", "independent", "silent", "uncoordinated", "nochannel"})
 _SK_STRONG_TOKENS = frozenset({"team", "coord", "coordinated"})
@@ -104,7 +104,7 @@ def _score_segs(segs: tuple[str, ...]) -> tuple[str, int] | None:
     if norm in ("sk", "s_k"):
         return ("Sk", 100)
     seg_set = set(segs)
-    has_s1_tok = "s1" in seg_set
+    has_s1_tok = "s1" in seg_set and "s2" not in seg_set
     has_s0k_tok = "s0k" in seg_set
     has_skg_tok = "skguard" in seg_set or "sk_guard" in norm
     has_sk_tok = "sk" in seg_set and not has_skg_tok
@@ -138,7 +138,7 @@ def _score_segs(segs: tuple[str, ...]) -> tuple[str, int] | None:
 
 def _score_token_string(text: str) -> tuple[str, int] | None:
     low = text.strip().lower()
-    if not low:
+    if not low or "=" in low:
         return None
     if "__" in low:
         du_parts = [p for p in low.split("__") if p]
@@ -171,7 +171,7 @@ def _classify_arm_role(arm: Mapping[str, Any], cond_hints: Mapping[str, set[str]
     if len(conds) == 1 and (hit_c := _score_token_string(next(iter(conds)))) is not None:
         candidates.append((hit_c[1] - 2, 1, hit_c[0]))
     raw_path = str(arm.get("path") or "").strip()
-    if raw_path and (hit_p := _score_token_string(Path(raw_path).name)) is not None:
+    if not candidates and raw_path and (hit_p := _score_token_string(Path(raw_path).name)) is not None:
         candidates.append((hit_p[1] - 5, 0, hit_p[0]))
     if not candidates:
         return None

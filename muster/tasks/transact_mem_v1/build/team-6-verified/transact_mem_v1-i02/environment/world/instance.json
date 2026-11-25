@@ -1,0 +1,122 @@
+{
+  "family": "transact_mem_v1",
+  "condition": "team-6-verified",
+  "instance": 2,
+  "seats": [
+    "lead",
+    "s1",
+    "s2",
+    "s3",
+    "s4",
+    "auditor"
+  ],
+  "channel": true,
+  "direct_messages": true,
+  "notices_enabled": true,
+  "unread_guard_kinds": [
+    "verify",
+    "commit",
+    "report"
+  ],
+  "fenced": true,
+  "task_id": "tm-02-9485f4",
+  "domain": "kafka-isr-shrink",
+  "syndrome_mask": 13,
+  "authority_salt": "4c8079ac0e85",
+  "verifier_nonce": "54c10dd78993",
+  "true_root_cause": "rc-05",
+  "rumor_root_cause": "rc-04",
+  "rumor_digest": "74d9c4821b6df1c4",
+  "target_evidence_digest": "11334f034b163f15",
+  "verification_digest": "4a2ab578a4feb0af",
+  "all_shards": [
+    {
+      "shard_id": "s1",
+      "subsystem": "telemetry",
+      "bit_index": 0,
+      "clue_bit": 0,
+      "shard_key": "4a61e2bb3904"
+    },
+    {
+      "shard_id": "s2",
+      "subsystem": "routing",
+      "bit_index": 1,
+      "clue_bit": 0,
+      "shard_key": "e7d722e08e9d"
+    },
+    {
+      "shard_id": "s3",
+      "subsystem": "storage",
+      "bit_index": 2,
+      "clue_bit": 0,
+      "shard_key": "67f472cdbc7c"
+    },
+    {
+      "shard_id": "s4",
+      "subsystem": "control_plane",
+      "bit_index": 3,
+      "clue_bit": 1,
+      "shard_key": "3a907cd93267"
+    }
+  ],
+  "seat_workspaces": {
+    "lead": {},
+    "s1": {
+      "task_id": "tm-02-9485f4",
+      "domain": "kafka-isr-shrink",
+      "seat": "s1",
+      "shards": [
+        {
+          "shard_id": "s1",
+          "subsystem": "telemetry",
+          "bit_index": 0,
+          "clue_bit": 0,
+          "shard_key": "4a61e2bb3904"
+        }
+      ]
+    },
+    "s2": {
+      "task_id": "tm-02-9485f4",
+      "domain": "kafka-isr-shrink",
+      "seat": "s2",
+      "shards": [
+        {
+          "shard_id": "s2",
+          "subsystem": "routing",
+          "bit_index": 1,
+          "clue_bit": 0,
+          "shard_key": "e7d722e08e9d"
+        }
+      ]
+    },
+    "s3": {
+      "task_id": "tm-02-9485f4",
+      "domain": "kafka-isr-shrink",
+      "seat": "s3",
+      "shards": [
+        {
+          "shard_id": "s3",
+          "subsystem": "storage",
+          "bit_index": 2,
+          "clue_bit": 0,
+          "shard_key": "67f472cdbc7c"
+        }
+      ]
+    },
+    "s4": {
+      "task_id": "tm-02-9485f4",
+      "domain": "kafka-isr-shrink",
+      "seat": "s4",
+      "shards": [
+        {
+          "shard_id": "s4",
+          "subsystem": "control_plane",
+          "bit_index": 3,
+          "clue_bit": 1,
+          "shard_key": "3a907cd93267"
+        }
+      ]
+    },
+    "auditor": {}
+  }
+}

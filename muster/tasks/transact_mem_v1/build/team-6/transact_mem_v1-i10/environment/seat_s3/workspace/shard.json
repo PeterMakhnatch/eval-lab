@@ -1,0 +1,14 @@
+{
+  "task_id": "tm-10-028a13",
+  "domain": "k8s-coredns-brownout",
+  "seat": "s3",
+  "shards": [
+    {
+      "shard_id": "s3",
+      "subsystem": "storage",
+      "bit_index": 2,
+      "clue_bit": 1,
+      "shard_key": "e58b7149e255"
+    }
+  ]
+}

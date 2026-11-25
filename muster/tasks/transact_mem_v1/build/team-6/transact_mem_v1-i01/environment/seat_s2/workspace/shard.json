@@ -1,0 +1,14 @@
+{
+  "task_id": "tm-01-41203d",
+  "domain": "nvme-raid-parity-drop",
+  "seat": "s2",
+  "shards": [
+    {
+      "shard_id": "s2",
+      "subsystem": "routing",
+      "bit_index": 1,
+      "clue_bit": 1,
+      "shard_key": "dd8b6057a82f"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "task_id": "tm-05-60e7c1",
+  "domain": "rdma-pfc-deadlock",
+  "seat": "s1",
+  "shards": [
+    {
+      "shard_id": "s1",
+      "subsystem": "telemetry",
+      "bit_index": 0,
+      "clue_bit": 1,
+      "shard_key": "76338742a1ae"
+    }
+  ]
+}

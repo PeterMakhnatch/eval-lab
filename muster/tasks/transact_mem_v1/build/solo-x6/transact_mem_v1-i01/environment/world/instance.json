@@ -1,0 +1,90 @@
+{
+  "family": "transact_mem_v1",
+  "condition": "solo-x6",
+  "instance": 1,
+  "seats": [
+    "p1"
+  ],
+  "channel": false,
+  "direct_messages": false,
+  "notices_enabled": true,
+  "unread_guard_kinds": [],
+  "fenced": false,
+  "task_id": "tm-01-41203d",
+  "domain": "nvme-raid-parity-drop",
+  "syndrome_mask": 15,
+  "authority_salt": "75a2019a4c06",
+  "verifier_nonce": "16fcdc7d7028",
+  "true_root_cause": "rc-08",
+  "rumor_root_cause": "rc-12",
+  "rumor_digest": "ee0386c81fb8dbd6",
+  "target_evidence_digest": "63afdc05aa569fe8",
+  "verification_digest": "3e057485caf4d8ef",
+  "all_shards": [
+    {
+      "shard_id": "s1",
+      "subsystem": "telemetry",
+      "bit_index": 0,
+      "clue_bit": 1,
+      "shard_key": "bd0ec92a52c8"
+    },
+    {
+      "shard_id": "s2",
+      "subsystem": "routing",
+      "bit_index": 1,
+      "clue_bit": 1,
+      "shard_key": "dd8b6057a82f"
+    },
+    {
+      "shard_id": "s3",
+      "subsystem": "storage",
+      "bit_index": 2,
+      "clue_bit": 1,
+      "shard_key": "831b10e13789"
+    },
+    {
+      "shard_id": "s4",
+      "subsystem": "control_plane",
+      "bit_index": 3,
+      "clue_bit": 0,
+      "shard_key": "cbc095aa23e2"
+    }
+  ],
+  "seat_workspaces": {
+    "p1": {
+      "task_id": "tm-01-41203d",
+      "domain": "nvme-raid-parity-drop",
+      "seat": "p1",
+      "shards": [
+        {
+          "shard_id": "s1",
+          "subsystem": "telemetry",
+          "bit_index": 0,
+          "clue_bit": 1,
+          "shard_key": "bd0ec92a52c8"
+        },
+        {
+          "shard_id": "s2",
+          "subsystem": "routing",
+          "bit_index": 1,
+          "clue_bit": 1,
+          "shard_key": "dd8b6057a82f"
+        },
+        {
+          "shard_id": "s3",
+          "subsystem": "storage",
+          "bit_index": 2,
+          "clue_bit": 1,
+          "shard_key": "831b10e13789"
+        },
+        {
+          "shard_id": "s4",
+          "subsystem": "control_plane",
+          "bit_index": 3,
+          "clue_bit": 0,
+          "shard_key": "cbc095aa23e2"
+        }
+      ]
+    }
+  }
+}

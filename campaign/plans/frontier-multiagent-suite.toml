@@ -1,8 +1,8 @@
-# Tomorrow-ready OpenRouter/Daytona campaign across all 3 Kit v2 frontier families (12 conditions, 120 tasks).
+# Tomorrow-ready OpenRouter/Daytona campaign across all 4 Kit v2 frontier families (16 conditions, 160 tasks).
 # Worktree paths below keep `campaign check` green on this branch; update cwd/tasks to ~/Developer/eval-lab after landing.
 # NOT executed during $0 overnight systems work. Run preflight + companion watch before starting:
 #   mkdir -p ~/Developer/eval-lab-results/frontier-multiagent-suite-2026-11-25/scored
-#   PYTHONDONTWRITEBYTECODE=1 keys run -- uv run --no-sync python -m worldwatch preflight muster/tasks/{compactshift_v1,skewledger_v1,protofit_v1}/build --check-openrouter
+#   PYTHONDONTWRITEBYTECODE=1 keys run -- uv run --no-sync python -m worldwatch preflight muster/tasks/{compactshift_v1,skewledger_v1,protofit_v1,transact_mem_v1}/build --check-openrouter
 #   PYTHONDONTWRITEBYTECODE=1 uv run --no-sync python -m worldwatch tail ~/Developer/eval-lab-results/frontier-multiagent-suite-2026-11-25/scored --follow --stop-file ~/Developer/eval-lab-results/frontier-multiagent-suite-2026-11-25/STOP --alerts ~/Developer/eval-lab-results/frontier-multiagent-suite-2026-11-25/alerts.jsonl --html ~/Developer/eval-lab-results/frontier-multiagent-suite-2026-11-25/dashboard.html
 
 schema = "campaign-plan/v1"
@@ -147,6 +147,38 @@ reserve_usd = 1.00
 rerun_reserve_usd = 0.35
 expected_usd = 0.45
 
+[[arms]]
+name = "transact-mem-solo-x6"
+tasks = "/Users/petermakhnatch/Developer/eval-lab-wt/worldwatch-and-behavioral-probes/muster/tasks/transact_mem_v1/build/solo-x6"
+attempts = 1
+reserve_usd = 0.60
+rerun_reserve_usd = 0.25
+expected_usd = 0.25
+
+[[arms]]
+name = "transact-mem-indep-6"
+tasks = "/Users/petermakhnatch/Developer/eval-lab-wt/worldwatch-and-behavioral-probes/muster/tasks/transact_mem_v1/build/indep-6"
+attempts = 1
+reserve_usd = 1.20
+rerun_reserve_usd = 0.40
+expected_usd = 0.55
+
+[[arms]]
+name = "transact-mem-team-6"
+tasks = "/Users/petermakhnatch/Developer/eval-lab-wt/worldwatch-and-behavioral-probes/muster/tasks/transact_mem_v1/build/team-6"
+attempts = 1
+reserve_usd = 1.20
+rerun_reserve_usd = 0.40
+expected_usd = 0.55
+
+[[arms]]
+name = "transact-mem-team-6-verified"
+tasks = "/Users/petermakhnatch/Developer/eval-lab-wt/worldwatch-and-behavioral-probes/muster/tasks/transact_mem_v1/build/team-6-verified"
+attempts = 1
+reserve_usd = 1.20
+rerun_reserve_usd = 0.40
+expected_usd = 0.55
+
 [[lanes]]
 name = "compact-and-skew"
 concurrency = 4
@@ -156,8 +188,9 @@ arms = [
 ]
 
 [[lanes]]
-name = "protofit"
+name = "proto-and-transact"
 concurrency = 4
 arms = [
   "protofit-solo-x4", "protofit-indep-4", "protofit-team-4", "protofit-team-4-barrier",
+  "transact-mem-solo-x6", "transact-mem-indep-6", "transact-mem-team-6", "transact-mem-team-6-verified",
 ]

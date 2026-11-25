@@ -1,0 +1,14 @@
+{
+  "task_id": "tm-10-028a13",
+  "domain": "k8s-coredns-brownout",
+  "seat": "s1",
+  "shards": [
+    {
+      "shard_id": "s1",
+      "subsystem": "telemetry",
+      "bit_index": 0,
+      "clue_bit": 1,
+      "shard_key": "c0721d3dfed3"
+    }
+  ]
+}

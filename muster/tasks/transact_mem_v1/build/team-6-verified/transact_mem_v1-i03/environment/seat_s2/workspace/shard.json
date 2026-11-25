@@ -1,0 +1,14 @@
+{
+  "task_id": "tm-03-adc17d",
+  "domain": "tls-ocsp-staple-skew",
+  "seat": "s2",
+  "shards": [
+    {
+      "shard_id": "s2",
+      "subsystem": "routing",
+      "bit_index": 1,
+      "clue_bit": 0,
+      "shard_key": "b6a4e14f150c"
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "task_id": "tm-07-f52ac7",
+  "domain": "etcd-quorum-split",
+  "seat": "p1",
+  "shards": [
+    {
+      "shard_id": "s1",
+      "subsystem": "telemetry",
+      "bit_index": 0,
+      "clue_bit": 0,
+      "shard_key": "dceb2e282b82"
+    },
+    {
+      "shard_id": "s2",
+      "subsystem": "routing",
+      "bit_index": 1,
+      "clue_bit": 1,
+      "shard_key": "7fccdaba60e6"
+    },
+    {
+      "shard_id": "s3",
+      "subsystem": "storage",
+      "bit_index": 2,
+      "clue_bit": 1,
+      "shard_key": "f01cd29cac3b"
+    },
+    {
+      "shard_id": "s4",
+      "subsystem": "control_plane",
+      "bit_index": 3,
+      "clue_bit": 1,
+      "shard_key": "3b2edc788966"
+    }
+  ]
+}

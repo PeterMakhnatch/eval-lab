@@ -1,0 +1,122 @@
+{
+  "family": "transact_mem_v1",
+  "condition": "team-6-verified",
+  "instance": 7,
+  "seats": [
+    "lead",
+    "s1",
+    "s2",
+    "s3",
+    "s4",
+    "auditor"
+  ],
+  "channel": true,
+  "direct_messages": true,
+  "notices_enabled": true,
+  "unread_guard_kinds": [
+    "verify",
+    "commit",
+    "report"
+  ],
+  "fenced": true,
+  "task_id": "tm-07-f52ac7",
+  "domain": "etcd-quorum-split",
+  "syndrome_mask": 5,
+  "authority_salt": "c707a5c18bdf",
+  "verifier_nonce": "fa9d28b46962",
+  "true_root_cause": "rc-11",
+  "rumor_root_cause": "rc-03",
+  "rumor_digest": "bcd693d85a33fd61",
+  "target_evidence_digest": "ae1f10ea14474481",
+  "verification_digest": "acc8616855de29e6",
+  "all_shards": [
+    {
+      "shard_id": "s1",
+      "subsystem": "telemetry",
+      "bit_index": 0,
+      "clue_bit": 0,
+      "shard_key": "dceb2e282b82"
+    },
+    {
+      "shard_id": "s2",
+      "subsystem": "routing",
+      "bit_index": 1,
+      "clue_bit": 1,
+      "shard_key": "7fccdaba60e6"
+    },
+    {
+      "shard_id": "s3",
+      "subsystem": "storage",
+      "bit_index": 2,
+      "clue_bit": 1,
+      "shard_key": "f01cd29cac3b"
+    },
+    {
+      "shard_id": "s4",
+      "subsystem": "control_plane",
+      "bit_index": 3,
+      "clue_bit": 1,
+      "shard_key": "3b2edc788966"
+    }
+  ],
+  "seat_workspaces": {
+    "lead": {},
+    "s1": {
+      "task_id": "tm-07-f52ac7",
+      "domain": "etcd-quorum-split",
+      "seat": "s1",
+      "shards": [
+        {
+          "shard_id": "s1",
+          "subsystem": "telemetry",
+          "bit_index": 0,
+          "clue_bit": 0,
+          "shard_key": "dceb2e282b82"
+        }
+      ]
+    },
+    "s2": {
+      "task_id": "tm-07-f52ac7",
+      "domain": "etcd-quorum-split",
+      "seat": "s2",
+      "shards": [
+        {
+          "shard_id": "s2",
+          "subsystem": "routing",
+          "bit_index": 1,
+          "clue_bit": 1,
+          "shard_key": "7fccdaba60e6"
+        }
+      ]
+    },
+    "s3": {
+      "task_id": "tm-07-f52ac7",
+      "domain": "etcd-quorum-split",
+      "seat": "s3",
+      "shards": [
+        {
+          "shard_id": "s3",
+          "subsystem": "storage",
+          "bit_index": 2,
+          "clue_bit": 1,
+          "shard_key": "f01cd29cac3b"
+        }
+      ]
+    },
+    "s4": {
+      "task_id": "tm-07-f52ac7",
+      "domain": "etcd-quorum-split",
+      "seat": "s4",
+      "shards": [
+        {
+          "shard_id": "s4",
+          "subsystem": "control_plane",
+          "bit_index": 3,
+          "clue_bit": 1,
+          "shard_key": "3b2edc788966"
+        }
+      ]
+    },
+    "auditor": {}
+  }
+}

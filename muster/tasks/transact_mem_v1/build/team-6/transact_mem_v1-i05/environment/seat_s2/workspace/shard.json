@@ -1,0 +1,14 @@
+{
+  "task_id": "tm-05-60e7c1",
+  "domain": "rdma-pfc-deadlock",
+  "seat": "s2",
+  "shards": [
+    {
+      "shard_id": "s2",
+      "subsystem": "routing",
+      "bit_index": 1,
+      "clue_bit": 0,
+      "shard_key": "883111824b8d"
+    }
+  ]
+}

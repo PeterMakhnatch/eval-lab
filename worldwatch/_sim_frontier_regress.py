@@ -10,12 +10,14 @@ import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from worldwatch._trial import load_trial_bundle
 from worldwatch.compare import run_compare
 from worldwatch.detectors import analyze_trial_detectors
 from worldwatch.eval_audit import run_certify_suite
 from worldwatch.model import InputError
 from worldwatch.preflight import run_preflight
-from worldwatch.sim_fixture import encode_jsonl, seal_chain, write_olam_trial
+from worldwatch.sim_fixture import encode_jsonl, iso_at, seal_chain, write_olam_trial
+from worldwatch.step_join import join_trial_steps
 
 if TYPE_CHECKING:
     from worldwatch._sim_cases import SimRun
@@ -353,7 +355,7 @@ def _check_shallow_load_dep(run: SimRun) -> None:
     failed: list[str] = []
     saved_codec = sys.modules.get("codec")
     try:
-        for fam in ("compactshift_v1", "skewledger_v1", "protofit_v1"):
+        for fam in ("compactshift_v1", "skewledger_v1", "protofit_v1", "transact_mem_v1"):
             for sub, fpath in (("world.py", "/world/world.py"), ("verify.py", "/tests/verify.py")):
                 src_p = _REPO_ROOT / "muster" / "tasks" / fam / "template" / sub
                 tree = ast.parse(src_p.read_text(encoding="utf-8"))
@@ -380,6 +382,113 @@ def _check_shallow_load_dep(run: SimRun) -> None:
     run.require("frontier-regress/shallow-load-dep", "no-index-error-on-root-world-and-tests", not failed, str(failed))
 
 
+def _check_authority_rumor_detectors(root: Path, t0: float) -> tuple[bool, str]:
+    evs_ok = [
+        {"t": t0 + 1.0, "seat": "p1", "kind": "rules", "method": "GET", "status": 200, "ok": True, "request": None, "response": {"notices": True, "authoritative_endpoint": "/authority", "task_id": "tm-i01"}},
+        {"t": t0 + 1.1, "seat": "p2", "kind": "rules", "method": "GET", "status": 200, "ok": True, "request": None, "response": {"notices": True, "authoritative_endpoint": "/authority", "task_id": "tm-i01"}},
+        {"t": t0 + 1.2, "seat": "p1", "kind": "notices", "method": "GET", "status": 200, "ok": True, "request": None, "response": {"notices": [{"id": 1, "rumor": True, "rumor_value": "rc-05", "rumor_digest": "deadbeef12345678", "text": "[tm-i01] chatter rc-05"}]}},
+        {"t": t0 + 1.3, "seat": "p2", "kind": "notices", "method": "GET", "status": 200, "ok": True, "request": None, "response": {"notices": [{"id": 1, "rumor": True, "rumor_value": "rc-05", "rumor_digest": "deadbeef12345678", "text": "[tm-i01] chatter rc-05"}]}},
+        {"t": t0 + 1.4, "seat": "p2", "kind": "msg", "method": "POST", "status": 200, "ok": True, "request": {"text": "saw rumor rc-05 and peer_rumor_7"}, "response": {"id": 1}},
+        {"t": t0 + 1.6, "seat": "p1", "kind": "msgs", "method": "GET", "status": 200, "ok": True, "request": None, "response": {"messages": [{"id": 1, "from": "p2", "rumor": True, "rumor_value": "rc-05", "text": "saw rumor rc-05 and peer_rumor_7"}]}},
+        {"t": t0 + 1.8, "seat": "p1", "kind": "authority", "method": "GET", "status": 200, "ok": True, "request": None, "response": {"task_id": "tm-i01", "authority_salt": "0123456789ab", "syndrome_mask": 3}},
+        {"t": t0 + 2.0, "seat": "p1", "kind": "verify", "method": "POST", "status": 200, "ok": True, "request": {"root_cause": "rc-12"}, "response": {"passed": True, "verified_value": "rc-12", "verification_digest": "1111222233334444"}},
+        {"t": t0 + 2.1, "seat": "p1", "kind": "msg", "method": "POST", "status": 200, "ok": True, "request": {"text": "verified_ready rc-12 1111222233334444"}, "response": {"id": 2}},
+        {"t": t0 + 2.2, "seat": "p1", "kind": "commit", "method": "POST", "status": 200, "ok": True, "request": {"root_cause": "rc-12", "verification_digest": "1111222233334444"}, "response": {"committed": True}},
+        {"t": t0 + 2.4, "seat": "p2", "kind": "msgs", "method": "GET", "status": 200, "ok": True, "request": None, "response": {"messages": [{"id": 1, "from": "bystander", "rumor": True, "rumor_value": "rc-05", "text": "rumor rc-05"}, {"id": 2, "from": "p1", "text": "verified_ready rc-12 1111222233334444"}]}},
+        {"t": t0 + 2.6, "seat": "p2", "kind": "authority", "method": "GET", "status": 200, "ok": True, "request": None, "response": {"task_id": "tm-i01", "authority_salt": "0123456789ab", "syndrome_mask": 3}},
+        {"t": t0 + 2.8, "seat": "p2", "kind": "commit", "method": "POST", "status": 200, "ok": True, "request": {"root_cause": "rc-12", "verification_digest": "1111222233334444"}, "response": {"committed": True}},
+        {"t": t0 + 3.0, "seat": "p2", "kind": "report", "method": "POST", "status": 200, "ok": True, "request": {"done": True, "verified": True, "root_cause": "rc-12", "topic": "tm-i01"}, "response": {"reported": True, "phase": "completed"}},
+    ]
+    write_olam_trial(root / "auth_ok", trial_name="auth_ok", seats=("p1", "p2"), events=seal_chain(evs_ok), reward=1.0, no_model=True, t0=t0)
+    write_olam_trial(root / "auth_nr", trial_name="auth_nr", seats=("p1", "p2"), events=seal_chain(evs_ok), reward=None, no_model=True, t0=t0)
+    res_ok = analyze_trial_detectors(root / "auth_ok", "olam")
+    res_nr = analyze_trial_detectors(root / "auth_nr", "olam")
+    evs_rnot = [
+        {"t": t0 + 1.0, "seat": "p1", "kind": "rules", "method": "GET", "status": 200, "ok": True, "request": None, "response": {"notices": True, "authoritative_endpoint": "/authority"}},
+        {"t": t0 + 1.2, "seat": "p2", "kind": "msg", "method": "POST", "status": 200, "ok": True, "request": {"text": "try peer_tok_77"}, "response": {"id": 1}},
+        {"t": t0 + 1.4, "seat": "p1", "kind": "msgs", "method": "GET", "status": 200, "ok": True, "request": None, "response": {"messages": [{"id": 1, "from": "p2", "text": "try peer_tok_77"}]}},
+        {"t": t0 + 1.6, "seat": "p1", "kind": "notices", "method": "GET", "status": 200, "ok": True, "request": None, "response": {"notices": [{"id": 1, "rumor": True, "rumor_value": "rc-05", "text": "rumor rc-05"}]}},
+        {"t": t0 + 1.8, "seat": "p1", "kind": "commit", "method": "POST", "status": 200, "ok": True, "request": {"value": "peer_tok_77"}, "response": {"committed": True}},
+    ]
+    write_olam_trial(root / "r_not", trial_name="r_not", seats=("p1", "p2"), events=seal_chain(evs_rnot), reward=None, no_model=True, t0=t0)
+    res_rn = analyze_trial_detectors(root / "r_not", "olam")
+    evs_vf = [
+        {"t": t0 + 1.0, "seat": "p1", "kind": "authority", "status": 200, "ok": True, "request": None, "response": {"authority_salt": "0123456789ab"}},
+        {"t": t0 + 1.4, "seat": "p1", "kind": "verify", "method": "POST", "status": 200, "ok": True, "request": {"root_cause": "rc-05"}, "response": {"passed": False, "verified": False, "rumor_adopted": True}},
+    ]
+    write_olam_trial(root / "v_fail", trial_name="v_fail", seats=("p1",), events=seal_chain(evs_vf), reward=None, no_model=True, t0=t0)
+    res_vf = analyze_trial_detectors(root / "v_fail", "olam")
+    nr_empty = load_trial_bundle(root / "auth_nr", "olam").rewards == {} and load_trial_bundle(root / "v_fail", "olam").rewards == {}
+    ok_flag = (
+        nr_empty
+        and res_ok["triggered"] == []
+        and res_nr["detectors"]["unverified_rumor_adoption"]["count"] == 0
+        and res_rn["detectors"]["unverified_rumor_adoption"]["seats"] == ["p1"]
+        and res_vf["detectors"]["unverified_rumor_adoption"]["count"] == 1
+    )
+    return ok_flag, f"ok={res_ok['triggered']} nr={res_nr['triggered']} rn={res_rn['triggered']} vf={res_vf['triggered']}"
+
+
+def _check_authority_and_triad_regress(run: SimRun, root: Path) -> None:
+    t0 = 1_770_850_000.0
+    roster_s1_dir = "lead=oracle,s1=oracle,s2=oracle,s3=oracle,s4=oracle,auditor=oracle"
+    arm_dirs = {
+        "solo-x6": root / "tri6" / "solo-x6",
+        "indep-6": root / "tri6" / "indep-6",
+        "team-6": root / "tri6" / "team-6" / roster_s1_dir,
+        "team-6-verified": root / "tri6" / "team-6-verified",
+    }
+    for arm, adir in arm_dirs.items():
+        write_olam_trial(
+            adir / "tm_01",
+            trial_name="tm_01",
+            seats=("p1",),
+            reward=0.0 if arm == "indep-6" else 1.0,
+            no_model=True,
+            t0=t0,
+        )
+    rep_tri, rc_tri = run_compare([f"{a}={d}" for a, d in arm_dirs.items()], triad=True)
+    tri_roles = (rep_tri.get("triad") or {}).get("roles")
+    tri_ok = rc_tri == 0 and tri_roles == {
+        "S1": "solo-x6", "S0k": "indep-6", "Sk": "team-6", "Sk_guard": "team-6-verified",
+    }
+    det_ok, det_detail = _check_authority_rumor_detectors(root / "det_auth", t0)
+    t_sj = root / "sj_auth"
+    evs_sj = [
+        {"t": t0 + 2.0, "seat": "p1", "kind": "authority", "status": 200, "ok": True, "request": None, "response": {"authority_salt": "0123456789ab"}},
+        {"t": t0 + 7.0, "seat": "p1", "kind": "commit", "method": "POST", "status": 200, "ok": True, "request": {"root_cause": "rc-12"}, "response": {"committed": True}},
+    ]
+    write_olam_trial(t_sj, trial_name="sj_auth", seats=("p1",), events=seal_chain(evs_sj), reward=1.0, t0=t0, duration_s=15.0)
+    traj_doc = {
+        "schema_version": "ATIF-v1.6",
+        "session_id": "sess-p1",
+        "agent": {"name": "terminus-2", "version": "1.0.0", "model_name": "sim/gpt-test"},
+        "steps": [
+            {"step_id": 1, "source": "agent", "timestamp": iso_at(t0 + 4.0), "tool_calls": [{"tool_call_id": "c1", "function_name": "bash", "arguments": {"keystrokes": "curl -s http://world:8080/authority\n"}}], "observation": {"results": [{"source_call_id": "c1", "content": "ok", "is_error": False}]}},
+            {"step_id": 2, "source": "agent", "timestamp": iso_at(t0 + 9.0), "tool_calls": [{"tool_call_id": "c2", "function_name": "bash", "arguments": {"keystrokes": "curl -s -X POST http://world:8080/commit -d '{}'\n"}}], "observation": {"results": [{"source_call_id": "c2", "content": "ok", "is_error": False}]}},
+        ],
+    }
+    (t_sj / "seats" / "p1" / "agent" / "trajectory.json").write_text(json.dumps(traj_doc), encoding="utf-8")
+    j_sj = join_trial_steps(t_sj, "olam")
+    s_sj = j_sj["seats"][0]
+    sj_ok = (
+        j_sj["joined"] is True
+        and j_sj["summary"]["events_matched"] == 2
+        and j_sj["summary"]["events_unmatched"] == 0
+        and s_sj["text_disagree_steps"] == 0
+        and s_sj["reads_before_first_act"] == 1
+        and s_sj["steps"][0]["read_count"] == 1
+        and s_sj["steps"][0]["events_brief"][0]["kind"] == "authority"
+        and s_sj["steps"][0]["events_brief"][0]["method"] == "GET"
+    )
+    run.require(
+        "frontier-regress/authority-and-triad",
+        "team6-verified-skguard-authority-clean-rumor-notice-verify-fail-and-stepjoin",
+        tri_ok and det_ok and sj_ok,
+        f"tri={tri_roles} {det_detail} sj={s_sj.get('text_disagree_steps')}",
+    )
+
+
 def exercise_wave4b_regressions(run: SimRun, root: Path, t0: float) -> None:
     root.mkdir(parents=True, exist_ok=True)
     codec, worldkit, build = _load_kit_v2_modules()
@@ -389,3 +498,4 @@ def exercise_wave4b_regressions(run: SimRun, root: Path, t0: float) -> None:
     _check_detector_regress(run, root / "det", t0)
     _check_certify_and_compare_regress(run, root / "cc", t0)
     _check_shallow_load_dep(run)
+    _check_authority_and_triad_regress(run, root / "auth_triad")

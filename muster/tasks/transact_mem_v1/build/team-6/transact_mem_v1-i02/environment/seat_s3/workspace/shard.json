@@ -1,0 +1,14 @@
+{
+  "task_id": "tm-02-9485f4",
+  "domain": "kafka-isr-shrink",
+  "seat": "s3",
+  "shards": [
+    {
+      "shard_id": "s3",
+      "subsystem": "storage",
+      "bit_index": 2,
+      "clue_bit": 0,
+      "shard_key": "67f472cdbc7c"
+    }
+  ]
+}

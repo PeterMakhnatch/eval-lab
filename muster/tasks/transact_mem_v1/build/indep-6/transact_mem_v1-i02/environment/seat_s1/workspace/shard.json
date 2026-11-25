@@ -1,0 +1,14 @@
+{
+  "task_id": "tm-02-9485f4",
+  "domain": "kafka-isr-shrink",
+  "seat": "s1",
+  "shards": [
+    {
+      "shard_id": "s1",
+      "subsystem": "telemetry",
+      "bit_index": 0,
+      "clue_bit": 0,
+      "shard_key": "4a61e2bb3904"
+    }
+  ]
+}

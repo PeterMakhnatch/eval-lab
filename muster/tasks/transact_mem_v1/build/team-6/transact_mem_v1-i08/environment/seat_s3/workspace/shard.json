@@ -1,0 +1,14 @@
+{
+  "task_id": "tm-08-ddf4c0",
+  "domain": "bgp-blackhole-incident",
+  "seat": "s3",
+  "shards": [
+    {
+      "shard_id": "s3",
+      "subsystem": "storage",
+      "bit_index": 2,
+      "clue_bit": 0,
+      "shard_key": "9bc8178378f3"
+    }
+  ]
+}

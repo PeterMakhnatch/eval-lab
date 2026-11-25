@@ -1,0 +1,14 @@
+{
+  "task_id": "tm-07-f52ac7",
+  "domain": "etcd-quorum-split",
+  "seat": "s1",
+  "shards": [
+    {
+      "shard_id": "s1",
+      "subsystem": "telemetry",
+      "bit_index": 0,
+      "clue_bit": 0,
+      "shard_key": "dceb2e282b82"
+    }
+  ]
+}

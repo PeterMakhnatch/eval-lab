@@ -1,0 +1,122 @@
+{
+  "family": "transact_mem_v1",
+  "condition": "team-6-verified",
+  "instance": 6,
+  "seats": [
+    "lead",
+    "s1",
+    "s2",
+    "s3",
+    "s4",
+    "auditor"
+  ],
+  "channel": true,
+  "direct_messages": true,
+  "notices_enabled": true,
+  "unread_guard_kinds": [
+    "verify",
+    "commit",
+    "report"
+  ],
+  "fenced": true,
+  "task_id": "tm-06-7e857d",
+  "domain": "cxl-fabric-link-flap",
+  "syndrome_mask": 13,
+  "authority_salt": "db640680f180",
+  "verifier_nonce": "0d178a5d53e7",
+  "true_root_cause": "rc-02",
+  "rumor_root_cause": "rc-09",
+  "rumor_digest": "18a46490d8bf5666",
+  "target_evidence_digest": "f1ad81cd0dd34b11",
+  "verification_digest": "f1529a823a93df11",
+  "all_shards": [
+    {
+      "shard_id": "s1",
+      "subsystem": "telemetry",
+      "bit_index": 0,
+      "clue_bit": 1,
+      "shard_key": "349f5a2596e0"
+    },
+    {
+      "shard_id": "s2",
+      "subsystem": "routing",
+      "bit_index": 1,
+      "clue_bit": 1,
+      "shard_key": "ab09eeda420c"
+    },
+    {
+      "shard_id": "s3",
+      "subsystem": "storage",
+      "bit_index": 2,
+      "clue_bit": 1,
+      "shard_key": "7b21aeb857aa"
+    },
+    {
+      "shard_id": "s4",
+      "subsystem": "control_plane",
+      "bit_index": 3,
+      "clue_bit": 1,
+      "shard_key": "fc99e5e76807"
+    }
+  ],
+  "seat_workspaces": {
+    "lead": {},
+    "s1": {
+      "task_id": "tm-06-7e857d",
+      "domain": "cxl-fabric-link-flap",
+      "seat": "s1",
+      "shards": [
+        {
+          "shard_id": "s1",
+          "subsystem": "telemetry",
+          "bit_index": 0,
+          "clue_bit": 1,
+          "shard_key": "349f5a2596e0"
+        }
+      ]
+    },
+    "s2": {
+      "task_id": "tm-06-7e857d",
+      "domain": "cxl-fabric-link-flap",
+      "seat": "s2",
+      "shards": [
+        {
+          "shard_id": "s2",
+          "subsystem": "routing",
+          "bit_index": 1,
+          "clue_bit": 1,
+          "shard_key": "ab09eeda420c"
+        }
+      ]
+    },
+    "s3": {
+      "task_id": "tm-06-7e857d",
+      "domain": "cxl-fabric-link-flap",
+      "seat": "s3",
+      "shards": [
+        {
+          "shard_id": "s3",
+          "subsystem": "storage",
+          "bit_index": 2,
+          "clue_bit": 1,
+          "shard_key": "7b21aeb857aa"
+        }
+      ]
+    },
+    "s4": {
+      "task_id": "tm-06-7e857d",
+      "domain": "cxl-fabric-link-flap",
+      "seat": "s4",
+      "shards": [
+        {
+          "shard_id": "s4",
+          "subsystem": "control_plane",
+          "bit_index": 3,
+          "clue_bit": 1,
+          "shard_key": "fc99e5e76807"
+        }
+      ]
+    },
+    "auditor": {}
+  }
+}

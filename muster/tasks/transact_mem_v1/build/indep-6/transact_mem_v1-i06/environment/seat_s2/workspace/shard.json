@@ -1,0 +1,14 @@
+{
+  "task_id": "tm-06-7e857d",
+  "domain": "cxl-fabric-link-flap",
+  "seat": "s2",
+  "shards": [
+    {
+      "shard_id": "s2",
+      "subsystem": "routing",
+      "bit_index": 1,
+      "clue_bit": 1,
+      "shard_key": "ab09eeda420c"
+    }
+  ]
+}

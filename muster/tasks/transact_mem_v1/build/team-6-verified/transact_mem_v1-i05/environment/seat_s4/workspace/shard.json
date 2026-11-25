@@ -1,0 +1,14 @@
+{
+  "task_id": "tm-05-60e7c1",
+  "domain": "rdma-pfc-deadlock",
+  "seat": "s4",
+  "shards": [
+    {
+      "shard_id": "s4",
+      "subsystem": "control_plane",
+      "bit_index": 3,
+      "clue_bit": 1,
+      "shard_key": "457d372a5c70"
+    }
+  ]
+}

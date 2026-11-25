@@ -1,0 +1,14 @@
+{
+  "task_id": "tm-02-9485f4",
+  "domain": "kafka-isr-shrink",
+  "seat": "s2",
+  "shards": [
+    {
+      "shard_id": "s2",
+      "subsystem": "routing",
+      "bit_index": 1,
+      "clue_bit": 0,
+      "shard_key": "e7d722e08e9d"
+    }
+  ]
+}

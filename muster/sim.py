@@ -281,7 +281,7 @@ def _rosters(run: Run, case: Scenario, root: Path, rng: Random) -> None:
 def _check_kit_v2_replay(run: Run, root: Path) -> None:
     tasks_root = Path(__file__).resolve().parent / "tasks"
     kit_v2 = str(tasks_root / "_kit_v2")
-    for fam in ("compactshift_v1", "skewledger_v1", "protofit_v1"):
+    for fam in ("compactshift_v1", "skewledger_v1", "protofit_v1", "transact_mem_v1"):
         fam_dir = tasks_root / fam
         cfg = tomllib.loads((fam_dir / "family.toml").read_text(encoding="utf-8"))
         sk_cond = str(cfg["triad"]["sk_condition"])

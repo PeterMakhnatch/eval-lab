@@ -1,0 +1,14 @@
+{
+  "task_id": "tm-08-ddf4c0",
+  "domain": "bgp-blackhole-incident",
+  "seat": "s2",
+  "shards": [
+    {
+      "shard_id": "s2",
+      "subsystem": "routing",
+      "bit_index": 1,
+      "clue_bit": 0,
+      "shard_key": "4a8fcfb714ca"
+    }
+  ]
+}

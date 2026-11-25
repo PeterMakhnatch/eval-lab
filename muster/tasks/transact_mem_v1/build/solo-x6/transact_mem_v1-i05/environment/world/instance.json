@@ -1,0 +1,90 @@
+{
+  "family": "transact_mem_v1",
+  "condition": "solo-x6",
+  "instance": 5,
+  "seats": [
+    "p1"
+  ],
+  "channel": false,
+  "direct_messages": false,
+  "notices_enabled": true,
+  "unread_guard_kinds": [],
+  "fenced": false,
+  "task_id": "tm-05-60e7c1",
+  "domain": "rdma-pfc-deadlock",
+  "syndrome_mask": 4,
+  "authority_salt": "1983ddf9ecb6",
+  "verifier_nonce": "25a43d01a088",
+  "true_root_cause": "rc-13",
+  "rumor_root_cause": "rc-05",
+  "rumor_digest": "044ca123fd982261",
+  "target_evidence_digest": "37127afc40086132",
+  "verification_digest": "03d7ae7cc03007fd",
+  "all_shards": [
+    {
+      "shard_id": "s1",
+      "subsystem": "telemetry",
+      "bit_index": 0,
+      "clue_bit": 1,
+      "shard_key": "76338742a1ae"
+    },
+    {
+      "shard_id": "s2",
+      "subsystem": "routing",
+      "bit_index": 1,
+      "clue_bit": 0,
+      "shard_key": "883111824b8d"
+    },
+    {
+      "shard_id": "s3",
+      "subsystem": "storage",
+      "bit_index": 2,
+      "clue_bit": 0,
+      "shard_key": "fcb879ebc4e7"
+    },
+    {
+      "shard_id": "s4",
+      "subsystem": "control_plane",
+      "bit_index": 3,
+      "clue_bit": 1,
+      "shard_key": "457d372a5c70"
+    }
+  ],
+  "seat_workspaces": {
+    "p1": {
+      "task_id": "tm-05-60e7c1",
+      "domain": "rdma-pfc-deadlock",
+      "seat": "p1",
+      "shards": [
+        {
+          "shard_id": "s1",
+          "subsystem": "telemetry",
+          "bit_index": 0,
+          "clue_bit": 1,
+          "shard_key": "76338742a1ae"
+        },
+        {
+          "shard_id": "s2",
+          "subsystem": "routing",
+          "bit_index": 1,
+          "clue_bit": 0,
+          "shard_key": "883111824b8d"
+        },
+        {
+          "shard_id": "s3",
+          "subsystem": "storage",
+          "bit_index": 2,
+          "clue_bit": 0,
+          "shard_key": "fcb879ebc4e7"
+        },
+        {
+          "shard_id": "s4",
+          "subsystem": "control_plane",
+          "bit_index": 3,
+          "clue_bit": 1,
+          "shard_key": "457d372a5c70"
+        }
+      ]
+    }
+  }
+}

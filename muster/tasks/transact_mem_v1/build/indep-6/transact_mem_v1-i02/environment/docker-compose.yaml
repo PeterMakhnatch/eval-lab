@@ -1,0 +1,107 @@
+x-seat: &seat
+  user: agent
+  working_dir: /home/agent
+  command: ["sleep", "infinity"]
+  init: true
+  depends_on:
+    main:
+      condition: service_healthy
+
+services:
+  main:
+    command: ["python3", "/world/world.py"]
+    environment:
+      SEAT_TOKENS: "{\"0569d4929d4bd06913a8149855ab434e\": \"auditor\", \"2367a13e1421f5889a9e1529ddb829ce\": \"lead\", \"46761fb62cb82cf6183bff08fc0b1f99\": \"s4\", \"480c2d203db73ac266a18f0a7de33a40\": \"s1\", \"54533440d67fa51d12c963b8e261bf33\": \"s2\", \"622a0def6e78fae8b7b5c34522f9831e\": \"s3\"}"
+    networks:
+      lead-world:
+        aliases: [world]
+      s1-world:
+        aliases: [world]
+      s2-world:
+        aliases: [world]
+      s3-world:
+        aliases: [world]
+      s4-world:
+        aliases: [world]
+      auditor-world:
+        aliases: [world]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=2)"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+      start_period: 2s
+  lead:
+    <<: *seat
+    build: ./seat_lead
+    networks: [lead-world]
+    environment:
+      SEAT: "lead"
+      SEAT_TOKEN: "2367a13e1421f5889a9e1529ddb829ce"
+      WORLD: "http://world:8080"
+  s1:
+    <<: *seat
+    build: ./seat_s1
+    networks: [s1-world]
+    environment:
+      SEAT: "s1"
+      SEAT_TOKEN: "480c2d203db73ac266a18f0a7de33a40"
+      WORLD: "http://world:8080"
+  s2:
+    <<: *seat
+    build: ./seat_s2
+    networks: [s2-world]
+    environment:
+      SEAT: "s2"
+      SEAT_TOKEN: "54533440d67fa51d12c963b8e261bf33"
+      WORLD: "http://world:8080"
+  s3:
+    <<: *seat
+    build: ./seat_s3
+    networks: [s3-world]
+    environment:
+      SEAT: "s3"
+      SEAT_TOKEN: "622a0def6e78fae8b7b5c34522f9831e"
+      WORLD: "http://world:8080"
+  s4:
+    <<: *seat
+    build: ./seat_s4
+    networks: [s4-world]
+    environment:
+      SEAT: "s4"
+      SEAT_TOKEN: "46761fb62cb82cf6183bff08fc0b1f99"
+      WORLD: "http://world:8080"
+  auditor:
+    <<: *seat
+    build: ./seat_auditor
+    networks: [auditor-world]
+    environment:
+      SEAT: "auditor"
+      SEAT_TOKEN: "0569d4929d4bd06913a8149855ab434e"
+      WORLD: "http://world:8080"
+
+networks:
+  lead-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  s1-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  s2-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  s3-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  s4-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  auditor-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true

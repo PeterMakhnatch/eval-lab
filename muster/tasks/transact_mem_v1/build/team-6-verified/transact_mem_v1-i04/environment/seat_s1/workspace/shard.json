@@ -1,0 +1,14 @@
+{
+  "task_id": "tm-04-714c46",
+  "domain": "pg-wal-lag-cascade",
+  "seat": "s1",
+  "shards": [
+    {
+      "shard_id": "s1",
+      "subsystem": "telemetry",
+      "bit_index": 0,
+      "clue_bit": 1,
+      "shard_key": "6f4d48f7e7e7"
+    }
+  ]
+}

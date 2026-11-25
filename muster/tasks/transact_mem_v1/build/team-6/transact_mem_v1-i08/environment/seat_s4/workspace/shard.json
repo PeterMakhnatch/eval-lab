@@ -1,0 +1,14 @@
+{
+  "task_id": "tm-08-ddf4c0",
+  "domain": "bgp-blackhole-incident",
+  "seat": "s4",
+  "shards": [
+    {
+      "shard_id": "s4",
+      "subsystem": "control_plane",
+      "bit_index": 3,
+      "clue_bit": 0,
+      "shard_key": "06b07f680e81"
+    }
+  ]
+}

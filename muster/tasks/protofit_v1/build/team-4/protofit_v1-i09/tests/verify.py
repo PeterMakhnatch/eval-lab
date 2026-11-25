@@ -20,12 +20,13 @@ def _load_dep(name: str) -> Any:
         if name == "codec" and hasattr(existing, "ADMIN_CLOSE_RESERVE"):
             return existing
     here = Path(__file__).resolve().parent
-    cands = (
-        Path("/world") / f"{name}.py",
-        here.parent / "environment" / "world" / f"{name}.py",
+    cands = [
         here / f"{name}.py",
-        here.parents[1] / "_kit_v2" / f"{name}.py",
-    )
+        here.parent / "environment" / "world" / f"{name}.py",
+        Path("/world") / f"{name}.py",
+    ]
+    if len(here.parents) >= 2:
+        cands.append(here.parents[1] / "_kit_v2" / f"{name}.py")
     chosen = next((p for p in cands if p.is_file()), cands[-1])
     spec = importlib.util.spec_from_file_location(name, chosen)
     assert spec is not None and spec.loader is not None

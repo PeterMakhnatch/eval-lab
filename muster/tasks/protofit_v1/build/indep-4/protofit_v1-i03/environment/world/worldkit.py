@@ -51,10 +51,11 @@ def _resolve_events_path(events: Path | None) -> Path | None:
 
 
 def _build_token_maps(tokens: dict[str, str] | None, seats: list[str] | tuple[str, ...] | None) -> tuple[dict[str, str], list[str], dict[str, str]]:
-    raw = tokens if tokens is not None else ({f"mem_token_{s}": str(s) for s in seats} if seats is not None else json.loads(os.environ["SEAT_TOKENS"]))
+    env_tok = os.environ.get("SEAT_TOKENS")
+    raw = tokens if tokens is not None else (json.loads(env_tok) if env_tok else ({f"mem_token_{s}": str(s) for s in seats} if seats is not None else json.loads(os.environ["SEAT_TOKENS"])))
     tok_map = {str(k): str(v) for k, v in raw.items()}
     seat_list = sorted(set(tok_map.values()))
-    assert seat_list and all(codec.clean_str(k, 256) and codec.clean_str(v, 64) for k, v in tok_map.items())
+    assert (seats is None or sorted({str(s) for s in seats}) == seat_list) and seat_list and all(codec.clean_str(k, 256) and codec.clean_str(v, 64) for k, v in tok_map.items())
     seat_to_tok: dict[str, str] = {}
     for tok, s_name in sorted(tok_map.items()):
         seat_to_tok.setdefault(s_name, tok)

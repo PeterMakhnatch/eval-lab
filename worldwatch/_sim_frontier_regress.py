@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import ast
 import http.client
 import importlib.util
 import json
+import os
 import sys
 import threading
 from pathlib import Path
@@ -102,6 +104,23 @@ def _check_kit_v2_world_and_build(run: SimRun, root: Path, codec: Any, worldkit:
         tick_omitted and cursor_ok and ovf_ok and (not ev_ok) and empty_err and (not hmac_ok)
         and 'COMPOSE_BAKE = "false"' in toml_txt and bad_pol and bad_seat and bad_env and bad_wfile,
         f"tick={tick_omitted} cur={cursor_ok} ovf={ovf_ok} ev={ev_ok} empty={empty_err} hmac={hmac_ok} b={(bad_pol, bad_seat, bad_env, bad_wfile)}",
+    )
+    prev_env = os.environ.get("SEAT_TOKENS")
+    os.environ["SEAT_TOKENS"] = json.dumps({"env_tok_1": "p1", "env_tok_2": "p2"})
+    try:
+        w_env = worldkit.World(None, root / "env_events.jsonl", seats=["p1", "p2"])
+    finally:
+        if prev_env is None:
+            os.environ.pop("SEAT_TOKENS", None)
+        else:
+            os.environ["SEAT_TOKENS"] = prev_env
+    st_ok_env, _ = w_env.handle("GET", "/rules", "env_tok_1", None, "10.0.0.2")
+    st_bad_mem, _ = w_env.handle("GET", "/rules", "mem_token_p1", None, "10.0.0.2")
+    run.require(
+        "frontier-regress/kit-v2-seat-tokens-env",
+        "seat-tokens-env-beats-seats-fallback",
+        w_env.tokens == {"env_tok_1": "p1", "env_tok_2": "p2"} and st_ok_env == 200 and st_bad_mem == 401,
+        f"toks={w_env.tokens} st_ok={st_ok_env} st_mem={st_bad_mem}",
     )
 
 
@@ -306,6 +325,61 @@ def _check_certify_and_compare_regress(run: SimRun, root: Path, t0: float) -> No
     )
 
 
+def _check_shallow_load_dep(run: SimRun) -> None:
+    class _FakePath:
+        def __init__(self, p: str | Path) -> None:
+            self._p = str(p)
+
+        def resolve(self) -> _FakePath:
+            return self
+
+        @property
+        def parent(self) -> _FakePath:
+            return _FakePath(str(Path(self._p).parent))
+
+        @property
+        def parents(self) -> tuple[_FakePath, ...]:
+            return (_FakePath("/"),)
+
+        def __truediv__(self, other: str) -> _FakePath:
+            return _FakePath(f"{self._p.rstrip('/')}/{other}")
+
+        def is_file(self) -> bool:
+            return self._p == "/world/codec.py"
+
+    def _fake_spec(_name: str, _loc: Any) -> Any:
+        return importlib.util.spec_from_file_location("codec", _KIT_V2_DIR / "codec.py")
+
+    failed: list[str] = []
+    saved_codec = sys.modules.get("codec")
+    try:
+        for fam in ("compactshift_v1", "skewledger_v1", "protofit_v1"):
+            for sub, fpath in (("world.py", "/world/world.py"), ("verify.py", "/tests/verify.py")):
+                src_p = _REPO_ROOT / "muster" / "tasks" / fam / "template" / sub
+                tree = ast.parse(src_p.read_text(encoding="utf-8"))
+                fn_node = next((n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "_load_dep"), None)
+                if fn_node is None:
+                    continue
+                mod_ast = ast.Module(body=[fn_node], type_ignores=[])
+                ns: dict[str, Any] = {
+                    "__file__": fpath, "Path": _FakePath, "sys": sys,
+                    "importlib": type("_Imp", (), {"util": type("_U", (), {"spec_from_file_location": staticmethod(_fake_spec), "module_from_spec": staticmethod(importlib.util.module_from_spec)})})(),
+                }
+                exec(compile(mod_ast, str(src_p), "exec"), ns)
+                sys.modules.pop("codec", None)
+                try:
+                    mod = ns["_load_dep"]("codec")
+                    assert hasattr(mod, "ADMIN_CLOSE_RESERVE")
+                except Exception as exc:
+                    failed.append(f"{fam}/{sub}:{type(exc).__name__}")
+    finally:
+        if saved_codec is None:
+            sys.modules.pop("codec", None)
+        else:
+            sys.modules["codec"] = saved_codec
+    run.require("frontier-regress/shallow-load-dep", "no-index-error-on-root-world-and-tests", not failed, str(failed))
+
+
 def exercise_wave4b_regressions(run: SimRun, root: Path, t0: float) -> None:
     root.mkdir(parents=True, exist_ok=True)
     codec, worldkit, build = _load_kit_v2_modules()
@@ -314,3 +388,4 @@ def exercise_wave4b_regressions(run: SimRun, root: Path, t0: float) -> None:
     _check_preflight_regress(run, root / "pf")
     _check_detector_regress(run, root / "det", t0)
     _check_certify_and_compare_regress(run, root / "cc", t0)
+    _check_shallow_load_dep(run)

@@ -21,6 +21,7 @@ _UNITTEST_PATH = "tests/test_generated_unittest.py"
 _BROKEN_PATH = "tests/test_broken_syntax.py"
 _FRAGMENT_PATH = "tests/test_patch_fragment.py"
 _BLOCKS_PATH = "tests/test_surface_blocks.py"
+_GUARDS_PATH = "tests/surface_guards.test.js"
 _CHAIN_PATH = "tests/test_helper_chains.py"
 _CHAIN_KINDS = ("assert", "fail", "plain")
 _CHAIN_BODIES = {
@@ -78,6 +79,20 @@ _BLOCKS_TEXT = (
     "    value = compute()\n"
     "def test_attr():\n"
     "    assert hasattr(module, 'run')\n"
+)
+_GUARDS_TEXT = (
+    'test("behavior beside a guard", () => {\n'
+    "  const expected = path.exists();\n"
+    "  expect(actual).toBe(3);\n"
+    "});\n"
+    'test("surface beside a guard", () => {\n'
+    "  const expected = path.exists();\n"
+    "  expect(actual).toBeDefined();\n"
+    "});\n"
+    'test("second behavior beside a guard", () => {\n'
+    "  const expected = path.exists();\n"
+    "  expect(actual).toBe(4);\n"
+    "});\n"
 )
 
 
@@ -273,7 +288,7 @@ def _render_unittest(cases: list[_TestCase], randomized_import: bool) -> str:
 
 
 def _source(path: str, text: str, origin: str = "file", complete: bool = True) -> TestSource:
-    assert path.endswith(".py") and text
+    assert path.endswith((".py", ".js")) and text
     return TestSource(path, origin, list(enumerate(text.splitlines(), 1)), complete)
 
 
@@ -422,13 +437,16 @@ class RigorSimulation:
         broken = _source(_BROKEN_PATH, _BROKEN_TEXT)
         fragment = _source(_FRAGMENT_PATH, _FRAGMENT_TEXT, origin="patch", complete=False)
         blocks = _source(_BLOCKS_PATH, _BLOCKS_TEXT)
-        sim.begin("rigor-regex-fallback", files=3)
+        guards = _source(_GUARDS_PATH, _GUARDS_TEXT)
+        sim.begin("rigor-regex-fallback", files=4)
         sim.require(_py_counts(broken) is None, "rigor_syntax_error_not_parsed")
         sim.require(_py_counts(fragment) is not None, "rigor_fragment_parses_as_python")
         sim.require(_py_counts(blocks) is None, "rigor_blocks_not_parsed")
+        sim.require(_py_counts(guards) is None, "rigor_guards_not_python")
         broken_counts = _regex_counts(broken)
         fragment_counts = _regex_counts(fragment)
         blocks_counts = _regex_counts(blocks)
+        guards_counts = _regex_counts(guards)
         broken_expected = Counts(
             files=1,
             tests=1,
@@ -457,11 +475,21 @@ class RigorSimulation:
             surface_only_tests=2,
             mode_regex_files=1,
         )
+        guards_expected = Counts(
+            files=1,
+            tests=3,
+            assertions=3,
+            literal_eq_assertions=2,
+            surface_assertions=4,
+            surface_only_tests=1,
+            mode_regex_files=1,
+        )
         self._require_counts(asdict(broken_counts), broken_expected, "rigor_regex_broken_expected")
         self._require_counts(asdict(fragment_counts), fragment_expected, "rigor_regex_fragment_expected")
         self._require_counts(asdict(blocks_counts), blocks_expected, "rigor_regex_blocks_expected")
+        self._require_counts(asdict(guards_counts), guards_expected, "rigor_regex_guards_expected")
         total = Counts()
-        for counts in (broken_counts, fragment_counts, blocks_counts):
+        for counts in (broken_counts, fragment_counts, blocks_counts, guards_counts):
             total.add(counts)
         package = Package(
             self.root / "fallback",
@@ -470,12 +498,13 @@ class RigorSimulation:
                 _BROKEN_PATH: _BROKEN_TEXT,
                 _FRAGMENT_PATH: _FRAGMENT_TEXT,
                 _BLOCKS_PATH: _BLOCKS_TEXT,
+                _GUARDS_PATH: _GUARDS_TEXT,
             },
         )
-        result = test_suite_rigor(package, [broken, fragment, blocks], None)
+        result = test_suite_rigor(package, [broken, fragment, blocks, guards], None)
         self._require_counts(result["counts"], total, "rigor_regex_total")
         self._require_ratios(result, total, "rigor_regex_ratios")
-        sim.require(total.mode_regex_files == 3, "rigor_regex_mode_files")
+        sim.require(total.mode_regex_files == 4, "rigor_regex_mode_files")
         sim.require(total.mode_ast_files == 0, "rigor_regex_no_ast_files")
         sim.require(result["fragment_files"] == 1, "rigor_regex_fragment_files")
         sim.require(
@@ -484,6 +513,7 @@ class RigorSimulation:
                 _expected_files(broken_counts, _BROKEN_PATH, "regex"),
                 _expected_files(fragment_counts, _FRAGMENT_PATH, "regex"),
                 _expected_files(blocks_counts, _BLOCKS_PATH, "regex"),
+                _expected_files(guards_counts, _GUARDS_PATH, "regex"),
             ],
             "rigor_regex_test_files",
         )

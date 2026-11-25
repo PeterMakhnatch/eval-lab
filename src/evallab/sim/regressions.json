@@ -124,5 +124,12 @@
     "seed": 600265707894282302,
     "step": 160,
     "subsystem": "instruction-patch-surface"
+  },
+  {
+    "found_at_utc": "2026-11-25T00:52:00.000000+00:00",
+    "invariant": "rigor_regex_guards_expected_surface_only_tests",
+    "seed": 497,
+    "step": 156,
+    "subsystem": "test-suite-rigor"
   }
 ]

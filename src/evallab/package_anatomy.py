@@ -1038,27 +1038,29 @@ _REGEX_COUNTERS: dict[str, str] = {
 
 def _regex_counts(source: TestSource) -> Counts:
     counts = Counts(files=1, mode_regex_files=1)
-    block: tuple[int, int] | None = None
+    block: list[int] | None = None
     for _, text in source.lines:
         if re.search(_REGEX_COUNTERS["tests"], text):
-            counts.surface_only_tests += _surface_only_block(block, counts)
-            block = (counts.assertions, counts.surface_assertions)
+            counts.surface_only_tests += _surface_only_block(block)
+            block = [0, 0]
         for name, pattern in _REGEX_COUNTERS.items():
             if re.search(pattern, text):
                 setattr(counts, name, getattr(counts, name) + 1)
         if re.search(r"^\s*(?:async\s+)?def\s+test\w*(?:invalid|error|fail|reject|raise|bad|missing|empty)\w*\(", text, re.I):
             counts.negative_named_tests += 1
-    counts.surface_only_tests += _surface_only_block(block, counts)
+        if block is not None and re.search(_REGEX_COUNTERS["assertions"], text):
+            block[0] += 1
+            block[1] += bool(re.search(_REGEX_COUNTERS["surface_assertions"], text))
+    counts.surface_only_tests += _surface_only_block(block)
     assert 0 <= counts.surface_only_tests <= counts.tests
     return counts
 
 
-def _surface_only_block(block: tuple[int, int] | None, counts: Counts) -> bool:
+def _surface_only_block(block: list[int] | None) -> bool:
     if block is None:
         return False
-    asserted = counts.assertions - block[0]
-    surfaced = counts.surface_assertions - block[1]
-    assert asserted >= 0 and surfaced >= 0
+    asserted, surfaced = block
+    assert 0 <= surfaced <= asserted
     return asserted > 0 and surfaced == asserted
 
 

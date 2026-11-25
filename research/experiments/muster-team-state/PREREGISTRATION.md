@@ -1,7 +1,7 @@
 # Draft pre-registration: team state
 
 2026-11-25. Before any model trial of these families. Peter must approve the draft before any paid run.
-Family versions: `depot` v4.1, `dossier` v3.3, `inquiry` v2.5 (generator seeds `depot-v4.1`, `dossier-v3.3`, `inquiry-v2.5`; designs in `DESIGN-*.md` in this directory).
+Family versions: `depot` v4.1, `dossier` v3.4, `inquiry` v2.5 (generator seeds `depot-v4.1`, `dossier-v3.4`, `inquiry-v2.5`; designs in `DESIGN-*.md` in this directory).
 Every family has a committed `card.json` that `muster card FAMILY --verify` checks in the gate. `REVIEWS.md` lists every review.
 
 ## Question
@@ -132,7 +132,7 @@ A dossier loss can come from a wrong reading of the rule or a mistake with a per
 Tool batching is another possible cause. Inspect the solo, reader and event logs.
 A dossier team loss can also come from the barrier: every clerk must wait until close, and a delayed put can replace a newer line.
 In `dossier`, a reader that ignores 1 kind of special line and guesses which 2 of 4 look-alike questions have that status is fully right with chance 1/6 per instance (asserted by the generator).
-In `dossier` v3.3 `mix-probe`, a writer that never reads the watch list passes about 1 instance in 2 by using the zone layout and report times (`REVIEWS.md`, round 5). Fix this before the pilot, or report `mix` against that baseline.
+In `dossier` v3.4, watched and off-watch reports share one draw law; the 7 round-5 writer policies without the watch list pass 0 of 10 built and at most 2 of 30 held-out instances in `scarce` and `mix`. These are empirical controls, not a bound for every writer.
 Inquiry has 1 real agent. In `probe`, scripted colleagues state the full scope of each reply in 4 fixed sentence forms;
 `fields` gives the same replies as fields, `flagged` adds which fields differ, and `solo` gives the settling records.
 It tests the check and the correction, not the reading of loose prose. Its chain case is a designed adversary.

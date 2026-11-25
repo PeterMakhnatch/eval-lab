@@ -108,6 +108,7 @@ _RUNS_CODE = (
     'sys.path.insert(0, "/app")',
     'value = eval("1")',
     'spec = importlib.util.find_spec("json")',
+    'con = sqlite3.connect("/app/db.sqlite"); con.execute("select 1")',
 )
 _CONSTANT_NAMES = "ABCDEF"
 assert len(_RULES) == 31

@@ -1522,7 +1522,7 @@ def _artifact_only(sources: Sequence[TestSource]) -> list[dict[str, Any]]:
         reads = _find(text, r"Path\(\s*[\"']/(?:app|testbed|workspace|repo|work|output|home)/[^\"']+[\"']\s*\)|open\(\s*[\"']/(?:app|testbed|workspace|repo|home)/", limit=2)
         if not reads or not re.search(r"json\.loads|\.read_text\(|json\.load\(|csv\.|yaml", text):
             continue
-        runs_code = re.search(r"subprocess|Popen|importlib|import_module|sys\.path\.(?:insert|append)|^\s*from\s+(?!__future__|pathlib|typing|json|os|re|sys|pytest|hashlib|csv|collections|dataclasses|decimal)\w+\s+import|\bexec\(|\beval\(", text, re.M)
+        runs_code = re.search(r"subprocess|Popen|importlib|import_module|sys\.path\.(?:insert|append)|^\s*from\s+(?!__future__|pathlib|typing|json|os|re|sys|pytest|hashlib|csv|collections|dataclasses|decimal)\w+\s+import|\bexec\(|\beval\(|\bsqlite3\.connect\(|\.execute(?:many|script)?\(", text, re.M)
         if runs_code:
             continue
         literal_expected = len(re.findall(r"^[A-Z_]{4,}\s*=\s*[\{\[\"']", text, re.M)) + len(re.findall(r"==\s*[\"'\d\[{]", text))

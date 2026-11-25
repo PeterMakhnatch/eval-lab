@@ -2,22 +2,26 @@
  "arm": "solo",
  "asks": {
   "p1": [
-   "s07",
-   "s02",
-   "s04",
-   "s14",
-   "s12",
+   "s26",
+   "s21",
+   "s18",
+   "s17",
    "s10",
-   "s03",
-   "s05",
+   "s25",
+   "s29",
+   "s02",
+   "s24",
+   "s20",
+   "s27",
    "s06",
-   "s08"
+   "s01",
+   "s04"
   ]
  },
  "budgets": {
   "p1": {
-   "answer": 10,
-   "put": 18
+   "answer": 14,
+   "put": 21
   }
  },
  "channel": false,
@@ -29,74 +33,89 @@
  "feeds": {
   "p1": [
    {
-    "at": 7,
-    "key": "s06",
+    "at": 16,
+    "key": "s20",
+    "status": "limited"
+   },
+   {
+    "at": 40,
+    "key": "s18",
     "status": "quiet"
    },
    {
-    "at": 17,
-    "key": "s14",
-    "status": "quiet"
-   },
-   {
-    "at": 34,
-    "key": "north",
+    "at": 14,
+    "key": "south",
     "status": "closed"
    },
    {
-    "at": 7,
+    "at": 25,
     "key": "s04",
     "status": "limited"
    },
    {
-    "at": 32,
-    "key": "s02",
-    "status": "limited"
-   },
-   {
-    "at": 18,
-    "key": "s12",
-    "status": "open"
-   },
-   {
-    "at": 39,
-    "key": "s14",
-    "status": "repair"
-   },
-   {
     "at": 7,
-    "key": "s04",
-    "status": "limited"
-   },
-   {
-    "at": 23,
-    "key": "s08",
+    "key": "s17",
     "status": "open"
    },
    {
-    "at": 30,
+    "at": 22,
+    "key": "s18",
+    "status": "busy"
+   },
+   {
+    "at": 5,
+    "key": "s26",
+    "status": "quiet"
+   },
+   {
+    "at": 4,
     "key": "s02",
+    "status": "quiet"
+   },
+   {
+    "at": 28,
+    "key": "s06",
     "status": "repair"
    },
    {
-    "at": 32,
-    "key": "s10",
-    "status": "ready"
+    "at": 33,
+    "key": "s27",
+    "status": "busy"
    },
    {
-    "at": 9,
-    "key": "s03",
+    "at": 35,
+    "key": "s17",
     "status": "repair"
    },
    {
-    "at": 13,
+    "at": 5,
+    "key": "s24",
+    "status": "busy"
+   },
+   {
+    "at": 10,
+    "key": "s25",
+    "status": "quiet"
+   },
+   {
+    "at": 20,
+    "key": "s21",
+    "status": "quiet"
+   },
+   {
+    "at": 25,
     "key": "east",
     "status": "closed"
    },
    {
+    "at": 29,
+    "key": "central",
+    "status": "closed"
+   },
+   {
     "at": 22,
-    "key": "s05",
-    "status": "quiet"
+    "key": "s01",
+    "status": "busy"
    }
   ]
  },
@@ -125,65 +144,93 @@
   "unknown"
  ],
  "tokens": {
-  "p1": "2408dc88785f87a386a5d30d0a23c1e9",
-  "p2": "a8916b825e3b227e4b90a93e8ba3df2e",
-  "p3": "dd7d53fcac48aa4ccd4d361c54bc4cad"
+  "p1": "4d8295258026809fe9f1d868229f4972",
+  "p2": "4c19669c1cfd016257ceb315ad85056b",
+  "p3": "0163d141a909cd463e294cb9251bfd86"
  },
  "truth": {
-  "s02": "limited",
-  "s03": "closed",
-  "s04": "closed",
-  "s05": "quiet",
-  "s06": "quiet",
-  "s07": "unknown",
-  "s08": "open",
-  "s10": "ready",
-  "s12": "open",
-  "s14": "repair"
+  "s01": "busy",
+  "s02": "closed",
+  "s04": "limited",
+  "s06": "repair",
+  "s10": "unknown",
+  "s17": "repair",
+  "s18": "quiet",
+  "s20": "limited",
+  "s21": "quiet",
+  "s24": "closed",
+  "s25": "quiet",
+  "s26": "closed",
+  "s27": "busy",
+  "s29": "unknown"
  },
  "watch": [
+  "s01",
   "s02",
-  "s03",
   "s04",
-  "s05",
   "s06",
-  "s07",
-  "s08",
   "s10",
-  "s12",
-  "s14"
+  "s17",
+  "s18",
+  "s20",
+  "s21",
+  "s24",
+  "s25",
+  "s26",
+  "s27",
+  "s29"
  ],
  "writer_focal": [],
  "zone_order": [
+  "central",
   "west",
-  "south",
   "east",
-  "north"
+  "north",
+  "south",
+  "outer"
  ],
  "zones": {
-  "east": [
-   "s04",
-   "s15",
-   "s11",
-   "s12"
+  "central": [
+   "s05",
+   "s16",
+   "s19",
+   "s30",
+   "s26"
   ],
-  "north": [
-   "s13",
+  "east": [
+   "s08",
+   "s23",
+   "s02",
    "s03",
-   "s09",
    "s14"
   ],
-  "south": [
-   "s06",
-   "s16",
+  "north": [
+   "s09",
+   "s13",
    "s07",
-   "s02"
+   "s28",
+   "s21"
+  ],
+  "outer": [
+   "s06",
+   "s29",
+   "s17",
+   "s20",
+   "s10"
+  ],
+  "south": [
+   "s04",
+   "s18",
+   "s01",
+   "s24",
+   "s27"
   ],
   "west": [
-   "s01",
-   "s10",
-   "s05",
-   "s08"
+   "s12",
+   "s25",
+   "s11",
+   "s22",
+   "s15"
   ]
  }
 }

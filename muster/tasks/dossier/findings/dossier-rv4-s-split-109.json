@@ -1,0 +1,19 @@
+{
+  "id": "dossier-rv4-s-split-109",
+  "family": "dossier",
+  "condition": "mix-probe",
+  "instance": "i03",
+  "kind": "wrong_pass",
+  "lineup": {
+    "p1": "file:split_ablations.py:disputed_private_present"
+  },
+  "schedule": "round",
+  "expect": {
+    "measure": "reward",
+    "op": ">=",
+    "value": 1.0
+  },
+  "claim": "mix includes reading incoming disputed evidence.",
+  "note": "OBSERVED: disputed_private_present filters the incoming disputed register lines before answering; 9/10 original and 28/30 held-out full rewards. Needed-kind passes: 5/6 original and 16/18 held-out. Original witness contains the incoming kind. INFERRED: fixed split baseline; threshold witness, not evidence that this rate exceeds the split chance. OBSERVED v3.3: 0/10 original full rewards; p1 has no private site report on incoming special sites, and each omitted kind has two targets and two matched alternatives. The old split selects only one target. The instance ID still runs the relevant incoming kind.",
+  "status": "fixed"
+}

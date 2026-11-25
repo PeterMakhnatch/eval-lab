@@ -1,0 +1,19 @@
+{
+  "id": "dossier-rv4-s-split-071",
+  "family": "dossier",
+  "condition": "cascade-probe",
+  "instance": "i01",
+  "kind": "wrong_pass",
+  "lineup": {
+    "p1": "file:split_ablations.py:closed_private_present"
+  },
+  "schedule": "round",
+  "expect": {
+    "measure": "reward",
+    "op": ">=",
+    "value": 1.0
+  },
+  "claim": "cascade includes reading incoming closed evidence.",
+  "note": "OBSERVED: closed_private_present filters the incoming closed register lines before answering; 10/10 original and 30/30 held-out full rewards. Needed-kind passes: 10/10 original and 30/30 held-out. Original witness contains the incoming kind. INFERRED: fixed split baseline; threshold witness, not evidence that this rate exceeds the split chance. OBSERVED v3.3: 0/10 original full rewards; p1 has no private site report on incoming special sites, and each omitted kind has two targets and two matched alternatives. The old split selects only one target. The instance ID still runs the relevant incoming kind.",
+  "status": "fixed"
+}

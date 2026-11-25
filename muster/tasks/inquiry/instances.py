@@ -13,7 +13,7 @@ if not __package__:
 from muster.lab.load import module  # noqa: E402
 from muster.tasks.inquiry.zoo import parse_reply  # noqa: E402
 
-SEED = "inquiry-v2.4"
+SEED = "inquiry-v2.5"
 FACETS = ("plain", "month", "part", "range", "silent", "mixed")
 ARMS = ("probe", "fields", "flagged", "solo")
 COUNT = 10
@@ -23,6 +23,7 @@ SITES = ("north", "south", "east", "west")
 HOLDERS = ("p2", "p3")
 MAX_BASE_TRIES = 20_000
 MAX_MASK_TRIES = 20_000
+MAX_BOOK_COHORT_TRIES = 2_000_000
 BOOK_CANDIDATES = 128
 ROOT = Path(__file__).resolve().parent
 KIT = ROOT.parent / "_kit"
@@ -45,13 +46,14 @@ def subsets(parts):
     return [list(subset) for size in range(1, len(parts)) for subset in combinations(parts, size)]
 
 
-def split_total(randomizer, total, parts, selected, selected_value):
-    assert total > selected_value >= 1
+def split_total(randomizer, total, parts, selected, selected_value, factor):
+    assert total > selected_value >= factor
+    assert total % factor == selected_value % factor == 0
     others = [part for part in parts if part != selected]
-    remaining = total - selected_value
+    remaining = (total - selected_value) // factor
     assert remaining >= len(others)
     cuts = [0, *sorted(randomizer.sample(range(1, remaining), len(others) - 1)), remaining]
-    shares = {part: right - left for part, left, right in zip(
+    shares = {part: (right - left) * factor for part, left, right in zip(
         others, cuts[:-1], cuts[1:], strict=True)}
     shares[selected] = selected_value
     assert sum(shares.values()) == total and min(shares.values()) > 0
@@ -97,8 +99,14 @@ def layout(index):
             "tokens": {"p1": BUILD.token(SEED, index, "p1")}}
 
 
-def apparent_amount(randomizer):
-    return randomizer.randint(500, 20_000)
+def grid(factor, low, high):
+    points = range(((low + factor - 1) // factor) * factor, high + 1, factor)
+    assert len(points) > 0
+    return points
+
+
+def apparent_amount(randomizer, factor):
+    return randomizer.choice(grid(factor, 500, 20_000))
 
 
 @cache
@@ -108,9 +116,9 @@ def rank_strata(kind):
     return ranks
 
 
-def mixed_amounts(randomizer, index, mask):
+def mixed_amounts(randomizer, index, mask, factor):
     for _ in range(MAX_BASE_TRIES):
-        amounts = [apparent_amount(randomizer) for _ in mask]
+        amounts = [apparent_amount(randomizer, factor) for _ in mask]
         if len(set(amounts)) != CASES:
             continue
         for kind in ("crate", "chain"):
@@ -124,8 +132,8 @@ def mixed_amounts(randomizer, index, mask):
 
 def case_totals(randomizer, data, index):
     mask = fault_masks("mixed")[index - 1]
-    amounts = mixed_amounts(randomizer, index, mask)
     factor = data["kg_per_crate"]
+    amounts = mixed_amounts(randomizer, index, mask, factor)
     totals, selected = {}, {}
     for case, kind, amount in zip(data["cases"], mask, amounts, strict=True):
         site, month, cid = case["site"], case["month"], case["id"]
@@ -133,12 +141,13 @@ def case_totals(randomizer, data, index):
         if kind == "crate":
             value = amount * factor
         elif kind == "chain":
-            value = apparent_amount(randomizer) // factor * factor
+            value = apparent_amount(randomizer, factor * factor)
             totals[site, data["off_months"][cid]] = amount
         elif kind == "range":
             value = amount + a
         elif kind == "part":
-            value = amount + randomizer.randint(3, max(3, amount // 5))
+            remaining_parts = len(data["sites"][site]["parts"]) - 1
+            value = amount + randomizer.choice(grid(factor, factor * remaining_parts, amount // 5))
             selected[site, month] = amount
         else:
             value = amount
@@ -148,7 +157,8 @@ def case_totals(randomizer, data, index):
 
 def candidate(randomizer, index):
     data = layout(index).copy()
-    offsets = {site: [randomizer.sample(range(10, 91), 2) for _ in WORLD.MONTHS]
+    factor = data["kg_per_crate"]
+    offsets = {site: [randomizer.sample(grid(factor, 10, 90), 2) for _ in WORLD.MONTHS]
                for site in SITES}
     data["range_offsets"] = offsets
     totals, selected = case_totals(randomizer, data, index)
@@ -157,14 +167,14 @@ def candidate(randomizer, index):
         parts = data["sites"][site]["parts"]
         book = {part: [] for part in parts}
         for month in WORLD.MONTHS:
-            value = totals.get((site, month), apparent_amount(randomizer))
+            value = totals.get((site, month), apparent_amount(randomizer, factor))
             case = next((c for c in data["cases"] if c["site"] == site and c["month"] == month), None)
             part = data["partial_parts"][case["id"]] if case else randomizer.choice(parts)
             share = selected.get((site, month))
             if share is None:
                 low = value // 10 if value > 20_000 else value * 7 // 10
-                share = randomizer.randint(low, value - 2)
-            for name, number in split_total(randomizer, value, parts, part, share).items():
+                share = randomizer.choice(grid(factor, low, value - factor * (len(parts) - 1)))
+            for name, number in split_total(randomizer, value, parts, part, share, factor).items():
                 book[name].append(number)
         books[site] = book
     return {**data, "books": books}
@@ -189,17 +199,45 @@ def book_candidates(index):
     raise AssertionError(f"no valid book pool for {index}")
 
 
+def square_balance(rows):
+    assert len(rows) == COUNT
+    for facet in ("month", "part", "range", "mixed"):
+        counts = Counter()
+        for index, (data, _) in enumerate(rows, 1):
+            faults = dict(zip((case["id"] for case in data["cases"]),
+                              fault_masks(facet)[index - 1], strict=True))
+            view = {**data, "faults": faults}
+            factor = data["kg_per_crate"]
+            for case in data["cases"]:
+                question = WORLD.case_question(view, case)
+                scope = WORLD.first_scope(view, question)
+                assert scope is not None
+                figure = WORLD.figure_for(view, scope)
+                amount = figure if scope["exact"] else figure["low"]
+                key = "off" if faults[case["id"]] != "plain" else "exact"
+                counts[key] += 1
+                counts[key, "square"] += amount % (factor * factor) == 0
+        off, exact = counts["off"], counts["exact"]
+        assert off + exact == COUNT * CASES
+        difference = abs(counts["off", "square"] * exact - counts["exact", "square"] * off)
+        if 100 * difference > 15 * off * exact:
+            return False
+    return True
+
+
 @cache
 def base_rows():
     randomizer = rng("books-cohort")
     pools = [book_candidates(index) for index in range(1, COUNT + 1)]
-    for _ in range(MAX_MASK_TRIES):
+    for _ in range(MAX_BOOK_COHORT_TRIES):
         rows = [randomizer.choice(pool) for pool in pools]
         signatures = [signature for _, signature in rows]
         ranks = Counter(rank for ranked, _ in signatures for rank in ranked)
         if not all(ranks[rank] in (3, 4) for rank in range(CASES)):
             continue
         if not 14 <= sum(below for _, below in signatures) <= 16:
+            continue
+        if not square_balance(rows):
             continue
         for index, (data, signature) in enumerate(rows, 1):
             validate_base(data)
@@ -226,7 +264,8 @@ def validate_base(data):
         assert set(parts) == set(data["books"][site])
         for values in data["books"][site].values():
             assert len(values) == len(WORLD.MONTHS)
-            assert all(0 < value <= 160_000 for value in values)
+            assert all(0 < value <= 160_000 and value % data["kg_per_crate"] == 0
+                       for value in values)
         cases = [case for case in data["cases"] if case["site"] == site]
         months = {case["month"] for case in cases}
         off_months = {data["off_months"][case["id"]] for case in cases}
@@ -236,6 +275,7 @@ def validate_base(data):
             a, b = data["range_offsets"][site][month - 1]
             current = total(data, site, month)
             assert 10 <= a <= 90 and 10 <= b <= 90 and a != b
+            assert a % data["kg_per_crate"] == b % data["kg_per_crate"] == 0
             assert 0 < current - a < current < current + b
         for case in cases:
             value = total(data, site, case["month"])
@@ -326,6 +366,8 @@ def part_rank_signature(data, index):
 
 def validate_scope(data, scope):
     figure = WORLD.figure_for(data, scope)
+    amounts = (figure,) if scope["exact"] else (figure["low"], figure["high"])
+    assert all(amount % data["kg_per_crate"] == 0 for amount in amounts)
     expected = WORLD.public_scope(scope, figure)
     assert parse_reply(expected) == expected
     for form in range(WORLD.FORMS):
@@ -412,6 +454,9 @@ def validate_first_figures(data):
         true = total(data, case["site"], case["month"])
         assert (amount == true) == (not WORLD.differences(data, question, scope))
         amounts[case["id"]] = amount
+        assert amount % data["kg_per_crate"] == 0
+        if not scope["exact"]:
+            assert figure["high"] % data["kg_per_crate"] == 0
     if data["facet"] == "mixed":
         assert len(set(amounts.values())) == CASES
         assert all(500 <= amount <= 20_000 for amount in amounts.values())

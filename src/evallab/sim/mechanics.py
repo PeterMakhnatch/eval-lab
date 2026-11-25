@@ -17,9 +17,14 @@ from evallab.sim.engine import STEP_LIMIT, Simulation
 _STEP_BUDGET = 20
 _CONTEXT = {"workdir": "/app", "baked": {}, "layout_separate": False}
 _EXIT_TRIGGERS = ("none", "dollar_q", "rc_assign", "and_echo")
-_SAVED_STATUS = ("none", "unused", "gated")
-_SAVED_LINE = "saved=$?"
-_GATE_LINES = ('if [ "$saved" -ne 0 ]; then', "echo failed", "fi")
+_SAVED_STATUS = ("none", "unused", "read", "gated")
+_STATUS_LINES = {
+    "none": (),
+    "unused": ("{name}=$?",),
+    "read": ("{name}=$?", 'if [ "${name}" -ne 0 ]; then', "echo failed", "fi"),
+    "gated": ("{name}=$?", 'if [ "${name}" -ne 0 ]; then', "exit 0", "fi"),
+}
+_LATE_RUN = "pytest tests -q"
 _ADDOPTS = ("none", "mention", "clear", "both")
 _BARE = ("node", "npm", "cargo", "go", "ruby")
 _WORKDIR = ("cwd", "cd", "none")
@@ -99,6 +104,7 @@ class _Plan:
     pipefail: bool
     plugin_autoload_disabled: bool
     saved_status: str
+    late_status: str
 
     @property
     def unconditional(self) -> bool:
@@ -108,7 +114,7 @@ class _Plan:
 @dataclass(slots=True)
 class _Lines:
     reward_clear: _Hit | None = None
-    set_plus_e: _Hit | None = None
+    set_plus_e: list[_Hit] = field(default_factory=list)
     or_true: _Hit | None = None
     early_exit: _Hit | None = None
     zeros: list[_Hit] = field(default_factory=list)
@@ -166,8 +172,10 @@ def _plan(rng: Random) -> _Plan:
         pipefail=_flag(rng),
         plugin_autoload_disabled=_flag(rng),
         saved_status=rng.choice(_SAVED_STATUS),
+        late_status=rng.choice(_SAVED_STATUS),
     )
-    assert plan.exit_trigger in _EXIT_TRIGGERS and plan.saved_status in _SAVED_STATUS
+    assert plan.exit_trigger in _EXIT_TRIGGERS
+    assert plan.saved_status in _SAVED_STATUS and plan.late_status in _SAVED_STATUS
     assert plan.addopts in _ADDOPTS and plan.workdir_mode in _WORKDIR
     assert len(plan.extra_bare) == extra_count <= 2
     assert 0 <= plan.pythonpath_count <= 2 and 0 <= plan.deselect_count <= 2
@@ -177,7 +185,7 @@ def _plan(rng: Random) -> _Plan:
 
 def _mechanisms(plan: _Plan) -> list[str]:
     found: list[str] = []
-    if plan.exit_trigger != "none" or plan.saved_status != "none":
+    if plan.exit_trigger != "none" or plan.saved_status != "none" or plan.late_status != "none":
         found.append("exit_code")
     if plan.structured:
         found.append("structured_report")
@@ -206,7 +214,7 @@ def _reward_lines(lines: _Lines) -> list[dict[str, Any]]:
 
 
 def _masks(lines: _Lines) -> list[dict[str, Any]]:
-    found = _present((lines.or_true, lines.set_plus_e, lines.pipe))
+    found = [*_present((lines.or_true,)), *lines.set_plus_e, *_present((lines.pipe,))]
     assert len(found) <= 6
     return _evidence("tests/test.sh", found)
 
@@ -258,16 +266,20 @@ def _render(plan: _Plan) -> tuple[str, _Lines]:
         recorded.or_true = script.add("pytest tests || true")
     pipe = script.add(_PIPE)
     recorded.pipe = None if plan.pipefail else pipe
-    if plan.saved_status != "none":
-        script.add(_SAVED_LINE)
-    if plan.saved_status == "gated":
-        for text in _GATE_LINES:
-            script.add(text)
-    recorded.set_plus_e = None if plan.saved_status == "gated" else set_plus_e
+    _render_status(script, "saved", plan.saved_status)
+    if set_plus_e is not None and plan.saved_status != "gated":
+        recorded.set_plus_e.append(set_plus_e)
     if plan.structured:
         script.add("jq . /tmp/report.json")
     if plan.log_grep:
         script.add("grep -q PASS /tmp/pytest.out")
+    if plan.late_status != "none":
+        late = script.add("set +e")
+        script.add(_LATE_RUN)
+        _render_status(script, "late", plan.late_status)
+        if plan.late_status != "gated":
+            recorded.set_plus_e.append(late)
+    assert len(recorded.set_plus_e) <= 2
     _render_env(script, recorded, plan)
     _render_tail(script, recorded, plan)
     text = script.text()
@@ -276,6 +288,12 @@ def _render(plan: _Plan) -> tuple[str, _Lines]:
     assert (_PLUGIN in text) is plan.plugin_autoload_disabled
     assert (recorded.pipe is not None) is (not plan.pipefail)
     return text, recorded
+
+
+def _render_status(script: _Script, name: str, status: str) -> None:
+    assert status in _SAVED_STATUS and name.isidentifier()
+    for text in _STATUS_LINES[status]:
+        script.add(text.format(name=name))
 
 
 def _render_env(script: _Script, recorded: _Lines, plan: _Plan) -> None:
@@ -339,7 +357,14 @@ class MechanicsSimulation:
         plan = _plan(self.rng)
         script, lines = _render(plan)
         self._write(script, plan)
-        self.sim.begin("mechanics-script", clear=plan.reward_clear, early=plan.early_exit, saved=plan.saved_status)
+        self.sim.begin(
+            "mechanics-script",
+            clear=plan.reward_clear,
+            early=plan.early_exit,
+            mask=plan.mask_set_plus_e,
+            saved=plan.saved_status,
+            late=plan.late_status,
+        )
         self._require_bash()
         package = load_package(self.root)
         sources, patch_scripts, _patches = _test_sources(package)

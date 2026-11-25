@@ -147,10 +147,17 @@
     "subsystem": "grader-script-mechanics"
   },
   {
-    "found_at_utc": "2026-11-25T04:20:00.000000+00:00",
+    "found_at_utc": "2026-11-25T05:10:00.000000+00:00",
     "invariant": "mechanics_failure_masks",
-    "seed": 64,
-    "step": 159,
+    "seed": 74,
+    "step": 157,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T05:10:00.000000+00:00",
+    "invariant": "mechanics_failure_masks",
+    "seed": 105,
+    "step": 157,
     "subsystem": "grader-script-mechanics"
   }
 ]

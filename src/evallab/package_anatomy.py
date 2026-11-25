@@ -635,19 +635,44 @@ def _reset_list(test_sh: str) -> list[str]:
 
 _SAVED_STATUS = re.compile(r"\b([A-Za-z_]\w*)=\$\?")
 _STATUS_TEST = re.compile(r"^\s*(?:(?:el)?if\s+|while\s+)?(?:\[\[?|test)\s")
+_REWARD_FILE = re.compile(r"reward\.(?:txt|json)")
+_REWARD_ONE = re.compile(r"\b(?:echo|printf)\s+['\"]?1(?:\.0)?['\"]?\s*>[^\n]*reward\.(?:txt|json)")
+_SHELL_EXIT = re.compile(r"(?:^|[;&|{]|\bthen|\belse|\bdo)\s*exit\b")
+_BLOCK_OPEN = re.compile(r"^\s*(?:if|case|while|until|for)\b")
+_BLOCK_CLOSE = re.compile(r"^\s*(?:fi|esac|done)\b|;\s*(?:fi|esac|done)\s*$")
+
+
+def _block_gates_reward(lines: Sequence[str], start: int) -> bool:
+    assert 0 <= start < len(lines)
+    depth = 0
+    for line in lines[start:]:
+        if _SHELL_EXIT.search(line) or _REWARD_ONE.search(line):
+            return True
+        opens = _BLOCK_OPEN.match(line) or (depth == 0 and re.match(r"^\s*elif\b", line))
+        depth += 1 if opens else 0
+        depth -= 1 if _BLOCK_CLOSE.search(line) else 0
+        if depth <= 0:
+            return False
+    return False
 
 
 def _status_gated(lines: Sequence[str], start: int) -> bool:
     assert 0 < start <= len(lines)
     saved: set[str] = set()
-    for line in lines[start:]:
+    collecting = True
+    for index in range(start, len(lines)):
+        line = lines[index]
         if line.lstrip().startswith("#"):
             continue
-        if _STATUS_TEST.match(line) and any(re.search(r"\$\{?" + name + r"\b", line) for name in saved):
+        reads = any(re.search(r"\$\{?" + name + r"\b", line) for name in saved)
+        if reads and _STATUS_TEST.match(line) and _block_gates_reward(lines, index):
             return True
-        if re.search(r"reward\.(?:txt|json)", line):
+        if _REWARD_FILE.search(line):
             return False
-        saved.update(match.group(1) for match in _SAVED_STATUS.finditer(line))
+        if re.match(r"^\s*set\s+\+e\b", line):
+            collecting = False
+        if collecting:
+            saved.update(match.group(1) for match in _SAVED_STATUS.finditer(line))
     return False
 
 

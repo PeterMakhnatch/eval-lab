@@ -14,7 +14,7 @@ from muster.tasks.dossier.template.verify import (
 )
 from muster.tasks.dossier.zoo import next_put
 
-SEED = "dossier-v3.3"
+SEED = "dossier-v3.4"
 COUNT = 10
 FACETS = ("share", "scarce", "gone", "cascade", "dispute", "mix")
 ARMS = ("probe", "reader", "solo", "team")
@@ -75,6 +75,11 @@ def layout(draw, facet="share"):
     return zones, asks, unused
 
 
+def current_time(draw, facet):
+    assert facet in SCARCE
+    return draw.randint(21 if facet == "mix" else 2, 40)
+
+
 def site_case(feeds, site, reader, writer, kind, zones, draw, witness, *, facet):
     if kind == "unknown":
         return "unknown"
@@ -84,7 +89,10 @@ def site_case(feeds, site, reader, writer, kind, zones, draw, witness, *, facet)
     at = late if kind in ("cascade", "gone") or witness is not None else draw.randint(1, 40)
     if facet == "mix":
         early = draw.randint(1, 10)
-        at = draw.randint(11, 20) if kind == "cascade" else draw.randint(21, 40)
+        at = draw.randint(11, 20) if kind == "cascade" else current_time(draw, facet)
+    elif facet == "scarce":
+        at = current_time(draw, facet)
+        early = draw.randint(1, at - 1)
     if kind == "cascade":
         prior_holder = writer if facet == "mix" else reader
         feeds[prior_holder].append(entry(site, old, early))
@@ -110,11 +118,11 @@ def site_case(feeds, site, reader, writer, kind, zones, draw, witness, *, facet)
 
 
 def mixed_cases(asks, zones, draw):
-    pairs = [draw.sample(row, 2) for row in zones.values()]
-    draw.shuffle(pairs)
-    a, b, u, v, w, x, y, z, d = [pair[0] for pair in pairs]
-    free = [pair[1] for pair in pairs]
-    draw.shuffle(free)
+    anchors = [draw.choice(row) for row in zones.values()]
+    draw.shuffle(anchors)
+    a, b, u, v, w, x, y, z, d = anchors
+    free = draw.sample([site for row in zones.values() for site in row
+                        if site not in anchors], 9)
     c, e, f, g, h, i, j, k, extra_peer = free
     asks["p1"][:] = [a, b, u, v, w, x, y, z, c]
     asks["p2"][:] = [d, e, f, k]
@@ -225,7 +233,7 @@ def reports_for(facet, roles, zones, unused, draw):
             expected[site] = SPECIAL.get(kind, good)
     if facet in SCARCE:
         count = MIX_DECOYS if facet == "mix" else 5
-        feeds["p1"].extend(entry(site, draw.choice(ORDINARY), draw.randint(1, 40))
+        feeds["p1"].extend(entry(site, draw.choice(ORDINARY), current_time(draw, facet))
                            for site in unused[:count])
     for feed in feeds.values():
         draw.shuffle(feed)
@@ -406,6 +414,31 @@ def special_dependencies(data, roles, ideal):
         filtered_chance(data, ideal, kind) <= Fraction(1, 6) for kind in incoming)
 
 
+def selection_match(data, roles):
+    facet = data["facet"]
+    watched = set(data["watch"])
+    current = {site for site, _, writer, kind, _ in roles
+               if writer == "p1" and kind == "normal"}
+    decoys = {line["key"] for line in data["feeds"]["p1"]
+              if line["key"] not in relevant_keys(data)}
+    pool = current | decoys
+    assert current <= watched and not decoys & watched
+    assert len(current) == 4
+    assert len(decoys) == (MIX_DECOYS if facet == "mix" else 5)
+    reports = [line for line in data["feeds"]["p1"] if line["key"] in pool]
+    assert len(reports) == len(pool) and {line["key"] for line in reports} == pool
+    assert all(line["status"] in ORDINARY and
+               (21 if facet == "mix" else 2) <= line["at"] <= 40 for line in reports)
+    blocked = watched - current
+    for row in data["zones"].values():
+        sites = set(row)
+        eligible = sites - blocked
+        assert len(sites & current) + len(sites & decoys) == len(sites & pool)
+        assert sites & pool <= eligible
+        if facet == "mix":
+            assert sites & pool == eligible
+
+
 def validate(data, ideal, roles):
     zones, asks, feeds, truth = (data[k] for k in ("zones", "asks", "feeds", "truth"))
     facet = data["facet"]
@@ -438,8 +471,7 @@ def validate(data, ideal, roles):
         assert len(reported_watch_keys(data)) == data["slots"]
         assert register_required(data, ideal)
         decoys = [line for line in feeds["p1"] if line["key"] not in relevant_keys(data)]
-        if facet == "mix":
-            assert all(len(set(row) & set(data["watch"])) == 2 for row in zones.values())
+        selection_match(data, roles)
         assert len({line["key"] for line in decoys}) == len(decoys) == (
             MIX_DECOYS if facet == "mix" else 5)
         assert capacity_trap(data, ideal)

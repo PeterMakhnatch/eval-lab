@@ -12,7 +12,7 @@ services:
   main:
     command: ["python3", "/world/world.py"]
     environment:
-      SEAT_TOKENS: "{\"f7e1e8b546d126c791f4141337b3477b\": \"p1\"}"
+      SEAT_TOKENS: "{\"ae90a420dc0e2bc7847b24906b610ce8\": \"p1\"}"
     networks:
       p1-world:
         aliases: [world]
@@ -27,7 +27,7 @@ services:
     networks: [p1-world]
     environment:
       SEAT: "p1"
-      SEAT_TOKEN: "f7e1e8b546d126c791f4141337b3477b"
+      SEAT_TOKEN: "ae90a420dc0e2bc7847b24906b610ce8"
       WORLD: "http://world:8080"
 
 networks:

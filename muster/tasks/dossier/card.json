@@ -51,7 +51,7 @@
       "status": "PASS"
     },
     {
-      "episodes": 10949,
+      "episodes": 10945,
       "id": "builtin.refused_events_do_not_matter",
       "status": "PASS"
     },
@@ -61,7 +61,7 @@
       "status": "PASS"
     },
     {
-      "episodes": 26,
+      "episodes": 27,
       "id": "builtin.findings_regress",
       "status": "PASS"
     }
@@ -242,7 +242,7 @@
       "dispute-team": {
         "episodes": 130,
         "max": 0.3333333333333333,
-        "mean": 0.04423076923076923,
+        "mean": 0.04358974358974359,
         "min": 0.0
       },
       "gone-probe": {
@@ -266,14 +266,14 @@
       "gone-team": {
         "episodes": 130,
         "max": 0.5,
-        "mean": 0.11089743589743589,
+        "mean": 0.11346153846153846,
         "min": 0.0
       },
       "mix-probe": {
         "episodes": 10,
-        "max": 0.7727272727272727,
-        "mean": 0.7545454545454545,
-        "min": 0.7272727272727273
+        "max": 0.8636363636363636,
+        "mean": 0.8181818181818181,
+        "min": 0.7727272727272727
       },
       "mix-reader": {
         "episodes": 10,
@@ -296,7 +296,7 @@
       "scarce-probe": {
         "episodes": 10,
         "max": 0.9166666666666666,
-        "mean": 0.8666666666666666,
+        "mean": 0.8416666666666666,
         "min": 0.75
       },
       "scarce-reader": {
@@ -313,8 +313,8 @@
       },
       "scarce-team": {
         "episodes": 130,
-        "max": 0.3333333333333333,
-        "mean": 0.04294871794871795,
+        "max": 0.25,
+        "mean": 0.05576923076923077,
         "min": 0.0
       },
       "share-probe": {
@@ -364,7 +364,7 @@
       "cascade-team": {
         "episodes": 130,
         "max": 0.7857142857142857,
-        "mean": 0.7813186813186813,
+        "mean": 0.7829670329670328,
         "min": 0.7142857142857143
       },
       "dispute-probe": {
@@ -388,7 +388,7 @@
       "dispute-team": {
         "episodes": 130,
         "max": 0.75,
-        "mean": 0.7423076923076923,
+        "mean": 0.7474358974358974,
         "min": 0.6666666666666666
       },
       "gone-probe": {
@@ -412,14 +412,14 @@
       "gone-team": {
         "episodes": 130,
         "max": 1.0,
-        "mean": 0.9871794871794872,
+        "mean": 0.9846153846153847,
         "min": 0.8333333333333334
       },
       "mix-probe": {
         "episodes": 10,
         "max": 0.6363636363636364,
-        "mean": 0.5954545454545455,
-        "min": 0.5454545454545454
+        "mean": 0.6,
+        "min": 0.5909090909090909
       },
       "mix-reader": {
         "episodes": 10,
@@ -436,13 +436,13 @@
       "mix-team": {
         "episodes": 130,
         "max": 0.6363636363636364,
-        "mean": 0.5905594405594405,
+        "mean": 0.5944055944055945,
         "min": 0.5
       },
       "scarce-probe": {
         "episodes": 10,
         "max": 0.9166666666666666,
-        "mean": 0.825,
+        "mean": 0.8333333333333334,
         "min": 0.75
       },
       "scarce-reader": {
@@ -460,8 +460,8 @@
       "scarce-team": {
         "episodes": 130,
         "max": 0.9166666666666666,
-        "mean": 0.8044871794871794,
-        "min": 0.6666666666666666
+        "mean": 0.808974358974359,
+        "min": 0.5
       },
       "share-probe": {
         "episodes": 10,
@@ -484,7 +484,7 @@
       "share-team": {
         "episodes": 130,
         "max": 1.0,
-        "mean": 0.9752136752136752,
+        "mean": 0.9820512820512821,
         "min": 0.7777777777777778
       }
     },
@@ -606,7 +606,7 @@
       "scarce-team": {
         "episodes": 130,
         "max": 1.0,
-        "mean": 0.9993589743589743,
+        "mean": 0.9980769230769231,
         "min": 0.9166666666666666
       },
       "share-probe": {
@@ -656,7 +656,7 @@
       "cascade-team": {
         "episodes": 130,
         "max": 1.0,
-        "mean": 0.9961538461538462,
+        "mean": 0.9983516483516482,
         "min": 0.9285714285714286
       },
       "dispute-probe": {
@@ -680,7 +680,7 @@
       "dispute-team": {
         "episodes": 130,
         "max": 0.75,
-        "mean": 0.7423076923076923,
+        "mean": 0.7474358974358974,
         "min": 0.6666666666666666
       },
       "gone-probe": {
@@ -704,14 +704,14 @@
       "gone-team": {
         "episodes": 130,
         "max": 0.75,
-        "mean": 0.7455128205128205,
+        "mean": 0.7435897435897436,
         "min": 0.6666666666666666
       },
       "mix-probe": {
         "episodes": 10,
         "max": 0.6363636363636364,
-        "mean": 0.5681818181818181,
-        "min": 0.5
+        "mean": 0.5772727272727273,
+        "min": 0.5454545454545454
       },
       "mix-reader": {
         "episodes": 10,
@@ -728,13 +728,13 @@
       "mix-team": {
         "episodes": 130,
         "max": 0.6363636363636364,
-        "mean": 0.563986013986014,
-        "min": 0.45454545454545453
+        "mean": 0.5737762237762238,
+        "min": 0.5
       },
       "scarce-probe": {
         "episodes": 10,
         "max": 0.9166666666666666,
-        "mean": 0.825,
+        "mean": 0.8333333333333334,
         "min": 0.75
       },
       "scarce-reader": {
@@ -752,8 +752,8 @@
       "scarce-team": {
         "episodes": 130,
         "max": 0.9166666666666666,
-        "mean": 0.8044871794871794,
-        "min": 0.6666666666666666
+        "mean": 0.808974358974359,
+        "min": 0.5
       },
       "share-probe": {
         "episodes": 10,
@@ -776,7 +776,7 @@
       "share-team": {
         "episodes": 130,
         "max": 1.0,
-        "mean": 0.9752136752136752,
+        "mean": 0.9820512820512821,
         "min": 0.7777777777777778
       }
     },
@@ -802,7 +802,7 @@
       "cascade-team": {
         "episodes": 130,
         "max": 0.5714285714285714,
-        "mean": 0.07802197802197802,
+        "mean": 0.07637362637362638,
         "min": 0.0
       },
       "dispute-probe": {
@@ -850,14 +850,14 @@
       "gone-team": {
         "episodes": 130,
         "max": 0.5,
-        "mean": 0.09807692307692308,
+        "mean": 0.10128205128205128,
         "min": 0.0
       },
       "mix-probe": {
         "episodes": 10,
         "max": 0.8636363636363636,
-        "mean": 0.7954545454545455,
-        "min": 0.7272727272727273
+        "mean": 0.8045454545454545,
+        "min": 0.7727272727272727
       },
       "mix-reader": {
         "episodes": 10,
@@ -880,7 +880,7 @@
       "scarce-probe": {
         "episodes": 10,
         "max": 0.9166666666666666,
-        "mean": 0.825,
+        "mean": 0.8333333333333334,
         "min": 0.75
       },
       "scarce-reader": {
@@ -898,7 +898,7 @@
       "scarce-team": {
         "episodes": 130,
         "max": 0.3333333333333333,
-        "mean": 0.03717948717948718,
+        "mean": 0.027564102564102563,
         "min": 0.0
       },
       "share-probe": {
@@ -1678,7 +1678,7 @@
       "cascade-team": {
         "episodes": 130,
         "max": 0.7857142857142857,
-        "mean": 0.7813186813186813,
+        "mean": 0.7829670329670328,
         "min": 0.7142857142857143
       },
       "dispute-probe": {
@@ -1702,7 +1702,7 @@
       "dispute-team": {
         "episodes": 130,
         "max": 0.75,
-        "mean": 0.7423076923076923,
+        "mean": 0.7474358974358974,
         "min": 0.6666666666666666
       },
       "gone-probe": {
@@ -1726,14 +1726,14 @@
       "gone-team": {
         "episodes": 130,
         "max": 0.75,
-        "mean": 0.7455128205128205,
+        "mean": 0.7435897435897436,
         "min": 0.6666666666666666
       },
       "mix-probe": {
         "episodes": 10,
         "max": 0.5,
-        "mean": 0.4590909090909091,
-        "min": 0.4090909090909091
+        "mean": 0.4636363636363637,
+        "min": 0.45454545454545453
       },
       "mix-reader": {
         "episodes": 10,
@@ -1756,7 +1756,7 @@
       "scarce-probe": {
         "episodes": 10,
         "max": 0.9166666666666666,
-        "mean": 0.825,
+        "mean": 0.8333333333333334,
         "min": 0.75
       },
       "scarce-reader": {
@@ -1774,8 +1774,8 @@
       "scarce-team": {
         "episodes": 130,
         "max": 0.9166666666666666,
-        "mean": 0.8044871794871794,
-        "min": 0.6666666666666666
+        "mean": 0.808974358974359,
+        "min": 0.5
       },
       "share-probe": {
         "episodes": 10,
@@ -1798,7 +1798,7 @@
       "share-team": {
         "episodes": 130,
         "max": 1.0,
-        "mean": 0.9752136752136752,
+        "mean": 0.9820512820512821,
         "min": 0.7777777777777778
       }
     },
@@ -1824,7 +1824,7 @@
       "cascade-team": {
         "episodes": 130,
         "max": 0.5714285714285714,
-        "mean": 0.07527472527472527,
+        "mean": 0.07582417582417583,
         "min": 0.0
       },
       "dispute-probe": {
@@ -1848,7 +1848,7 @@
       "dispute-team": {
         "episodes": 130,
         "max": 0.3333333333333333,
-        "mean": 0.04038461538461539,
+        "mean": 0.03653846153846154,
         "min": 0.0
       },
       "gone-probe": {
@@ -1872,14 +1872,14 @@
       "gone-team": {
         "episodes": 130,
         "max": 0.5,
-        "mean": 0.10576923076923077,
+        "mean": 0.10384615384615385,
         "min": 0.0
       },
       "mix-probe": {
         "episodes": 10,
         "max": 0.8636363636363636,
-        "mean": 0.8045454545454545,
-        "min": 0.7272727272727273
+        "mean": 0.7954545454545455,
+        "min": 0.7727272727272727
       },
       "mix-reader": {
         "episodes": 10,
@@ -1895,14 +1895,14 @@
       },
       "mix-team": {
         "episodes": 130,
-        "max": 0.3181818181818182,
-        "mean": 0.0024475524475524473,
+        "max": 0.0,
+        "mean": 0.0,
         "min": 0.0
       },
       "scarce-probe": {
         "episodes": 10,
         "max": 0.9166666666666666,
-        "mean": 0.8666666666666666,
+        "mean": 0.8333333333333334,
         "min": 0.75
       },
       "scarce-reader": {
@@ -1920,7 +1920,7 @@
       "scarce-team": {
         "episodes": 130,
         "max": 0.3333333333333333,
-        "mean": 0.04038461538461539,
+        "mean": 0.04230769230769231,
         "min": 0.0
       },
       "share-probe": {
@@ -1970,7 +1970,7 @@
       "cascade-team": {
         "episodes": 130,
         "max": 0.7857142857142857,
-        "mean": 0.7813186813186813,
+        "mean": 0.7829670329670328,
         "min": 0.7142857142857143
       },
       "dispute-probe": {
@@ -1994,7 +1994,7 @@
       "dispute-team": {
         "episodes": 130,
         "max": 0.75,
-        "mean": 0.7423076923076923,
+        "mean": 0.7474358974358974,
         "min": 0.6666666666666666
       },
       "gone-probe": {
@@ -2018,7 +2018,7 @@
       "gone-team": {
         "episodes": 130,
         "max": 0.75,
-        "mean": 0.7455128205128205,
+        "mean": 0.7435897435897436,
         "min": 0.6666666666666666
       },
       "mix-probe": {
@@ -2042,7 +2042,7 @@
       "mix-team": {
         "episodes": 130,
         "max": 0.5909090909090909,
-        "mean": 0.5898601398601399,
+        "mean": 0.5884615384615385,
         "min": 0.5454545454545454
       },
       "scarce-probe": {
@@ -2066,7 +2066,7 @@
       "scarce-team": {
         "episodes": 130,
         "max": 1.0,
-        "mean": 0.9814102564102564,
+        "mean": 0.9846153846153847,
         "min": 0.8333333333333334
       },
       "share-probe": {
@@ -2090,7 +2090,7 @@
       "share-team": {
         "episodes": 130,
         "max": 1.0,
-        "mean": 0.9752136752136752,
+        "mean": 0.9820512820512821,
         "min": 0.7777777777777778
       }
     },
@@ -2170,8 +2170,8 @@
       "mix-probe": {
         "episodes": 10,
         "max": 0.45454545454545453,
-        "mean": 0.39545454545454545,
-        "min": 0.3181818181818182
+        "mean": 0.38636363636363635,
+        "min": 0.36363636363636365
       },
       "mix-reader": {
         "episodes": 10,
@@ -2194,7 +2194,7 @@
       "scarce-probe": {
         "episodes": 10,
         "max": 0.6666666666666666,
-        "mean": 0.6166666666666667,
+        "mean": 0.5833333333333333,
         "min": 0.5
       },
       "scarce-reader": {
@@ -2262,7 +2262,7 @@
       "cascade-team": {
         "episodes": 130,
         "max": 0.7857142857142857,
-        "mean": 0.7813186813186813,
+        "mean": 0.7829670329670328,
         "min": 0.7142857142857143
       },
       "dispute-probe": {
@@ -2310,14 +2310,14 @@
       "gone-team": {
         "episodes": 130,
         "max": 0.75,
-        "mean": 0.7455128205128205,
+        "mean": 0.7435897435897436,
         "min": 0.6666666666666666
       },
       "mix-probe": {
         "episodes": 10,
         "max": 0.6363636363636364,
-        "mean": 0.5954545454545455,
-        "min": 0.5454545454545454
+        "mean": 0.6,
+        "min": 0.5909090909090909
       },
       "mix-reader": {
         "episodes": 10,
@@ -2334,13 +2334,13 @@
       "mix-team": {
         "episodes": 130,
         "max": 0.6818181818181818,
-        "mean": 0.6048951048951049,
+        "mean": 0.6062937062937063,
         "min": 0.5
       },
       "scarce-probe": {
         "episodes": 10,
         "max": 0.9166666666666666,
-        "mean": 0.825,
+        "mean": 0.8333333333333334,
         "min": 0.75
       },
       "scarce-reader": {
@@ -2358,8 +2358,8 @@
       "scarce-team": {
         "episodes": 130,
         "max": 0.9166666666666666,
-        "mean": 0.8044871794871794,
-        "min": 0.6666666666666666
+        "mean": 0.808974358974359,
+        "min": 0.5
       },
       "share-probe": {
         "episodes": 10,
@@ -2382,7 +2382,7 @@
       "share-team": {
         "episodes": 130,
         "max": 1.0,
-        "mean": 0.9752136752136752,
+        "mean": 0.9820512820512821,
         "min": 0.7777777777777778
       }
     }
@@ -2427,7 +2427,7 @@
       "muster/tasks/_kit/build.py": "89620f7633a1c8ccce5cda8281d1249d73e3952428bda8d46c35749ffd3956de",
       "muster/tasks/_kit/stagekit.py": "70046cbdc0a9e5fd1662c8112d192bd266bf0ab235b8db7e11c82534ddca57e2",
       "muster/tasks/_kit/worldkit.py": "6704df23c208d3a7aea5b1c382f727b2b19da99a19f401781fb986d4736ecf6d",
-      "muster/tasks/dossier/family.toml": "85acdc63498efa06b60b72f6d51b27b60754231f71ca797de69ef2e3d8787753",
+      "muster/tasks/dossier/family.toml": "fd717c9e2e83ca604ba5b7cb9229c70587ee4d50e09963ada37e985c87be2c5e",
       "muster/tasks/dossier/findings/01-chronology.json": "5e27f14366ea8b80f707b2948e4014354d133f9c0084132e43672bc81b758976",
       "muster/tasks/dossier/findings/02-peer-dispute.json": "06df90e20a55dc782f7772c87800357a3bb65f4c4d41f33a4080012e595fd5d5",
       "muster/tasks/dossier/findings/03-private-ordinary.json": "e095fc9ca79eb48a3bf4658d326f609aa8129f94b5a05746e9ce6e41a2bdce66",
@@ -2439,7 +2439,7 @@
       "muster/tasks/dossier/findings/09-dominance-late.json": "85d6eaa1c3635f84d4a6a0199c03bebe312402f7be74674f49f7f3ed8e089c8a",
       "muster/tasks/dossier/findings/10-team-starved.json": "57ef5b9877bad47499f449669df2e0fd0f55b52b72a262fbf3fa34bb289aa75f",
       "muster/tasks/dossier/findings/11-team-late-close.json": "ed30cc3991129c7a97557514042d1348484f3a062a36023c382140586eccb6fe",
-      "muster/tasks/dossier/findings/12-team-stale-dispute.json": "c86af4a34683a4bfd4f9cd3572627c7d5528b7ff69ad327eb3df32f8c1a4a8bc",
+      "muster/tasks/dossier/findings/12-team-stale-dispute.json": "4cd2146032ec1afb0a01b7ed86a656d15cf661a11c9e2ed88dd7d1e5f4461289",
       "muster/tasks/dossier/findings/ablations.py": "8abaffd7af65b15f37558275febc062bebb6b7dfd2ee74b75997234597373792",
       "muster/tasks/dossier/findings/dossier-rv4-s-split-033.json": "f9112a267baeb5ae96bb1503f85416b6814f99a5b4b03ce03a1f68fb791ac44f",
       "muster/tasks/dossier/findings/dossier-rv4-s-split-035.json": "fa860e472aa3c074cd8fb855dd7355aa41ae025304598c6894ba6a96bb788a9c",
@@ -2448,6 +2448,7 @@
       "muster/tasks/dossier/findings/dossier-rv4-s-split-107.json": "8044b540dc23baf0a5b0b1d6adde7ed2a81fd92660fd492f33ad383af5d4c3e0",
       "muster/tasks/dossier/findings/dossier-rv4-s-split-109.json": "085aeada742d39a29ec4b09a8e92718347db9c475e39412c71228c5e17e874b1",
       "muster/tasks/dossier/findings/policies.py": "2430830882c13f1fea68203baa2cf67a84b891eba9010da9cff9656fe50300f8",
+      "muster/tasks/dossier/findings/probes.py": "741f938add0da66723459d652ba5bdbd802bb0c703e7d0ca5619f12ee0dfc691",
       "muster/tasks/dossier/findings/reader_ablations.py": "56e81650794c104f89435f9c0e1c666c6619ae73b2267b60da8a788cc424a50c",
       "muster/tasks/dossier/findings/rv3-01.json": "09168fd766c37019aee46d8245ca689fccf8753ff290beeb82c04e561cbeed3f",
       "muster/tasks/dossier/findings/rv3-02.json": "440f03e017d5efb20ddefbc954c5beddd74a39901513891f3b946b75edf3c72b",
@@ -2457,9 +2458,10 @@
       "muster/tasks/dossier/findings/rv3-06.json": "8ca06d16144d7fb85d10be9e90d2c1d1b8e0c9a77e14984c70b19e27954aa4ea",
       "muster/tasks/dossier/findings/rv3-07.json": "4d0d64c2883ec8e487e545324af83f425595180b718fad402e278fc97c97deb4",
       "muster/tasks/dossier/findings/rv3-08.json": "d4d74d35350b8b5350b961cb56a6e1b9d1e90ee6d1a0b984d45c27b2a8089235",
+      "muster/tasks/dossier/findings/rv5-09.json": "2fd221b7d8a9e4cd090bdb1da8ed68ec6738ec9c87931103d9451debfed6c536",
       "muster/tasks/dossier/findings/split_ablations.py": "7c08089300569aa1942b4cfd6def5c62842e8698971fa469411c13fc8e8974d6",
       "muster/tasks/dossier/generate.py": "7f4336399c9f0e67086baa81003059b89221778585910c5d18408c77480f57c9",
-      "muster/tasks/dossier/instances.py": "1c6b85c4c3691aa87995cc97e15e274de69dc48497b23bfc17511bd624dd37c7",
+      "muster/tasks/dossier/instances.py": "8587bd34266e17bd9cbc4691f521d784ee50161ebbf3943e577b1e70c88056da",
       "muster/tasks/dossier/lab.py": "8e6a82ec36234221e045cc1cd49f84b0a2e6e70b958991b9ecb6da449ba0ec1a",
       "muster/tasks/dossier/selfcheck.py": "19fedf2e5e4dd582d266b66a6334e3e19ee113d5cf3d6b4a21a420e3631466fb",
       "muster/tasks/dossier/template/instructions/fragments.toml": "aa2acebb3fd8fcb23913a1c90d54b1a80217a9f4c1f42eab92430328e2c323d5",

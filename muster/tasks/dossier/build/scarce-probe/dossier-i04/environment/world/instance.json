@@ -2,22 +2,22 @@
  "arm": "probe",
  "asks": {
   "p1": [
-   "s10",
+   "s14",
    "s13",
-   "s16"
+   "s10"
   ],
   "p2": [
-   "s01",
+   "s11",
+   "s07",
    "s15",
-   "s05",
-   "s06"
+   "s03"
   ],
   "p3": [
-   "s09",
-   "s05",
-   "s06",
-   "s16",
-   "s02"
+   "s10",
+   "s07",
+   "s02",
+   "s12",
+   "s15"
   ]
  },
  "budgets": {
@@ -45,93 +45,93 @@
  "feeds": {
   "p1": [
    {
-    "at": 10,
-    "key": "s04",
-    "status": "repair"
-   },
-   {
-    "at": 17,
-    "key": "s16",
-    "status": "quiet"
-   },
-   {
-    "at": 6,
-    "key": "s02",
-    "status": "busy"
-   },
-   {
-    "at": 1,
-    "key": "s13",
-    "status": "open"
-   },
-   {
-    "at": 40,
-    "key": "s07",
-    "status": "open"
-   },
-   {
-    "at": 8,
-    "key": "s14",
-    "status": "busy"
-   },
-   {
-    "at": 11,
-    "key": "s08",
-    "status": "limited"
-   },
-   {
-    "at": 38,
-    "key": "s01",
-    "status": "repair"
-   },
-   {
-    "at": 9,
-    "key": "s10",
-    "status": "repair"
-   },
-   {
-    "at": 30,
-    "key": "s15",
-    "status": "quiet"
-   },
-   {
-    "at": 5,
-    "key": "s12",
-    "status": "busy"
-   }
-  ],
-  "p2": [
-   {
-    "at": 32,
-    "key": "s09",
-    "status": "ready"
-   },
-   {
-    "at": 24,
+    "at": 7,
     "key": "s13",
     "status": "ready"
    },
    {
     "at": 14,
-    "key": "s16",
+    "key": "s04",
     "status": "limited"
    },
    {
     "at": 10,
-    "key": "s06",
+    "key": "s03",
+    "status": "repair"
+   },
+   {
+    "at": 5,
+    "key": "s02",
+    "status": "repair"
+   },
+   {
+    "at": 36,
+    "key": "s11",
     "status": "quiet"
+   },
+   {
+    "at": 2,
+    "key": "s05",
+    "status": "quiet"
+   },
+   {
+    "at": 23,
+    "key": "s01",
+    "status": "limited"
+   },
+   {
+    "at": 40,
+    "key": "s09",
+    "status": "repair"
+   },
+   {
+    "at": 35,
+    "key": "s10",
+    "status": "open"
+   },
+   {
+    "at": 5,
+    "key": "s14",
+    "status": "open"
+   },
+   {
+    "at": 21,
+    "key": "s08",
+    "status": "repair"
+   }
+  ],
+  "p2": [
+   {
+    "at": 23,
+    "key": "s15",
+    "status": "busy"
+   },
+   {
+    "at": 6,
+    "key": "s14",
+    "status": "ready"
+   },
+   {
+    "at": 34,
+    "key": "s10",
+    "status": "repair"
+   },
+   {
+    "at": 12,
+    "key": "s12",
+    "status": "ready"
    }
   ],
   "p3": [
    {
-    "at": 34,
-    "key": "s05",
-    "status": "repair"
+    "at": 21,
+    "key": "s07",
+    "status": "busy"
    },
    {
-    "at": 33,
-    "key": "s10",
-    "status": "ready"
+    "at": 28,
+    "key": "s13",
+    "status": "busy"
    }
   ]
  },
@@ -178,68 +178,68 @@
   "unknown"
  ],
  "tokens": {
-  "p1": "bb45cfb582407ada9673dca6266216ae",
-  "p2": "da6cc5d480077d0dea75da23eb2f4fb7",
-  "p3": "5ff893e56a968d31434cc11568c6015c"
+  "p1": "7b6d0fd81522d64114b1504a350bedb2",
+  "p2": "05d638c403fd31c72592304eb2eaec2e",
+  "p3": "018fd189b2200cd687d9fee6dc9735e7"
  },
  "truth": {
-  "s01": "repair",
-  "s02": "busy",
-  "s05": "repair",
-  "s06": "quiet",
-  "s09": "ready",
-  "s10": "ready",
-  "s13": "ready",
-  "s15": "quiet",
-  "s16": "quiet"
+  "s02": "repair",
+  "s03": "repair",
+  "s07": "busy",
+  "s10": "open",
+  "s11": "quiet",
+  "s12": "ready",
+  "s13": "busy",
+  "s14": "ready",
+  "s15": "busy"
  },
  "watch": [
-  "s01",
   "s02",
-  "s05",
-  "s06",
-  "s09",
+  "s03",
+  "s07",
   "s10",
+  "s11",
+  "s12",
   "s13",
-  "s15",
-  "s16"
+  "s14",
+  "s15"
  ],
  "writer_focal": [
-  "s01",
-  "s15",
-  "s16",
+  "s11",
+  "s03",
+  "s10",
   "s02"
  ],
  "zone_order": [
-  "south",
-  "north",
   "west",
-  "east"
+  "south",
+  "east",
+  "north"
  ],
  "zones": {
   "east": [
+   "s10",
+   "s05",
    "s06",
-   "s02",
-   "s01",
-   "s15"
+   "s03"
   ],
   "north": [
-   "s11",
-   "s12",
+   "s02",
    "s16",
-   "s13"
+   "s04",
+   "s14"
   ],
   "south": [
-   "s08",
-   "s10",
-   "s04",
-   "s05"
+   "s07",
+   "s09",
+   "s13",
+   "s11"
   ],
   "west": [
-   "s09",
-   "s07",
-   "s14",
-   "s03"
+   "s08",
+   "s15",
+   "s12",
+   "s01"
   ]
  }
 }

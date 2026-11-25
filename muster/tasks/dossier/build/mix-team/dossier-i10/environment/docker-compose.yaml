@@ -12,7 +12,7 @@ services:
   main:
     command: ["python3", "/world/world.py"]
     environment:
-      SEAT_TOKENS: "{\"1fee1756e3fd0316e7cacf87ab04305a\": \"p2\", \"53e59466bd0b130567a812a4370df1b7\": \"p1\", \"822041e4915ca601d7dfd1360fbe838f\": \"p3\"}"
+      SEAT_TOKENS: "{\"5c745b0ec92dd06d83adac4972c4789d\": \"p2\", \"8767bd115ff5f0cc097400514e4a67f2\": \"p3\", \"8eed53e48870be45d0f5fb34e3d68124\": \"p1\"}"
     networks:
       p1-world:
         aliases: [world]
@@ -31,21 +31,21 @@ services:
     networks: [p1-world]
     environment:
       SEAT: "p1"
-      SEAT_TOKEN: "53e59466bd0b130567a812a4370df1b7"
+      SEAT_TOKEN: "8eed53e48870be45d0f5fb34e3d68124"
       WORLD: "http://world:8080"
   p2:
     <<: *seat
     networks: [p2-world]
     environment:
       SEAT: "p2"
-      SEAT_TOKEN: "1fee1756e3fd0316e7cacf87ab04305a"
+      SEAT_TOKEN: "5c745b0ec92dd06d83adac4972c4789d"
       WORLD: "http://world:8080"
   p3:
     <<: *seat
     networks: [p3-world]
     environment:
       SEAT: "p3"
-      SEAT_TOKEN: "822041e4915ca601d7dfd1360fbe838f"
+      SEAT_TOKEN: "8767bd115ff5f0cc097400514e4a67f2"
       WORLD: "http://world:8080"
 
 networks:

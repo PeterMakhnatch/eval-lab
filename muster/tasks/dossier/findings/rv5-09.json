@@ -1,0 +1,19 @@
+{
+  "id": "dossier-rv5-09",
+  "family": "dossier",
+  "condition": "mix-probe",
+  "instance": "i01",
+  "kind": "wrong_pass",
+  "lineup": {
+    "p1": "file:probes.py:writer_peer_capacity"
+  },
+  "schedule": "round",
+  "expect": {
+    "measure": "reward",
+    "op": ">=",
+    "value": 1.0
+  },
+  "claim": "DESIGN-dossier.md section 4: probe skill dependence; round-5 review threshold",
+  "note": "The writer never accesses the watch list; priorities use peer occupancy and late time band. It passes 5/10 built and 19/30 held-out mix probe instances. OBSERVED v3.4: 0/10 built, including i01, and 2/30 held-out; ordinary current decoys and watched reports share the draw law and free roles are sampled without a per-zone quota.",
+  "status": "fixed"
+}

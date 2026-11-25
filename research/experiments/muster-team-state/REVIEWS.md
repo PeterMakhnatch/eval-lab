@@ -141,3 +141,56 @@ Exact chance of a fixed guess per instance, enumerated by the selfcheck: the who
 | `last_unknown_retry` (`rv-d1-10`, `11`) | limbo, storm | 3, 4 | 0, 0 |
 
 The 5 sound narrower routes (`peer_only`, `selective_log`, `targeted`, `version_ack`, `refusal_reply`) stay clean 10 of 10 in all 6 probe facets. All 6 blind policies reach reward and clean 1.0 in all 18 probe, solo and team conditions; `bi-d6` still stops on a guard refusal in 3 guard conditions. The oracle needs at most 88 requests in `storm-probe` and 115 in `storm-solo` (was 57 and 79); see `COST.md` for the time cap.
+
+## Built families, round 3 (fixed versions)
+
+Fresh workers (Codex `gpt-6.2-sol`) reviewed the fixed versions and were told not to repeat the round-2 policies.
+
+### `depot` v4.1
+
+| Surface | Worker | Confirmed | What it found |
+|---|---|---:|---|
+| Routes without the skills | `rv3-d-skills` | declined | The worker declined to write policies that reach a clean score without the skills and offered a measurement instead (`INCIDENTS.md`). Not sent again. |
+| Information in the instances (measurement only) | `rv3-d-indep` | 0 executable, 3 accepted observations | The fixed-guess chance numbers are right. 3 small dependences: the late fault is always on an item with no teammate ticket and the delta draw is rejected by stock layout, so the late role has a slightly different delta distribution; in `storm` 1 unfaulted own adjustment shares its item with an inherited ticket; batch validation limits the joint class and mode distribution. The worker found no visible value that tells a pair class or a fault mode. |
+| Careful clerks | `rv3-d-careful` | 0 | 5 independent careful policies reach reward, clean and `legs.p1` 1.0 in all 24 conditions, 10 instances, also with `--worst 24` in `team` (1,500 episodes); independent write accounting holds in 100 of 100 checked episodes. The most thorough policy needs up to 206 requests in `storm-solo` and 68 in `limbo-probe`; the smallest write margin is 6. |
+
+INFERRED: The late-fault observations give no route around a skill: a clerk learns a fault's mode only by reading the log after the 504 (`dedupe`), and a retry of a late write is safe only with `expect` (`cond`). The 206-request maximum of a careful clerk makes the 900 s time cap a risk (`COST.md`).
+
+### `dossier` v3.1
+
+| Surface | Worker | Confirmed | What it found |
+|---|---|---:|---|
+| Routes without the skills | `rv3-s-skills` | 8 | 1,220 episodes. A reader that drops the incoming withdrawal, closure or dispute lines and, for an asked site with no site line, predicts the dropped status from p1's own private markers passes `gone-probe`, `cascade-probe` and `dispute-probe` 10 of 10 and `mix-probe` 3 or 10 of 10. Cause: the incoming special kind matched p1's own special kind in each single-status facet, and "no site line" meant "special" in every instance. A zone-density selection without the watch list and a reader that never reads the register pass `mix-probe` 3 of 10 each. Sound narrower routes: `local_writer` (writes without a first register read and trusts the played clerks' repair) and a one-pass `full`. |
+
+### `inquiry` v2.4
+
+| Surface | Worker | Confirmed | What it found |
+|---|---|---:|---|
+| Routes without the scope check | `rv3-q-skills` | 4 in-sample | 125 single-facet and 24 `mixed` selectors that never compare scope (2,980 episodes): 29 selector and facet cells pass more than 2 of 10. 4 representative findings: figures close to the other month of the same site (`month` 4/10), figure remainder by the crate factor (`part` 4/10), many distinct digits and a small gap between the 2 months (`range` 5/10 each). The worker said these are in-sample counts after a search and asked for a held-out test. |
+| Held-out replication | `q4-holdout` | 1 mechanism | The rule was fixed before the run: a selector shows a generator dependency if, on 50 new instances per facet (5 new seeds; 1 seed rejected by the generator's own balance check), it beats the best fixed-position control by at least 0.15 and by 2 standard errors. Only the crate-factor remainder replicates: `month` 23/50 against 11/50, `part` 25/50 against 10/50. Cause: crate and chain totals must be whole crates, so a right figure is more often a multiple of the factor than a wrong one. The other 3 findings do not replicate (10/50, 10/50, 8/50 against controls of 11 to 13). The oracle scores 1.0 in all 1,200 held-out episodes. |
+
+INFERRED: In-sample counts on 10 instances, after a search over many selectors, overstate the information in a generator. A held-out cohort from new seeds, with a decision rule set before the run, separates a real dependency from a chance pattern. This test belongs in the review process for every family.
+
+## Fixes after round 3
+
+### `dossier` v3.2
+
+Changes: each single-status facet asks p1 about an unreported watch site whose answer is `unknown`; incoming and outgoing special cases are assigned independently within the facet's skills; closure cases keep the older site report, so the newer zone line must win; `mix` has 24 sites, 12 off-watch reports and 3/5/7 questions, with 7 withdrawals, 7 closures and 6 disputes as incoming cases over the 10 instances. The generator asserts that removing the deciding special line changes the answer, and that an asked site without a site line can have the answer `unknown`. The 8 `rv3-s` findings are regressions with status `fixed` (20 findings in total). Card: 33 PASS, 0 FAIL, 0 NOT_CHECKED.
+
+| Policy (finding) | Facet | v3.1 | v3.2 |
+|---|---|---:|---:|
+| Reader without withdrawal lines (`rv3-s-01`, `04`) | gone, mix | 10, 3 | 0, 0 |
+| Reader without closure lines (`rv3-s-02`, `05`) | cascade, mix | 10, 10 | 0, 0 |
+| Reader without dispute lines (`rv3-s-03`, `06`) | dispute, mix | 10, 3 | 0, 0 |
+| Zone-density selection (`rv3-s-07`) | mix | 3 | 0 |
+| No register read (`rv3-s-08`) | mix | 3 | 0 |
+
+`full` and `local_writer` pass 10 of 10 in all 12 probe and reader conditions; the 11 round-2 policies without selection pass 0 of 10 in `scarce` and `mix`; the 8 careful policies score 1.0 in all 24 conditions; the 6 blind policies score 1.0 in all 18 conditions other than solo (3 of them still wait for a register in solo). The `rv-s7` stale-dispute regression moved to another schedule (`bursty:524:128`) with the same mechanism. The oracle needs at most 25 requests in `mix-probe` (was 21).
+
+Chance-baseline review of v3.2 (`rv4-s-split`, 9,920 episodes on the 10 built and 30 held-out instances per condition): a reader that removes every line of the special kind that its facet needs and then splits its look-alike questions by a fixed rule passes about half of the instances that need the kind (site number, question order, zone order, neighbour times: 2 to 8 of 10, 11 to 20 of 30), because each instance has 1 special and 1 `unknown` question. The rule "the site that p1 reported itself is the special one" passes `gone`, `cascade` and `dispute` 10 of 10 and 30 of 30, because every incoming special site had a private report and the `unknown` site never has one. The finding tool confirmed 112 cells. They are open in v3.2: do not use `gone`, `cascade` and `dispute` as evidence of the reader skill until a fix passes the same test.
+
+### `inquiry` v2.5
+
+Changes: every displayed figure is a whole number of crates (amounts, monthly totals, part shares and range offsets on the factor grid; chain totals on the factor-squared grid). The generator asserts remainder 0 for every first figure and bounds the gap in the share of figures divisible by the factor squared between faulty and right replies at 15 points per facet. 2 new regressions (`month` and `part` remainder) with status `fixed` (8 findings). Card: 36 PASS, 0 FAIL, 0 NOT_CHECKED.
+
+The same held-out test with the same rule on 5 new v2.5 seeds (none rejected): no round-3 selector in `month`, `part`, `range` or `mixed` shows a dependency. The remainder selectors fall to their controls (`month` 10/50 against 10/50, `part` 12/50 against 12/50). The 7 careful policies score 1.0 in 1,680 episodes; no blind cell that was 1.0 drops. Remaining signals on the 10 built instances: sentence length passes `part` 5 of 10 and `range` 8 of 10 (the reply form shows the scope, as intended); a policy that repairs part, range and crate by form and guesses the month passes `mixed` 6 of 10 (was 4).

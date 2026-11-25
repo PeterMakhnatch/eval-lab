@@ -1,7 +1,7 @@
 # Trial and request budget (no prices)
 
 OBSERVED — Counts below come from the in-process lab, with no Docker or model.
-The family seeds are `depot-v4.1`, `dossier-v3.1` and `inquiry-v2.4`.
+The family seeds are `depot-v4.1`, `dossier-v3.2` and `inquiry-v2.5`.
 For each condition, run `uv run --no-sync python -m muster lab FAMILY --condition FACET-ARM --policy oracle --json`.
 Sum `steps` over the real seats of each returned episode. The unit is a world API request, not a model call.
 The command uses the default round schedule. Each condition contains 10 instances.
@@ -18,10 +18,10 @@ The family adapters can change before landing. Recheck these counts against the 
 | depot | storm | 88 | 86 | 115 | not an arm |
 | dossier | share | 17 | not an arm | 13 | 7 |
 | dossier | scarce | 17 | not an arm | 13 | 7 |
-| dossier | gone | 17 | not an arm | 13 | 7 |
-| dossier | cascade | 17 | not an arm | 13 | 7 |
-| dossier | dispute | 19 | not an arm | 13 | 7 |
-| dossier | mix | 21 | not an arm | 13 | 7 |
+| dossier | gone | 18 | not an arm | 14 | 8 |
+| dossier | cascade | 18 | not an arm | 14 | 8 |
+| dossier | dispute | 20 | not an arm | 14 | 8 |
+| dossier | mix | 25 | not an arm | 16 | 7 |
 
 | Family | Facet | Probe requests/trial | Fields requests/trial | Flagged requests/trial | Solo requests/trial |
 |---|---|---:|---:|---:|---:|
@@ -32,7 +32,7 @@ The family adapters can change before landing. Recheck these counts against the 
 | inquiry | silent | 21 | 21 | 21 | 11 |
 | inquiry | mixed | 21–22 (mean 21.6) | 21–22 (mean 21.6) | 21–22 (mean 21.6) | 11 |
 
-Mixed probe, fields and flagged counts in instance order: 22, 22, 22, 22, 22, 21, 21, 22, 21, 21.
+Mixed probe, fields and flagged counts in instance order: 22, 21, 22, 21, 22, 22, 21, 22, 22, 21.
 No lab adapter failed in this measurement. Every episode has reward 1.0.
 
 | Family | Facet | Team requests/trial (range and mean over instances) |
@@ -44,11 +44,11 @@ No lab adapter failed in this measurement. Every episode has reward 1.0.
 | depot | takeover | 57–59 (57.4) |
 | depot | storm | 119–125 (121.2) |
 | dossier | share | 53–65 (57.8) |
-| dossier | scarce | 56–62 (61.4) |
-| dossier | gone | 53–71 (62.0) |
-| dossier | cascade | 53–65 (59.6) |
-| dossier | dispute | 59–71 (63.2) |
-| dossier | mix | 68–74 (70.4) |
+| dossier | scarce | 56–68 (62.0) |
+| dossier | gone | 54–72 (59.4) |
+| dossier | cascade | 54–66 (58.8) |
+| dossier | dispute | 60–72 (64.2) |
+| dossier | mix | 83–89 (86.6) |
 
 Inquiry has no team arm. The team counts describe the measured schedule, not every possible schedule.
 
@@ -60,16 +60,16 @@ The oracle request totals are reference workload counts, not a cap on model requ
 | Cohort | Family | Instances × attempts × arms × facets | Trials | Oracle requests |
 |---|---|---|---:|---:|
 | pilot | depot | 10 × 1 × 2 × 4 | 80 | 4,800 |
-| pilot | dossier | 10 × 1 × 2 × 3 | 60 | 780 |
+| pilot | dossier | 10 × 1 × 2 × 3 | 60 | 860 |
 | pilot | inquiry | 10 × 1 × 2 × 1 | 20 | 432 |
-| pilot total | all 3 | | 160 | 6,012 |
+| pilot total | all 3 | | 160 | 6,092 |
 | replication non-team | depot | 10 × 3 × 3 × 6 | 540 | 30,840 |
-| replication non-team | dossier | 10 × 3 × 3 × 6 | 540 | 6,840 |
+| replication non-team | dossier | 10 × 3 × 3 × 6 | 540 | 7,320 |
 | replication non-team | inquiry | 10 × 3 × 4 × 6 | 720 | 13,104 |
 | replication team | depot | 10 × 3 × 1 × 6 | 180 | 14,694 |
-| replication team | dossier | 10 × 3 × 1 × 6 | 180 | 11,232 |
-| replication total | all 3 | | 2,160 | 76,710 |
-| smoke | all 3 | 10 × 1 × 4 × 18 | 720 | 25,570 |
+| replication team | dossier | 10 × 3 × 1 × 6 | 180 | 11,664 |
+| replication total | all 3 | | 2,160 | 77,622 |
+| smoke | all 3 | 10 × 1 × 4 × 18 | 720 | 25,874 |
 
 The smoke is scripted, with no model. This measurement did not start a Docker smoke.
 The replication is a separate cohort. It needs approval and a candidate gap from the pilot.
@@ -87,6 +87,7 @@ The total pilot cap is 40 agent-hours. The replication cap is 705 agent-hours.
 The cap is not the actual time. Team trials have more real seats and thus more aggregate agent time.
 The depot oracle needs up to 88 world requests per real seat in a pilot trial (`storm-probe`) and 115 in `storm-solo`.
 An agent that makes 1 request per turn then has about 10 s per turn under 900 s in `storm-probe`, and less in `storm-solo`.
+A careful scripted clerk that reads the book and log around every write needed up to 206 requests in `storm-solo` (`REVIEWS.md`, round 3): about 4 s per request.
 Decide the time cap before the Docker smoke; a time-out is a lost trial, not a 0.
 Token counts per model request, calls per world request, failed calls, retries and actual model prices are unknown.
 The lab cannot establish equal tokens, time, or dollar cost across arms.

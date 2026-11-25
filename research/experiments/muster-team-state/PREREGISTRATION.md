@@ -1,7 +1,7 @@
 # Draft pre-registration: team state
 
 2026-11-25. Before any model trial of these families. Peter must approve the draft before any paid run.
-Family versions: `depot` v4.1, `dossier` v3.1, `inquiry` v2.4 (generator seeds `depot-v4.1`, `dossier-v3.1`, `inquiry-v2.4`; designs in `DESIGN-*.md` in this directory).
+Family versions: `depot` v4.1, `dossier` v3.2, `inquiry` v2.5 (generator seeds `depot-v4.1`, `dossier-v3.2`, `inquiry-v2.5`; designs in `DESIGN-*.md` in this directory).
 Every family has a committed `card.json` that `muster card FAMILY --verify` checks in the gate. `REVIEWS.md` lists every review.
 
 ## Question
@@ -131,12 +131,13 @@ The world checks that lines come from the writer's own reports or allowed disput
 A dossier loss can come from a wrong reading of the rule or a mistake with a perfect register.
 Tool batching is another possible cause. Inspect the solo, reader and event logs.
 A dossier team loss can also come from the barrier: every clerk must wait until close, and a delayed put can replace a newer line.
+In `dossier` v3.2, a reader that ignores the special line can pass `gone`, `cascade` and `dispute` by the rule "the site I reported myself is the special one" (`REVIEWS.md`). Do not run the pilot on v3.2 `cascade` and `dispute`; use a version that passes the same chance test.
 Inquiry has 1 real agent. In `probe`, scripted colleagues state the full scope of each reply in 4 fixed sentence forms;
 `fields` gives the same replies as fields, `flagged` adds which fields differ, and `solo` gives the settling records.
 It tests the check and the correction, not the reading of loose prose. Its chain case is a designed adversary.
 A clerk that already knows the chain rule can pass the chain without reading the corrected reply (`REVIEWS.md`).
-In `part` and `range`, the reply form alone shows the fault (sentence length passes 7 of 10); these facets test recognition of the form.
-In `mixed`, a clerk that checks every field except the month passes 4 or 5 of 10 instances by a guess.
+In `part` and `range`, the reply form alone shows the fault (sentence length passes 5 of 10 in `part` and 8 of 10 in `range`); these facets test recognition of the form.
+In `mixed`, a clerk that repairs part, range and crate replies by their form and guesses the month passes 6 of 10 instances.
 An inquiry loss can also come from spending: `questions`, `fields_named_unneeded` and `refused_for_budget` show it.
 Blind implementers (a model that writes a program from the seat text alone) test whether the text is sufficient.
 They do not predict how an agent that works step by step will score.

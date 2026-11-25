@@ -1,12 +1,14 @@
 # `inquiry`: does an agent notice that a teammate's reply does not answer the question it asked, and ask for the right correction?
 
-Status: design v2.4 (2026-11-25, Fable, muster lane). Nothing here was run with a model.
+Status: design v2.5 (2026-11-25, Fable, muster lane). Nothing here was run with a model.
 
 History: v1 was replaced after an independent review (13 defects). v2 was reviewed again (13 defects).
 v2.1 removed the part question, introduced the chain trap and set the budget to 13.
 v2.2 made the trap obey the named-field rule; v2.3 keyed it to the case, not to 1 reply id.
 v2.4 removes the fixed calendar, figure and chain-field signals and balances fault positions after
-round 2 (`REVIEWS.md`). Section 10 lists the design reviews.
+round 2 (`REVIEWS.md`). v2.5 removes the replicated factor-remainder dependency in month and part.
+It puts all displayed stock figures on the kg-per-crate factor grid. The held-out review and the
+2 new findings are recorded in `REVIEWS.md`. Section 10 lists the design reviews.
 
 ## 1. The construct and the prior work
 
@@ -14,9 +16,9 @@ A desk clerk must file an exact figure for each case. The facts are with colleag
 colleague replies with a true figure and says what the figure covers. Sometimes the reply covers something
 else than the question: another month, 1 part of the site, a range instead of a number, another unit, or
 no reply comes. Every reply is true. A colleague gives the same reply to the same question, so asking
-again does not help: the clerk must say which part of the reply is off. The family measures whether the
-agent checks each reply against its own question, names the right correction, checks the corrected reply
-again, and spends its questions only where they are needed.
+again does not help except after silence: the clerk must say which part of the reply is off.
+The family measures whether the agent checks each reply against its own question, names the right
+correction, checks the corrected reply again, and spends its questions only where they are needed.
 
 Prior work (read by a research worker on 2026-11-25; numbers are the authors', not reproduced):
 - UnCoBench v3 (2026-11-23): colleagues with controlled reply profiles, replies in natural language.
@@ -74,11 +76,12 @@ in 1 of 4 frozen forms:
 3. `North, parts A and B, end of month 3: 400 kg.`
 4. `End of month 3, North (parts A and B): 400 kg.`
 
-A range has `between 360 and 480 kg` in place of `400 kg`. Crates: `130 crates` in place of `400 kg`. A
-reply that covers 1 part says `part A` and no `together`. Every form is used for exact, off and corrected
-replies alike. The form is hashed from the instance seed, question and scope, with no separate fault
-flag. The generator checks the balance of forms on exact and off replies. The words of a reply never
-refer to the question. In the `fields` arm a reply
+A range has `between 360 and 480 kg` in place of `400 kg`. Crates: `120 crates` in place of `400 kg`.
+A reply that covers 1 part says `part A` and no `together`. These numbers illustrate the forms.
+The same 4 forms apply to exact, off and corrected replies. The form is hashed from the instance seed,
+question and scope, with no separate fault flag. The generator checks the balance of forms on exact
+and off replies along the oracle repair path. The words of a reply never refer to the question.
+In the `fields` arm a reply
 is `{"id", "from", "site", "parts": [...], "month", "unit", "value"}`, or with `"value": null, "low",
 "high"` for a range.
 
@@ -149,7 +152,7 @@ Naming all 4 fields on the chain reply costs 4: 14 in total, over budget. The co
 `fields_named_unneeded` and `refused_for_budget` show a loss from spending.
 
 Blind strategies: an identical second question returns the same reply except after silence.
-Naming all 4 fields for every off reply costs 4 each (8 + 12 = 20 for 3 mismatched replies).
+Naming all 4 fields for each of 3 mismatched replies costs 4 each (8 + 12 = 20 questions).
 Correcting 1 fixed field for the first 5 cases fits the budget. With 3 uniformly placed faults its
 nominal chance per instance is 10/56 (17.86%); the holder and cohort balance constraints can change
 that chance. The card reports reward summaries and the selfcheck counts exact chance passes.
@@ -183,7 +186,7 @@ Every policy receives only its seat name. Policies that read a reply use 1 parse
 | `coverer` | `retry`, `cover` | `persistent`, and corrects `parts` when the reply does not cover all parts. |
 | `exacter` | `retry`, `exact` | `persistent`, and corrects `value` when the reply is a range. |
 | `converter` | `retry`, `convert` | `persistent`, and multiplies a crate figure by `kg_per_crate`. |
-| `oracle` | all 6 | Compares every reply, also a corrected one, with the question; corrects exactly the fields that differ, in 1 request; converts crates itself. |
+| `oracle` | all 6 | Compares every reply, also a corrected one, with the question. It corrects exactly the fields that differ, except `unit`, in 1 request; it converts crates itself. |
 | `wide` | all 6 (other route) | `oracle`, but when the month differs it names `month` and `parts` together; then it reads the new reply and corrects what is still off. |
 | `no_recheck` | near miss | `oracle`, but files the raw figure after a correction, without checking the new scope or converting its unit. |
 | `namer` | near miss | `wide`, but files the raw figure after a correction, without checking the new scope or converting its unit. |
@@ -213,33 +216,41 @@ Every policy receives only its seat name. Policies that read a reply use 1 parse
 6. `solo`: `oracle` and `converter` = 1.0 in all 6 facets; `truster` below 1.0 in `mixed`.
 7. Floors: `idle` = 0.0 and `spam` = 0.0 everywhere; `fuzz` causes no 500.
 8. Equal budget: the question and file budgets are the same in `probe`, `fields` and `flagged`.
-9. Parser: the zoo's parser returns the scope that the world holds for every reply of every instance, in
-   every sentence form (asserted by the generator and the selfcheck; the card has no claim type for it).
+9. Parser: the zoo's parser returns the world's public scope and figure for every reply on the checked
+   paths, in all 4 sentence forms (asserted by the generator and selfcheck; no card claim type for it).
 10. Built in: determinism, exact replay, live state equals replayed state, no token of another seat in
     any response, every zoo policy ends, every filing of the oracle matters.
 
 ## 8. Instance constraints (the generator asserts each one)
 
-- 4 sites with 2 or 3 parts; `kg_per_crate` is 4, 5 or 8. Part stock figures are positive integers
-  at most 160,000. The 8 apparent first figures of `mixed` (the low end for a range) are distinct
-  integers in 500..20,000, drawn before the books are built. There is no multiple-of-40 grid.
-  For the crate figure ranked with the 4 exact first figures, each of the 5 ranks occurs twice
-  across the 10 instances. The same holds for the chain figure.
+- 4 sites with 2 or 3 parts; `kg_per_crate` is 4, 5 or 8. Part stock figures are positive integer
+  multiples of that factor, at most 160,000. The 8 apparent first figures of `mixed` (the low end
+  for a range) are distinct factor-grid integers in 500..20,000, drawn before the books are built.
+  All displayed stock figures, including both range endpoints and corrected crate figures, have
+  zero residue modulo the factor. The crate and chain true totals are divisible by the factor
+  squared. For the crate figure ranked with the 4 exact first figures, each of the 5 ranks occurs
+  twice across the 10 instances. The same holds for the chain figure.
 - 8 cases: 2 per site, 2 distinct months drawn from 1..6. The 2 off months for a site are distinct
   draws from the 4 months not in its cases. No fixed direction or gap is imposed.
 - The 8 true case figures are distinct. No whole-site figure of another month of a case's site
   equals that case's true figure. No fixed month-to-month change is imposed.
-- A range is `low = true - a`, `high = true + b`, with distinct integer offsets in 10..90.
-  The true figure is neither endpoint nor the middle (including the integer midpoint).
+- A range is `low = true - a`, `high = true + b`, with distinct offsets on the factor grid
+  in 10..90. The true figure is neither endpoint nor the middle (including the integer midpoint).
 - The generator rejects matching wrong figures for a case: other whole-site months, strict
   subsets of parts in any month of the site, the range endpoints, integer midpoint, crate
   quotient, 0, and the true figures of other cases.
-- For each instance the generator draws 128 valid candidate books; it draws a cohort of 10
-  books in which each of the 8 magnitude ranks of first figures is off 3 or 4 times in `part`.
-  Of the 30 partial figures, 14..16 are smaller than the first figure of the other case of their site.
+- For each instance the generator draws 128 valid candidate books within 20,000 attempts. It draws
+  a cohort of 10 books within 2,000,000 attempts in which each of the 8 magnitude ranks of first
+  figures is off 3 or 4 times in `part`. Of the 30 partial figures, 14..16 are smaller than the
+  first figure of the other case of their site.
+- In each 10-instance cohort and each of `month`, `part`, `range` and `mixed`, the proportion
+  of first raw figures (the low endpoint for a range) divisible by the factor squared differs by
+  at most 15 percentage points between off and exact replies. The generator asserts zero residue
+  modulo the factor for every displayed stock figure. Cohort selection uses these arithmetic
+  properties and the rank checks, not policy scores.
 - The fault masks cover both holders in each non-plain instance; every case position is off
   3 or 4 times across the 10 instances of a 3-fault facet. In `mixed`, every position is off
-  5 times; each kind occurs at most 3 times at a position.
+  5 times; each off kind occurs at most 3 times at a position.
 - The first unnamed field after naming `month` follows the instance's order of `parts`, `value`,
   `unit`; these fields come first in 3, 3 and 4 instances respectively. The chain's possible
   second replies are checked for truthful scope, nonmatching raw figures and exact crate conversion.
@@ -256,18 +267,22 @@ Every policy receives only its seat name. Policies that read a reply use 1 parse
   total effect of the hint under fixed conditions.
 - The chain case adapts to the fields that the clerk names. It is a designed adversary, not a natural
   colleague. A clerk that already knows the trap rule can fix the first mismatch and pass without
-  checking the new scope. 2 such plans pass 10 of 10 at 13 questions: naming `month`, `parts`,
+  checking the new scope. 2 such plans pass 10 of 10 within the 13-question budget: naming `month`, `parts`,
   `value` together and converting crates, or correcting the original reply a second time.
   The reviewed fixed `parts` follow-up passes 3 of 10 when `parts` is the first drawn field.
   The family says nothing about how often real colleagues introduce a new mismatch.
 - A failure can have other causes: arithmetic and filing (the `solo` arm separates it), reading the
   sentence (the `fields` arm separates it), tool calls sent in 1 batch before any reply is read (the
   step join of `muster events` separates it), an exhausted budget (`refused_for_budget`).
-- The blind fixed-field baselines pass their own single facets by chance (0..3 of 10 in v2.4; see
+- The blind fixed-field baselines pass their own single facets by chance (1..2 of 10 in v2.5; see
   section 4 for the nominal per-instance chance), and pass 0 of 10 in `mixed`. Sentence length
-  alone passes 7 of 10 in `part` and `range`; the reply form expresses the scope, as intended.
-  Partial-skill policies that repair part, range and crate by shape and guess the wrong-month
-  reply pass 4 or 5 of 10 in `mixed`. These are realized counts, not universal probability bounds.
+  alone passes 5 of 10 in `part` and 8 of 10 in `range`; the reply form expresses the scope, as intended.
+  Partial-skill policies that repair part, range and crate by shape and guess the wrong-month reply
+  pass up to 6 of 10 in `mixed`. These are realized counts, not universal probability bounds.
+  On 50 fresh instances per facet no round-3 selector in month, part, range or mixed meets the
+  pre-set dependency rule. The formerly replicated remainder selectors equal fixed-position controls.
+  The factor-squared proportion bound is not a proof of statistical independence. The shared stock
+  construction still produces higher-order divisibility variation (`REVIEWS.md`).
 
 ## 10. Reviews
 
@@ -278,3 +293,4 @@ Every policy receives only its seat name. Policies that read a reply use 1 parse
 | v2.1 rule check | Fable | 1 defect (a rule of the chain case contradicted the seat text); v2.2 |
 | v2.2 build | build worker (`b8d-inquiry-v22`) | 1 route around the chain trap; v2.3. `wide` (names `month` and `parts` together) spends 14 in the `month` facet: claim 3 holds in 10 of 12 conditions, by budget, not by a defect |
 | Built family | review workers and blind implementers | see `REVIEWS.md` |
+| v2.5 build and held-out review | `b8g-inquiry-v25` | Factor-grid repair, 8 findings regress, 36 card checks PASS; first 5 held-out seeds accepted, no month/part/range/mixed dependency flags (`REVIEWS.md`) |

@@ -633,6 +633,24 @@ def _reset_list(test_sh: str) -> list[str]:
     return [line.strip() for line in match.group(3).splitlines() if line.strip()]
 
 
+_SAVED_STATUS = re.compile(r"\b([A-Za-z_]\w*)=\$\?")
+_STATUS_TEST = re.compile(r"^\s*(?:(?:el)?if\s+|while\s+)?(?:\[\[?|test)\s")
+
+
+def _status_gated(lines: Sequence[str], start: int) -> bool:
+    assert 0 < start <= len(lines)
+    saved: set[str] = set()
+    for line in lines[start:]:
+        if line.lstrip().startswith("#"):
+            continue
+        if _STATUS_TEST.match(line) and any(re.search(r"\$\{?" + name + r"\b", line) for name in saved):
+            return True
+        if re.search(r"reward\.(?:txt|json)", line):
+            return False
+        saved.update(match.group(1) for match in _SAVED_STATUS.finditer(line))
+    return False
+
+
 def _reward_gate(test_sh: str, sources: Sequence[TestSource]) -> dict[str, Any]:
     mechanisms: list[str] = []
     reward_lines = _find(test_sh, r"reward\.(?:txt|json)", limit=6)
@@ -661,7 +679,8 @@ def _reward_gate(test_sh: str, sources: Sequence[TestSource]) -> dict[str, Any]:
     assert len(reward_lines) <= 6
     masks: list[tuple[int, str]] = []
     masks += _find(test_sh, r"(?:pytest|unittest|jest|mocha|cargo|go test|vitest)[^\n]*\|\|\s*true")
-    masks += _find(test_sh, r"^\s*set\s+\+e\b")
+    lines = test_sh.splitlines()
+    masks += [hit for hit in _find(test_sh, r"^\s*set\s+\+e\b") if not _status_gated(lines, hit[0])]
     pipe = _find(test_sh, r"(?:pytest|unittest|jest|mocha|cargo test|go test|vitest)[^\n|]*\|\s*(?:tee|tail|head|grep|cat)\b")
     if pipe and "pipefail" not in test_sh:
         masks += pipe

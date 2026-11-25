@@ -17,6 +17,9 @@ from evallab.sim.engine import STEP_LIMIT, Simulation
 _STEP_BUDGET = 20
 _CONTEXT = {"workdir": "/app", "baked": {}, "layout_separate": False}
 _EXIT_TRIGGERS = ("none", "dollar_q", "rc_assign", "and_echo")
+_SAVED_STATUS = ("none", "unused", "gated")
+_SAVED_LINE = "saved=$?"
+_GATE_LINES = ('if [ "$saved" -ne 0 ]; then', "echo failed", "fi")
 _ADDOPTS = ("none", "mention", "clear", "both")
 _BARE = ("node", "npm", "cargo", "go", "ruby")
 _WORKDIR = ("cwd", "cd", "none")
@@ -95,6 +98,7 @@ class _Plan:
     workdir_mode: str
     pipefail: bool
     plugin_autoload_disabled: bool
+    saved_status: str
 
     @property
     def unconditional(self) -> bool:
@@ -161,8 +165,9 @@ def _plan(rng: Random) -> _Plan:
         workdir_mode=rng.choice(_WORKDIR),
         pipefail=_flag(rng),
         plugin_autoload_disabled=_flag(rng),
+        saved_status=rng.choice(_SAVED_STATUS),
     )
-    assert plan.exit_trigger in _EXIT_TRIGGERS
+    assert plan.exit_trigger in _EXIT_TRIGGERS and plan.saved_status in _SAVED_STATUS
     assert plan.addopts in _ADDOPTS and plan.workdir_mode in _WORKDIR
     assert len(plan.extra_bare) == extra_count <= 2
     assert 0 <= plan.pythonpath_count <= 2 and 0 <= plan.deselect_count <= 2
@@ -172,7 +177,7 @@ def _plan(rng: Random) -> _Plan:
 
 def _mechanisms(plan: _Plan) -> list[str]:
     found: list[str] = []
-    if plan.exit_trigger != "none":
+    if plan.exit_trigger != "none" or plan.saved_status != "none":
         found.append("exit_code")
     if plan.structured:
         found.append("structured_report")
@@ -246,14 +251,19 @@ def _render(plan: _Plan) -> tuple[str, _Lines]:
         script.add("set -o pipefail")
     if plan.reward_clear:
         recorded.reward_clear = script.add("rm -f /logs/verifier/reward.txt")
-    if plan.mask_set_plus_e:
-        recorded.set_plus_e = script.add("set +e")
+    set_plus_e = script.add("set +e") if plan.mask_set_plus_e else None
     if plan.early_exit:
         recorded.early_exit = script.add("exit 1")
     if plan.mask_or_true:
         recorded.or_true = script.add("pytest tests || true")
     pipe = script.add(_PIPE)
     recorded.pipe = None if plan.pipefail else pipe
+    if plan.saved_status != "none":
+        script.add(_SAVED_LINE)
+    if plan.saved_status == "gated":
+        for text in _GATE_LINES:
+            script.add(text)
+    recorded.set_plus_e = None if plan.saved_status == "gated" else set_plus_e
     if plan.structured:
         script.add("jq . /tmp/report.json")
     if plan.log_grep:
@@ -329,7 +339,7 @@ class MechanicsSimulation:
         plan = _plan(self.rng)
         script, lines = _render(plan)
         self._write(script, plan)
-        self.sim.begin("mechanics-script", clear=plan.reward_clear, early=plan.early_exit)
+        self.sim.begin("mechanics-script", clear=plan.reward_clear, early=plan.early_exit, saved=plan.saved_status)
         self._require_bash()
         package = load_package(self.root)
         sources, patch_scripts, _patches = _test_sources(package)

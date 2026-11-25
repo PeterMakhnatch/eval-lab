@@ -138,5 +138,19 @@
     "seed": 497,
     "step": 182,
     "subsystem": "anatomy-hypotheses"
+  },
+  {
+    "found_at_utc": "2026-11-25T04:20:00.000000+00:00",
+    "invariant": "mechanics_failure_masks",
+    "seed": 66,
+    "step": 157,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T04:20:00.000000+00:00",
+    "invariant": "mechanics_failure_masks",
+    "seed": 64,
+    "step": 159,
+    "subsystem": "grader-script-mechanics"
   }
 ]

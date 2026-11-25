@@ -27,6 +27,8 @@ _STATUS_LINES = {
 _LATE_RUN = "pytest tests -q"
 _ADDOPTS = ("none", "mention", "clear", "both")
 _BARE = ("node", "npm", "cargo", "go", "ruby")
+_WRAPPERS = ("none", "uvx", "uv run", "uv tool run", "npx", "pipx run", "poetry run")
+_WRAPPED = ("pytest", "python3", *_BARE)
 _WORKDIR = ("cwd", "cd", "none")
 _ISOLATION = (
     "env_i",
@@ -46,6 +48,7 @@ _BARE_LINE = {
     "go": "go version",
     "ruby": "ruby --version",
 }
+_WRAPPED_LINE = {**_BARE_LINE, "pytest": "pytest --version", "python3": "python3 --version"}
 _EXIT_LINE = {
     "dollar_q": "status=$?",
     "rc_assign": "RC=0",
@@ -105,6 +108,9 @@ class _Plan:
     plugin_autoload_disabled: bool
     saved_status: str
     late_status: str
+    wrapper: str
+    wrapped_runner: str
+    wrapper_split: bool
 
     @property
     def unconditional(self) -> bool:
@@ -173,11 +179,15 @@ def _plan(rng: Random) -> _Plan:
         plugin_autoload_disabled=_flag(rng),
         saved_status=rng.choice(_SAVED_STATUS),
         late_status=rng.choice(_SAVED_STATUS),
+        wrapper=rng.choice(_WRAPPERS),
+        wrapped_runner=rng.choice(_WRAPPED),
+        wrapper_split=_flag(rng),
     )
     assert plan.exit_trigger in _EXIT_TRIGGERS
     assert plan.saved_status in _SAVED_STATUS and plan.late_status in _SAVED_STATUS
     assert plan.addopts in _ADDOPTS and plan.workdir_mode in _WORKDIR
     assert len(plan.extra_bare) == extra_count <= 2
+    assert plan.wrapper in _WRAPPERS and plan.wrapped_runner in _WRAPPED
     assert 0 <= plan.pythonpath_count <= 2 and 0 <= plan.deselect_count <= 2
     assert 0 <= plan.unconditional_count <= 2 and 0 <= plan.zero_count <= _REWARD_EVIDENCE_LIMIT
     return plan
@@ -236,8 +246,11 @@ def _bare(plan: _Plan) -> list[str]:
     if plan.python_isolated:
         names.add("python3")
     names.update(plan.extra_bare)
+    if plan.wrapper != "none":
+        names.add(plan.wrapper.split()[0])
     found = sorted(names)
     assert found and "pytest" in found
+    assert plan.wrapper == "none" or plan.wrapper.split()[0] in found
     return found
 
 
@@ -321,10 +334,24 @@ def _render_env(script: _Script, recorded: _Lines, plan: _Plan) -> None:
         recorded.pythonpath.append(script.add(_PYPATH[index]))
     for name in plan.extra_bare:
         script.add(_BARE_LINE[name])
+    _render_wrapper(script, plan)
     for index in range(plan.deselect_count):
         recorded.deselect.append(script.add(_DESELECT[index]))
     assert len(recorded.pythonpath) == plan.pythonpath_count
     assert len(recorded.deselect) == plan.deselect_count
+
+
+def _render_wrapper(script: _Script, plan: _Plan) -> None:
+    if plan.wrapper == "none":
+        return
+    before = len(script.lines)
+    command = _WRAPPED_LINE[plan.wrapped_runner]
+    if plan.wrapper_split:
+        script.add(f"{plan.wrapper} \\")
+        script.add(command)
+    else:
+        script.add(f"{plan.wrapper} {command}")
+    assert len(script.lines) - before == 1 + int(plan.wrapper_split)
 
 
 def _render_tail(script: _Script, recorded: _Lines, plan: _Plan) -> None:
@@ -414,7 +441,7 @@ class MechanicsSimulation:
         expected = _isolation(plan)
         bare = _bare(plan)
         path_reset = plan.path_usr or plan.env_i
-        sim.begin("mechanics-env", addopts=plan.addopts, bare=len(bare))
+        sim.begin("mechanics-env", addopts=plan.addopts, bare=len(bare), wrapper=plan.wrapper, split=plan.wrapper_split)
         for name in _ISOLATION:
             sim.require(env["isolation_flags"][name] == expected[name], f"mechanics_{name}")
         addopts = env["pytest_addopts"]

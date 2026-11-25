@@ -166,5 +166,54 @@
     "seed": 105,
     "step": 157,
     "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T15:20:00.000000+00:00",
+    "invariant": "mechanics_bare_commands",
+    "seed": 2,
+    "step": 155,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T15:20:00.000000+00:00",
+    "invariant": "mechanics_bare_commands",
+    "seed": 4,
+    "step": 159,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T15:20:00.000000+00:00",
+    "invariant": "mechanics_bare_commands",
+    "seed": 8,
+    "step": 159,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T15:20:00.000000+00:00",
+    "invariant": "mechanics_bare_commands",
+    "seed": 13,
+    "step": 158,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T15:20:00.000000+00:00",
+    "invariant": "mechanics_bare_commands",
+    "seed": 17,
+    "step": 159,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T15:20:00.000000+00:00",
+    "invariant": "mechanics_bare_commands",
+    "seed": 21,
+    "step": 159,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T15:20:00.000000+00:00",
+    "invariant": "mechanics_bare_commands",
+    "seed": 25,
+    "step": 159,
+    "subsystem": "grader-script-mechanics"
   }
 ]

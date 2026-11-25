@@ -721,6 +721,22 @@ def _reward_gate(test_sh: str, sources: Sequence[TestSource]) -> dict[str, Any]:
     }
 
 
+_PATH_WRAPPER = re.compile(
+    r"(?:^|(?<=[;&|(\s]))([^\s;&|()]*/)?(uvx|uv\s+(?:tool\s+)?run|npx|pipx\s+run|poetry\s+run)(?=\s|$)[^;&|)\n]*", re.M
+)
+_PATH_RUNNER = re.compile(r"(?:^|[;&|(\s])(pytest|python3?|node|npm|cargo|go|ruby)\s", re.M)
+
+
+def _bare_commands(blob: str) -> list[str]:
+    text = "\n".join(line for _, line in _logical_lines(blob))
+    wrappers = {match.group(2).split()[0] for match in _PATH_WRAPPER.finditer(text) if match.group(1) is None}
+    runners = {match.group(1) for match in _PATH_RUNNER.finditer(_PATH_WRAPPER.sub(" ", text))}
+    found = sorted(wrappers | runners)
+    assert wrappers <= {"uvx", "uv", "npx", "pipx", "poetry"}
+    assert len(found) == len(wrappers) + len(runners)
+    return found
+
+
 def _env_vectors(test_sh: str, test_cmd: str, variables: Mapping[str, str]) -> dict[str, Any]:
     blob = test_sh + "\n" + test_cmd
     addopts_lines = _find(blob, r"PYTEST_ADDOPTS")
@@ -733,7 +749,7 @@ def _env_vectors(test_sh: str, test_cmd: str, variables: Mapping[str, str]) -> d
         "no_cacheprovider": "no:cacheprovider" in blob,
         "importlib_mode": "--import-mode=importlib" in blob,
     }
-    bare = sorted({m.group(1) for m in re.finditer(r"(?:^|[;&|(\s])(pytest|python3?|node|npm|cargo|go|ruby)\s", blob, re.M)})
+    bare = _bare_commands(blob)
     path_reset = bool(re.search(r"\bPATH=\S*/usr", blob)) or isolation["env_i"]
     pythonpath = _find(blob, r"\bPYTHONPATH=")
     deselect = _find(blob, r"(?:pytest[^\n]*(?:-k\s+[\"'][^\"']*\bnot\s|--deselect\b|--ignore(?:-glob)?\b|-m\s+[\"']not\s|--lf\b|\s-x\b)|\bxfail\b)")

@@ -1,0 +1,27 @@
+schema_version = "1.4"
+artifacts = ["/logs/world/events.jsonl"]
+
+[task]
+name = "inquiry-i02"
+description = "A desk clerk files exact stock figures using replies from scripted colleagues.\nEvery reply is true for its stated scope, but the scope can differ from the question.\nThe clerk can name fields to correct within a shared question budget.\nThe probe arm uses sentences; fields uses structured replies; flagged identifies differences.\nThe solo arm supplies the settling records without colleagues.\nThe committed card.json (muster card inquiry --write) is the reference."
+keywords = ["seats", "multi-agent", "muster"]
+
+[metadata]
+condition = "month-fields"
+facet = "month"
+arm = "fields"
+family = "inquiry"
+instance = "i02"
+oracle_reward = 1.0
+card = "muster/tasks/inquiry/card.json"
+
+[verifier]
+timeout_sec = 120.0
+
+[agent]
+timeout_sec = 900.0
+
+[environment]
+build_timeout_sec = 600.0
+
+[agents.p1]

@@ -1,0 +1,12 @@
+[probe]
+REPLY = '''A reply is 1 sentence with an id, for example `{"id": "r7", "from": "p2", "text": "North, parts A and B, end of month 4: 400 kg."}`.'''
+CHECK = ""
+
+[fields]
+REPLY = '''A reply has an id and fields, for example `{"id": "r7", "from": "p2", "site": "north", "parts": ["A", "B"], "month": 4, "unit": "kg", "value": 400}`. A reply without an exact figure has `"value": null` and `"low"` and `"high"`.'''
+CHECK = ""
+
+[flagged]
+REPLY = '''A reply is 1 sentence with an id, for example `{"id": "r7", "from": "p2", "text": "North, parts A and B, end of month 4: 400 kg."}`.'''
+CHECK = '''- Every response to `ask` and `correct` also has `"check"`: `{"answers_your_question": true or false, "differs_in": [...]}`. `differs_in` lists the fields in which the reply differs from your question. It is `["reply"]` when no reply came.
+'''

@@ -1,0 +1,3211 @@
+{
+  "builtins": [
+    {
+      "episodes": 4800,
+      "id": "builtin.determinism",
+      "status": "PASS"
+    },
+    {
+      "episodes": 4800,
+      "id": "builtin.replay",
+      "status": "PASS"
+    },
+    {
+      "episodes": 4800,
+      "id": "builtin.state_matches_log",
+      "status": "PASS"
+    },
+    {
+      "episodes": 4800,
+      "id": "builtin.no_world_error",
+      "status": "PASS"
+    },
+    {
+      "episodes": 4800,
+      "id": "builtin.no_hidden_string",
+      "status": "PASS"
+    },
+    {
+      "episodes": 4800,
+      "id": "builtin.policies_end",
+      "status": "PASS"
+    },
+    {
+      "episodes": 4800,
+      "id": "builtin.log_continuous",
+      "status": "PASS"
+    },
+    {
+      "episodes": 4800,
+      "id": "builtin.reward_range",
+      "status": "PASS"
+    },
+    {
+      "episodes": 240,
+      "id": "builtin.oracle_ceiling",
+      "status": "PASS"
+    },
+    {
+      "episodes": 240,
+      "id": "builtin.credited_events_matter",
+      "status": "PASS"
+    },
+    {
+      "episodes": 420,
+      "id": "builtin.refused_events_do_not_matter",
+      "status": "PASS"
+    },
+    {
+      "episodes": 240,
+      "id": "builtin.floor",
+      "status": "PASS"
+    },
+    {
+      "episodes": 6,
+      "id": "builtin.findings_regress",
+      "status": "PASS"
+    }
+  ],
+  "claims": [
+    {
+      "episodes": 240,
+      "id": "01-oracle",
+      "status": "PASS"
+    },
+    {
+      "episodes": 840,
+      "id": "02-skills",
+      "status": "PASS"
+    },
+    {
+      "episodes": 100,
+      "id": "03-wide-pass",
+      "status": "PASS"
+    },
+    {
+      "episodes": 20,
+      "id": "03-wide-month-budget",
+      "status": "PASS"
+    },
+    {
+      "episodes": 100,
+      "id": "04-no_recheck-pass",
+      "status": "PASS"
+    },
+    {
+      "episodes": 20,
+      "id": "04-no_recheck-fail",
+      "status": "PASS"
+    },
+    {
+      "episodes": 80,
+      "id": "04-namer-pass",
+      "status": "PASS"
+    },
+    {
+      "episodes": 40,
+      "id": "04-namer-fail",
+      "status": "PASS"
+    },
+    {
+      "episodes": 40,
+      "id": "04-midpoint",
+      "status": "PASS"
+    },
+    {
+      "episodes": 80,
+      "id": "04-repeater",
+      "status": "PASS"
+    },
+    {
+      "episodes": 80,
+      "id": "04-fix_all",
+      "status": "PASS"
+    },
+    {
+      "episodes": 60,
+      "id": "05-fix_month",
+      "status": "PASS"
+    },
+    {
+      "episodes": 60,
+      "id": "05-fix_parts",
+      "status": "PASS"
+    },
+    {
+      "episodes": 60,
+      "id": "05-fix_value",
+      "status": "PASS"
+    },
+    {
+      "episodes": 60,
+      "id": "06-reactive",
+      "status": "PASS"
+    },
+    {
+      "episodes": 60,
+      "id": "06-oracle",
+      "status": "PASS"
+    },
+    {
+      "episodes": 60,
+      "id": "07-oracle",
+      "status": "PASS"
+    },
+    {
+      "episodes": 60,
+      "id": "07-converter",
+      "status": "PASS"
+    },
+    {
+      "episodes": 10,
+      "id": "07-truster",
+      "status": "PASS"
+    },
+    {
+      "episodes": 240,
+      "id": "08-idle",
+      "status": "PASS"
+    },
+    {
+      "episodes": 240,
+      "id": "08-spam",
+      "status": "PASS"
+    },
+    {
+      "episodes": 240,
+      "id": "08-fuzz",
+      "status": "PASS"
+    },
+    {
+      "episodes": 0,
+      "id": "09-equal-budget",
+      "status": "PASS"
+    }
+  ],
+  "conditions": [
+    "plain-probe",
+    "plain-fields",
+    "plain-flagged",
+    "plain-solo",
+    "month-probe",
+    "month-fields",
+    "month-flagged",
+    "month-solo",
+    "part-probe",
+    "part-fields",
+    "part-flagged",
+    "part-solo",
+    "range-probe",
+    "range-fields",
+    "range-flagged",
+    "range-solo",
+    "silent-probe",
+    "silent-fields",
+    "silent-flagged",
+    "silent-solo",
+    "mixed-probe",
+    "mixed-fields",
+    "mixed-flagged",
+    "mixed-solo"
+  ],
+  "family": "inquiry",
+  "matrix": {
+    "converter": {
+      "mixed-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "mixed-flagged": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "mixed-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "mixed-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "month-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "month-flagged": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "month-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "month-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "part-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "part-flagged": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "part-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "part-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "range-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "range-flagged": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "range-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "range-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      }
+    },
+    "coverer": {
+      "mixed-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "mixed-flagged": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "mixed-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "mixed-solo": {
+        "episodes": 10,
+        "max": 0.875,
+        "mean": 0.875,
+        "min": 0.875
+      },
+      "month-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "month-flagged": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "month-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "month-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "part-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "part-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "part-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "part-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "range-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "range-flagged": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "range-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "range-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      }
+    },
+    "exacter": {
+      "mixed-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "mixed-flagged": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "mixed-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "mixed-solo": {
+        "episodes": 10,
+        "max": 0.875,
+        "mean": 0.875,
+        "min": 0.875
+      },
+      "month-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "month-flagged": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "month-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "month-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "part-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "part-flagged": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "part-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "part-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "range-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "range-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "range-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "range-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      }
+    },
+    "fix_all": {
+      "mixed-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.55,
+        "min": 0.375
+      },
+      "mixed-flagged": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.55,
+        "min": 0.375
+      },
+      "mixed-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.55,
+        "min": 0.375
+      },
+      "mixed-solo": {
+        "episodes": 10,
+        "max": 0.875,
+        "mean": 0.875,
+        "min": 0.875
+      },
+      "month-fields": {
+        "episodes": 10,
+        "max": 0.75,
+        "mean": 0.65,
+        "min": 0.625
+      },
+      "month-flagged": {
+        "episodes": 10,
+        "max": 0.75,
+        "mean": 0.65,
+        "min": 0.625
+      },
+      "month-probe": {
+        "episodes": 10,
+        "max": 0.75,
+        "mean": 0.65,
+        "min": 0.625
+      },
+      "month-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "part-fields": {
+        "episodes": 10,
+        "max": 0.75,
+        "mean": 0.6375,
+        "min": 0.5
+      },
+      "part-flagged": {
+        "episodes": 10,
+        "max": 0.75,
+        "mean": 0.6375,
+        "min": 0.5
+      },
+      "part-probe": {
+        "episodes": 10,
+        "max": 0.75,
+        "mean": 0.6375,
+        "min": 0.5
+      },
+      "part-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "range-fields": {
+        "episodes": 10,
+        "max": 0.75,
+        "mean": 0.6375,
+        "min": 0.5
+      },
+      "range-flagged": {
+        "episodes": 10,
+        "max": 0.75,
+        "mean": 0.6375,
+        "min": 0.5
+      },
+      "range-probe": {
+        "episodes": 10,
+        "max": 0.75,
+        "mean": 0.6375,
+        "min": 0.5
+      },
+      "range-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      }
+    },
+    "fix_month": {
+      "mixed-fields": {
+        "episodes": 10,
+        "max": 0.5,
+        "mean": 0.5,
+        "min": 0.5
+      },
+      "mixed-flagged": {
+        "episodes": 10,
+        "max": 0.5,
+        "mean": 0.5,
+        "min": 0.5
+      },
+      "mixed-probe": {
+        "episodes": 10,
+        "max": 0.5,
+        "mean": 0.5,
+        "min": 0.5
+      },
+      "mixed-solo": {
+        "episodes": 10,
+        "max": 0.875,
+        "mean": 0.875,
+        "min": 0.875
+      },
+      "month-fields": {
+        "episodes": 10,
+        "max": 0.875,
+        "mean": 0.85,
+        "min": 0.75
+      },
+      "month-flagged": {
+        "episodes": 10,
+        "max": 0.875,
+        "mean": 0.85,
+        "min": 0.75
+      },
+      "month-probe": {
+        "episodes": 10,
+        "max": 0.875,
+        "mean": 0.85,
+        "min": 0.75
+      },
+      "month-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "part-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "part-flagged": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "part-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "part-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "range-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "range-flagged": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "range-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "range-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "silent-flagged": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "silent-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "silent-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      }
+    },
+    "fix_parts": {
+      "mixed-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.6125,
+        "min": 0.5
+      },
+      "mixed-flagged": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.6125,
+        "min": 0.5
+      },
+      "mixed-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.6125,
+        "min": 0.5
+      },
+      "mixed-solo": {
+        "episodes": 10,
+        "max": 0.875,
+        "mean": 0.875,
+        "min": 0.875
+      },
+      "month-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "month-flagged": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "month-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "month-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "part-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 0.8625,
+        "min": 0.75
+      },
+      "part-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 0.8625,
+        "min": 0.75
+      },
+      "part-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 0.8625,
+        "min": 0.75
+      },
+      "part-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "range-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "range-flagged": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "range-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "range-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "silent-flagged": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "silent-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "silent-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      }
+    },
+    "fix_value": {
+      "mixed-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.575,
+        "min": 0.5
+      },
+      "mixed-flagged": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.575,
+        "min": 0.5
+      },
+      "mixed-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.575,
+        "min": 0.5
+      },
+      "mixed-solo": {
+        "episodes": 10,
+        "max": 0.875,
+        "mean": 0.875,
+        "min": 0.875
+      },
+      "month-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "month-flagged": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "month-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "month-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "part-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "part-flagged": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "part-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "part-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "range-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 0.85,
+        "min": 0.625
+      },
+      "range-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 0.85,
+        "min": 0.625
+      },
+      "range-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 0.85,
+        "min": 0.625
+      },
+      "range-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "silent-flagged": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "silent-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "silent-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      }
+    },
+    "fuzz": {
+      "mixed-fields": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "mixed-flagged": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "mixed-probe": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "mixed-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "month-fields": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "month-flagged": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "month-probe": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "month-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "part-fields": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "part-flagged": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "part-probe": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "part-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "plain-fields": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "plain-flagged": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "plain-probe": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "plain-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "range-fields": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "range-flagged": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "range-probe": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "range-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "silent-fields": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "silent-flagged": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "silent-probe": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "silent-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      }
+    },
+    "idle": {
+      "mixed-fields": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "mixed-flagged": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "mixed-probe": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "mixed-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "month-fields": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "month-flagged": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "month-probe": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "month-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "part-fields": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "part-flagged": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "part-probe": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "part-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "plain-fields": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "plain-flagged": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "plain-probe": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "plain-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "range-fields": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "range-flagged": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "range-probe": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "range-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "silent-fields": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "silent-flagged": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "silent-probe": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "silent-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      }
+    },
+    "matcher": {
+      "mixed-fields": {
+        "episodes": 10,
+        "max": 0.5,
+        "mean": 0.5,
+        "min": 0.5
+      },
+      "mixed-flagged": {
+        "episodes": 10,
+        "max": 0.5,
+        "mean": 0.5,
+        "min": 0.5
+      },
+      "mixed-probe": {
+        "episodes": 10,
+        "max": 0.5,
+        "mean": 0.5,
+        "min": 0.5
+      },
+      "mixed-solo": {
+        "episodes": 10,
+        "max": 0.875,
+        "mean": 0.875,
+        "min": 0.875
+      },
+      "month-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "month-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "month-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "month-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "part-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "part-flagged": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "part-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "part-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "range-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "range-flagged": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "range-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "range-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      }
+    },
+    "midpoint": {
+      "mixed-fields": {
+        "episodes": 10,
+        "max": 0.875,
+        "mean": 0.8375,
+        "min": 0.75
+      },
+      "mixed-flagged": {
+        "episodes": 10,
+        "max": 0.875,
+        "mean": 0.8375,
+        "min": 0.75
+      },
+      "mixed-probe": {
+        "episodes": 10,
+        "max": 0.875,
+        "mean": 0.8375,
+        "min": 0.75
+      },
+      "mixed-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "month-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "month-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "month-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "month-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "part-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "part-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "part-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "part-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "range-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "range-flagged": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "range-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "range-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      }
+    },
+    "namer": {
+      "mixed-fields": {
+        "episodes": 10,
+        "max": 0.875,
+        "mean": 0.875,
+        "min": 0.875
+      },
+      "mixed-flagged": {
+        "episodes": 10,
+        "max": 0.875,
+        "mean": 0.875,
+        "min": 0.875
+      },
+      "mixed-probe": {
+        "episodes": 10,
+        "max": 0.875,
+        "mean": 0.875,
+        "min": 0.875
+      },
+      "mixed-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "month-fields": {
+        "episodes": 10,
+        "max": 0.875,
+        "mean": 0.875,
+        "min": 0.875
+      },
+      "month-flagged": {
+        "episodes": 10,
+        "max": 0.875,
+        "mean": 0.875,
+        "min": 0.875
+      },
+      "month-probe": {
+        "episodes": 10,
+        "max": 0.875,
+        "mean": 0.875,
+        "min": 0.875
+      },
+      "month-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "part-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "part-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "part-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "part-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "range-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "range-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "range-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "range-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      }
+    },
+    "no_recheck": {
+      "mixed-fields": {
+        "episodes": 10,
+        "max": 0.875,
+        "mean": 0.875,
+        "min": 0.875
+      },
+      "mixed-flagged": {
+        "episodes": 10,
+        "max": 0.875,
+        "mean": 0.875,
+        "min": 0.875
+      },
+      "mixed-probe": {
+        "episodes": 10,
+        "max": 0.875,
+        "mean": 0.875,
+        "min": 0.875
+      },
+      "mixed-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "month-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "month-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "month-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "month-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "part-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "part-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "part-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "part-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "range-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "range-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "range-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "range-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      }
+    },
+    "oracle": {
+      "mixed-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "mixed-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "mixed-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "mixed-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "month-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "month-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "month-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "month-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "part-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "part-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "part-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "part-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "range-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "range-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "range-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "range-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      }
+    },
+    "persistent": {
+      "mixed-fields": {
+        "episodes": 10,
+        "max": 0.5,
+        "mean": 0.5,
+        "min": 0.5
+      },
+      "mixed-flagged": {
+        "episodes": 10,
+        "max": 0.5,
+        "mean": 0.5,
+        "min": 0.5
+      },
+      "mixed-probe": {
+        "episodes": 10,
+        "max": 0.5,
+        "mean": 0.5,
+        "min": 0.5
+      },
+      "mixed-solo": {
+        "episodes": 10,
+        "max": 0.875,
+        "mean": 0.875,
+        "min": 0.875
+      },
+      "month-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "month-flagged": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "month-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "month-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "part-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "part-flagged": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "part-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "part-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "range-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "range-flagged": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "range-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "range-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      }
+    },
+    "reactive": {
+      "mixed-fields": {
+        "episodes": 10,
+        "max": 0.5,
+        "mean": 0.5,
+        "min": 0.5
+      },
+      "mixed-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "mixed-probe": {
+        "episodes": 10,
+        "max": 0.5,
+        "mean": 0.5,
+        "min": 0.5
+      },
+      "mixed-solo": {
+        "episodes": 10,
+        "max": 0.875,
+        "mean": 0.875,
+        "min": 0.875
+      },
+      "month-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "month-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "month-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "month-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "part-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "part-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "part-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "part-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "range-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "range-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "range-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "range-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "silent-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "silent-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      }
+    },
+    "repeater": {
+      "mixed-fields": {
+        "episodes": 10,
+        "max": 0.5,
+        "mean": 0.5,
+        "min": 0.5
+      },
+      "mixed-flagged": {
+        "episodes": 10,
+        "max": 0.5,
+        "mean": 0.5,
+        "min": 0.5
+      },
+      "mixed-probe": {
+        "episodes": 10,
+        "max": 0.5,
+        "mean": 0.5,
+        "min": 0.5
+      },
+      "mixed-solo": {
+        "episodes": 10,
+        "max": 0.875,
+        "mean": 0.875,
+        "min": 0.875
+      },
+      "month-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "month-flagged": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "month-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "month-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "part-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "part-flagged": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "part-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "part-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "range-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "range-flagged": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "range-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "range-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      }
+    },
+    "spam": {
+      "mixed-fields": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "mixed-flagged": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "mixed-probe": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "mixed-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "month-fields": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "month-flagged": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "month-probe": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "month-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "part-fields": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "part-flagged": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "part-probe": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "part-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "plain-fields": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "plain-flagged": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "plain-probe": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "plain-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "range-fields": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "range-flagged": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "range-probe": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "range-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "silent-fields": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "silent-flagged": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "silent-probe": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "silent-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      }
+    },
+    "truster": {
+      "mixed-fields": {
+        "episodes": 10,
+        "max": 0.5,
+        "mean": 0.5,
+        "min": 0.5
+      },
+      "mixed-flagged": {
+        "episodes": 10,
+        "max": 0.5,
+        "mean": 0.5,
+        "min": 0.5
+      },
+      "mixed-probe": {
+        "episodes": 10,
+        "max": 0.5,
+        "mean": 0.5,
+        "min": 0.5
+      },
+      "mixed-solo": {
+        "episodes": 10,
+        "max": 0.875,
+        "mean": 0.875,
+        "min": 0.875
+      },
+      "month-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "month-flagged": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "month-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "month-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "part-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "part-flagged": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "part-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "part-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "range-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "range-flagged": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "range-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "range-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-fields": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "silent-flagged": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "silent-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "silent-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      }
+    },
+    "wide": {
+      "mixed-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "mixed-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "mixed-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "mixed-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "month-fields": {
+        "episodes": 10,
+        "max": 0.875,
+        "mean": 0.875,
+        "min": 0.875
+      },
+      "month-flagged": {
+        "episodes": 10,
+        "max": 0.875,
+        "mean": 0.875,
+        "min": 0.875
+      },
+      "month-probe": {
+        "episodes": 10,
+        "max": 0.875,
+        "mean": 0.875,
+        "min": 0.875
+      },
+      "month-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "part-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "part-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "part-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "part-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "plain-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "range-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "range-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "range-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "range-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-fields": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-flagged": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "silent-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      }
+    }
+  },
+  "not_checkable_at_build_time": [
+    "Instruction fairness (human review or blind implementer)",
+    "Actual difficulty and construct attribution",
+    "Discrimination between models",
+    "Reliability across attempts and scaffolds",
+    "Team benefit at equal aggregate cost",
+    "Statistical power and contamination",
+    "Run loss and provider liveness",
+    "Live harness fidelity and container isolation"
+  ],
+  "ok": true,
+  "parameters": {
+    "instances": null,
+    "schedules": 12,
+    "seed": 0,
+    "worst": 24
+  },
+  "policies": [
+    "truster",
+    "persistent",
+    "matcher",
+    "coverer",
+    "exacter",
+    "converter",
+    "oracle",
+    "wide",
+    "no_recheck",
+    "namer",
+    "midpoint",
+    "repeater",
+    "fix_all",
+    "fix_month",
+    "fix_parts",
+    "fix_value",
+    "reactive",
+    "idle",
+    "spam",
+    "fuzz"
+  ],
+  "schema_version": 1,
+  "sources": {
+    "files": {
+      "muster/tasks/_kit/build.py": "89620f7633a1c8ccce5cda8281d1249d73e3952428bda8d46c35749ffd3956de",
+      "muster/tasks/_kit/worldkit.py": "6704df23c208d3a7aea5b1c382f727b2b19da99a19f401781fb986d4736ecf6d",
+      "muster/tasks/inquiry/family.toml": "29019521e93871c5f12e6e084f5aade904751ddef22d9b99ad0cb19db706032a",
+      "muster/tasks/inquiry/findings/01-fixed-followup.json": "e10284bf52bd383a717868e8ef3113da80d6ee05cba08b5bb7aaacdcfcec8163",
+      "muster/tasks/inquiry/findings/02-month-prior.json": "c657fc2c229f61e6fdb24e03be2c8060192c24a8f07f688e3ef94635cd1b3d14",
+      "muster/tasks/inquiry/findings/03-part-magnitude.json": "6167b84d4f2808d30c8a3a6c038aa7bb9d0c9dfff3f5305fa0f31c3de76a5081",
+      "muster/tasks/inquiry/findings/04-part-pair.json": "6b63e0feff21ef334c25905d683f9bf0dc6649c46432a265bf5b7817c514e212",
+      "muster/tasks/inquiry/findings/05-mixed-ratio.json": "010991eabc0bbbc64bfac5bc7da0b77820d528194e6f67c5f71d47f435e3ac8f",
+      "muster/tasks/inquiry/findings/extra.py": "a4454eafb7aaa0a0412c0ada125c3fcc54e19ed0dababc14d410a6d19825a369",
+      "muster/tasks/inquiry/findings/fixed_followup.py": "06a754f2a0addfe39ad9ce00b88ff2dd54a41f37ac2ee487b15c40a24c3d2617",
+      "muster/tasks/inquiry/findings/part-amount.json": "21d6f3b3c8bd86821e59d5a3b4a44c7994f7e5d68a5810c580385ce188fd73b6",
+      "muster/tasks/inquiry/findings/part_amount.py": "d8301997bc83770d8159fb05e1fb81b4e55396f03e7bc8fdfd6e6f884774fe19",
+      "muster/tasks/inquiry/findings/probes.py": "41ed25d672daf082bc6b58df6a43c05cfd81cf568f1e0074e6a72028621d8f06",
+      "muster/tasks/inquiry/generate.py": "212f660dbb989fd566fd4b75ab78ea2f786e4b03aacd6b44905c764047185be1",
+      "muster/tasks/inquiry/instances.py": "ff38cb65888129f5e9e78fc96fc1d84bfc94f9beb0523b762a6f8549a66f493b",
+      "muster/tasks/inquiry/lab.py": "58a6b05e6ba46f67ed8a4f75ebe839cb27a50e00eca9eddcc7fb9f43d393ef0b",
+      "muster/tasks/inquiry/selfcheck.py": "4d439a030879ade25903cdf42d9526f738db29912e213d340d24fddcbd8ea2ab",
+      "muster/tasks/inquiry/template/instructions/fragments.toml": "288a2502162df5ec3724d1ea19c80d802141cc872a087b873f30527649c4cbb7",
+      "muster/tasks/inquiry/template/instructions/seat.md": "6dab919038f7ba276cec80f5035ee0248a15d883fc841367294149f3e272fa17",
+      "muster/tasks/inquiry/template/instructions/solo.md": "5a7f7e53dcf15b14c38aa3c02831002a29cb5876052b377e505ce68f7c00b4a0",
+      "muster/tasks/inquiry/template/policies/driver.py": "180d1f4e9e35f52319705d4064fef3c20db9590bcb52b8008310dc762eb3e085",
+      "muster/tasks/inquiry/template/policies/seat.sh": "f027f723b5e437f5b0a9a428385ce8651399706a1b89f15c47cd147ba896aa56",
+      "muster/tasks/inquiry/template/verify.py": "a600b3717859d467e7137733fd50ecde72c712f31861d5b4158611d1d067daaa",
+      "muster/tasks/inquiry/template/world.py": "538564734ba5bc56064c09716e8b2d66d0e0238f3abe510325d34e820337e0e4",
+      "muster/tasks/inquiry/zoo.py": "d1d5ccaa6039b08c53606063e3ac8ff4e5255d2c8fea9a7167c39b7e0cd811af"
+    },
+    "status": "PASS"
+  },
+  "summary": {
+    "FAIL": 0,
+    "NOT_CHECKED": 0,
+    "PASS": 36,
+    "episodes": 4800
+  }
+}

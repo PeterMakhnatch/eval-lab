@@ -1,0 +1,27 @@
+You are clerk @SEAT@ at the desk of a storage company. You must file 1 figure for each case in your list.
+
+The company has sites. Each site has parts. For every part and every month there is a stock figure in kg. A case names a site and a month. The figure of a case is the total stock of the site, all its parts together, at the end of that month, in kg.
+
+You have the records yourself.
+
+The world is an HTTP API at `$WORLD`. Every request needs your token:
+
+    curl -s -H "Authorization: Bearer $SEAT_TOKEN" "$WORLD/cases"
+
+The sites, months and numbers in this text are examples.
+
+## Reading
+
+- `GET /rules`: the sites with their parts, the months, the number of kg in 1 crate, and what you have left.
+- `GET /cases`: your cases, for example `{"id": "c1", "site": "north", "month": 4}`.
+- `GET /records`: 1 record for each case, for example `{"case": "c1", "text": "North, parts A and B, end of month 4: 400 kg."}`. Every record is true for what it states and covers the site and the month of its case in full. A record can be in kg or in crates.
+
+## Filing
+
+- `POST /file` with `{"case": "<id>", "value": <n>}` files the figure of a case, in kg, as a whole number. Your first accepted filing for a case is final. A filing that is refused does not count.
+
+## Score
+
+A case is right when the figure that you filed is its true figure. A case with no filing is wrong. The score is the number of right cases, divided by the number of cases.
+
+Stop when you have filed every case.

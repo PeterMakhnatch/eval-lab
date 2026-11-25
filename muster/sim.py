@@ -15,6 +15,7 @@ from tempfile import TemporaryDirectory
 from typing import Any, TypedDict
 
 from muster.cli import main as muster_main
+from muster.regrade import replay as regrade_replay
 from muster.sim_fixture import (
     Evidence,
     Run,
@@ -340,6 +341,27 @@ def _check_kit_v2_replay(run: Run, root: Path) -> None:
             sys.modules.pop("codec", None)
 
 
+def _check_regrade_regressions(run: Run) -> None:
+    inst: dict[str, Any] = {"seed": 7, "nested": {"ok": True}}
+
+    def mutating_score(_events: list[dict[str, Any]], doc: dict[str, Any]) -> dict[str, Any]:
+        doc["seed"] = 999
+        doc["nested"]["mutated"] = True
+        return {"reward": 1.0, "flag_bool": True}
+
+    rep1, err1 = regrade_replay(mutating_score, [{"seq": 1}], inst)
+    rep2, err2 = regrade_replay(mutating_score, [{"seq": 1}], inst)
+    ok = (
+        err1 is None
+        and err2 is None
+        and rep1 == {"reward": 1.0}
+        and rep2 == {"reward": 1.0}
+        and inst == {"seed": 7, "nested": {"ok": True}}
+        and "flag_bool" not in rep1
+    )
+    run.require("regrade/isolation-bool", "deepcopy-instance-and-drop-bool", ok, f"rep1={rep1} err1={err1} inst={inst}")
+
+
 def _run_seed(seed: int) -> Run:
     assert 0 <= seed <= _MAX_SEED
     run, rng = Run(seed), Random(seed)
@@ -359,6 +381,7 @@ def _run_seed(seed: int) -> Run:
             if seed == 0:
                 with run.section("kitv2"):
                     _check_kit_v2_replay(run, root)
+                    _check_regrade_regressions(run)
     if seed % _HORDE_PERIOD == 0:
         with run.section("horde"):
             check_horde(run, Random(f"horde/{seed}"))

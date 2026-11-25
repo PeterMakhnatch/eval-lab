@@ -372,11 +372,26 @@ def _prove_tamper_and_fences(config: dict[str, Any]) -> int:
     return passed + 3
 
 
+def _bind_live_client_gate(srv: Any) -> list[bool]:
+    allow_loopback = [False]
+    orig_handle = srv.handle
+
+    def _gated_handle(
+        method: Any, path: Any, token: str | None, body: Any, client: str, **kw: Any
+    ) -> tuple[int, dict[str, Any]]:
+        eff = client if (allow_loopback[0] and token is None) else policies_mod.REMOTE_IP
+        return orig_handle(method, path, token, body, eff, **kw)
+
+    srv.handle = _gated_handle
+    return allow_loopback
+
+
 def _run_live_http_episode(inst: dict[str, Any], seat_tokens: dict[str, str], pol: str) -> dict[str, float]:
     with tempfile.TemporaryDirectory() as tmp:
         tmp_p = Path(tmp)
         log_path = tmp_p / "live.jsonl"
         srv = world.ProtoFitWorld(inst, {v: k for k, v in seat_tokens.items()}, log_path)
+        allow_loopback = _bind_live_client_gate(srv)
         httpd = worldkit.make_server(srv, 0)
         port = httpd.server_address[1]
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
@@ -400,7 +415,9 @@ def _run_live_http_episode(inst: dict[str, Any], seat_tokens: dict[str, str], po
             for proc in procs:
                 _, stderr = proc.communicate(timeout=25)
                 assert proc.returncode == 0, stderr
-            worldkit.close_world(port)
+            allow_loopback[0] = True
+            close_doc = worldkit.close_world(port)
+            assert close_doc.get("closed") is True and close_doc.get("log_intact") is True
         finally:
             httpd.shutdown()
             httpd.server_close()
@@ -416,6 +433,9 @@ def _prove_live_and_audit(config: dict[str, Any]) -> int:
             live_res = _run_live_http_episode(inst, toks, pol)
             sim_res = simulate(inst, toks, pol)
             assert live_res["reward"] == sim_res["reward"] and live_res["chain_ok"] == 1.0 and live_res["script_faithful"] == 1.0
+            _assert_policy_row(cond, pol, [live_res])
+            if pol == "spoof":
+                assert live_res["spoof_attempts"] >= 3.0 and live_res["spoof_attempts"] == sim_res["spoof_attempts"]
             passed += 1
     repo_root = str(FAMILY.parents[2])
     added = repo_root not in sys.path

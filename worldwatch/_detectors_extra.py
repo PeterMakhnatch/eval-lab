@@ -10,8 +10,8 @@ from worldwatch._trial import TrialBundle
 from worldwatch.model import DetectorHit, as_list, as_map, nonneg_int, strict_int
 
 _CLAUSE_RE = re.compile(r"[.;!\n]+")
-_ROOM_LIST_RE = re.compile(r"\brooms?\"?\s*[#=:]?\s*(\d+(?:\s*(?:-|,|/|and|&)\s*\d+)*)", re.I)
-_BOX_SINGLE_RE = re.compile(r"\bbox(?:es)?\"?\s*[#=:]?\s*(\d+)\b", re.I)
+_ROOM_LIST_RE = re.compile(r"\brooms?\"?\s*[#=:]?\s*(\d{1,9}(?:\s*(?:-|,|/|and|&)\s*\d{1,9})*)(?!\d)", re.I)
+_BOX_SINGLE_RE = re.compile(r"\bbox(?:es)?\"?\s*[#=:]?\s*(\d{1,9})\b", re.I)
 _EMPTY_RE = re.compile(
     r"\bempty\b|flag\"?\s*[=:]?\s*false|\bfalse\b|no\s*flags?|noflag|"
     r"0\s+flags?|flags?\"?\s*[=:]?\s*0\b|has\s+0\b|not\s+(?:a\s+)?treasure",
@@ -70,7 +70,7 @@ def _rooms_in_clause(clause: str) -> set[int]:
     rooms: set[int] = set()
     for match in _ROOM_LIST_RE.finditer(clause):
         for tok in re.split(r"\s*(?:,|/|and|&)\s*", match.group(1)):
-            nums = [int(n) for n in re.findall(r"\d+", tok)[:4]]
+            nums = [int(n) for n in re.findall(r"(?<!\d)\d{1,9}(?!\d)", tok)[:4]]
             if len(nums) == 2 and 0 < nums[0] < nums[1] and nums[1] - nums[0] <= 32:
                 rooms.update(range(nums[0], nums[1] + 1))
             else:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import http.server
 import importlib.util
@@ -312,28 +313,37 @@ def _prove_fences_and_tamper(config: dict[str, Any]) -> int:
 def _make_live_handler(game: Any) -> type[http.server.BaseHTTPRequestHandler]:
     class LiveHandler(http.server.BaseHTTPRequestHandler):
         def _serve(self, method: str) -> None:
+            tok, raw_clen, hdrs, hdr_err = codec.extract_http_headers(self.headers)
+            if hdr_err is not None:
+                self.close_connection = True
+                raw_err = codec.canonical_json({"error": hdr_err}).encode("utf-8")
+                with contextlib.suppress(OSError):
+                    self.send_response(400)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(raw_err)))
+                    self.end_headers()
+                    self.wfile.write(raw_err)
+                return
             is_close = (
                 self.path.split("?", 1)[0].strip("/") == "admin/close"
                 and self.headers.get("X-Test-Loopback") == "1"
             )
-            body, b_err = (
-                codec.read_framed_json_body(
-                    self.rfile, self.headers.get("Content-Length"), allow_empty_object=is_close
-                )
-                if method == "POST"
-                else (None, None)
-            )
-            auth = self.headers.get("Authorization") or ""
-            tok = auth[7:].strip() if auth[:7].lower() == "bearer " else None
-            hdrs = {k.lower(): v for k, v in self.headers.items()}
+            body, b_err = None, None
+            if method == "POST":
+                try:
+                    body, b_err = codec.read_framed_json_body(self.rfile, raw_clen, allow_empty_object=is_close)
+                except OSError:
+                    self.close_connection = True
+                    return
             client_ip = "127.0.0.1" if is_close else REMOTE_CLIENT
             st_c, resp = game.handle(method, self.path, tok, body, client_ip, headers=hdrs, body_error=b_err)
             raw = codec.canonical_json(resp).encode("utf-8")
-            self.send_response(st_c)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(raw)))
-            self.end_headers()
-            self.wfile.write(raw)
+            with contextlib.suppress(OSError):
+                self.send_response(st_c)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                self.wfile.write(raw)
 
         def do_GET(self) -> None:
             self._serve(self.command)
@@ -475,6 +485,7 @@ def _prove_live_policies(config: dict[str, Any]) -> int:
             assert live_sc["reward"] == sim_sc["reward"]
             assert live_sc["compaction_loss"] == sim_sc["compaction_loss"]
             assert live_sc["phantom_success"] == sim_sc["phantom_success"]
+            assert live_sc["spoof_detected"] == sim_sc["spoof_detected"]
             passed += 1
     return passed
 

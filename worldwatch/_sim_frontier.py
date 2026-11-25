@@ -9,6 +9,7 @@ from random import Random
 from typing import TYPE_CHECKING, Any
 
 from worldwatch._compare_html import render_compare_html
+from worldwatch._sim_frontier_regress import exercise_wave4b_regressions
 from worldwatch.compare import run_compare
 from worldwatch.detectors import analyze_trial_detectors
 from worldwatch.eval_audit import run_certify_suite
@@ -401,4 +402,5 @@ def exercise_frontier_v2(
     _check_certify_suite_v2(run, root / "cert", capture_fn)
     pace_meta = _check_pace_triad_and_csp(run, root / "pace", t0, capture_fn)
     _check_multiseat_preflight(run, root / "pf_multi")
+    exercise_wave4b_regressions(run, root / "w4b_regress", t0)
     run.record("frontier_v2", {"fired": fired, "pace": pace_meta})

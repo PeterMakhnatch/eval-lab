@@ -237,6 +237,11 @@ def nonneg_int(value: Any) -> int | None:
     return value if value >= 0 else None
 
 
+def clamped_nonneg_int(value: Any, max_val: int = 1_000_000_000) -> int | None:
+    val = nonneg_int(value)
+    return None if val is None else min(val, max_val)
+
+
 def strict_int(value: Any) -> int | None:
     if isinstance(value, bool) or not isinstance(value, int):
         return None

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import os
 from pathlib import Path
 from typing import Any
@@ -48,9 +49,9 @@ def report(directory: Path, task_root: Path | None = None) -> dict[str, Any]:
         if task not in scorers:
             scorers[task] = regrade.load_score(task)
         score, instance, reason = scorers[task]
-        if score is None or instance is None:
+        if score is None or not isinstance(instance, dict):
             rows.append(
-                {**row, "status": "no-score", "reason": reason, "differences": {}, "late_actions": []}
+                {**row, "status": "no-score", "reason": reason or "invalid task instance", "differences": {}, "late_actions": []}
             )
             continue
         logs, events = load.event_logs(trial.path), {}
@@ -62,7 +63,7 @@ def report(directory: Path, task_root: Path | None = None) -> dict[str, Any]:
             {
                 **row,
                 **regrade.regrade_trial(
-                    trial.rewards, events["graded"], events["collected"], score, instance
+                    trial.rewards, events["graded"], events["collected"], score, copy.deepcopy(instance)
                 ),
             }
         )

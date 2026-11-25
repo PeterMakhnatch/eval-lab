@@ -13,9 +13,20 @@ WORLD = os.environ.get("WORLD", "http://world:8080")
 TOKEN = os.environ["SEAT_TOKEN"]
 SEAT = os.environ.get("SEAT", "")
 POLL_SLEEP = float(os.environ.get("POLL_SLEEP", "0.25"))
-MAX_POLLS = 80
+MAX_POLLS = 100
 RETRIES = 8
 TIMEOUT = 15
+
+
+def wait_health():
+    for _ in range(60):
+        try:
+            with urllib.request.urlopen(WORLD + "/health", timeout=2) as resp:
+                if resp.status == 200:
+                    return
+        except (OSError, http.client.HTTPException, socket.gaierror):
+            pass
+        time.sleep(0.05)
 
 
 def call(method, path, body=None):
@@ -30,7 +41,11 @@ def call(method, path, body=None):
             with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
                 return resp.status, json.loads(resp.read() or b"{}")
         except urllib.error.HTTPError as err:
-            return err.code, json.loads(err.read() or b"{}")
+            try:
+                raw = err.read()
+            finally:
+                err.close()
+            return err.code, json.loads(raw or b"{}")
         except (OSError, http.client.HTTPException, socket.gaierror):
             time.sleep(0.05)
     raise RuntimeError(f"{method} {path} failed")
@@ -88,12 +103,15 @@ def do_transfer(account, amount, use_leases):
     payload = {"account": account, "amount": amount, "expected_version": int(srep["state_version"])}
     if lid is not None:
         payload["lease_id"] = lid
-    call("POST", "/transfer", payload)
+    st_t, _ = call("POST", "/transfer", payload)
+    assert st_t == 200
     if lid is not None:
-        call("POST", "/release", {"target": account, "lease_id": lid})
+        st_r, _ = call("POST", "/release", {"target": account, "lease_id": lid})
+        assert st_r == 200
 
 
 def main():
+    wait_health()
     st, rules = call("GET", "/rules")
     assert st == 200
     me = SEAT or str(rules["you"])
@@ -106,14 +124,18 @@ def main():
         do_transfer("acct_b", (req_b - req_a + slack) // 2, use_leases)
         lid = None
         if use_leases:
-            _, crep = call("POST", "/claim", {"target": "settlement"})
+            st_c, crep = call("POST", "/claim", {"target": "settlement"})
+            assert st_c == 200
             lid = crep["lease_id"]
-        _, srep = call("GET", "/state")
-        _, rrep = call("GET", "/rates")
+        st_s, srep = call("GET", "/state")
+        assert st_s == 200
+        st_r, rrep = call("GET", "/rates")
+        assert st_r == 200
         body = {"total_reserve": int(srep["total_balance"]), "official_rate": str(rrep["official_rate"]), "expected_version": int(srep["state_version"])}
         if lid is not None:
             body["lease_id"] = lid
-        call("POST", "/commit", body)
+        st_cm, _ = call("POST", "/commit", body)
+        assert st_cm == 200
         return
     if me in ("acct_a", "acct_b"):
         own_req = int(rules["req_a" if me == "acct_a" else "req_b"])
@@ -143,7 +165,8 @@ def main():
         st_c, crep = call("POST", "/claim", {"target": "settlement"})
         if st_c == 200:
             lid = crep["lease_id"]
-    _, srep = call("GET", "/state")
+    st_s, srep = call("GET", "/state")
+    assert st_s == 200
     chosen_rate = rumor_rate if rumor_rate else str(call("GET", "/rates")[1]["official_rate"])
     body = {"total_reserve": int(srep["total_balance"]), "official_rate": chosen_rate, "expected_version": int(srep["state_version"])}
     if lid is not None:

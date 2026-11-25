@@ -16,8 +16,6 @@ TEMPLATE = FAMILY / "template"
 INSTRUCTIONS = TEMPLATE / "instructions"
 BUILD = FAMILY / "build"
 PLACEHOLDER = re.compile(r"\{[a-z_]+\}")
-ENVIRONMENT = "[environment]\nbuild_timeout_sec = 600.0\n"
-NO_BAKE = '\n[environment.env]\nCOMPOSE_BAKE = "false"\n'
 MAIN_DOCKERFILE = "FROM python:3.13-slim\n\nENV PYTHONPATH=/world PYTHONDONTWRITEBYTECODE=1\nCOPY world/ /world/\n"
 TEST_SH = "#!/bin/bash\nPYTHONPATH=/world PYTHONDONTWRITEBYTECODE=1 python3 -B /tests/verify.py\n"
 
@@ -57,11 +55,6 @@ def instruction(instance: dict[str, Any], seat: str) -> str:
     assert str(instance["post_transfer_rate"]) not in rendered
     assert str(instance["rumor_rate"]) not in rendered
     return rendered
-
-
-def _patch_task_toml(text: str) -> str:
-    assert text.count(ENVIRONMENT) == 1 and "[environment.env]" not in text
-    return text.replace(ENVIRONMENT, ENVIRONMENT + NO_BAKE)
 
 
 def _description(name: str, condition: str, instance: dict[str, Any]) -> str:
@@ -110,7 +103,8 @@ def tasks() -> dict[str, dict[str, str]]:
                 },
                 internet=False,
             )
-            files["task.toml"] = _patch_task_toml(files["task.toml"])
+            assert files["task.toml"].count("[environment.env]") == 1
+            assert 'COMPOSE_BAKE = "false"' in files["task.toml"]
             files["environment/Dockerfile"] = MAIN_DOCKERFILE
             files["tests/test.sh"] = TEST_SH
             out[f"{cond}/{name}"] = files

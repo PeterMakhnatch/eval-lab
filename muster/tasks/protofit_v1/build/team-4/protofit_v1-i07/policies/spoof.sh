@@ -3,8 +3,10 @@ set -euo pipefail
 export PYTHONDONTWRITEBYTECODE=1
 
 python3 -B - <<'PY'
+import http.client
 import json
 import os
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -22,14 +24,23 @@ def raw_call(method: str, path: str, auth: str | None, body: bytes | None = None
         headers["Content-Type"] = "application/json"
     if extra_headers:
         headers.update(extra_headers)
-    req = urllib.request.Request(f"{WORLD}{path}", data=body, headers=headers, method=method)
-    try:
-        with urllib.request.urlopen(req, timeout=5.0) as resp:
-            resp.read()
-            return resp.status
-    except urllib.error.HTTPError as exc:
-        exc.read()
-        return exc.code
+    for attempt in range(6):
+        req = urllib.request.Request(f"{WORLD}{path}", data=body, headers=headers, method=method)
+        try:
+            with urllib.request.urlopen(req, timeout=5.0) as resp:
+                resp.read()
+                return resp.status
+        except urllib.error.HTTPError as exc:
+            try:
+                exc.read()
+            finally:
+                exc.close()
+            return exc.code
+        except (urllib.error.URLError, TimeoutError, ConnectionResetError, http.client.RemoteDisconnected, OSError):
+            if attempt == 5:
+                raise
+            time.sleep(0.05)
+    raise RuntimeError("unreachable")
 
 
 def main() -> None:

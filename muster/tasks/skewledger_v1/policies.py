@@ -102,7 +102,9 @@ def _commit_seq(w: Any, seat: str, use_leases: bool, use_notices: bool, use_ch: 
     }
     if lid is not None:
         body["lease_id"] = lid
-    w.dispatch(seat, "POST", "/commit", body)
+    st_cm, _ = w.dispatch(seat, "POST", "/commit", body)
+    if rumor_override is None:
+        assert st_cm == 200
     yield True
 
 
@@ -171,7 +173,7 @@ def _oracle_or_rumor_seat(w: Any, seat: str, use_rumor: bool) -> Iterator[bool]:
 
 
 def _stale_acct(
-    w: Any, seat: str, rules: dict[str, Any], slack: int, use_ch: bool, snap_ver: int, lid: str | None
+    w: Any, seat: str, rules: dict[str, Any], slack: int, use_ch: bool, use_leases: bool, snap_ver: int
 ) -> Iterator[bool]:
     own_req = int(rules["req_a" if seat == "acct_a" else "req_b"])
     amt = own_req
@@ -189,6 +191,12 @@ def _stale_acct(
                 amt = (own_req - obs.get(peer, own_req) + slack) // 2
                 break
     elif seat == "acct_b":
+        yield True
+    lid: str | None = None
+    if use_leases:
+        st_c, crep = w.dispatch(seat, "POST", "/claim", {"target": seat})
+        if st_c == 200:
+            lid = str(crep["lease_id"])
         yield True
     body: dict[str, Any] = {"account": seat, "amount": amt, "expected_version": snap_ver}
     if lid is not None:
@@ -222,15 +230,8 @@ def _stale_seat(w: Any, seat: str) -> Iterator[bool]:
         w.dispatch("p1", "POST", "/commit", {"total_reserve": snap_tot - alloc_a - alloc_b, "official_rate": str(rrep["official_rate"]), "expected_version": snap_ver})
         yield True
         return
-    lid: str | None = None
-    if use_leases:
-        target = seat if seat in ("acct_a", "acct_b") else "settlement"
-        st_c, crep = w.dispatch(seat, "POST", "/claim", {"target": target})
-        if st_c == 200:
-            lid = str(crep["lease_id"])
-        yield True
     if seat in ("acct_a", "acct_b"):
-        yield from _stale_acct(w, seat, rules, slack, use_ch, snap_ver, lid)
+        yield from _stale_acct(w, seat, rules, slack, use_ch, use_leases, snap_ver)
         return
     _, rrep = w.dispatch(seat, "GET", "/rates")
     init_rate = str(rrep.get("official_rate") or "RATE-000-BPS")
@@ -246,6 +247,12 @@ def _stale_seat(w: Any, seat: str) -> Iterator[bool]:
                 break
     else:
         yield True
+        yield True
+    lid: str | None = None
+    if use_leases:
+        st_c, crep = w.dispatch(seat, "POST", "/claim", {"target": "settlement"})
+        if st_c == 200:
+            lid = str(crep["lease_id"])
         yield True
     body_c: dict[str, Any] = {"total_reserve": snap_tot - slack, "official_rate": init_rate, "expected_version": snap_ver}
     if lid is not None:
@@ -294,9 +301,15 @@ def spoof(w: Any, inst: dict[str, Any]) -> None:
         w.dispatch(s, "GET", "/rules", None, headers={"X-Seat": "auditor", "X-From": "system"})
         w.dispatch(s, "POST", "/transfer", {"account": "acct_a", "amount": True, "expected_version": 1})
         w.dispatch(s, "POST", "/transfer", {"account": "acct_a", "amount": -500, "expected_version": 1})
-        w.dispatch(s, "POST", "/transfer", {"account": "acct_b", "amount": 10, "expected_version": 1, "from": "acct_b"})
+        w.dispatch(s, "POST", "/transfer", {"account": "acct_b", "amount": 10, "expected_version": 1, "from": "system"})
         w.dispatch(s, "POST", "/claim", {"target": "settlement"})
-    w.dispatch(lead, "POST", "/commit", {"total_reserve": 999999, "official_rate": "RATE-000-FORGED", "expected_version": 1, "lease_id": "forged-lease"})
+    w.dispatch(
+        lead,
+        "POST",
+        "/commit",
+        {"total_reserve": 999999, "official_rate": "RATE-000-FORGED", "expected_version": 1, "lease_id": "forged-lease"},
+        headers={"X-Actor": "system"},
+    )
 
 
 POLICIES: dict[str, Any] = {

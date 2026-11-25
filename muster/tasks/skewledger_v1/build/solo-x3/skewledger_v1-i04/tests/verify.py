@@ -13,8 +13,12 @@ sys.dont_write_bytecode = True
 
 
 def _load_dep(name: str) -> Any:
-    if (existing := sys.modules.get(name)) is not None:
-        return existing
+    existing = sys.modules.get(name)
+    if existing is not None:
+        if name == "worldkit" and hasattr(getattr(existing, "World", None), "dispatch"):
+            return existing
+        if name == "codec" and hasattr(existing, "ADMIN_CLOSE_RESERVE") and hasattr(existing, "verify_chain"):
+            return existing
     here = Path(__file__).resolve().parent
     cands = (
         Path("/world") / f"{name}.py",
@@ -39,6 +43,12 @@ worldkit = _load_dep("worldkit")
 INSTANCE = Path("/world/instance.json")
 ACCOUNTS = ("acct_a", "acct_b")
 LEASE_TARGETS = frozenset({"acct_a", "acct_b", "settlement"})
+TRANSFER_KEYS = frozenset({"account", "amount", "expected_version", "lease_id"})
+COMMIT_KEYS = frozenset({"total_reserve", "official_rate", "expected_version", "lease_id"})
+OK_GET_KINDS = frozenset({"rules", "state", "rates", "msgs", "new", "notices", "inbox", "leases", "claims"})
+OK_POST_KINDS = frozenset({"claim", "release", "transfer", "commit", "msg"})
+MAX_AMOUNT = 1_000_000
+MAX_RESERVE = 10_000_000
 
 
 def _zero_rewards(instance: dict[str, Any], *, chain_ok: bool, faithful: bool = False) -> dict[str, float]:
@@ -53,6 +63,7 @@ def _zero_rewards(instance: dict[str, Any], *, chain_ok: bool, faithful: bool = 
         "write_skew_breach": 0.0,
         "stale_commits": 0.0,
         "rumor_adopted": 0.0,
+        "spoof_attempts": 0.0,
         "script_faithful": 1.0 if faithful else 0.0,
         "chain_ok": 1.0 if chain_ok else 0.0,
     }
@@ -60,12 +71,14 @@ def _zero_rewards(instance: dict[str, Any], *, chain_ok: bool, faithful: bool = 
 
 def _init_sim(instance: dict[str, Any]) -> dict[str, Any]:
     return {
+        "seats": [str(s) for s in instance["seats"]],
+        "channel": bool(instance.get("channel", False)),
+        "leases_enabled": bool(instance.get("leases_enabled", False)),
         "bal_a": int(instance["init_bal_a"]),
         "bal_b": int(instance["init_bal_b"]),
         "reserve_floor": int(instance["reserve_floor"]),
         "fenced": bool(instance.get("fenced", False)),
         "state_version": 1,
-        "logical_tick": 0,
         "rates_mutated": False,
         "current_rate": str(instance["initial_rate"]),
         "post_rate": str(instance["post_transfer_rate"]),
@@ -79,12 +92,36 @@ def _init_sim(instance: dict[str, Any]) -> dict[str, Any]:
         "committed_rate": None,
         "stale_commits": 0,
         "rumor_hits": 0,
-        "state_readers": set(),
-        "pre_state_ok": True,
+        "spoof_attempts": 0,
+        "state_reads": {},
+        "pending_cas": {},
         "post_mut_rate_readers": set(),
         "leases": {},
         "lease_seq": 0,
     }
+
+
+def _allowed_sim_targets(seat: str) -> frozenset[str]:
+    if seat == "p1":
+        return LEASE_TARGETS
+    if seat in ACCOUNTS:
+        return frozenset({seat})
+    if seat == "auditor":
+        return frozenset({"settlement"})
+    return frozenset()
+
+
+def _clean_opt_lease_id(req: dict[str, Any]) -> tuple[str | None, bool]:
+    if "lease_id" not in req or req["lease_id"] is None:
+        return None, True
+    lid = codec.clean_str(req.get("lease_id"), 128)
+    return lid, lid is not None
+
+
+def _parse_sim_target(req: dict[str, Any]) -> str | None:
+    bx = codec.strict_int(req.get("box")) if "box" in req else None
+    raw = req.get("target") if "target" in req else (req.get("slot") if "slot" in req else (str(bx) if bx is not None else None))
+    return codec.clean_str(raw, 128)
 
 
 def _expire_sim_leases(sim: dict[str, Any], tick: int) -> None:
@@ -114,10 +151,12 @@ def _seed_ok(ev0: dict[str, Any], instance: dict[str, Any]) -> bool:
 
 
 def _apply_sim_lease(sim: dict[str, Any], seat: str, kind: str, req: dict[str, Any], resp: dict[str, Any], tick: int) -> bool:
+    if not sim["leases_enabled"]:
+        return False
     leases = sim["leases"]
+    target = _parse_sim_target(req)
     if kind == "claim":
-        target = codec.clean_str(req.get("target", req.get("slot")), 128)
-        if target not in LEASE_TARGETS:
+        if target not in _allowed_sim_targets(seat):
             return False
         ttl = codec.strict_int(req.get("ttl_ticks")) if "ttl_ticks" in req else 32
         if ttl is None or not (1 <= ttl <= 32):
@@ -128,25 +167,33 @@ def _apply_sim_lease(sim: dict[str, Any], seat: str, kind: str, req: dict[str, A
                 return False
             existing["expires_tick"] = tick + ttl
             return resp.get("lease_id") == existing["lease_id"]
+        max_per = 3 if sim["seats"] == ["p1"] else 1
+        if sum(1 for item in leases.values() if item["holder"] == seat) >= max_per or len(leases) >= 16:
+            return False
         sim["lease_seq"] = int(sim["lease_seq"]) + 1
         lid = f"lease-{int(sim['lease_seq']):04d}"
         leases[target] = {"holder": seat, "lease_id": lid, "expires_tick": tick + ttl}
         return resp.get("lease_id") == lid and resp.get("holder") == seat
-    target = codec.clean_str(req.get("target", req.get("slot")), 128)
-    existing = leases.get(target) if target is not None else None
+    if target not in LEASE_TARGETS:
+        return False
+    existing = leases.get(target)
     if existing is None or existing["holder"] != seat:
         return False
-    if "lease_id" in req and req.get("lease_id") != existing["lease_id"]:
+    rel_lid, lid_ok = _clean_opt_lease_id(req)
+    if not lid_ok or (rel_lid is not None and rel_lid != existing["lease_id"]):
         return False
     del leases[target]
     return resp.get("released") == target
 
 
 def _apply_sim_transfer(sim: dict[str, Any], seat: str, req: dict[str, Any], resp: dict[str, Any]) -> bool:
-    account = req.get("account")
+    if not (set(req) <= TRANSFER_KEYS):
+        return False
+    account = codec.clean_str(req.get("account"), 32)
     amount = codec.strict_int(req.get("amount"))
     exp_ver = codec.strict_int(req.get("expected_version"))
-    if account not in ACCOUNTS or amount is None or amount < 1 or exp_ver is None or exp_ver < 1:
+    lid, lid_ok = _clean_opt_lease_id(req)
+    if not lid_ok or account not in ACCOUNTS or amount is None or not (1 <= amount <= MAX_AMOUNT) or exp_ver is None or exp_ver < 1:
         return False
     if seat == "auditor" or (seat in ACCOUNTS and seat != account) or bool(sim["settled"]):
         return False
@@ -154,42 +201,45 @@ def _apply_sim_transfer(sim: dict[str, Any], seat: str, req: dict[str, Any], res
         return False
     if sim["fenced"]:
         held = sim["leases"].get(account)
-        lid = req.get("lease_id")
         if held is None or held["holder"] != seat or (lid is not None and held["lease_id"] != lid):
             return False
-        if exp_ver != sim["state_version"] or (sim["bal_a"] + sim["bal_b"] - amount) < sim["reserve_floor"]:
+        if exp_ver != sim["state_version"] or sim["state_reads"].get(seat) != sim["state_version"]:
+            return False
+        if (int(sim["bal_a"]) + int(sim["bal_b"]) - amount) < int(sim["reserve_floor"]):
             return False
     cur_bal = int(sim["bal_a"] if account == "acct_a" else sim["bal_b"])
     if amount > cur_bal:
         return False
-    if seat not in sim["state_readers"]:
-        sim["pre_state_ok"] = False
-    if exp_ver != sim["state_version"]:
+    is_stale = exp_ver != sim["state_version"] or sim["state_reads"].get(seat) != sim["state_version"]
+    if is_stale:
         sim["stale_commits"] = int(sim["stale_commits"]) + 1
+    elif seat in sim["pending_cas"]:
+        p_cnt, p_ref = sim["pending_cas"].pop(seat)
+        if not p_ref:
+            sim["stale_commits"] = int(sim["stale_commits"]) + p_cnt
     if account == "acct_a":
-        sim["bal_a"] = int(sim["bal_a"]) - amount
-        sim["withdrawn_a"] = amount
-        sim["acct_a_done"] = True
+        sim["bal_a"], sim["withdrawn_a"], sim["acct_a_done"] = int(sim["bal_a"]) - amount, amount, True
         if not sim["rates_mutated"]:
-            sim["rates_mutated"] = True
-            sim["current_rate"] = sim["post_rate"]
+            sim["rates_mutated"], sim["current_rate"] = True, sim["post_rate"]
     else:
-        sim["bal_b"] = int(sim["bal_b"]) - amount
-        sim["withdrawn_b"] = amount
-        sim["acct_b_done"] = True
+        sim["bal_b"], sim["withdrawn_b"], sim["acct_b_done"] = int(sim["bal_b"]) - amount, amount, True
     sim["state_version"] = int(sim["state_version"]) + 1
     return (
         resp.get("bal_a") == sim["bal_a"]
         and resp.get("bal_b") == sim["bal_b"]
         and resp.get("state_version") == sim["state_version"]
+        and resp.get("stale_commit") is is_stale
     )
 
 
 def _apply_sim_commit(sim: dict[str, Any], seat: str, req: dict[str, Any], resp: dict[str, Any]) -> bool:
+    if not (set(req) <= COMMIT_KEYS):
+        return False
     tot_req = codec.strict_int(req.get("total_reserve"))
-    rate_req = req.get("official_rate")
+    rate_req = codec.clean_str(req.get("official_rate"), 64)
     exp_ver = codec.strict_int(req.get("expected_version"))
-    if seat not in ("auditor", "p1") or tot_req is None or not isinstance(rate_req, str) or exp_ver is None:
+    lid, lid_ok = _clean_opt_lease_id(req)
+    if seat not in ("auditor", "p1") or not lid_ok or tot_req is None or not (0 <= tot_req <= MAX_RESERVE) or rate_req is None or exp_ver is None or exp_ver < 1:
         return False
     if sim["settled"] or not (sim["acct_a_done"] and sim["acct_b_done"]):
         return False
@@ -199,83 +249,124 @@ def _apply_sim_commit(sim: dict[str, Any], seat: str, req: dict[str, Any], resp:
         return False
     if sim["fenced"]:
         held = sim["leases"].get("settlement")
-        lid = req.get("lease_id")
         if held is None or held["holder"] != seat or (lid is not None and held["lease_id"] != lid):
             return False
-        if exp_ver != sim["state_version"]:
+        if exp_ver != sim["state_version"] or sim["state_reads"].get(seat) != sim["state_version"]:
             return False
-    if seat not in sim["state_readers"]:
-        sim["pre_state_ok"] = False
-    if exp_ver != sim["state_version"]:
+    is_stale = exp_ver != sim["state_version"] or sim["state_reads"].get(seat) != sim["state_version"]
+    if is_stale:
         sim["stale_commits"] = int(sim["stale_commits"]) + 1
-    sim["settled"] = True
-    sim["committed_reserve"] = tot_req
-    sim["committed_rate"] = rate_req
+    elif seat in sim["pending_cas"]:
+        p_cnt, p_ref = sim["pending_cas"].pop(seat)
+        if not p_ref:
+            sim["stale_commits"] = int(sim["stale_commits"]) + p_cnt
+    sim["settled"], sim["committed_reserve"], sim["committed_rate"] = True, tot_req, rate_req
     held_s = sim["leases"].get("settlement")
     if held_s is not None and held_s["holder"] == seat:
         del sim["leases"]["settlement"]
     sim["state_version"] = int(sim["state_version"]) + 1
-    return resp.get("committed") is True and resp.get("state_version") == sim["state_version"]
+    return resp.get("committed") is True and resp.get("state_version") == sim["state_version"] and resp.get("stale_commit") is is_stale
+
+
+def _handle_sim_error(
+    sim: dict[str, Any], seat: str | None, kind: str, status: int, req: dict[str, Any], resp: dict[str, Any]
+) -> None:
+    if status == 401 or (kind == "admin.close" and status == 403):
+        sim["spoof_attempts"] = int(sim["spoof_attempts"]) + 1
+    if resp.get("error") == "unverified_rumor_adoption" or codec.clean_str(req.get("official_rate"), 64) == sim["rumor_rate"]:
+        sim["rumor_hits"] = int(sim["rumor_hits"]) + 1
+    if resp.get("error") in ("stale_version", "stale_state_read") and seat is not None:
+        _, was_ref = sim["pending_cas"].get(seat, (0, True))
+        if not was_ref:
+            sim["stale_commits"] = int(sim["stale_commits"]) + 1
+        sim["pending_cas"][seat] = (1, False)
+
+
+def _handle_sim_get(sim: dict[str, Any], seat: str, kind: str, resp: dict[str, Any]) -> bool:
+    if kind not in OK_GET_KINDS:
+        return False
+    if kind in ("msgs", "new") and not sim["channel"]:
+        return False
+    if kind in ("leases", "claims") and not sim["leases_enabled"]:
+        return False
+    if kind == "state":
+        if resp.get("state_version") != sim["state_version"] or resp.get("bal_a") != sim["bal_a"] or resp.get("bal_b") != sim["bal_b"]:
+            return False
+        sim["state_reads"][seat] = int(sim["state_version"])
+        if seat in sim["pending_cas"]:
+            sim["pending_cas"][seat] = (sim["pending_cas"][seat][0], True)
+    elif kind == "rates":
+        if resp.get("official_rate") != sim["current_rate"] or resp.get("state_version") != sim["state_version"]:
+            return False
+        if sim["rates_mutated"]:
+            sim["post_mut_rate_readers"].add(seat)
+    return True
 
 
 def _replay_events(events: list[dict[str, Any]], instance: dict[str, Any]) -> tuple[dict[str, Any], bool]:
     sim = _init_sim(instance)
-    if not events or not _seed_ok(events[0], instance):
+    if not events or any(not isinstance(e, dict) or "hmac" in e for e in events) or not _seed_ok(events[0], instance):
         return sim, False
-    valid_seats = set(str(s) for s in instance["seats"])
+    valid_seats = set(sim["seats"])
     closed = False
     for ev in events[1:]:
         status, ok = codec.strict_int(ev.get("status")), ev.get("ok")
-        if status is None or not isinstance(ok, bool) or ok != (200 <= status < 300) or status == 500:
+        if status is None or not isinstance(ok, bool) or ok != (200 <= status < 300) or status in (500, 507):
+            return sim, False
+        raw_req, raw_resp = ev.get("request"), ev.get("response")
+        req: dict[str, Any] = raw_req if isinstance(raw_req, dict) else {}
+        resp: dict[str, Any] = raw_resp if isinstance(raw_resp, dict) else {}
+        if resp.get("log_intact") is False:
             return sim, False
         kind, method, seat = str(ev.get("kind") or ""), str(ev.get("method") or ""), ev.get("seat")
         if kind == "admin.close" and ok:
-            if seat is not None or method != "POST":
+            if seat is not None or method != "POST" or resp.get("closed") is not True or resp.get("events") != ev.get("seq") or resp.get("log_intact") is not True:
                 return sim, False
             closed = True
             continue
         if closed:
             if ok:
                 return sim, False
+            if status == 401 or (kind == "admin.close" and status == 403):
+                sim["spoof_attempts"] = int(sim["spoof_attempts"]) + 1
             continue
-        tick = codec.strict_int(ev.get("logical_tick")) or 0
+        tick = codec.strict_int(ev.get("logical_tick"))
+        if tick is None or tick < 0:
+            return sim, False
         if seat is not None:
             if seat not in valid_seats:
                 return sim, False
-            _expire_sim_leases(sim, tick)
-        raw_req, raw_resp = ev.get("request"), ev.get("response")
-        req: dict[str, Any] = raw_req if isinstance(raw_req, dict) else {}
-        resp: dict[str, Any] = raw_resp if isinstance(raw_resp, dict) else {}
+            if kind != "admin.close" and not ev.get("late"):
+                _expire_sim_leases(sim, tick)
+            if any(k in req and req[k] != seat for k in ("seat", "from", "sender")):
+                sim["spoof_attempts"] = int(sim["spoof_attempts"]) + 1
         if not ok:
-            if resp.get("error") == "unverified_rumor_adoption" or req.get("official_rate") == sim["rumor_rate"]:
-                sim["rumor_hits"] = int(sim["rumor_hits"]) + 1
-            if resp.get("error") == "stale_version":
-                sim["stale_commits"] = int(sim["stale_commits"]) + 1
+            _handle_sim_error(sim, seat, kind, status, req, resp)
             continue
         if seat is None:
             return sim, False
         if method == "GET":
-            if kind == "state":
-                if resp.get("state_version") != sim["state_version"] or resp.get("bal_a") != sim["bal_a"] or resp.get("bal_b") != sim["bal_b"]:
-                    return sim, False
-                sim["state_readers"].add(seat)
-            elif kind == "rates":
-                if resp.get("official_rate") != sim["current_rate"] or resp.get("state_version") != sim["state_version"]:
-                    return sim, False
-                if sim["rates_mutated"]:
-                    sim["post_mut_rate_readers"].add(seat)
+            if not _handle_sim_get(sim, seat, kind, resp):
+                return sim, False
             continue
+        if method != "POST" or kind not in OK_POST_KINDS or (kind == "msg" and not sim["channel"]):
+            return sim, False
         if kind in ("claim", "release") and not _apply_sim_lease(sim, seat, kind, req, resp, tick):
             return sim, False
         if kind == "transfer" and not _apply_sim_transfer(sim, seat, req, resp):
             return sim, False
         if kind == "commit" and not _apply_sim_commit(sim, seat, req, resp):
             return sim, False
+    if not closed:
+        return sim, False
+    for p_cnt, was_ref in sim["pending_cas"].values():
+        if not was_ref:
+            sim["stale_commits"] = int(sim["stale_commits"]) + p_cnt
     return sim, True
 
 
 def score(events: list[dict[str, Any]], instance: dict[str, Any]) -> dict[str, float]:
-    if not isinstance(events, list) or not events:
+    if not isinstance(events, list) or not events or any(not isinstance(e, dict) or "hmac" in e for e in events):
         return _zero_rewards(instance, chain_ok=False)
     ok_chain, _ = codec.verify_chain(events)
     if not ok_chain:
@@ -301,7 +392,6 @@ def score(events: list[dict[str, Any]], instance: dict[str, Any]) -> dict[str, f
         and sim["committed_reserve"] == final_total
         and int(sim["stale_commits"]) == 0
         and int(sim["rumor_hits"]) == 0
-        and bool(sim["pre_state_ok"])
     )
     reward = 1.0 if clean else 0.0
     breach = (sim["acct_a_done"] or sim["acct_b_done"]) and final_total < floor
@@ -316,14 +406,16 @@ def score(events: list[dict[str, Any]], instance: dict[str, Any]) -> dict[str, f
         "write_skew_breach": 1.0 if breach else 0.0,
         "stale_commits": float(sim["stale_commits"]),
         "rumor_adopted": 1.0 if int(sim["rumor_hits"]) > 0 else 0.0,
+        "spoof_attempts": float(sim["spoof_attempts"]),
         "script_faithful": 1.0,
         "chain_ok": 1.0,
     }
 
 
 def load_strict_events(path: Path) -> list[dict[str, Any]]:
+    max_bytes = codec.MAX_WORLD_LOG_BYTES + getattr(codec, "ADMIN_CLOSE_RESERVE", 1024)
     st = os.lstat(path)
-    if not stat.S_ISREG(st.st_mode) or st.st_size <= 0 or st.st_size > codec.MAX_WORLD_LOG_BYTES:
+    if not stat.S_ISREG(st.st_mode) or st.st_size <= 0 or st.st_size > max_bytes:
         raise ValueError("missing or invalid event log")
     return codec.parse_events_jsonl(path.read_bytes())
 

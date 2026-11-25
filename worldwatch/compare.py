@@ -33,6 +33,7 @@ from worldwatch.validity import classify_trial_validity, fisher_exact_two_sided
 _PASS_THRESHOLD = 1.0 - 1e-6
 _MAX_ARMS = 64
 _MAX_SEED = 2**64 - 1
+_MAX_METRIC_ABS = 1e9
 _EXACT_FLIP_LIMIT = 16
 _MC_FLIPS = 10_000
 _FAM_INST_RE = re.compile(r"^([A-Za-z0-9_.-]+?)-(i\d+)$")
@@ -92,9 +93,7 @@ def _key_from_task_toml(toml_path: Path, *, root: Path | None = None) -> tuple[s
     except tomllib.TOMLDecodeError:
         return None
     meta = as_map(doc.get("metadata"))
-    fam = meta.get("family")
-    cond = meta.get("condition")
-    inst = meta.get("instance")
+    fam, cond, inst = meta.get("family"), meta.get("condition"), meta.get("instance")
     if isinstance(fam, str) and fam.strip() and isinstance(cond, str) and cond.strip() and inst is not None:
         fam_clean = fam.strip()
         return (fam_clean, cond.strip(), _normalize_instance_token(fam_clean, inst))
@@ -110,23 +109,15 @@ def _key_from_task_path(raw_path: str) -> tuple[str, str, str] | None:
     if len(parts3) == 3 and all(parts3):
         return (parts3[0], parts3[1], _normalize_instance_token(parts3[0], parts3[2]))
     toml_cand = tp / "task.toml"
-    if check_no_symlink_ancestors(toml_cand) is None and not os.path.islink(tp) and os.path.lexists(toml_cand):
+    if check_no_symlink_ancestors(toml_cand) is None and not os.path.islink(tp) and os.path.isfile(toml_cand):
         meta_key = _key_from_task_toml(toml_cand, root=tp)
         if meta_key is not None:
             return meta_key
     segs = [s for s in tp.parts if s not in ("", "/", ".")]
-    if len(segs) >= 2:
+    if len(segs) >= 3 and segs[-3] == "build":
         base, cond = segs[-1], segs[-2]
-        fam = ""
-        if len(segs) >= 3:
-            cand = segs[-3]
-            if cand == "build" and len(segs) >= 4:
-                fam = segs[-4]
-            elif cand not in ("tasks", "waves", "runs", "scored"):
-                fam = cand
-        if not fam:
-            m = _FAM_INST_RE.match(base)
-            fam = m.group(1) if m else cond
+        m = _FAM_INST_RE.match(base)
+        fam = segs[-4] if len(segs) >= 4 else (m.group(1) if m else cond)
         return (fam, cond, _normalize_instance_token(fam, base))
     return None
 
@@ -191,8 +182,7 @@ def _key_from_trial_name(trial_name: str, task_name: str) -> tuple[str, str, str
 def _extract_pairing_key(trial_dir: Path, bundle: TrialBundle) -> tuple[str, str, str]:
     cfg_doc, _ = read_tolerant_json_object(trial_dir / "config.json", root=trial_dir)
     res_doc, _ = read_tolerant_json_object(trial_dir / "result.json", root=trial_dir)
-    cfg_map = as_map(cfg_doc)
-    res_map = as_map(res_doc)
+    cfg_map, res_map = as_map(cfg_doc), as_map(res_doc)
     candidates = (
         as_map(cfg_map.get("task")).get("path"),
         as_map(as_map(res_map.get("config")).get("task")).get("path"),
@@ -232,18 +222,20 @@ def _evaluate_compare_arm(name: str, path: Path, stall_seconds: float) -> _ArmEv
         bundle = load_trial_bundle(tdir, eco)
         key = _extract_pairing_key(tdir, bundle)
         toks = extract_trial_tokens(tdir, eco, bundle)
+        rew = bundle.reward
+        rew_valid = bundle.reward_valid
+        meas = bool(val_row["measured"])
+        reason = str(val_row["reason"])
+        if rew is not None and (not math.isfinite(rew) or abs(rew) > _MAX_METRIC_ABS):
+            rew, rew_valid, meas, reason = None, False, False, "invalid_reward_magnitude"
+        cost_v = bundle.cost_usd
+        if cost_v is not None and (not math.isfinite(cost_v) or cost_v < 0.0 or cost_v > _MAX_METRIC_ABS):
+            cost_v = None
         entries.append(
             _TrialEntry(
-                trial=bundle.trial_name,
-                path=str(tdir),
-                key=key,
-                measured=bool(val_row["measured"]),
-                unmeasured_reason=str(val_row["reason"]),
-                reward=bundle.reward,
-                reward_valid=bundle.reward_valid,
-                cost_usd=bundle.cost_usd,
-                triggered=frozenset(str(x) for x in det_row["triggered"]),
-                tokens=toks,
+                trial=bundle.trial_name, path=str(tdir), key=key, measured=meas,
+                unmeasured_reason=reason, reward=rew, reward_valid=rew_valid,
+                cost_usd=cost_v, triggered=frozenset(str(x) for x in det_row["triggered"]), tokens=toks,
             )
         )
     entries.sort(key=lambda item: (item.key, item.trial, item.path))
@@ -258,8 +250,10 @@ def _summarize_arm(name: str, path: Path, entries: tuple[_TrialEntry, ...]) -> _
     measured_n = len(measured_rews)
     unmeasured_n = total - measured_n
     by_reason = Counter(e.unmeasured_reason for e in entries if not e.measured)
-    costs = [float(e.cost_usd) for e in entries if e.cost_usd is not None and e.cost_usd >= 0.0]
+    costs = [float(e.cost_usd) for e in entries if e.cost_usd is not None and 0.0 <= e.cost_usd <= _MAX_METRIC_ABS]
+    meas_costs = [float(e.cost_usd) for e in entries if e.measured and e.cost_usd is not None and 0.0 <= e.cost_usd <= _MAX_METRIC_ABS]
     toks = [int(e.tokens) for e in entries if e.tokens is not None and e.tokens > 0]
+    meas_toks = [int(e.tokens) for e in entries if e.measured and e.tokens is not None and e.tokens > 0]
     pass_n = sum(1 for r in measured_rews if r >= _PASS_THRESHOLD)
     det_counts = {d: sum(1 for e in entries if d in e.triggered) for d in DETECTOR_NAMES}
     det_rates = {d: round(det_counts[d] / total, 6) for d in DETECTOR_NAMES}
@@ -276,12 +270,14 @@ def _summarize_arm(name: str, path: Path, entries: tuple[_TrialEntry, ...]) -> _
         "unmeasured": unmeasured_n,
         "unmeasured_rate": round(unmeasured_n / total, 6),
         "attrition_by_reason": dict(sorted(by_reason.items())),
-        "mean_reward": round(sum(all_valid_rews) / len(all_valid_rews), 6) if all_valid_rews else None,
-        "mean_measured_reward": round(sum(measured_rews) / measured_n, 6) if measured_rews else None,
+        "mean_reward": round(math.fsum(all_valid_rews) / len(all_valid_rews), 6) if all_valid_rews else None,
+        "mean_measured_reward": round(math.fsum(measured_rews) / measured_n, 6) if measured_rews else None,
         "binary_pass_rate": round(pass_n / measured_n, 6) if measured_rews else None,
-        "mean_cost_usd": round(sum(costs) / len(costs), 6) if costs else None,
-        "total_cost_usd": round(sum(costs), 6) if costs else None,
+        "mean_cost_usd": round(math.fsum(costs) / len(costs), 6) if costs else None,
+        "mean_measured_cost_usd": round(math.fsum(meas_costs) / len(meas_costs), 6) if meas_costs else None,
+        "total_cost_usd": round(math.fsum(costs), 6) if costs else None,
         "mean_tokens": round(sum(toks) / len(toks), 3) if toks else None,
+        "mean_measured_tokens": round(sum(meas_toks) / len(meas_toks), 3) if meas_toks else None,
         "total_tokens": int(sum(toks)) if toks else None,
         "detector_rates": det_rates,
         "detector_counts": det_counts,
@@ -292,16 +288,20 @@ def _summarize_arm(name: str, path: Path, entries: tuple[_TrialEntry, ...]) -> _
 
 def _sign_flip_two_sided(deltas: list[float], seed: int) -> tuple[float, bool]:
     assert 0 <= seed <= _MAX_SEED and len(deltas) <= MAX_TRIALS
+    if any(not math.isfinite(d) for d in deltas):
+        raise InputError("non-finite reward delta in paired sign-flip test")
     nonzero = [d for d in deltas if abs(d) > 1e-15]
     if not nonzero:
         return 1.0, True
     m = len(nonzero)
-    abs_sum = math.fsum(abs(v) for v in nonzero)
-    min_abs = min(abs(v) for v in nonzero)
+    scale = max(abs(v) for v in nonzero)
+    unit = [v / scale for v in nonzero]
+    abs_sum = math.fsum(abs(v) for v in unit)
+    min_abs = min(abs(v) for v in unit)
     tol = min(1e-12 * abs_sum, 0.25 * min_abs)
     if m <= _EXACT_FLIP_LIMIT:
         sums = [0.0]
-        for val in nonzero:
+        for val in unit:
             sums = [s + val for s in sums] + [s - val for s in sums]
         assert len(sums) == (1 << m)
         obs = abs(sums[0])
@@ -310,11 +310,11 @@ def _sign_flip_two_sided(deltas: list[float], seed: int) -> tuple[float, bool]:
         assert 0.0 < p <= 1.0 and math.isfinite(p)
         return p, True
     rng = Random(seed)
-    obs = abs(math.fsum(nonzero))
+    obs = abs(math.fsum(unit))
     hits = 0
     for _ in range(_MC_FLIPS):
         mask = rng.getrandbits(m)
-        flipped = math.fsum(val if ((mask >> idx) & 1) else -val for idx, val in enumerate(nonzero))
+        flipped = math.fsum(val if ((mask >> idx) & 1) else -val for idx, val in enumerate(unit))
         if abs(flipped) >= obs - tol:
             hits += 1
     p = min(1.0, max(0.0, (hits + 1) / float(_MC_FLIPS + 1)))
@@ -343,8 +343,7 @@ def _pair_key_groups(
     all_fams = sorted({k[0] for k in left.by_exact_key} | {k[0] for k in right.by_exact_key})
     matched: list[tuple[tuple[str, str, str], tuple[_TrialEntry, ...], tuple[_TrialEntry, ...]]] = []
     modes_used: set[str] = set()
-    only_a = 0
-    only_b = 0
+    only_a = only_b = 0
     for fam in all_fams:
         l_keys = {k for k in left.by_exact_key if k[0] == fam}
         r_keys = {k for k in right.by_exact_key if k[0] == fam}
@@ -379,11 +378,7 @@ def _pair_key_groups(
                 continue
         only_a += len(l_keys)
         only_b += len(r_keys)
-    mode = (
-        "family_instance"
-        if modes_used == {"family_instance"}
-        else ("mixed" if len(modes_used) > 1 else "family_condition_instance")
-    )
+    mode = "family_instance" if modes_used == {"family_instance"} else ("mixed" if len(modes_used) > 1 else "family_condition_instance")
     return mode, matched, only_a, only_b
 
 
@@ -400,9 +395,12 @@ def _compare_pair(left: _ArmEval, right: _ArmEval, *, alpha: float, seed: int) -
             continue
         ma = math.fsum(l_meas) / len(l_meas)
         mb = math.fsum(r_meas) / len(r_meas)
+        delta = ma - mb
+        if not math.isfinite(delta):
+            continue
         paired_a.append(ma)
         paired_b.append(mb)
-        deltas.append(ma - mb)
+        deltas.append(delta)
         pass_pairs.append((ma >= _PASS_THRESHOLD, mb >= _PASS_THRESHOLD))
     n_paired = len(deltas)
     if n_paired > 0:
@@ -478,30 +476,17 @@ def run_compare(
         for idx_b in range(idx_a + 1, len(evaluated)):
             pairs.append(_compare_pair(evaluated[idx_a], evaluated[idx_b], alpha=alpha_f, seed=seed))
     arm_summaries = [ev.summary for ev in evaluated]
-    cond_hints = {
-        ev.summary["arm"]: {k[1] for k in ev.by_exact_key if k[1] != "default"}
-        for ev in evaluated
-    }
+    cond_hints = {ev.summary["arm"]: {k[1] for k in ev.by_exact_key if k[1] != "default"} for ev in evaluated}
     triad_summary = compute_triad_decomposition(
-        arm_summaries,
-        pairs=pairs,
-        condition_hints=cond_hints,
-        require_triad=bool(triad),
+        arm_summaries, pairs=pairs, condition_hints=cond_hints, require_triad=bool(triad)
     )
     diff_pairs = [f"{p['arm_a']} vs {p['arm_b']}" for p in pairs if p["differential_attrition"]]
     zero_pairs = [f"{p['arm_a']} vs {p['arm_b']}" for p in pairs if p["zero_paired_keys"]]
     rc = 1 if (diff_pairs or zero_pairs) else 0
     report: dict[str, Any] = {
-        "command": "compare",
-        "alpha": alpha_f,
-        "stall_seconds": stall_f,
-        "seed": seed,
-        "passed": rc == 0,
-        "differential_pairs": diff_pairs,
-        "zero_paired_pairs": zero_pairs,
-        "arms": arm_summaries,
-        "pairs": pairs,
-        "triad": triad_summary,
+        "command": "compare", "alpha": alpha_f, "stall_seconds": stall_f, "seed": seed,
+        "passed": rc == 0, "differential_pairs": diff_pairs, "zero_paired_pairs": zero_pairs,
+        "arms": arm_summaries, "pairs": pairs, "triad": triad_summary,
     }
     if html_path is not None:
         try:

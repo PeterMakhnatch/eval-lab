@@ -5,7 +5,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 sys.dont_write_bytecode = True
 
@@ -13,7 +13,10 @@ sys.dont_write_bytecode = True
 def _load_dep(name: str) -> Any:
     existing = sys.modules.get(name)
     if existing is not None:
-        return existing
+        if name == "worldkit" and hasattr(getattr(existing, "World", None), "dispatch"):
+            return existing
+        if name == "codec" and hasattr(existing, "ADMIN_CLOSE_RESERVE"):
+            return existing
     here = Path(__file__).resolve().parent
     cand = here / f"{name}.py"
     if not cand.is_file():
@@ -55,9 +58,10 @@ def _normalize_tokens(instance: dict[str, Any], tokens: dict[str, str] | None) -
 
 
 class ProtoFitWorld(WorldBase):
+    budgets: ClassVar[dict[str, int]] = {"msg": 3}
     max_messages = 64
     max_msg_chars = 2000
-    max_board_bytes = 32768
+    max_board_bytes = 1440
 
     def __init__(
         self,
@@ -171,7 +175,9 @@ class ProtoFitWorld(WorldBase):
             self.premature_count += 1
             raise Reject(409, "quorum_not_ready", phase=1, barrier_satisfied=False)
         self.commit_locked.add(seat)
-        if self.barrier_enabled and self.fenced:
+        if self.barrier_enabled and self.fenced and not self.barrier_satisfied(1, digest):
+            self.premature_count += 1
+            self.mismatch_count += 1
             self.require_barrier(phase=1, digest=digest)
         bar_ok = self.barrier_satisfied(1, digest) if self.barrier_enabled else True
         if self.barrier_enabled and not bar_ok:

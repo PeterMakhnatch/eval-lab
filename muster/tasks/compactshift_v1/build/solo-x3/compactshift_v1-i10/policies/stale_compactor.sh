@@ -27,6 +27,7 @@ TOKEN = os.environ["SEAT_TOKEN"]
 ROLE = os.environ["ROLE_MODE"]
 POLL_SLEEP = float(os.environ.get("POLL_SLEEP", "0.25"))
 MAX_POLLS = 80
+MAX_SPEC_POLLS = 20
 
 
 def canon(obj):
@@ -104,11 +105,11 @@ elif ROLE == "builder":
                 break
             time.sleep(POLL_SLEEP)
     else:
-        for _ in range(MAX_POLLS):
+        for _ in range(MAX_SPEC_POLLS):
             _, sp = call("GET", "/spec")
             if sp.get("plan_ready") is True:
                 break
-            time.sleep(POLL_SLEEP)
+            time.sleep(max(POLL_SLEEP, 0.1))
     s_dig = handoff_digest(tid, seal, b_cons)
     call("POST", "/handoff", {"epoch": 1, "expected_version": 1, "constraints": b_cons, "handoff_digest": s_dig})
     if channel:
@@ -123,11 +124,11 @@ else:
                 break
             time.sleep(POLL_SLEEP)
     else:
-        for _ in range(MAX_POLLS):
+        for _ in range(MAX_SPEC_POLLS):
             _, sp = call("GET", "/spec")
             if sp.get("plan_ready") is True:
                 break
-            time.sleep(POLL_SLEEP)
+            time.sleep(max(POLL_SLEEP, 0.1))
     call("GET", "/notices")
     call("POST", "/report", {"done": False, "verified": False, "status": "blocked", "note": "upstream handoff failed compaction"})
 PY

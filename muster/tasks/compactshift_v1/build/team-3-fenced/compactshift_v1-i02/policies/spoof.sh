@@ -6,9 +6,14 @@ case "${SEAT:-p1}" in
   *) echo "unknown SEAT: ${SEAT:-}" >&2; exit 1 ;;
 esac
 
+for _ in $(seq 1 80); do
+  curl -fsS "${WORLD:-http://world:8080}/health" >/dev/null 2>&1 && break
+  sleep "${POLL_SLEEP:-0.25}"
+done
 exec python3 -B -u - <<'PY'
 import json
 import os
+import time
 import urllib.error
 import urllib.request
 
@@ -22,12 +27,21 @@ def send(method, path, auth=None, body_bytes=None, extra_headers=None):
         hdrs["Authorization"] = f"Bearer {auth}"
     if body_bytes is not None:
         hdrs["Content-Type"] = "application/json"
-    req = urllib.request.Request(WORLD + path, data=body_bytes, headers=hdrs, method=method)
-    try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            return resp.status
-    except urllib.error.HTTPError as err:
-        return err.code
+    for _ in range(8):
+        req = urllib.request.Request(WORLD + path, data=body_bytes, headers=hdrs, method=method)
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                resp.read()
+                return resp.status
+        except urllib.error.HTTPError as err:
+            try:
+                err.read()
+                return err.code
+            finally:
+                err.close()
+        except OSError:
+            time.sleep(0.05)
+    raise RuntimeError(f"request failed: {method} {path}")
 
 
 send("GET", "/spec", auth=None)

@@ -7,7 +7,7 @@ You operate as seat `planner` on a 3-seat rollout team (`planner`, `builder`, `v
 ## Workflow Stages & Digest Rules
 
 1. **Inspect state**:
-   - `GET /rules` returns `you`, `seats`, `channel`, `notices`, `epoch`, `state_version`, and any active `unread_guard`.
+   - `GET /rules` returns `you`, `seats`, `channel`, `notices`, `epoch`, `state_version`, `budget_left`, and any active `unread_guard`.
    - `GET /spec` returns `task_id`, `domain`, `epoch`, `state_version`, `plan_ready`, `handoff_ready`, `verify_ready`, `commit_ready`, and `base_spec` (`base_constraints`).
 2. **Register plan (`planner`, or `p1` when solo)**:
    - Compute `base_digest = sha256("<task_id>/1/<canonical_json(base_constraints)>")[:32]` where `canonical_json` uses sorted keys and compact separators `(",", ":")`.

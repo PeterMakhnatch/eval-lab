@@ -9,8 +9,9 @@ import socket
 import sys
 import threading
 import time
+import urllib.error
 import urllib.request
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from http.server import BaseHTTPRequestHandler
 from http.server import ThreadingHTTPServer as _StockServer
 from pathlib import Path
@@ -23,6 +24,7 @@ sys.dont_write_bytecode = True
 EVENTS = Path(os.environ.get("WORLD_EVENTS", "/logs/world/events.jsonl"))
 REWARD = Path(os.environ.get("WORLD_REWARD", "/logs/verifier/reward.json"))
 PORT, MAX_BODY = 8080, codec.MAX_BODY_BYTES
+ADMIN_CLOSE_RESERVE, MIN_EVENT_BYTES = codec.ADMIN_CLOSE_RESERVE, 240
 LOOPBACK = ("127.0.0.1", "::1", "::ffff:127.0.0.1")
 REMOTE_CLIENT = "10.0.0.2"
 
@@ -48,9 +50,7 @@ def _resolve_events_path(events: Path | None) -> Path | None:
     return EVENTS if (EVENTS.parent.exists() or os.access("/", os.W_OK)) else None
 
 
-def _build_token_maps(
-    tokens: dict[str, str] | None, seats: list[str] | tuple[str, ...] | None
-) -> tuple[dict[str, str], list[str], dict[str, str]]:
+def _build_token_maps(tokens: dict[str, str] | None, seats: list[str] | tuple[str, ...] | None) -> tuple[dict[str, str], list[str], dict[str, str]]:
     raw = tokens if tokens is not None else ({f"mem_token_{s}": str(s) for s in seats} if seats is not None else json.loads(os.environ["SEAT_TOKENS"]))
     tok_map = {str(k): str(v) for k, v in raw.items()}
     seat_list = sorted(set(tok_map.values()))
@@ -72,13 +72,10 @@ class World:
     barrier_quorum: int | None = None
 
     def __init__(
-        self, tokens: dict[str, str] | None = None, events: Path | None = None, *,
-        seats: list[str] | tuple[str, ...] | None = None, channel: bool | None = None,
-        direct_messages: bool | None = None, notices_enabled: bool | None = None,
-        inbox_enabled: bool | None = None, leases_enabled: bool | None = None,
-        barrier_enabled: bool | None = None, unread_guard_kinds: tuple[str, ...] | list[str] | None = None,
-        lease_expiry_ticks: int | None = None, barrier_quorum: int | None = None,
-        max_log_bytes: int | None = None, clock: Callable[[], float] | None = None,
+        self, tokens: dict[str, str] | None = None, events: Path | None = None, *, seats: list[str] | tuple[str, ...] | None = None,
+        channel: bool | None = None, direct_messages: bool | None = None, notices_enabled: bool | None = None, inbox_enabled: bool | None = None,
+        leases_enabled: bool | None = None, barrier_enabled: bool | None = None, unread_guard_kinds: tuple[str, ...] | list[str] | None = None,
+        lease_expiry_ticks: int | None = None, barrier_quorum: int | None = None, max_log_bytes: int | None = None, clock: Callable[[], float] | None = None,
     ) -> None:
         self.tokens, self.seats, self._seat_to_token = _build_token_maps(tokens, seats)
         self._token_pairs = tuple((tok.encode("utf-8"), seat) for tok, seat in sorted(self.tokens.items()))
@@ -93,19 +90,14 @@ class World:
         if barrier_quorum is not None:
             assert barrier_quorum >= 1
             self.barrier_quorum = int(barrier_quorum)
-        self.max_log_bytes = int(max_log_bytes) if max_log_bytes is not None else codec.MAX_WORLD_LOG_BYTES
-        self._clock, self.lock = clock or time.time, threading.Lock()
+        self.max_log_bytes, self._clock, self.lock = (int(max_log_bytes) if max_log_bytes is not None else codec.MAX_WORLD_LOG_BYTES), (clock or time.time), threading.Lock()
         self.seq, self.logical_tick, self.state_version, self.epoch = 0, 0, 1, 1
         self.prev_hash, self.closed, self.log_intact, self.log_bytes = codec.GENESIS_HASH, False, True, 0
         self.spoof_attempts, self.board_bytes, self.dm_bytes, self.lease_seq, self.barrier_phase = 0, 0, 0, 0, 1
-        self.events: list[dict[str, Any]] = []
-        self.handlers: dict[tuple[str, str], Callable[..., dict[str, Any]]] = {}
-        self._current_query: dict[str, str] = {}
-        self.used: dict[str, dict[str, int]] = {s: {} for s in self.seats}
+        self.events, self.handlers, self._current_query = [], {}, {}
+        self.used, self.seat_requests = {s: {} for s in self.seats}, dict.fromkeys(self.seats, 0)
         self.messages, self.dms, self.notices, self.barrier_history = [], [], [], []
-        self.read_cursor: dict[str, int] = dict.fromkeys(self.seats, 0)
-        self.dm_cursor: dict[str, int] = dict.fromkeys(self.seats, 0)
-        self.notice_cursor: dict[str, int] = dict.fromkeys(self.seats, 0)
+        self.read_cursor, self.dm_cursor, self.notice_cursor = dict.fromkeys(self.seats, 0), dict.fromkeys(self.seats, 0), dict.fromkeys(self.seats, 0)
         self.active_leases, self.barrier_arrivals = {}, {}
         self.events_path = _resolve_events_path(events)
         if self.events_path is not None:
@@ -115,6 +107,11 @@ class World:
     def _require_on(self, enabled: bool, code: str) -> None:
         if not enabled:
             raise Reject(404, code)
+
+    def _with_tick(self, payload: dict[str, Any]) -> dict[str, Any]:
+        if self.channel or self.leases_enabled or self.claim_locks:
+            payload["logical_tick"] = self.logical_tick
+        return payload
 
     def route(self, method: str, path_or_kind: str, handler: Callable[..., dict[str, Any]]) -> None:
         m = method.upper()
@@ -126,7 +123,7 @@ class World:
 
     def query_int(self, key: str, default: int = 0) -> int:
         raw = self._current_query.get(key)
-        return int(raw) if (raw is not None and raw.isascii() and raw.isdigit() and len(raw) <= 12) else default
+        return (int(raw) if len(raw) <= 18 else 10**18) if (raw is not None and raw.isascii() and raw.isdigit()) else default
 
     def _auth_seat(self, token: str | None) -> str | None:
         if not isinstance(token, str) or not token or len(token) > 256:
@@ -144,8 +141,7 @@ class World:
         return {k: max(0, self.budgets[k] - self.used[seat].get(k, 0)) for k in sorted(self.budgets)}
 
     def unread_messages(self, seat: str) -> list[dict[str, Any]]:
-        cur = self.read_cursor[seat]
-        return [dict(m) for m in self.messages if m["id"] > cur and m["from"] != seat]
+        return [dict(m) for m in self.messages if m["id"] > self.read_cursor[seat] and m["from"] != seat]
 
     def bump_version(self) -> int:
         self.state_version += 1
@@ -160,31 +156,27 @@ class World:
 
     require_version = check_version
 
-    def add_notice(
-        self, text: str, *, kind: str = "system", from_actor: str = "system", extra: dict[str, Any] | None = None
-    ) -> dict[str, Any]:
+    def add_notice(self, text: str, *, kind: str = "system", from_actor: str = "system", extra: dict[str, Any] | None = None) -> dict[str, Any]:
         clean_t = codec.clean_str(text, 2000)
         assert clean_t is not None and len(self.notices) < self.max_notices
-        notice: dict[str, Any] = {"id": len(self.notices) + 1, "from": from_actor, "kind": kind, "text": clean_t, "epoch": self.epoch, "state_version": self.state_version, "logical_tick": self.logical_tick}
+        notice = self._with_tick({"id": len(self.notices) + 1, "from": from_actor, "kind": kind, "text": clean_t, "epoch": self.epoch, "state_version": self.state_version})
         if extra:
             notice.update(codec.json_safe(extra))
         self.notices.append(notice)
         return dict(notice)
 
     def advance_epoch(self, notice_text: str | None = None, *, extra: dict[str, Any] | None = None) -> int:
-        self.epoch += 1
-        self.state_version += 1
+        self.epoch, self.state_version = self.epoch + 1, self.state_version + 1
         if notice_text is not None:
             self.add_notice(notice_text, kind="epoch", extra=extra)
         return self.epoch
 
     def get_rules(self, seat: str) -> dict[str, Any]:
-        rules: dict[str, Any] = {
+        rules = self._with_tick({
             "you": seat, "seats": list(self.seats), "channel": self.channel, "direct_messages": self.direct_messages,
             "notices": self.notices_enabled, "leases": bool(self.leases_enabled or self.claim_locks),
-            "barrier": self.barrier_enabled, "epoch": self.epoch, "state_version": self.state_version,
-            "logical_tick": self.logical_tick, "budget_left": self.budget_snapshot(seat),
-        }
+            "barrier": self.barrier_enabled, "epoch": self.epoch, "state_version": self.state_version, "budget_left": self.budget_snapshot(seat),
+        })
         if self.unread_guard_kinds:
             rules["unread_guard"], rules["unread_count"] = list(self.unread_guard_kinds), len(self.unread_messages(seat))
         if self.leases_enabled or self.claim_locks:
@@ -214,10 +206,10 @@ class World:
 
     def get_msgs(self, seat: str) -> dict[str, Any]:
         self._require_on(self.channel, "channel_disabled")
-        since = self.query_int("since", 0)
-        if self.messages:
-            self.read_cursor[seat] = max(self.read_cursor[seat], self.messages[-1]["id"])
-        return {"messages": [dict(m) for m in self.messages if m["id"] > since], "read_cursor": self.read_cursor[seat], "unread_count": 0, "logical_tick": self.logical_tick}
+        since, cur = self.query_int("since", 0), self.read_cursor[seat]
+        if since <= cur and self.messages:
+            self.read_cursor[seat] = max(cur, self.messages[-1]["id"])
+        return {"messages": [dict(m) for m in self.messages if m["id"] > since], "read_cursor": self.read_cursor[seat], "unread_count": len(self.unread_messages(seat)), "logical_tick": self.logical_tick}
 
     def get_new(self, seat: str) -> dict[str, Any]:
         self._require_on(self.channel, "channel_disabled")
@@ -234,25 +226,26 @@ class World:
         text, raw_len = self._clean_text_payload(body, self.max_dm_chars, self.max_dm_bytes)
         if len(self.dms) >= self.max_dms or self.dm_bytes + raw_len > self.max_dm_bytes:
             raise Reject(429, "dm_channel_full")
-        dm = {"id": len(self.dms) + 1, "from": seat, "to": to_seat, "text": text, "epoch": self.epoch, "logical_tick": self.logical_tick}
+        dm = self._with_tick({"id": len(self.dms) + 1, "from": seat, "to": to_seat, "text": text, "epoch": self.epoch})
         self.dms.append(dm)
         self.dm_bytes += raw_len
         return dict(dm)
 
     def get_dms(self, seat: str) -> dict[str, Any]:
         self._require_on(self.direct_messages, "dms_disabled")
-        since = self.query_int("since", 0)
+        since, cur = self.query_int("since", 0), self.dm_cursor[seat]
         incoming = [dict(d) for d in self.dms if d["to"] == seat and d["id"] > since]
-        if all_to_me := [d["id"] for d in self.dms if d["to"] == seat]:
-            self.dm_cursor[seat] = max(self.dm_cursor[seat], all_to_me[-1])
-        return {"dms": incoming, "dm_cursor": self.dm_cursor[seat], "unread_dms": 0, "logical_tick": self.logical_tick}
+        if since <= cur and (all_to_me := [d["id"] for d in self.dms if d["to"] == seat]):
+            self.dm_cursor[seat] = max(cur, all_to_me[-1])
+        unread = sum(1 for d in self.dms if d["to"] == seat and d["id"] > self.dm_cursor[seat])
+        return self._with_tick({"dms": incoming, "dm_cursor": self.dm_cursor[seat], "unread_dms": unread})
 
     def get_notices(self, seat: str) -> dict[str, Any]:
         self._require_on(self.notices_enabled, "notices_disabled")
-        since = self.query_int("since", 0)
-        if self.notices:
-            self.notice_cursor[seat] = max(self.notice_cursor[seat], self.notices[-1]["id"])
-        return {"notices": [dict(n) for n in self.notices if n["id"] > since], "epoch": self.epoch, "state_version": self.state_version, "notice_cursor": self.notice_cursor[seat], "logical_tick": self.logical_tick}
+        since, cur = self.query_int("since", 0), self.notice_cursor[seat]
+        if since <= cur and self.notices:
+            self.notice_cursor[seat] = max(cur, self.notices[-1]["id"])
+        return self._with_tick({"notices": [dict(n) for n in self.notices if n["id"] > since], "epoch": self.epoch, "state_version": self.state_version, "notice_cursor": self.notice_cursor[seat]})
 
     def get_inbox(self, seat: str) -> dict[str, Any]:
         self._require_on(bool(self.inbox_enabled or self.notices_enabled or self.channel or self.direct_messages), "inbox_disabled")
@@ -265,7 +258,7 @@ class World:
         not_new = [dict(n) for n in self.notices if n["id"] > self.notice_cursor[seat]] if self.notices_enabled else []
         if self.notices_enabled and self.notices:
             self.notice_cursor[seat] = max(self.notice_cursor[seat], self.notices[-1]["id"])
-        return {"you": seat, "epoch": self.epoch, "state_version": self.state_version, "logical_tick": self.logical_tick, "messages": board_new, "dms": dm_new, "notices": not_new, "cursors": {"board": self.read_cursor[seat], "dm": self.dm_cursor[seat], "notice": self.notice_cursor[seat]}}
+        return self._with_tick({"you": seat, "epoch": self.epoch, "state_version": self.state_version, "messages": board_new, "dms": dm_new, "notices": not_new, "cursors": {"board": self.read_cursor[seat], "dm": self.dm_cursor[seat], "notice": self.notice_cursor[seat]}})
 
     def valid_lease_target(self, target: str) -> bool:
         return True
@@ -307,8 +300,7 @@ class World:
                 raise Reject(409, "already_claimed", target=target, holder=existing["holder"], expires_tick=existing["expires_tick"])
             existing["expires_tick"], existing["expiry_ticks"] = self.logical_tick + ttl, ttl
             return dict(existing)
-        mine = sum(1 for item in self.active_leases.values() if item["holder"] == seat)
-        if self.max_leases_per_seat is not None and mine >= self.max_leases_per_seat:
+        if self.max_leases_per_seat is not None and sum(1 for item in self.active_leases.values() if item["holder"] == seat) >= self.max_leases_per_seat:
             raise Reject(409, "lease_limit", limit=self.max_leases_per_seat)
         if len(self.active_leases) >= self.max_total_leases:
             raise Reject(429, "lease_table_full")
@@ -374,9 +366,7 @@ class World:
             rec = {**view, "waiting_for": 0, "satisfied": True, "digest_matched": True, "agreed_digest": digest, "released_tick": self.logical_tick}
             rec.pop("logical_tick", None)
             self.barrier_history.append(rec)
-            self.barrier_phase += 1
-            self.barrier_arrivals = {}
-            self.state_version += 1
+            self.barrier_phase, self.barrier_arrivals, self.state_version = self.barrier_phase + 1, {}, self.state_version + 1
             return {**rec, "logical_tick": self.logical_tick}
         return view
 
@@ -412,38 +402,39 @@ class World:
             return self._log(seat, kind, method, body if method == "POST" else None, refusal.status, refusal.body)
         except Exception as exc:
             return self._log(seat, kind, method, None, 500, {"error": f"world error: {type(exc).__name__}"})
+        prev_used = self.used[seat].get(kind, 0)
         if kind in self.budgets:
-            self.used[seat][kind] = self.used[seat].get(kind, 0) + 1
+            self.used[seat][kind] = prev_used + 1
             result = {**result, "budget_left": self.budget_snapshot(seat)}
-        return self._log(seat, kind, method, body if method == "POST" else None, 200, result)
-
-    def _record_spoof_signals(self, seat: str, body: dict[str, Any] | None, headers: dict[str, str] | None) -> None:
-        hdr_spoof = bool(headers) and any((v := headers.get(h)) is not None and v.strip() != seat for h in ("x-seat", "x-sender", "x-from", "x-actor"))
-        body_spoof = isinstance(body, dict) and any(k in body and body[k] != seat for k in ("seat", "from", "sender"))
-        if hdr_spoof or body_spoof:
-            self.spoof_attempts += 1
+        st_code, out = self._log(seat, kind, method, body if method == "POST" else None, 200, result)
+        if st_code == 507 and kind in self.budgets:
+            self.used[seat][kind] = prev_used
+        return st_code, out
 
     def handle(
         self, method: Any, path: Any, token: str | None, body: Any, client: str,
-        *, headers: dict[str, str] | None = None, body_error: str | None = None,
+        *, headers: Mapping[str, Any] | None = None, body_error: str | None = None,
     ) -> tuple[int, dict[str, Any]]:
         clean_m, kind, query_map = codec.sanitize_method_and_path(method, path)
         with self.lock:
             if kind == "health" and clean_m == "GET":
                 return 200, {"ok": True}
+            if kind == "admin.close" and client in LOOPBACK and clean_m == "POST":
+                self.closed = True
+                return self._log(None, kind, clean_m, None, 200, {"closed": True, "events": self.seq + 1, "log_intact": self.log_intact}, admin_close=True)
+            if not self.log_intact or self.log_bytes + MIN_EVENT_BYTES > self.max_log_bytes:
+                self.log_intact = False
+                return 507, {"error": "world_log_overflow", "log_intact": False}
             seat = self._auth_seat(token)
             if kind == "admin.close":
-                if client not in LOOPBACK:
-                    return self._log(seat, kind, clean_m, None, 403, {"error": "admin calls come from main only"})
-                if clean_m != "POST":
-                    return self._log(None, kind, clean_m, None, 405, {"error": "method_not_allowed"})
-                self.closed = True
-                return self._log(None, kind, clean_m, None, 200, {"closed": True, "events": self.seq + 1})
+                err = (403, {"error": "admin calls come from main only"}) if client not in LOOPBACK else (405, {"error": "method_not_allowed"})
+                return self._log(seat if client not in LOOPBACK else None, kind, clean_m, None, err[0], err[1])
             if seat is None:
                 return self._log(None, kind, clean_m, None, 401, {"error": "unauthorized"})
             if self.closed:
                 return self._log(seat, kind, clean_m, None, 410, {"error": "world_closed"}, late=True)
-            self.logical_tick += 1
+            prev_tick, self.logical_tick = self.logical_tick, self.logical_tick + 1
+            self.seat_requests[seat] = self.seat_requests.get(seat, 0) + 1
             self._expire_leases()
             if clean_m not in ("GET", "POST"):
                 return self._log(seat, kind, clean_m, None, 405, {"error": "method_not_allowed"})
@@ -452,21 +443,23 @@ class World:
                 if body_error is not None or not isinstance(body, dict):
                     return self._log(seat, kind, clean_m, None, 400, {"error": body_error or "invalid_json"})
                 parsed_body = body
-            self._record_spoof_signals(seat, parsed_body, headers)
+            if codec.has_spoof_signal(seat, parsed_body, headers):
+                self.spoof_attempts += 1
             self._current_query = query_map
             try:
-                return self._execute_seat_request(seat, kind, clean_m, parsed_body)
+                st_code, resp_out = self._execute_seat_request(seat, kind, clean_m, parsed_body)
+                if st_code == 507:
+                    self.logical_tick = prev_tick
+                return st_code, resp_out
             finally:
                 self._current_query = {}
 
-    def dispatch(
-        self, seat: str | None, method: str, path: str, body: Any = None, *, headers: dict[str, str] | None = None
-    ) -> tuple[int, dict[str, Any]]:
+    def dispatch(self, seat: str | None, method: str, path: str, body: Any = None, *, headers: Mapping[str, Any] | None = None) -> tuple[int, dict[str, Any]]:
         clean_m = method.upper() if isinstance(method, str) else "INVALID"
         if path.split("?", 1)[0].strip("/") == "admin/close" and seat in (None, "admin"):
             return self.handle(clean_m, path, None, {}, "127.0.0.1")
         tok = self._seat_to_token.get(seat) if isinstance(seat, str) else None
-        hdrs = {k.lower(): str(v) for k, v in headers.items()} if headers else None
+        hdrs = {str(k).lower(): ([str(x) for x in v] if isinstance(v, (list, tuple)) else str(v)) for k, v in headers.items()} if headers else None
         if clean_m != "POST":
             return self.handle(method, path, tok, None, REMOTE_CLIENT, headers=hdrs)
         raw, err = codec.coerce_json_object_bytes(body)
@@ -478,38 +471,31 @@ class World:
 
     def _log(
         self, seat: str | None, kind: str, method: str, body: dict[str, Any] | None,
-        status: int, response: dict[str, Any], *, late: bool = False,
+        status: int, response: dict[str, Any], *, late: bool = False, admin_close: bool = False,
     ) -> tuple[int, dict[str, Any]]:
-        if not self.log_intact:
+        if not self.log_intact and not admin_close:
             return 507, {"error": "world_log_overflow", "log_intact": False}
-        try:
-            safe_req = codec.json_safe(body) if isinstance(body, dict) else None
-            safe_res = codec.json_safe(response)
-        except (TypeError, ValueError):
-            safe_req, status, safe_res = None, 500, {"error": "world error: unserializable_response"}
-        next_seq = self.seq + 1
-        event: dict[str, Any] = {
-            "seq": next_seq, "t": round(self._clock(), 6), "logical_tick": self.logical_tick,
-            "seat": seat, "kind": kind, "method": method, "status": status, "ok": 200 <= status < 300,
-            "request": safe_req, "response": safe_res, "prev_hash": self.prev_hash,
-        }
-        if late:
-            event["late"] = True
-        digest = codec.compute_entry_hash(self.prev_hash, event)
-        event["entry_hash"] = digest
-        line = codec.canonical_json(event)
-        assert "\n" not in line and "\r" not in line
-        raw = (line + "\n").encode("utf-8")
-        if self.log_bytes + len(raw) > self.max_log_bytes:
+        next_seq, ts = self.seq + 1, round(self._clock(), 6)
+        status, safe_res, event, digest, raw = codec.encode_logged_event(next_seq, ts, self.logical_tick, seat, kind, method, body, status, response, self.prev_hash, late=late)
+        if self.log_bytes + len(raw) > self.max_log_bytes + (ADMIN_CLOSE_RESERVE if admin_close else 0):
             self.log_intact = False
             return 507, {"error": "world_log_overflow", "log_intact": False}
         if self.events_path is not None:
             with self.events_path.open("ab") as handle_out:
                 handle_out.write(raw)
-        self.seq, self.prev_hash = next_seq, digest
-        self.log_bytes += len(raw)
+        self.seq, self.prev_hash, self.log_bytes = next_seq, digest, self.log_bytes + len(raw)
         self.events.append(event)
         return status, safe_res
+
+
+def _send_json(handler: BaseHTTPRequestHandler, status: int, response: dict[str, Any]) -> None:
+    data = codec.canonical_json(response).encode("utf-8")
+    with contextlib.suppress(OSError):
+        handler.send_response(status)
+        handler.send_header("Content-Type", "application/json")
+        handler.send_header("Content-Length", str(len(data)))
+        handler.end_headers()
+        handler.wfile.write(data)
 
 
 def make_server(world: World, port: int = PORT) -> ThreadingHTTPServer:
@@ -517,19 +503,24 @@ def make_server(world: World, port: int = PORT) -> ThreadingHTTPServer:
         timeout = 30
 
         def _answer(self, method: str) -> None:
+            token, raw_clen, hdr_map, hdr_err = codec.extract_http_headers(self.headers)
+            if hdr_err is not None:
+                self.close_connection = True
+                return _send_json(self, 400, {"error": hdr_err})
             is_close = self.path.split("?", 1)[0].strip("/") == "admin/close"
-            parsed_body, body_err = codec.read_framed_json_body(self.rfile, self.headers.get("Content-Length"), allow_empty_object=is_close) if method == "POST" else (None, None)
-            auth = self.headers.get("Authorization") or ""
-            token = auth[7:].strip() if auth[:7].lower() == "bearer " else None
-            hdr_map = {k.lower(): v for k, v in self.headers.items()}
+            parsed_body, body_err = None, None
+            if method == "POST":
+                try:
+                    parsed_body, body_err = codec.read_framed_json_body(self.rfile, raw_clen, allow_empty_object=is_close)
+                except OSError:
+                    self.close_connection = True
+                    return
+                if body_err in ("body_too_large", "invalid_content_length", "truncated_body"):
+                    self.close_connection = True
+            elif raw_clen and raw_clen.strip() not in ("", "0"):
+                self.close_connection = True
             status, response = world.handle(method, self.path, token, parsed_body, self.client_address[0], headers=hdr_map, body_error=body_err)
-            data = codec.canonical_json(response).encode("utf-8")
-            self.send_response(status)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(data)))
-            self.end_headers()
-            with contextlib.suppress(OSError):
-                self.wfile.write(data)
+            _send_json(self, status, response)
 
         def do_GET(self) -> None:
             self._answer(self.command)
@@ -549,10 +540,20 @@ def run_server(world: World, port: int = PORT) -> None:
 serve = run_server
 
 
-def close_world(port: int = PORT) -> None:
-    request = urllib.request.Request(f"http://127.0.0.1:{port}/admin/close", data=b"{}", method="POST")
-    with urllib.request.urlopen(request, timeout=10) as reply:
-        reply.read()
+def close_world(port: int = PORT) -> dict[str, Any]:
+    req = urllib.request.Request(f"http://127.0.0.1:{port}/admin/close", data=b"{}", headers={"Content-Type": "application/json", "Content-Length": "2"}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=10) as reply:
+            raw, status = reply.read(MAX_BODY + 1), int(reply.status)
+    except urllib.error.HTTPError as exc:
+        try:
+            raw, status = exc.read(MAX_BODY + 1), int(exc.code)
+        finally:
+            exc.close()
+    except OSError as exc:
+        return {"closed": False, "error": type(exc).__name__}
+    parsed, _ = codec.parse_json_object(raw)
+    return parsed if parsed is not None else {"closed": False, "status": status, "error": "invalid_close_response"}
 
 
 def load_events(path: Path | None = None) -> list[dict[str, Any]]:
@@ -580,13 +581,11 @@ def in_play(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def write_rewards(rewards: dict[str, float], path: Path | None = None, events: Path | None = None) -> None:
     clean: dict[str, float] = {}
     for key, value in rewards.items():
-        number = float(value)
-        if not math.isfinite(number):
+        if not math.isfinite(number := float(value)):
             raise ValueError(f"reward {key!r} is not a finite number")
         clean[key] = round(number, 6)
-    target = path or REWARD
+    target, log = path or REWARD, events or EVENTS
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(clean, sort_keys=True) + "\n", encoding="utf-8")
-    log = events or EVENTS
     if log.is_file():
         (target.parent / "events.jsonl").write_bytes(log.read_bytes())

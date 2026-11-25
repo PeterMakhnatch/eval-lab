@@ -15,7 +15,10 @@ sys.dont_write_bytecode = True
 def _load_dep(name: str) -> Any:
     existing = sys.modules.get(name)
     if existing is not None:
-        return existing
+        if name == "worldkit" and hasattr(getattr(existing, "World", None), "dispatch"):
+            return existing
+        if name == "codec" and hasattr(existing, "ADMIN_CLOSE_RESERVE"):
+            return existing
     here = Path(__file__).resolve().parent
     cands = (
         Path("/world") / f"{name}.py",
@@ -39,8 +42,9 @@ INSTANCE = Path(os.environ.get("WORLD_INSTANCE", "/world/instance.json"))
 HEX_CHARS = frozenset("0123456789abcdef")
 NUM_REGIMES = 16
 NUM_CONFIGS = 256
+MSG_BUDGET = 3
 MAX_MESSAGES = 64
-MAX_BOARD_BYTES = 32768
+MAX_BOARD_BYTES = 1440
 REQUIRED_KEYS = (
     "seq", "t", "logical_tick", "seat", "kind", "method",
     "status", "ok", "request", "response", "prev_hash", "entry_hash",
@@ -75,7 +79,7 @@ def _events_chain_ok(events: list[dict[str, Any]]) -> bool:
     if not ok:
         return False
     for ev in events:
-        if any(k not in ev for k in REQUIRED_KEYS):
+        if "hmac" in ev or any(k not in ev for k in REQUIRED_KEYS):
             return False
         status, ok_flag = ev.get("status"), ev.get("ok")
         if type(status) is not int or type(ok_flag) is not bool or ok_flag != (200 <= status < 300):
@@ -95,6 +99,7 @@ def _init_sim(instance: dict[str, Any]) -> dict[str, Any]:
         "tick": 0,
         "state_version": 1,
         "closed": False,
+        "log_intact": True,
         "channel": bool(instance["channel"]),
         "barrier_enabled": bool(instance["barrier_enabled"]),
         "barrier_quorum": int(instance.get("barrier_quorum") or len(seats)),
@@ -110,6 +115,7 @@ def _init_sim(instance: dict[str, Any]) -> dict[str, Any]:
         "target_digest": str(instance["target_digest"]),
         "messages": [],
         "board_bytes": 0,
+        "msg_left": dict.fromkeys(seats, MSG_BUDGET),
         "read_cursor": dict.fromkeys(seats, 0),
         "barrier_phase": 1,
         "barrier_arrivals": {},
@@ -151,41 +157,76 @@ def _barrier_ok(sim: dict[str, Any], digest: str | None = None) -> bool:
     )
 
 
-def _check_get_event(sim: dict[str, Any], instance: dict[str, Any], seat: str, kind: str, resp: dict[str, Any]) -> bool:
-    if kind == "rules":
-        unread = [m for m in sim["messages"] if m["id"] > sim["read_cursor"][seat] and m["from"] != seat]
-        exp: dict[str, Any] = {
-            "you": seat, "seats": list(sim["seats"]), "channel": sim["channel"],
-            "direct_messages": False, "notices": False, "leases": False,
-            "barrier": sim["barrier_enabled"], "epoch": 1,
-            "state_version": sim["state_version"], "logical_tick": sim["tick"],
-            "budget_left": {}, "task_id": str(instance["task_id"]),
-            "domain": str(instance["domain"]), "num_regimes": NUM_REGIMES,
-            "num_configs": NUM_CONFIGS, "probe_pool": sim["probe_pool"],
-            "shared_probes_left": sim["probes_left"], "max_msg_bytes": sim["max_msg_bytes"],
-            "fenced": sim["fenced"], "workspace_path": "/home/agent/workspace/constraints.json",
-            "committed": seat in sim["commits"],
-        }
-        if sim["unread_guard"]:
-            exp["unread_guard"] = list(sim["unread_guard"])
-            exp["unread_count"] = len(unread)
-        if sim["barrier_enabled"]:
-            exp["barrier_quorum"] = sim["barrier_quorum"]
-        return resp == exp
-    if kind in ("msgs", "new"):
-        if not sim["channel"]:
-            return False
-        prev = sim["read_cursor"][seat]
+def _check_rules_get(sim: dict[str, Any], instance: dict[str, Any], seat: str, resp: dict[str, Any]) -> bool:
+    unread = [m for m in sim["messages"] if m["id"] > sim["read_cursor"][seat] and m["from"] != seat]
+    exp: dict[str, Any] = {
+        "you": seat, "seats": list(sim["seats"]), "channel": sim["channel"],
+        "direct_messages": False, "notices": False, "leases": False,
+        "barrier": sim["barrier_enabled"], "epoch": 1,
+        "state_version": sim["state_version"],
+        "budget_left": {"msg": sim["msg_left"][seat]},
+        "task_id": str(instance["task_id"]),
+        "domain": str(instance["domain"]), "num_regimes": NUM_REGIMES,
+        "num_configs": NUM_CONFIGS, "probe_pool": sim["probe_pool"],
+        "shared_probes_left": sim["probes_left"], "max_msg_bytes": sim["max_msg_bytes"],
+        "fenced": sim["fenced"], "workspace_path": "/home/agent/workspace/constraints.json",
+        "committed": seat in sim["commits"],
+    }
+    if sim["channel"]:
+        exp["logical_tick"] = sim["tick"]
+    if sim["unread_guard"]:
+        exp["unread_guard"] = list(sim["unread_guard"])
+        exp["unread_count"] = len(unread)
+    if sim["barrier_enabled"]:
+        exp["barrier_quorum"] = sim["barrier_quorum"]
+    return resp == exp
+
+
+def _check_channel_get(sim: dict[str, Any], seat: str, kind: str, resp: dict[str, Any]) -> bool:
+    if not sim["channel"]:
+        return False
+    prev = sim["read_cursor"][seat]
+    if kind == "new":
+        items = [dict(m) for m in sim["messages"] if m["id"] > prev]
         if sim["messages"]:
             sim["read_cursor"][seat] = max(prev, sim["messages"][-1]["id"])
-        if kind == "new":
-            items = [dict(m) for m in sim["messages"] if m["id"] > prev]
-            return resp == {"messages": items, "previous_cursor": prev, "read_cursor": sim["read_cursor"][seat], "unread_count": 0, "logical_tick": sim["tick"]}
-        got_msgs = resp.get("messages")
-        if not isinstance(got_msgs, list) or len(got_msgs) > len(sim["messages"]):
-            return False
-        suffix = sim["messages"][len(sim["messages"]) - len(got_msgs) :] if got_msgs else []
-        return got_msgs == suffix and resp.get("read_cursor") == sim["read_cursor"][seat] and resp.get("unread_count") == 0 and resp.get("logical_tick") == sim["tick"]
+        return resp == {
+            "messages": items, "previous_cursor": prev,
+            "read_cursor": sim["read_cursor"][seat], "unread_count": 0, "logical_tick": sim["tick"],
+        }
+    if kind == "inbox":
+        items = [dict(m) for m in sim["messages"] if m["id"] > prev]
+        if sim["messages"]:
+            sim["read_cursor"][seat] = max(prev, sim["messages"][-1]["id"])
+        exp_in: dict[str, Any] = {
+            "you": seat, "epoch": 1, "state_version": sim["state_version"],
+            "messages": items, "dms": [], "notices": [],
+            "cursors": {"board": sim["read_cursor"][seat], "dm": 0, "notice": 0},
+        }
+        if sim["channel"]:
+            exp_in["logical_tick"] = sim["tick"]
+        return resp == exp_in
+    got_msgs = resp.get("messages")
+    total = len(sim["messages"])
+    if not isinstance(got_msgs, list) or len(got_msgs) > total:
+        return False
+    suffix = sim["messages"][total - len(got_msgs) :] if got_msgs else []
+    if got_msgs != suffix:
+        return False
+    if total - len(got_msgs) <= prev and sim["messages"]:
+        sim["read_cursor"][seat] = max(prev, sim["messages"][-1]["id"])
+    unread_n = sum(1 for m in sim["messages"] if m["id"] > sim["read_cursor"][seat] and m["from"] != seat)
+    return resp == {
+        "messages": suffix, "read_cursor": sim["read_cursor"][seat],
+        "unread_count": unread_n, "logical_tick": sim["tick"],
+    }
+
+
+def _check_get_event(sim: dict[str, Any], instance: dict[str, Any], seat: str, kind: str, resp: dict[str, Any]) -> bool:
+    if kind == "rules":
+        return _check_rules_get(sim, instance, seat, resp)
+    if kind in ("msgs", "new", "inbox"):
+        return _check_channel_get(sim, seat, kind, resp)
     if kind == "barrier":
         if not sim["barrier_enabled"]:
             return False
@@ -203,18 +244,19 @@ def _check_get_event(sim: dict[str, Any], instance: dict[str, Any], seat: str, k
 
 def _step_post_ok(sim: dict[str, Any], seat: str, kind: str, req: dict[str, Any], resp: dict[str, Any]) -> bool:
     if kind == "msg":
-        if not sim["channel"] or set(req) != {"text"}:
+        if not sim["channel"] or set(req) != {"text"} or sim["msg_left"][seat] <= 0:
             return False
         txt = codec.clean_str(req.get("text"), 2000)
         if txt is None:
             return False
-        raw_len = len(txt.encode())
+        raw_len = len(txt.encode("utf-8"))
         if raw_len > sim["max_msg_bytes"] or len(sim["messages"]) >= MAX_MESSAGES or sim["board_bytes"] + raw_len > MAX_BOARD_BYTES:
             return False
         msg = {"id": len(sim["messages"]) + 1, "from": seat, "text": txt, "epoch": 1, "logical_tick": sim["tick"]}
         sim["messages"].append(msg)
         sim["board_bytes"] += raw_len
-        return resp == msg
+        sim["msg_left"][seat] -= 1
+        return resp == {**msg, "budget_left": {"msg": sim["msg_left"][seat]}}
     if kind == "probe":
         if set(req) != {"regime"} or sim["probes_left"] <= 0:
             return False
@@ -306,7 +348,8 @@ def _record_rejection(sim: dict[str, Any], seat: str, kind: str, status: int, re
         elif err == "interface_mismatch":
             sim["commit_locked"].add(seat)
             sim["mismatch_count"] += 1
-            if sim["barrier_enabled"] and not _barrier_ok(sim):
+            cdig = codec.clean_str(req.get("contract_digest"), 64) if isinstance(req, dict) else None
+            if sim["barrier_enabled"] and not _barrier_ok(sim, cdig):
                 sim["premature_count"] += 1
     return True
 
@@ -323,7 +366,17 @@ def _replay(events: list[dict[str, Any]], instance: dict[str, Any]) -> dict[str,
             if ev["logical_tick"] != sim["tick"]:
                 return {**sim, "faithful": False}
             if ok:
-                if seat is not None or method != "POST" or req is not None or resp != {"closed": True, "events": ev["seq"]}:
+                intact = resp.get("log_intact")
+                if (
+                    seat is not None
+                    or method != "POST"
+                    or req is not None
+                    or set(resp) != {"closed", "events", "log_intact"}
+                    or resp.get("closed") is not True
+                    or resp.get("events") != ev["seq"]
+                    or intact is not True
+                ):
+                    sim["log_intact"] = bool(intact is True)
                     return {**sim, "faithful": False}
                 sim["closed"] = True
             else:
@@ -358,14 +411,14 @@ def _replay(events: list[dict[str, Any]], instance: dict[str, Any]) -> dict[str,
                 return {**sim, "faithful": False}
         else:
             return {**sim, "faithful": False}
-    return {**sim, "faithful": True}
+    return {**sim, "faithful": bool(sim["closed"] and sim["log_intact"])}
 
 
 def score(events: list[dict[str, Any]], instance: dict[str, Any]) -> dict[str, float]:
     if not _events_chain_ok(events):
         return _zero_rewards(instance, chain_valid=False)
     state = _replay(events, instance)
-    if not state["faithful"]:
+    if not state["faithful"] or not state["closed"] or not state["log_intact"]:
         return _zero_rewards(instance, chain_valid=True)
     seats = [str(s) for s in instance["seats"]]
     b_en = bool(instance["barrier_enabled"])
@@ -399,7 +452,8 @@ def score(events: list[dict[str, Any]], instance: dict[str, Any]) -> dict[str, f
 
 def _load_strict_events(path: Path) -> list[dict[str, Any]]:
     info = os.lstat(path)
-    if not stat.S_ISREG(info.st_mode) or info.st_size <= 0 or info.st_size > codec.MAX_WORLD_LOG_BYTES:
+    max_bytes = codec.MAX_WORLD_LOG_BYTES + getattr(codec, "ADMIN_CLOSE_RESERVE", 1024)
+    if not stat.S_ISREG(info.st_mode) or info.st_size <= 0 or info.st_size > max_bytes:
         raise ValueError("missing or oversized event log")
     events = codec.parse_events_jsonl(path.read_bytes())
     if not _events_chain_ok(events):

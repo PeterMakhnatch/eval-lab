@@ -15,8 +15,6 @@ TEMPLATE = FAMILY / "template"
 INSTRUCTIONS = TEMPLATE / "instructions"
 BUILD = FAMILY / "build"
 PLACEHOLDER_RE = re.compile(r"\{[a-z_]+\}")
-ENVIRONMENT_HDR = "[environment]\nbuild_timeout_sec = 600.0\n"
-NO_BAKE_ENV = '\n[environment.env]\nCOMPOSE_BAKE = "false"\n'
 
 _ref_spec = importlib.util.spec_from_file_location("compactshift_v1_reference", FAMILY / "reference.py")
 assert _ref_spec is not None and _ref_spec.loader is not None
@@ -72,11 +70,6 @@ def render_instruction(instance: dict[str, Any], seat: str) -> str:
     return rendered if rendered.endswith("\n") else rendered + "\n"
 
 
-def _patch_task_toml(text: str) -> str:
-    assert text.count(ENVIRONMENT_HDR) == 1 and "[environment.env]" not in text
-    return text.replace(ENVIRONMENT_HDR, ENVIRONMENT_HDR + NO_BAKE_ENV)
-
-
 def _description(name: str, condition: str, instance: dict[str, Any]) -> str:
     seats_str = ", ".join(str(s) for s in instance["seats"])
     return (
@@ -124,7 +117,8 @@ def tasks() -> dict[str, dict[str, str]]:
                 },
                 internet=False,
             )
-            files["task.toml"] = _patch_task_toml(files["task.toml"])
+            assert files["task.toml"].count("[environment.env]") == 1
+            assert 'COMPOSE_BAKE = "false"' in files["task.toml"]
             out[f"{condition}/{name}"] = files
     assert len(out) == 40
     return out
@@ -145,10 +139,14 @@ def main(argv: list[str] | None = None, out: Path = BUILD) -> int:
                     p.rmdir()
     status = build.emit(out, tasks(), args.check)
     if args.check:
-        status = max(status, reference.check(reference.family()), build.check_no_bytecode(out))
+        status = max(
+            status,
+            reference.check(reference.family()),
+            build.check_no_bytecode(out),
+        )
     else:
         build.purge_bytecode(FAMILY)
-        status = max(status, build.check_no_bytecode(out))
+        status = max(status, build.check_no_bytecode(out), build.check_no_bytecode(FAMILY))
     return status
 
 

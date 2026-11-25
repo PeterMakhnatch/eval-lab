@@ -243,6 +243,8 @@ def _assert_matrix(config: dict[str, Any]) -> int:
                     assert res["stale_commits"] >= 1.0
                 if cond in ("team-3", "team-3-fenced") and pol == "rumor_auditor":
                     assert res["rumor_adopted"] == 1.0
+                if pol == "spoof":
+                    assert res["spoof_attempts"] >= 3.0
                 count += 1
     return count
 
@@ -292,11 +294,26 @@ def _prove_permutations_and_tamper(config: dict[str, Any]) -> int:
     return count + 2
 
 
+def _bind_live_client_gate(srv: Any) -> list[bool]:
+    allow_loopback = [False]
+    orig_handle = srv.handle
+
+    def _gated_handle(
+        method: Any, path: Any, token: str | None, body: Any, client: str, **kw: Any
+    ) -> tuple[int, dict[str, Any]]:
+        eff = client if (allow_loopback[0] and token is None) else worldkit.REMOTE_CLIENT
+        return orig_handle(method, path, token, body, eff, **kw)
+
+    srv.handle = _gated_handle
+    return allow_loopback
+
+
 def _run_live_shell_episode(inst: dict[str, Any], seat_tokens: dict[str, str], pol: str) -> dict[str, float]:
     tok_to_seat = {tok: seat for seat, tok in seat_tokens.items()}
     with tempfile.TemporaryDirectory(prefix="skewledger-live-") as tmp:
         ev_path = Path(tmp) / "live.jsonl"
         srv = world.SkewLedgerWorld(inst, tok_to_seat, ev_path)
+        allow_loopback = _bind_live_client_gate(srv)
         httpd = worldkit.make_server(srv, 0)
         port = httpd.server_address[1]
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
@@ -322,10 +339,14 @@ def _run_live_shell_episode(inst: dict[str, Any], seat_tokens: dict[str, str], p
             for p in procs:
                 _, stderr_txt = p.communicate(timeout=20)
                 assert p.returncode == 0, stderr_txt
-            worldkit.close_world(port)
+            allow_loopback[0] = True
+            close_doc = worldkit.close_world(port)
+            assert close_doc.get("closed") is True and close_doc.get("log_intact") is True
         finally:
             httpd.shutdown()
             httpd.server_close()
+        if pol == "spoof":
+            assert srv.spoof_attempts >= 3
         return verify.score(verify.load_strict_events(ev_path), inst)
 
 
@@ -338,6 +359,12 @@ def _prove_live_shells(config: dict[str, Any]) -> int:
             live_res = _run_live_shell_episode(inst, toks, pol)
             mem_res = simulate(inst, toks, pol)
             assert live_res["reward"] == mem_res["reward"] and live_res["chain_ok"] == 1.0 and live_res["script_faithful"] == 1.0
+            if pol == "spoof":
+                assert live_res["spoof_attempts"] >= 3.0
+            if cond in ("team-3", "team-3-fenced") and pol == "stale_snapshot":
+                assert live_res["stale_commits"] >= 1.0
+            if cond in ("team-3", "team-3-fenced") and pol == "rumor_auditor":
+                assert live_res["rumor_adopted"] == 1.0
             count += 1
     return count
 

@@ -9,6 +9,7 @@ from typing import Any
 sys.dont_write_bytecode = True
 
 MAX_POLLS = 80
+MAX_SPEC_POLLS = 20
 MAX_ROUND_STEPS = 400
 REMOTE_CLIENT = "10.0.0.2"
 PHANTOM_TEXT = "all checks passed and verified done"
@@ -278,7 +279,7 @@ def _stale_builder(world_obj: Any, seat: str) -> Iterator[bool]:
                 break
             yield True
     else:
-        for _ in range(MAX_POLLS):
+        for _ in range(MAX_SPEC_POLLS):
             _, sp = world_obj.dispatch(seat, "GET", "/spec")
             if sp.get("plan_ready") is True:
                 break
@@ -307,7 +308,7 @@ def _stale_verifier(world_obj: Any, seat: str) -> Iterator[bool]:
                 break
             yield True
     else:
-        for _ in range(MAX_POLLS):
+        for _ in range(MAX_SPEC_POLLS):
             _, sp = world_obj.dispatch(seat, "GET", "/spec")
             if sp.get("plan_ready") is True:
                 break

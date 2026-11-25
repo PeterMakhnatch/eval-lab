@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -22,6 +22,7 @@ from worldwatch._trial_bespoke import (
 from worldwatch.model import (
     MAX_SEATS,
     SEAT_NAME_RE,
+    clamped_nonneg_int,
     finite_float,
     is_no_model_name,
     nonneg_int,
@@ -31,42 +32,17 @@ from worldwatch.model import (
 _EXIT_INT_RE = re.compile(r"^[+-]?\d{1,6}$")
 _COMPLETE_TOOLS = frozenset({"mark_task_complete", "task_complete"})
 INVALID_EXCEPTIONS = frozenset({
-    "EnvironmentStartTimeoutError",
-    "SandboxBuildFailedError",
-    "AgentSetupTimeoutError",
-    "HealthcheckError",
-    "SandboxLikelyOutOfMemoryError",
-    "MemoryLimitExceededError",
-    "SSHAccessError",
-    "RuntimeRequestError",
-    "ApiError",
-    "ApiRateLimitError",
-    "ApiInternalServerError",
-    "ApiOverloadedError",
-    "ApiConnectionClosedError",
-    "ApiResponseStalledError",
-    "UnknownApiError",
-    "NetworkConnectionError",
-    "ApiConnectionError",
-    "ApiUsageLimitError",
-    "RateLimitError",
-    "InternalServerError",
-    "ServiceUnavailableError",
-    "APIConnectionError",
-    "APIError",
-    "Timeout",
-    "BadRequestError",
-    "BudgetExceededError",
-    "VerifierTimeoutError",
-    "RewardFileNotFoundError",
-    "RewardFileEmptyError",
-    "VerifierOutputParseError",
-    "AgentAuthenticationError",
-    "ModelNotFoundError",
-    "AuthenticationError",
-    "PermissionDeniedError",
-    "NotFoundError",
-    "CancelledError",
+    "EnvironmentStartTimeoutError", "SandboxBuildFailedError", "AgentSetupTimeoutError",
+    "HealthcheckError", "SandboxLikelyOutOfMemoryError", "MemoryLimitExceededError",
+    "SSHAccessError", "RuntimeRequestError", "ApiError", "ApiRateLimitError",
+    "ApiInternalServerError", "ApiOverloadedError", "ApiConnectionClosedError",
+    "ApiResponseStalledError", "UnknownApiError", "NetworkConnectionError",
+    "ApiConnectionError", "ApiUsageLimitError", "RateLimitError", "InternalServerError",
+    "ServiceUnavailableError", "APIConnectionError", "APIError", "Timeout",
+    "BadRequestError", "BudgetExceededError", "VerifierTimeoutError",
+    "RewardFileNotFoundError", "RewardFileEmptyError", "VerifierOutputParseError",
+    "AgentAuthenticationError", "ModelNotFoundError", "AuthenticationError",
+    "PermissionDeniedError", "NotFoundError", "CancelledError",
 })
 
 
@@ -206,7 +182,7 @@ def read_atif_summary(traj_path: Path, root: Path | None = None) -> AtifSummary 
         if step.get("source") == "agent":
             agent_steps += 1
             metrics = _as_dict(step.get("metrics"))
-            declared = nonneg_int(step.get("llm_call_count"))
+            declared = clamped_nonneg_int(step.get("llm_call_count"), 1_000_000)
             if declared is not None:
                 llm_calls += declared
             elif nonneg_int(metrics.get("prompt_tokens")) is not None:
@@ -580,3 +556,20 @@ def load_trial_bundle(
         seats=seats,
         facing_to_seat=facing_map,
     )
+
+
+def with_olam_seat_alias(bundle: TrialBundle, events: list[dict[str, Any]]) -> TrialBundle:
+    if bundle.ecosystem != "olam" or len(bundle.seats) != 1 or bundle.seats[0].seat != "agent":
+        return bundle
+    ev_seats: set[str] = set()
+    for row in events[:50_000]:
+        if row.get("kind") in ("admin.close", "script.seed", "script.round"):
+            continue
+        raw = row.get("seat")
+        if isinstance(raw, str) and raw:
+            ev_seats.add(raw)
+            if len(ev_seats) > 1:
+                return bundle
+    if len(ev_seats) == 1 and (sole := next(iter(ev_seats))) != "agent":
+        return replace(bundle, facing_to_seat={**bundle.facing_to_seat, sole: "agent"})
+    return bundle

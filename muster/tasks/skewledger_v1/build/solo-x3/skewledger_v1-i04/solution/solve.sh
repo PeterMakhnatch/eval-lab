@@ -13,9 +13,20 @@ WORLD = os.environ.get("WORLD", "http://world:8080")
 TOKEN = os.environ["SEAT_TOKEN"]
 SEAT = os.environ.get("SEAT", "")
 POLL_SLEEP = float(os.environ.get("POLL_SLEEP", "0.25"))
-MAX_POLLS = 80
+MAX_POLLS = 100
 RETRIES = 8
 TIMEOUT = 15
+
+
+def wait_health():
+    for _ in range(60):
+        try:
+            with urllib.request.urlopen(WORLD + "/health", timeout=2) as resp:
+                if resp.status == 200:
+                    return
+        except (OSError, http.client.HTTPException, socket.gaierror):
+            pass
+        time.sleep(0.05)
 
 
 def call(method, path, body=None):
@@ -30,7 +41,11 @@ def call(method, path, body=None):
             with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
                 return resp.status, json.loads(resp.read() or b"{}")
         except urllib.error.HTTPError as err:
-            return err.code, json.loads(err.read() or b"{}")
+            try:
+                raw = err.read()
+            finally:
+                err.close()
+            return err.code, json.loads(raw or b"{}")
         except (OSError, http.client.HTTPException, socket.gaierror):
             time.sleep(0.05)
     raise RuntimeError(f"{method} {path} failed")
@@ -95,9 +110,11 @@ def do_transfer(account, amount, use_leases):
 
 def do_commit(use_leases, use_notices, use_channel):
     if use_channel:
-        call("GET", "/msgs")
+        st_m, _ = call("GET", "/msgs")
+        assert st_m == 200
     if use_notices:
-        call("GET", "/notices")
+        st_n, _ = call("GET", "/notices")
+        assert st_n == 200
     lid = None
     if use_leases:
         st_c, crep = call("POST", "/claim", {"target": "settlement"})
@@ -114,10 +131,12 @@ def do_commit(use_leases, use_notices, use_channel):
     }
     if lid is not None:
         payload["lease_id"] = lid
-    call("POST", "/commit", payload)
+    st_cm, _ = call("POST", "/commit", payload)
+    assert st_cm == 200
 
 
 def main():
+    wait_health()
     st, rules = call("GET", "/rules")
     assert st == 200
     me = SEAT or str(rules["you"])

@@ -20,7 +20,7 @@ from worldwatch._io import (
 from worldwatch._preflight_rules import (
     check_dockerignores,
     check_toml_security,
-    inspect_compose_lines,
+    inspect_compose_topology,
     make_finding,
 )
 from worldwatch.model import (
@@ -271,13 +271,14 @@ def _check_compose(
     toml_seats: int,
     compose_bake: str | None,
     findings: list[dict[str, Any]],
-) -> None:
+) -> set[str]:
     env_dir = task_dir / "environment"
     compose_paths = [env_dir / nm for nm in _COMPOSE_FILENAMES if os.path.lexists(env_dir / nm)]
+    build_rels: set[str] = set()
     if not compose_paths:
         if toml_seats > 24 and compose_bake != "false":
             findings.append(make_finding("missing-compose-bake-false", "COMPOSE_BAKE must be 'false' when > 24 seats", label))
-        return
+        return build_rels
     max_compose_seats = 0
     for compose_path in compose_paths:
         text, err = read_regular_text(compose_path, max_bytes=2 * 1024 * 1024, root=task_dir)
@@ -289,25 +290,33 @@ def _check_compose(
         except ValueError as exc:
             findings.append(make_finding("invalid-compose", str(exc), label))
             continue
-        services, svc_nets, net_internal, has_health = inspect_compose_lines(lines, label, findings)
-        seat_svcs = {s for s in services if s not in ("main", "world")}
+        topo = inspect_compose_topology(lines, label, findings)
+        for sb_set in topo.svc_builds.values():
+            build_rels.update(sb_set)
+        seat_svcs = {s for s in topo.services if s not in ("main", "world")}
         max_compose_seats = max(max_compose_seats, len(seat_svcs))
-        _check_shared_seat_networks(seat_svcs, svc_nets, label, findings)
-        if ("main" in services or "world" in services or seat_svcs) and not has_health:
+        eff_svc_nets = {
+            s: {topo.net_names.get(n, n) for n in snets}
+            for s, snets in topo.svc_nets.items()
+        }
+        _check_shared_seat_networks(seat_svcs, eff_svc_nets, label, findings)
+        if ("main" in topo.services or "world" in topo.services or seat_svcs) and not topo.has_health:
             findings.append(make_finding("compose-missing-healthcheck", "world service missing /health healthcheck", label))
-        non_main_nets = {n for n in net_internal if n != "main"}
-        bad_nets = sorted(n for n in non_main_nets if not net_internal[n])
+        for ext_net in sorted(topo.net_external):
+            findings.append(make_finding("compose-network-not-internal", f"external network forbidden in compose: {ext_net}", label))
+        bad_nets = sorted(n for n, is_int in topo.net_internal.items() if not is_int and n not in topo.net_external)
         if bad_nets:
             findings.append(make_finding("compose-network-not-internal", f"network(s) missing internal: true: {bad_nets}", label))
-        elif seat_svcs:
-            for sname in sorted(seat_svcs):
-                snets = svc_nets.get(sname, set())
-                if not snets or any(not net_internal.get(n, False) for n in snets):
-                    findings.append(make_finding("compose-network-not-internal", f"seat {sname} lacks internal: true network", label))
+        if len(topo.services) >= 2 or seat_svcs:
+            for sname in sorted(topo.services):
+                snets = topo.svc_nets.get(sname, set())
+                if not snets or any(not topo.net_internal.get(n, False) or n in topo.net_external for n in snets):
+                    findings.append(make_finding("compose-network-not-internal", f"service {sname} lacks internal: true network", label))
                     break
     total_seats = max(toml_seats, max_compose_seats)
     if total_seats > 24 and compose_bake != "false":
         findings.append(make_finding("missing-compose-bake-false", f"COMPOSE_BAKE must be 'false' for {total_seats} seats (> 24)", label))
+    return build_rels
 
 
 def _fetch_openrouter_json(url: str, api_key: str) -> tuple[Mapping[str, Any] | None, str | None]:
@@ -454,8 +463,8 @@ def _evaluate_one_task(tdir: Path, label: str) -> dict[str, Any]:
         t_findings.append(make_finding("invalid-task-toml", st_err, label))
     _scan_task_tree(tdir, label, t_findings)
     toml_seats, compose_bake = _check_task_toml(tdir, label, t_findings)
-    _check_compose(tdir, label, toml_seats, compose_bake, t_findings)
-    check_dockerignores(tdir, label, t_findings)
+    build_rels = _check_compose(tdir, label, toml_seats, compose_bake, t_findings)
+    check_dockerignores(tdir, label, t_findings, extra_build_rels=build_rels)
     deduped = _dedup_findings(t_findings)
     return {"task": label, "path": str(tdir), "passed": len(deduped) == 0, "findings": deduped}
 

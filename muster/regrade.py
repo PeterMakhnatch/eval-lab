@@ -1,14 +1,48 @@
 from __future__ import annotations
 
+import copy
 import importlib.util
 import json
 import math
 import sys
 from collections.abc import Callable
 from pathlib import Path
+from types import ModuleType
 from typing import Any
 
 TOLERANCE = 1e-6
+_TRANSIENT_MODS = ("worldkit", "codec")
+
+
+def _wrap_task_scorer(
+    raw_score: Callable[[list[dict], dict], dict], world: Path, task_mods: dict[str, ModuleType]
+) -> Callable[[list[dict], dict], dict]:
+    world_dir = str(world)
+
+    def isolated_score(events: list[dict], instance: dict) -> dict:
+        saved_path, saved_flag = list(sys.path), sys.dont_write_bytecode
+        caller_mods = {k: sys.modules[k] for k in _TRANSIENT_MODS if k in sys.modules}
+        for name in _TRANSIENT_MODS:
+            sys.modules.pop(name, None)
+        sys.modules.update(task_mods)
+        if world_dir in sys.path:
+            sys.path.remove(world_dir)
+        sys.path.insert(0, world_dir)
+        sys.dont_write_bytecode = True
+        try:
+            result = raw_score(copy.deepcopy(events), copy.deepcopy(instance))
+            for name in _TRANSIENT_MODS:
+                if name in sys.modules:
+                    task_mods[name] = sys.modules[name]
+            return result
+        finally:
+            sys.path[:] = saved_path
+            sys.dont_write_bytecode = saved_flag
+            for name in _TRANSIENT_MODS:
+                sys.modules.pop(name, None)
+            sys.modules.update(caller_mods)
+
+    return isolated_score
 
 
 def load_score(task: Path) -> tuple[Callable[[list[dict], dict], dict] | None, dict | None, str | None]:
@@ -17,42 +51,79 @@ def load_score(task: Path) -> tuple[Callable[[list[dict], dict], dict] | None, d
         return None, None, "the task has no tests/verify.py"
     try:
         instance = json.loads((world / "instance.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError) as error:
+    except (OSError, ValueError, RecursionError) as error:
         return None, None, f"cannot read the task's instance.json: {type(error).__name__}"
-    spec = importlib.util.spec_from_file_location(f"muster_verify_{abs(hash(str(task)))}", verify)
+    if not isinstance(instance, dict):
+        return None, None, "the task's instance.json is not a JSON object"
+    mod_name = f"muster_verify_{abs(hash(str(task.resolve())))}"
+    spec = importlib.util.spec_from_file_location(mod_name, verify)
     if spec is None or spec.loader is None:
         return None, None, "cannot import tests/verify.py"
     module = importlib.util.module_from_spec(spec)
     saved_path, saved_flag = list(sys.path), sys.dont_write_bytecode
+    caller_mods = {k: sys.modules[k] for k in _TRANSIENT_MODS if k in sys.modules}
+    had_prev, prev_mod = (mod_name in sys.modules), sys.modules.get(mod_name)
+    task_mods: dict[str, ModuleType] = {}
+    for name in _TRANSIENT_MODS:
+        sys.modules.pop(name, None)
     sys.path.insert(0, str(world))
     sys.dont_write_bytecode = True
-    sys.modules.pop("worldkit", None)
-    sys.modules.pop("codec", None)
+    sys.modules[mod_name] = module
     try:
         spec.loader.exec_module(module)
-    except Exception as error:
+        for name in _TRANSIENT_MODS:
+            if name in sys.modules:
+                task_mods[name] = sys.modules[name]
+    except (Exception, SystemExit) as error:
+        if had_prev and prev_mod is not None:
+            sys.modules[mod_name] = prev_mod
+        else:
+            sys.modules.pop(mod_name, None)
         return None, None, f"tests/verify.py does not import: {type(error).__name__}: {error}"
     finally:
         sys.path[:] = saved_path
         sys.dont_write_bytecode = saved_flag
-        sys.modules.pop("worldkit", None)
-        sys.modules.pop("codec", None)
-    score = getattr(module, "score", None)
-    if not callable(score):
+        for name in _TRANSIENT_MODS:
+            sys.modules.pop(name, None)
+        sys.modules.update(caller_mods)
+    raw_score = getattr(module, "score", None)
+    if not callable(raw_score):
         return None, None, "tests/verify.py has no score(events, instance)"
-    return score, instance, None
+    return _wrap_task_scorer(raw_score, world, task_mods), copy.deepcopy(instance), None
 
 
 def replay(
     score: Callable[[list[dict], dict], dict], events: list[dict], instance: dict
 ) -> tuple[dict, str | None]:
+    if not isinstance(instance, dict):
+        return {}, "instance is not a JSON object"
+    caller_mods = {k: sys.modules[k] for k in _TRANSIENT_MODS if k in sys.modules}
     try:
-        raw = score(events, instance)
-        rewards = {str(key): round(float(value), 6) for key, value in raw.items()}
-    except Exception as error:
+        raw = score(copy.deepcopy(events), copy.deepcopy(instance))
+    except (Exception, SystemExit) as error:
         return {}, f"score() failed: {type(error).__name__}: {error}"
-    if not all(math.isfinite(value) for value in rewards.values()):
-        return {}, "score() gave a value that is not a finite number"
+    finally:
+        for name in _TRANSIENT_MODS:
+            if name not in caller_mods:
+                sys.modules.pop(name, None)
+        sys.modules.update(caller_mods)
+    if not isinstance(raw, dict):
+        return {}, f"score() returned {type(raw).__name__}, expected dict"
+    rewards: dict[str, float] = {}
+    for key, value in raw.items():
+        if isinstance(value, bool):
+            continue
+        if not isinstance(value, int | float):
+            return {}, f"score() gave non-numeric value for {key!r}"
+        try:
+            num = float(value)
+        except OverflowError:
+            return {}, "score() gave a value that is not a finite number"
+        if not math.isfinite(num):
+            return {}, "score() gave a value that is not a finite number"
+        rewards[str(key)] = round(num, 6)
+    if not rewards:
+        return {}, "score() returned no numeric rewards"
     return rewards, None
 
 
@@ -85,7 +156,7 @@ def regrade_trial(
     log = graded if graded is not None else collected
     if log is None:
         return {"status": "no-log", "differences": {}, "late_actions": [], "log": None}
-    replayed, error = replay(score, log, instance)
+    replayed, error = replay(score, log, copy.deepcopy(instance) if isinstance(instance, dict) else instance)
     if error:
         return {"status": "error", "reason": error, "differences": {}, "late_actions": [], "log": None}
     differ = differences(recorded, replayed) if recorded else {}

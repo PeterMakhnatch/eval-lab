@@ -16,8 +16,6 @@ TEMPLATE = FAMILY / "template"
 INSTRUCTIONS = TEMPLATE / "instructions"
 BUILD = FAMILY / "build"
 PLACEHOLDER = re.compile(r"\{[a-z_]+\}")
-ENVIRONMENT = "[environment]\nbuild_timeout_sec = 600.0\n"
-NO_BAKE = '\n[environment.env]\nCOMPOSE_BAKE = "false"\n'
 
 _spec = importlib.util.spec_from_file_location("protofit_v1_reference", FAMILY / "reference.py")
 assert _spec is not None and _spec.loader is not None
@@ -52,11 +50,6 @@ def instruction(instance: dict[str, Any], seat: str) -> str:
     assert "tests/" not in rendered and all(c not in rendered for c in reference.CONDITIONS)
     assert instance["regime_code"] not in rendered and instance["target_digest"] not in rendered
     return rendered
-
-
-def _task_toml(text: str) -> str:
-    assert text.count(ENVIRONMENT) == 1 and "[environment.env]" not in text
-    return text.replace(ENVIRONMENT, ENVIRONMENT + NO_BAKE)
 
 
 def _description(name: str, condition: str, instance: dict[str, Any]) -> str:
@@ -108,7 +101,10 @@ def tasks() -> dict[str, dict[str, str]]:
                 seat_files=seat_files,
                 internet=False,
             )
-            files["task.toml"] = _task_toml(files["task.toml"])
+            assert (
+                '[environment.env]\nCOMPOSE_BAKE = "false"\n' in files["task.toml"]
+                and files["task.toml"].count("[environment.env]") == 1
+            )
             out[f"{condition}/{name}"] = files
     assert len(out) == 40
     return out

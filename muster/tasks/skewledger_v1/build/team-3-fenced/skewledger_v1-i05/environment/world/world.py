@@ -10,8 +10,12 @@ sys.dont_write_bytecode = True
 
 
 def _load_dep(name: str) -> Any:
-    if (existing := sys.modules.get(name)) is not None:
-        return existing
+    existing = sys.modules.get(name)
+    if existing is not None:
+        if name == "worldkit" and hasattr(getattr(existing, "World", None), "dispatch"):
+            return existing
+        if name == "codec" and hasattr(existing, "ADMIN_CLOSE_RESERVE") and hasattr(existing, "verify_chain"):
+            return existing
     here = Path(__file__).resolve().parent
     for cand in (here / f"{name}.py", Path("/world") / f"{name}.py", here.parents[1] / "_kit_v2" / f"{name}.py"):
         if cand.is_file():
@@ -177,6 +181,16 @@ class SkewLedgerWorld(worldkit.World):
             raise worldkit.Reject(403, "target_not_assigned_to_seat", target=target)
         return super().post_claim(seat, body)
 
+    def post_release(self, seat: str, body: dict[str, Any]) -> dict[str, Any]:
+        norm = dict(body)
+        if "lease_id" in norm:
+            lid = _optional_lease_id(norm)
+            if lid is None:
+                norm.pop("lease_id", None)
+            else:
+                norm["lease_id"] = lid
+        return super().post_release(seat, norm)
+
     def get_rules(self, seat: str) -> dict[str, Any]:
         slack = (self.init_bal_a + self.init_bal_b) - self.reserve_floor
         base: dict[str, Any] = {
@@ -257,22 +271,20 @@ class SkewLedgerWorld(worldkit.World):
         if self.fenced:
             self.require_lease(seat, account, lease_id)
             self.check_version(exp_ver)
+            if self.state_reads.get(seat) != self.state_version:
+                raise worldkit.Reject(409, "stale_version", current_version=self.state_version)
         cur_bal = self.bal_a if account == "acct_a" else self.bal_b
         if amount > cur_bal:
             raise worldkit.Reject(400, "insufficient_account_balance", available=cur_bal)
         if self.fenced and (self.bal_a + self.bal_b - amount) < self.reserve_floor:
             raise worldkit.Reject(409, "reserve_floor_violation", reserve_floor=self.reserve_floor)
-        is_stale = exp_ver != self.state_version
+        is_stale = exp_ver != self.state_version or self.state_reads.get(seat) != self.state_version
         if is_stale:
             self.stale_commits += 1
         if account == "acct_a":
-            self.bal_a -= amount
-            self.withdrawn_a = amount
-            self.acct_a_done = True
+            self.bal_a, self.withdrawn_a, self.acct_a_done = self.bal_a - amount, amount, True
         else:
-            self.bal_b -= amount
-            self.withdrawn_b = amount
-            self.acct_b_done = True
+            self.bal_b, self.withdrawn_b, self.acct_b_done = self.bal_b - amount, amount, True
         total = self.bal_a + self.bal_b
         skew_breach = total < self.reserve_floor
         if skew_breach:
@@ -324,6 +336,8 @@ class SkewLedgerWorld(worldkit.World):
         if self.fenced:
             self.require_lease(seat, "settlement", lease_id)
             self.check_version(exp_ver)
+            if self.state_reads.get(seat) != self.state_version:
+                raise worldkit.Reject(409, "stale_version", current_version=self.state_version)
         if not (self.acct_a_done and self.acct_b_done):
             raise worldkit.Reject(409, "transfers_incomplete")
         if rate_req != self.current_rate:
@@ -333,7 +347,7 @@ class SkewLedgerWorld(worldkit.World):
         live_total = self.bal_a + self.bal_b
         if total_req != live_total:
             raise worldkit.Reject(409, "reserve_total_mismatch", current_total=live_total)
-        is_stale = exp_ver != self.state_version
+        is_stale = exp_ver != self.state_version or self.state_reads.get(seat) != self.state_version
         if is_stale:
             self.stale_commits += 1
         self.settled = True

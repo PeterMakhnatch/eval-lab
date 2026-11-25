@@ -23,7 +23,7 @@ from worldwatch._detectors_rules import (
     rule_post_settlement_waste,
 )
 from worldwatch._io import discover_trials
-from worldwatch._trial import TrialBundle, load_trial_bundle
+from worldwatch._trial import TrialBundle, load_trial_bundle, with_olam_seat_alias
 from worldwatch._tripwires import is_counted_world_request, is_world_friction_rejection
 from worldwatch.model import (
     DETECTOR_NAMES,
@@ -268,7 +268,7 @@ def _collect_message_deliveries(
         if kind in ("msg", "notice", "dm") and row.get("method") == "POST" and mid is not None:
             ns = "dm" if kind == "dm" else ("notice" if kind == "notice" else "msg")
             to_raw = req.get("to") or resp.get("to") if kind == "dm" else None
-            to_seat = str(to_raw) if isinstance(to_raw, str) and to_raw else None
+            to_seat = bundle.facing_to_seat.get(str(to_raw), str(to_raw)) if isinstance(to_raw, str) and to_raw else None
             posted_msgs[(ns, mid)] = (seat, to_seat)
             early_posts += int(first_half)
             late_posts += int(not first_half)
@@ -281,9 +281,9 @@ def _collect_message_deliveries(
                     iid = strict_int(imap.get("id"))
                     if iid is not None:
                         sender = imap.get("from")
-                        s_str = str(sender) if isinstance(sender, str) else None
+                        s_str = bundle.facing_to_seat.get(sender, sender) if isinstance(sender, str) else None
                         to_r = imap.get("to")
-                        to_s = str(to_r) if isinstance(to_r, str) and to_r else (seat if ns == "dm" and len(seat_names) > 1 else None)
+                        to_s = bundle.facing_to_seat.get(to_r, to_r) if isinstance(to_r, str) and to_r else (seat if ns == "dm" and len(seat_names) > 1 else None)
                         if not (ns == "notice" and s_str == "system" and to_r is None):
                             posted_msgs.setdefault((ns, iid), (s_str, to_s))
                         if seat in seen_by_seat:
@@ -344,6 +344,7 @@ def analyze_trial_detectors(
         if ev_path is not None
         else ([], None, None)
     )
+    bundle = with_olam_seat_alias(bundle, events)
     joined_map = (
         step_join
         if step_join is not None

@@ -12,8 +12,11 @@ sys.dont_write_bytecode = True
 
 KIT = Path(__file__).resolve().parent
 SEAT_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+ENV_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,127}$")
 RESERVED_SEATS = frozenset({"main", "world", "tests", "solution"})
 FORBIDDEN_WORKSPACE_HEADS = frozenset({"tests", "solution", "world", "__pycache__"})
+RESERVED_WORLD_FILES = frozenset({"codec.py", "worldkit.py"})
+MAX_SCAN_ENTRIES = 500_000
 
 DOCKERIGNORE = "**/__pycache__\n*.pyc\n*.pyo\n.DS_Store\n"
 
@@ -57,11 +60,11 @@ def seat_dockerfile(has_workspace_files: bool = True) -> str:
 def _validate_seat_names(seats: list[str]) -> None:
     if not seats:
         raise ValueError("at least one seat is required")
-    if len(set(seats)) != len(seats):
-        raise ValueError("duplicate seat names")
     for seat in seats:
         if not isinstance(seat, str) or not SEAT_NAME_RE.match(seat) or seat.lower() in RESERVED_SEATS:
             raise ValueError(f"invalid or reserved seat name: {seat!r}")
+    if len({s.lower() for s in seats}) != len(seats):
+        raise ValueError("duplicate or case-colliding seat names")
 
 
 def _validate_rel_workspace_path(rel_path: str) -> str:
@@ -70,11 +73,28 @@ def _validate_rel_workspace_path(rel_path: str) -> str:
     parts = rel_path.split("/")
     if any(not p or p in (".", "..") for p in parts):
         raise ValueError(f"unsafe workspace path segments: {rel_path!r}")
-    if parts[0].lower() in FORBIDDEN_WORKSPACE_HEADS or any(p == "__pycache__" for p in parts):
+    if parts[0].lower() in FORBIDDEN_WORKSPACE_HEADS or any(p.lower() == "__pycache__" for p in parts):
         raise ValueError(f"forbidden workspace path segment: {rel_path!r}")
     if rel_path.lower().endswith((".pyc", ".pyo")):
         raise ValueError(f"bytecode forbidden in workspace: {rel_path!r}")
     return "/".join(parts)
+
+
+def _validate_emit_file_path(rel_path: str) -> str:
+    if not isinstance(rel_path, str) or not rel_path or "\\" in rel_path or rel_path.startswith("/"):
+        raise ValueError(f"invalid task file path: {rel_path!r}")
+    parts = rel_path.split("/")
+    if any(not p or p in (".", "..") or p.lower() == "__pycache__" for p in parts):
+        raise ValueError(f"unsafe task file path: {rel_path!r}")
+    if rel_path.lower().endswith((".pyc", ".pyo")):
+        raise ValueError(f"bytecode forbidden in task files: {rel_path!r}")
+    return "/".join(parts)
+
+
+def _validate_world_env(world_env: dict[str, str]) -> None:
+    for key in world_env:
+        if not isinstance(key, str) or key.upper() == "SEAT_TOKENS" or not ENV_KEY_RE.match(key):
+            raise ValueError(f"invalid or reserved world_env key: {key!r}")
 
 
 def token(seed: str, instance: int, seat: str) -> str:
@@ -91,6 +111,7 @@ def compose(
     per_seat_build: bool = False,
 ) -> str:
     _validate_seat_names(seats)
+    _validate_world_env(world_env)
     seat_tokens = json.dumps({tokens[seat]: seat for seat in seats}, sort_keys=True)
     lines = ["x-seat: &seat"]
     if not per_seat_build:
@@ -194,6 +215,9 @@ def task_toml(
         "",
         "[environment]",
         "build_timeout_sec = 600.0",
+        "",
+        "[environment.env]",
+        'COMPOSE_BAKE = "false"',
     ]
     for seat, under_test in seats.items():
         lines += ["", f"[agents.{seat}]"]
@@ -227,6 +251,24 @@ def _populate_seat_images(
             files[f"environment/seat_{seat}/workspace/{clean_rel}"] = content
 
 
+def _validate_policies_and_world(policies: dict[str, str], world: dict[str, str]) -> None:
+    if "oracle" not in policies:
+        raise ValueError("every task needs the oracle policy")
+    for policy, text in policies.items():
+        if not isinstance(policy, str) or not SEAT_NAME_RE.match(policy):
+            raise ValueError(f"invalid policy name: {policy!r}")
+        if not isinstance(text, str):
+            raise ValueError(f"policy script must be str: {policy!r}")
+    if len({p.lower() for p in policies}) != len(policies):
+        raise ValueError("duplicate or case-colliding policy names")
+    for path, text in world.items():
+        clean_w = _validate_rel_workspace_path(path)
+        if clean_w.lower() in RESERVED_WORLD_FILES or Path(clean_w).name.lower() in RESERVED_WORLD_FILES:
+            raise ValueError(f"world cannot override kit module: {path!r}")
+        if not isinstance(text, str):
+            raise ValueError(f"world file content must be str: {clean_w!r}")
+
+
 def task_files(
     *,
     name: str,
@@ -246,26 +288,17 @@ def task_files(
 ) -> dict[str, str]:
     seat_list = list(seats)
     _validate_seat_names(seat_list)
-    if "oracle" not in policies:
-        raise ValueError("every task needs the oracle policy")
+    _validate_policies_and_world(policies, world)
+    _validate_world_env(world_env or {})
     if set(instructions) != set(seats) or set(tokens) != set(seats):
         raise ValueError("instructions and tokens must name exactly the seats")
-    per_seat = seat_files is not None
     files: dict[str, str] = {
         "task.toml": task_toml(
-            name=name,
-            description=description,
-            seats=seats,
-            metadata=metadata,
-            agent_timeout_sec=agent_timeout_sec,
-            verifier_timeout_sec=verifier_timeout_sec,
+            name=name, description=description, seats=seats, metadata=metadata,
+            agent_timeout_sec=agent_timeout_sec, verifier_timeout_sec=verifier_timeout_sec,
         ),
         "environment/docker-compose.yaml": compose(
-            seat_list,
-            tokens,
-            world_env or {},
-            internet,
-            per_seat_build=per_seat,
+            seat_list, tokens, world_env or {}, internet, per_seat_build=seat_files is not None,
         ),
         "environment/Dockerfile": MAIN_DOCKERFILE,
         "environment/.dockerignore": DOCKERIGNORE,
@@ -277,8 +310,7 @@ def task_files(
     }
     _populate_seat_images(files, seat_list, seat_files)
     for path, text in world.items():
-        clean_w = _validate_rel_workspace_path(path)
-        files[f"environment/world/{clean_w}"] = text
+        files[f"environment/world/{_validate_rel_workspace_path(path)}"] = text
     for seat, text in instructions.items():
         files[f"instructions/{seat}.md"] = text if text.endswith("\n") else text + "\n"
     for policy, text in policies.items():
@@ -286,69 +318,122 @@ def task_files(
     return files
 
 
+def _scan_tree(base: Path) -> tuple[dict[str, Path], list[tuple[str, Path]]]:
+    regular: dict[str, Path] = {}
+    anomalies: list[tuple[str, Path]] = []
+    if os.path.islink(base):
+        return regular, [("symlink", base)]
+    if not base.exists():
+        return regular, anomalies
+    stack: list[Path] = [base]
+    visited = 0
+    while stack:
+        cur = stack.pop()
+        for entry in sorted(os.scandir(cur), key=lambda e: e.name):
+            visited += 1
+            assert visited <= MAX_SCAN_ENTRIES
+            p, low = Path(entry.path), entry.name.lower()
+            if entry.is_symlink():
+                anomalies.append(("symlink", p))
+                continue
+            if low == "__pycache__" or low.endswith((".pyc", ".pyo")):
+                anomalies.append(("bytecode", p))
+                if entry.is_dir(follow_symlinks=False):
+                    stack.append(p)
+                continue
+            if entry.is_dir(follow_symlinks=False):
+                stack.append(p)
+            elif entry.is_file(follow_symlinks=False) and entry.name != ".DS_Store":
+                regular[p.relative_to(base).as_posix()] = p
+    return regular, sorted(anomalies, key=lambda x: str(x[1]))
+
+
 def purge_bytecode(root: Path) -> int:
     base = Path(root)
-    if not base.exists():
+    if os.path.islink(base) or not base.exists():
         return 0
     removed = 0
     for dirpath, dirnames, filenames in os.walk(base, topdown=False):
         cur = Path(dirpath)
         for fname in filenames:
-            if fname.lower().endswith((".pyc", ".pyo")):
-                (cur / fname).unlink(missing_ok=True)
+            fp = cur / fname
+            if not fp.is_symlink() and fname.lower().endswith((".pyc", ".pyo")):
+                fp.unlink(missing_ok=True)
                 removed += 1
         for dname in dirnames:
-            if dname == "__pycache__":
-                shutil.rmtree(cur / dname, ignore_errors=True)
+            dp = cur / dname
+            if not dp.is_symlink() and dname.lower() == "__pycache__":
+                shutil.rmtree(dp, ignore_errors=True)
                 removed += 1
     return removed
 
 
 def check_no_bytecode(root: Path) -> int:
-    base = Path(root)
-    if not base.exists():
-        return 0
-    leaked: list[Path] = []
-    for dirpath, dirnames, filenames in os.walk(base):
-        cur = Path(dirpath)
-        for dname in dirnames:
-            if dname == "__pycache__":
-                leaked.append(cur / dname)
-        for fname in filenames:
-            if fname.lower().endswith((".pyc", ".pyo")):
-                leaked.append(cur / fname)
-    leaked.sort()
-    for item in leaked[:10]:
-        print(f"bytecode leak: {item}", file=sys.stderr)
-    return 1 if leaked else 0
+    _, anomalies = _scan_tree(Path(root))
+    for kind, item in anomalies[:10]:
+        print(f"{kind} leak: {item}", file=sys.stderr)
+    return 1 if anomalies else 0
+
+
+def _build_expected_map(tasks: dict[str, dict[str, str]]) -> dict[str, str]:
+    expected: dict[str, str] = {}
+    for raw_task, files in tasks.items():
+        clean_task = _validate_rel_workspace_path(raw_task)
+        if not isinstance(files, dict):
+            raise ValueError(f"task files must be a dict: {raw_task!r}")
+        for raw_path, text in files.items():
+            clean_path = _validate_emit_file_path(raw_path)
+            if not isinstance(text, str):
+                raise ValueError(f"file content must be str: {clean_task}/{clean_path}")
+            expected[f"{clean_task}/{clean_path}"] = text
+    return expected
+
+
+def _assert_contained(target: Path, resolved_root: Path) -> None:
+    resolved_target = target.resolve()
+    if not resolved_target.is_relative_to(resolved_root):
+        raise ValueError(f"path escapes build_dir: {target}")
+    assert resolved_target.is_relative_to(resolved_root)
 
 
 def emit(build_dir: Path, tasks: dict[str, dict[str, str]], check: bool) -> int:
-    expected = {
-        f"{task}/{path}": text for task, files in tasks.items() for path, text in files.items()
-    }
-    present = {
-        path.relative_to(build_dir).as_posix(): path
-        for path in sorted(build_dir.rglob("*"))
-        if path.is_file() and path.name != ".DS_Store" and "__pycache__" not in path.parts
-    }
+    base = Path(build_dir)
+    expected = _build_expected_map(tasks)
+    present, anomalies = _scan_tree(base)
     if check:
+        anom_rels = {
+            (p.relative_to(base).as_posix() if p != base else base.name)
+            for _, p in anomalies
+        }
         wrong = sorted(
             set(expected) ^ set(present)
+            | anom_rels
             | {
-                path
-                for path in set(expected) & set(present)
-                if present[path].read_text(encoding="utf-8") != expected[path]
+                rel
+                for rel in set(expected) & set(present)
+                if present[rel].read_text(encoding="utf-8") != expected[rel]
             }
         )
-        for path in wrong[:20]:
-            print(f"differs: {path}", file=sys.stderr)
+        for rel in wrong[:20]:
+            print(f"differs: {rel}", file=sys.stderr)
         return 1 if wrong else 0
-    for path in sorted(set(present) - set(expected)):
-        present[path].unlink()
-    for path, text in expected.items():
-        target = build_dir / path
+    if os.path.islink(base):
+        raise ValueError(f"build_dir must not be a symlink: {base}")
+    if anomalies and any(kind == "symlink" for kind, _ in anomalies):
+        raise ValueError(f"refusing to write into build_dir containing symlinks: {anomalies[0][1]}")
+    base.mkdir(parents=True, exist_ok=True)
+    resolved_root = base.resolve()
+    for rel in expected:
+        _assert_contained(base / rel, resolved_root)
+    purge_bytecode(base)
+    for rel in sorted(set(present) - set(expected)):
+        _assert_contained(present[rel], resolved_root)
+        present[rel].unlink()
+    for rel, text in expected.items():
+        target = base / rel
+        _assert_contained(target, resolved_root)
         target.parent.mkdir(parents=True, exist_ok=True)
+        _assert_contained(target, resolved_root)
         if not target.exists() or target.read_text(encoding="utf-8") != text:
             target.write_text(text, encoding="utf-8")
         if target.suffix == ".sh":

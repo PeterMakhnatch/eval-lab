@@ -13,9 +13,20 @@ WORLD = os.environ.get("WORLD", "http://world:8080")
 TOKEN = os.environ["SEAT_TOKEN"]
 SEAT = os.environ.get("SEAT", "")
 POLL_SLEEP = float(os.environ.get("POLL_SLEEP", "0.25"))
-MAX_POLLS = 80
+MAX_POLLS = 160
 RETRIES = 8
 TIMEOUT = 15
+
+
+def wait_health():
+    for _ in range(60):
+        try:
+            with urllib.request.urlopen(WORLD + "/health", timeout=2) as resp:
+                if resp.status == 200:
+                    return
+        except (OSError, http.client.HTTPException, socket.gaierror):
+            pass
+        time.sleep(0.05)
 
 
 def call(method, path, body=None):
@@ -30,7 +41,11 @@ def call(method, path, body=None):
             with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
                 return resp.status, json.loads(resp.read() or b"{}")
         except urllib.error.HTTPError as err:
-            return err.code, json.loads(err.read() or b"{}")
+            try:
+                raw = err.read()
+            finally:
+                err.close()
+            return err.code, json.loads(raw or b"{}")
         except (OSError, http.client.HTTPException, socket.gaierror):
             time.sleep(0.05)
     raise RuntimeError(f"{method} {path} failed")
@@ -66,13 +81,35 @@ def wait_tags(needed):
     return {}
 
 
+def wait_rate_shift(use_notices):
+    if not use_notices:
+        time.sleep(POLL_SLEEP)
+        return
+    for _ in range(MAX_POLLS):
+        st, rep = call("GET", "/notices")
+        if st != 200:
+            break
+        if any(isinstance(n, dict) and n.get("kind") == "rate_shift" for n in rep.get("notices", [])):
+            return
+        time.sleep(POLL_SLEEP)
+
+
+def claim_opt(use_leases, target):
+    if not use_leases:
+        return None
+    st_c, crep = call("POST", "/claim", {"target": target})
+    return crep["lease_id"] if st_c == 200 else None
+
+
 def main():
+    wait_health()
     st, rules = call("GET", "/rules")
     assert st == 200
     me = SEAT or str(rules["you"])
     slack = int(rules["available_slack"])
     use_ch = bool(rules["channel"])
     use_leases = bool(rules["leases"])
+    use_notices = bool(rules["notices"])
     st_s, snap = call("GET", "/state")
     assert st_s == 200
     snap_ver = int(snap["state_version"])
@@ -87,12 +124,6 @@ def main():
         call("POST", "/transfer", {"account": "acct_b", "amount": alloc_b, "expected_version": snap_ver})
         call("POST", "/commit", {"total_reserve": snap_total - alloc_a - alloc_b, "official_rate": str(rrep["official_rate"]), "expected_version": snap_ver})
         return
-    target = me if me in ("acct_a", "acct_b") else "settlement"
-    lid = None
-    if use_leases:
-        st_c, crep = call("POST", "/claim", {"target": target})
-        if st_c == 200:
-            lid = crep["lease_id"]
     if me == "acct_a":
         req_a = int(rules["req_a"])
         if use_ch:
@@ -101,6 +132,7 @@ def main():
             amt = (req_a - obs.get("acct_b", req_a) + slack) // 2
         else:
             amt = req_a
+        lid = claim_opt(use_leases, "acct_a")
         body = {"account": "acct_a", "amount": amt, "expected_version": snap_ver}
         if lid is not None:
             body["lease_id"] = lid
@@ -115,8 +147,10 @@ def main():
             obs = wait_tags(("ready_a", "ready_b", "ready_aud", "sent_a"))
             amt = (req_b - obs.get("acct_a", req_b) + slack) // 2
         else:
-            time.sleep(POLL_SLEEP)
+            if not snap.get("acct_a_done"):
+                wait_rate_shift(use_notices)
             amt = req_b
+        lid = claim_opt(use_leases, "acct_b")
         body = {"account": "acct_b", "amount": amt, "expected_version": snap_ver}
         if lid is not None:
             body["lease_id"] = lid
@@ -130,7 +164,9 @@ def main():
         call("POST", "/msg", {"text": json.dumps({"tag": "ready_aud"})})
         wait_tags(("sent_a", "sent_b"))
     else:
-        time.sleep(POLL_SLEEP * 2)
+        wait_rate_shift(use_notices)
+        time.sleep(POLL_SLEEP)
+    lid = claim_opt(use_leases, "settlement")
     body = {"total_reserve": snap_total - slack, "official_rate": init_rate, "expected_version": snap_ver}
     if lid is not None:
         body["lease_id"] = lid

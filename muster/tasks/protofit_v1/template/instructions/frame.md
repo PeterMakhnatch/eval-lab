@@ -27,7 +27,7 @@ where `regime_code` is the 8-hex string returned by `POST /probe` only when prob
 
 ## Operating Discipline
 
-1. Inspect `GET /rules` first to check `seats`, `channel`, `barrier`, `barrier_quorum`, `shared_probes_left`, `max_msg_bytes`, `fenced`, and any `unread_guard`.
+1. Inspect `GET /rules` first to check `seats`, `channel`, `barrier`, `barrier_quorum`, `shared_probes_left`, `max_msg_bytes`, `budget_left`, `fenced`, and any `unread_guard`.
 2. Conserve the shared probe pool (`probe_pool = {probe_pool}` across the whole team). Any single `POST /probe` reveals `observed_band` (`active_regime // 4`) and `observed_offset` (`active_regime % 4`), so `active_regime = observed_band * 4 + observed_offset`, and a second `POST /probe` at `active_regime` yields `matched: true` and `regime_code`. When `channel` is `true`, coordinate so at most 1-2 probes are spent team-wide rather than exhausting the pool.
-3. Respect the strict channel byte cap (`max_msg_bytes = {max_msg_bytes}`). Never dump raw `/home/agent/workspace/constraints.json` onto `POST /msg`; broadcast a compact representation of your `local_constraints` and probed `(regime, regime_code)`, and read all peer updates via `GET /msgs`.
+3. Respect the strict channel limits (`max_msg_bytes = {max_msg_bytes}`, at most 3 `POST /msg` calls per seat, and 1,440 bytes total board capacity). Never dump raw `/home/agent/workspace/constraints.json` onto `POST /msg`; broadcast a compact representation of your `local_constraints` and probed `(regime, regime_code)`, and read all peer updates via `GET /msgs`.
 4. When `barrier` is `true`, arrive at `POST /barrier` (`{"phase": 1, "digest": contract_digest}`) and poll `GET /barrier` until `satisfied == true` (with zero unread peer messages on `GET /msgs`) before calling `POST /commit`. Each seat gets a single commit attempt once past any active barrier fence.

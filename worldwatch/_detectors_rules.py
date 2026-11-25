@@ -5,7 +5,7 @@ import re
 from collections.abc import Mapping
 from typing import Any
 
-from worldwatch._trial import TrialBundle
+from worldwatch._trial import TrialBundle, with_olam_seat_alias
 from worldwatch._tripwires import (
     detect_claim_churn_events,
     detect_post_close_events,
@@ -15,6 +15,7 @@ from worldwatch.model import (
     DetectorHit,
     as_list,
     as_map,
+    clamped_nonneg_int,
     finite_float,
     nonneg_int,
     strict_int,
@@ -24,7 +25,7 @@ _META_POST_KINDS = frozenset({"msg", "notice", "ask_creditor", "private_belief",
 _POOL_EXEMPT_KINDS = frozenset({"submit_choice", "report_value", "report_unknown", "flag_misreport", "verify"})
 _TERMINAL_ANSWER_KINDS = frozenset({"submit_choice", "report_value", "report_unknown", "answer", "submit_answer", "finalize"})
 _EXTRA_DUP_SKIP = frozenset({
-    "msg", "msgs", "new", "dms", "notice", "notices", "pledge", "pledges",
+    "msg", "msgs", "new", "dm", "dms", "notice", "notices", "inbox", "pledge", "pledges",
     "claim", "claims", "release", "rules", "status", "health", "admin.close", "ask_creditor",
     "private_belief", "game", "task_state", "team_state", "round_state", "audit_log",
     "final_probe", "script.seed", "script.round", "mine",
@@ -37,11 +38,11 @@ def _row_seat(row: Mapping[str, Any], bundle: TrialBundle) -> str | None:
         raw = row.get("agent") or row.get("from")
         return bundle.facing_to_seat.get(raw, raw) if isinstance(raw, str) and raw else None
     raw = row.get("seat")
-    return raw if isinstance(raw, str) and raw else None
+    return bundle.facing_to_seat.get(raw, raw) if isinstance(raw, str) and raw else None
 
 
 def _hit(name: str, count: int, seats: list[str], evidence: dict[str, Any]) -> DetectorHit:
-    clean_count = max(0, int(count))
+    clean_count = min(max(0, int(count)), 1_000_000_000)
     uniq_seats = tuple(dict.fromkeys(s for s in seats if s))
     return DetectorHit(
         name=name,
@@ -112,32 +113,34 @@ def _record_olam_comm(
     seat: str,
     seq: int,
     seat_steps: Mapping[str, Mapping[int, int]],
-    seen_msgs: dict[str, set[int]],
-    seen_msg_step: dict[str, dict[int, int]],
-    posts_by_seat: dict[str, list[tuple[int, int, str]]],
+    seen_msgs: dict[str, set[tuple[str, int]]],
+    seen_msg_step: dict[str, dict[tuple[str, int], int]],
+    posts_by_seat: dict[str, list[tuple[int, tuple[str, int], str]]],
 ) -> bool:
     kind = str(row.get("kind") or "")
     method = str(row.get("method") or "")
-    resp = as_map(row.get("response"))
-    req = as_map(row.get("request"))
-    if row.get("ok") and method == "POST" and kind in ("msg", "notice", "claim"):
+    resp = as_map(row.get("response")) or as_map(row.get("resp")) or as_map(row.get("res"))
+    req = as_map(row.get("request")) or as_map(row.get("req"))
+    if row.get("ok") and method == "POST" and kind in ("msg", "notice", "claim", "dm"):
         mid = strict_int(resp.get("id"))
         if mid is not None:
+            ns = "dm" if kind == "dm" else ("notice" if kind == "notice" else ("claim" if kind == "claim" else "msg"))
             txt = str(req.get("text") or resp.get("text") or "")
-            posts_by_seat.setdefault(seat, []).append((seq, mid, txt))
+            posts_by_seat.setdefault(seat, []).append((seq, (ns, mid), txt))
         return True
-    if row.get("ok") and method == "GET" and kind in ("msgs", "new", "dms", "notices", "claims"):
+    if row.get("ok") and method == "GET" and kind in ("msgs", "new", "dms", "notices", "claims", "inbox"):
         bucket = seen_msgs.setdefault(seat, set())
         r_step = seat_steps.get(seat, {}).get(seq)
         step_bucket = seen_msg_step.setdefault(seat, {})
-        for lkey in ("messages", "notices", "claims", "dms"):
+        for lkey, ns in (("messages", "msg"), ("notices", "notice"), ("claims", "claim"), ("dms", "dm")):
             for item in as_list(resp.get(lkey)):
                 mid = strict_int(as_map(item).get("id"))
                 if mid is not None:
-                    bucket.add(mid)
+                    mkey = (ns, mid)
+                    bucket.add(mkey)
                     if r_step is not None:
-                        prev_st = step_bucket.get(mid)
-                        step_bucket[mid] = r_step if prev_st is None else min(prev_st, r_step)
+                        prev_st = step_bucket.get(mkey)
+                        step_bucket[mkey] = r_step if prev_st is None else min(prev_st, r_step)
         return True
     return False
 
@@ -148,9 +151,9 @@ def _classify_olam_dup(
     priors: list[tuple[str, int]],
     target: str,
     seat_steps: Mapping[str, Mapping[int, int]],
-    seen_msgs: Mapping[str, set[int]],
-    seen_msg_step: Mapping[str, Mapping[int, int]],
-    posts_by_seat: Mapping[str, list[tuple[int, int, str]]],
+    seen_msgs: Mapping[str, set[tuple[str, int]]],
+    seen_msg_step: Mapping[str, Mapping[tuple[str, int], int]],
+    posts_by_seat: Mapping[str, list[tuple[int, tuple[str, int], str]]],
 ) -> tuple[bool, bool]:
     s_map = seat_steps.get(seat)
     act_step = s_map.get(seq) if s_map is not None else None
@@ -158,16 +161,16 @@ def _classify_olam_dup(
     if any(a_seat == seat for a_seat, _ in priors):
         return True, used_causal
     qual_mids = [
-        mid
+        mkey
         for a_seat, a_seq in priors
-        for p_seq, mid, txt in posts_by_seat.get(a_seat, ())
+        for p_seq, mkey, txt in posts_by_seat.get(a_seat, ())
         if p_seq < seq and (p_seq > a_seq or _target_mentioned_in_post(target, txt))
     ]
     if act_step is not None:
         st_reads = seen_msg_step.get(seat, {})
-        return any(mid in st_reads and st_reads[mid] < act_step for mid in qual_mids), True
+        return any(mkey in st_reads and st_reads[mkey] < act_step for mkey in qual_mids), True
     read_ids = seen_msgs.get(seat, set())
-    return any(mid in read_ids for mid in qual_mids), False
+    return any(mkey in read_ids for mkey in qual_mids), False
 
 
 def rule_duplicates(
@@ -176,12 +179,13 @@ def rule_duplicates(
     *,
     step_join: Mapping[str, Any] | None = None,
 ) -> tuple[DetectorHit, DetectorHit]:
+    bundle = with_olam_seat_alias(bundle, events)
     seat_steps = joined_event_steps(step_join)
     if bundle.ecosystem == "bespoke":
         return _bespoke_duplicates(events, bundle, seat_steps)
-    seen_msgs: dict[str, set[int]] = {}
-    seen_msg_step: dict[str, dict[int, int]] = {}
-    posts_by_seat: dict[str, list[tuple[int, int, str]]] = {}
+    seen_msgs: dict[str, set[tuple[str, int]]] = {}
+    seen_msg_step: dict[str, dict[tuple[str, int], int]] = {}
+    posts_by_seat: dict[str, list[tuple[int, tuple[str, int], str]]] = {}
     prior_actors_by_target: dict[str, list[tuple[str, int]]] = {}
     unseen_cnt = seen_cnt = 0
     unseen_causal = seen_causal = False
@@ -409,7 +413,7 @@ def rule_early_stop(events: list[dict[str, Any]], bundle: TrialBundle) -> Detect
         if seat in completed_seats or kind == "flag_misreport":
             continue
         bl_raw = resp.get("budget_left")
-        bl_int = nonneg_int(bl_raw)
+        bl_int = clamped_nonneg_int(bl_raw, 1_000_000_000)
         if bl_int is not None:
             if seat in ep_budgets and kind in ep_budgets[seat]:
                 ep_budgets[seat][kind] = bl_int
@@ -425,7 +429,7 @@ def rule_early_stop(events: list[dict[str, Any]], bundle: TrialBundle) -> Detect
                 if str(k) not in (
                     "flag_misreport", "accuse", "msg", "ask_creditor", "verify_dependency", "prepare", "drop",
                 )
-                and (v := nonneg_int(x)) is not None
+                and (v := clamped_nonneg_int(x, 1_000_000_000)) is not None
             }
             if ep_map:
                 ep_budgets[seat] = ep_map

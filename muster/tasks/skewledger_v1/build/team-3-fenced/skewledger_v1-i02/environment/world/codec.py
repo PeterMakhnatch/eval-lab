@@ -14,6 +14,7 @@ sys.dont_write_bytecode = True
 MAX_BODY_BYTES = 16384
 MAX_JSON_DEPTH = 6
 MAX_WORLD_LOG_BYTES = 8 * 1024 * 1024
+ADMIN_CLOSE_RESERVE = 1024
 GENESIS_HASH = "0" * 64
 
 MAX_JSON_NODES = 16384
@@ -23,6 +24,7 @@ MAX_CHAIN_EVENTS = 100_000
 HEX_CHARS = frozenset("0123456789abcdef")
 UNHASHED_KEYS = frozenset({"entry_hash", "hmac"})
 HTTP_METHODS = frozenset({"GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"})
+SPOOF_HEADERS = ("x-seat", "x-sender", "x-from", "x-actor")
 
 
 def is_sha256_hex(val: Any) -> bool:
@@ -75,6 +77,33 @@ def sanitize_method_and_path(method: Any, raw_path: Any) -> tuple[str, str, dict
     return clean_m, kind, q_out
 
 
+def extract_http_headers(hdrs: Any) -> tuple[str | None, str | None, dict[str, list[str]], str | None]:
+    if hdrs.get_all("Transfer-Encoding"):
+        return None, None, {}, "unsupported_transfer_encoding"
+    auths = hdrs.get_all("Authorization") or []
+    clens = hdrs.get_all("Content-Length") or []
+    if len(auths) > 1 or len(clens) > 1:
+        return None, None, {}, "duplicate_header"
+    auth = str(auths[0]) if auths else ""
+    token = auth[7:].strip() if auth[:7].lower() == "bearer " else None
+    raw_clen = str(clens[0]) if clens else None
+    multi: dict[str, list[str]] = {}
+    for raw_k, raw_v in hdrs.items():
+        multi.setdefault(str(raw_k).lower(), []).append(str(raw_v))
+    return token, raw_clen, multi, None
+
+
+def has_spoof_signal(seat: str, body: dict[str, Any] | None, headers: Mapping[str, Any] | None) -> bool:
+    if headers:
+        low_map = {str(k).lower(): v for k, v in headers.items()}
+        for h in SPOOF_HEADERS:
+            if (raw_v := low_map.get(h)) is not None:
+                vals = raw_v if isinstance(raw_v, (list, tuple)) else (raw_v,)
+                if any(str(v).strip() != seat for v in vals):
+                    return True
+    return isinstance(body, dict) and any(k in body and body[k] != seat for k in ("seat", "from", "sender"))
+
+
 def unique_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     if len(pairs) > MAX_JSON_NODES:
         raise ValueError("JSON object exceeds node limit")
@@ -117,10 +146,34 @@ def within_json_depth(obj: Any, max_depth: int = MAX_JSON_DEPTH) -> bool:
     return True
 
 
+def _has_str_keys(root: Mapping[Any, Any]) -> bool:
+    stack: list[Any] = [root]
+    visited = 0
+    while stack:
+        visited += 1
+        if visited > MAX_JSON_NODES:
+            return False
+        cur = stack.pop()
+        if isinstance(cur, Mapping):
+            if len(cur) + visited > MAX_JSON_NODES + 1:
+                return False
+            for k, v in cur.items():
+                if not isinstance(k, str):
+                    return False
+                if isinstance(v, (Mapping, list, tuple)):
+                    stack.append(v)
+        elif isinstance(cur, (list, tuple)):
+            if len(cur) + visited > MAX_JSON_NODES + 1:
+                return False
+            for item in cur:
+                if isinstance(item, (Mapping, list, tuple)):
+                    stack.append(item)
+    return True
+
+
 def _raw_exceeds_depth(raw: bytes, limit: int) -> bool:
     depth = 0
-    in_str = False
-    esc = False
+    in_str = esc = False
     for byte in raw:
         if in_str:
             if esc:
@@ -213,14 +266,22 @@ def parse_json_object(raw: bytes) -> tuple[dict[str, Any] | None, str | None]:
 
 
 def coerce_json_object_bytes(body: Any) -> tuple[bytes | None, str | None]:
+    if body is None:
+        return None, "empty_body"
     if isinstance(body, (bytes, bytearray)):
         return bytes(body), None
     if not isinstance(body, dict):
         return None, "expected_json_object"
+    if not within_json_depth(body, MAX_JSON_DEPTH):
+        return None, "json_depth_exceeded"
+    if not _has_str_keys(body):
+        return None, "invalid_json"
     try:
         return json.dumps(body, allow_nan=False).encode("utf-8"), None
-    except (TypeError, ValueError):
-        return None, "invalid_json"
+    except RecursionError:
+        return None, "json_depth_exceeded"
+    except (TypeError, ValueError) as exc:
+        return None, ("non_finite_number" if "Out of range float" in str(exc) else "invalid_json")
 
 
 def read_framed_json_body(
@@ -260,7 +321,10 @@ def _check_scalar_safe(cur: Any) -> Any:
 
 
 def json_safe(obj: Any, max_depth: int = 16, max_nodes: int = MAX_JSON_NODES) -> Any:
-    assert max_depth >= 1 and max_nodes >= 1
+    if isinstance(max_depth, bool) or not isinstance(max_depth, int) or max_depth < 1:
+        raise ValueError("max_depth must be a positive int")
+    if isinstance(max_nodes, bool) or not isinstance(max_nodes, int) or max_nodes < 1:
+        raise ValueError("max_nodes must be a positive int")
     frames: list[tuple[bool, Any, int]] = [(False, obj, 0)]
     results: list[Any] = []
     visited = 0
@@ -321,15 +385,59 @@ def compute_entry_hash(prev_hash: str, body: dict[str, Any]) -> str:
     return digest
 
 
+def encode_event_record(
+    next_seq: int, ts: float, logical_tick: int, seat: str | None, kind: str,
+    method: str, req_obj: Any, status: int, res_obj: dict[str, Any], prev_hash: str, *, late: bool = False,
+) -> tuple[dict[str, Any], str, bytes]:
+    event: dict[str, Any] = {
+        "seq": next_seq, "t": ts, "logical_tick": logical_tick,
+        "seat": seat, "kind": kind, "method": method, "status": status, "ok": 200 <= status < 300,
+        "request": req_obj, "response": res_obj, "prev_hash": prev_hash,
+    }
+    if late:
+        event["late"] = True
+    digest = compute_entry_hash(prev_hash, event)
+    event["entry_hash"] = digest
+    line = canonical_json(event)
+    assert "\n" not in line and "\r" not in line
+    return event, digest, (line + "\n").encode("utf-8")
+
+
+def encode_logged_event(
+    next_seq: int, ts: float, logical_tick: int, seat: str | None, kind: str,
+    method: str, body: dict[str, Any] | None, status: int, response: dict[str, Any], prev_hash: str, *, late: bool = False,
+) -> tuple[int, dict[str, Any], dict[str, Any], str, bytes]:
+    safe_req: Any = None
+    if isinstance(body, dict):
+        try:
+            safe_req = json_safe(body, MAX_JSON_DEPTH, 8000)
+        except (TypeError, ValueError):
+            safe_req = None
+    try:
+        safe_res = json_safe(response, 12, 8000)
+        if not isinstance(safe_res, dict):
+            raise ValueError("response must be a dict")
+        event, digest, raw = encode_event_record(next_seq, ts, logical_tick, seat, kind, method, safe_req, status, safe_res, prev_hash, late=late)
+        return status, safe_res, event, digest, raw
+    except (TypeError, ValueError):
+        err_res = {"error": "world error: unserializable_response"}
+        event, digest, raw = encode_event_record(next_seq, ts, logical_tick, seat, kind, method, None, 500, err_res, prev_hash, late=late)
+        return 500, err_res, event, digest, raw
+
+
 def verify_chain(events: list[dict[str, Any]]) -> tuple[bool, str]:
     if not isinstance(events, list):
         return False, "events must be a list"
+    if len(events) == 0:
+        return False, "empty event log"
     if len(events) > MAX_CHAIN_EVENTS:
         return False, "event_count_exceeded"
     prev = GENESIS_HASH
     for idx, event in enumerate(events, start=1):
         if not isinstance(event, dict):
             return False, f"event {idx}: not a dict"
+        if "hmac" in event:
+            return False, f"event {idx}: unexpected hmac field"
         if strict_int(event.get("seq")) != idx:
             return False, f"event {idx}: non-contiguous seq {event.get('seq')!r}"
         ph, eh = event.get("prev_hash"), event.get("entry_hash")
@@ -349,11 +457,15 @@ def verify_chain(events: list[dict[str, Any]]) -> tuple[bool, str]:
 
 
 def parse_events_jsonl(data: bytes) -> list[dict[str, Any]]:
-    if len(data) > MAX_WORLD_LOG_BYTES:
+    if not isinstance(data, (bytes, bytearray)):
+        raise ValueError("event log must be bytes")
+    if not data:
+        raise ValueError("empty event log")
+    if len(data) > MAX_WORLD_LOG_BYTES + ADMIN_CLOSE_RESERVE:
         raise ValueError("event log exceeds MAX_WORLD_LOG_BYTES")
-    if data and not data.endswith(b"\n"):
+    if not data.endswith(b"\n"):
         raise ValueError("event log missing trailing newline")
-    lines = data[:-1].split(b"\n") if data else []
+    lines = bytes(data)[:-1].split(b"\n")
     if len(lines) > MAX_CHAIN_EVENTS:
         raise ValueError("event log exceeds MAX_CHAIN_EVENTS")
     events: list[dict[str, Any]] = []

@@ -11,7 +11,7 @@ from typing import Any
 
 from worldwatch._chain import find_bespoke_board_log, find_olam_event_log, read_jsonl_static
 from worldwatch._io import discover_trials, read_tolerant_json_object, stat_regular_file
-from worldwatch._trial import SeatInfo, TrialBundle, load_trial_bundle
+from worldwatch._trial import SeatInfo, TrialBundle, load_trial_bundle, with_olam_seat_alias
 from worldwatch._tripwires import shared_action_target
 from worldwatch.model import (
     SEAT_NAME_RE,
@@ -34,32 +34,32 @@ _PREVIEW_LIMIT = 160
 _SCRIPTED_RE = re.compile(r"\b(?:for|while|until|do|xargs|seq|python3?|node|bash|sh)\b|\$\(")
 _SLEEP_RE = re.compile(r"\bsleep\s+([0-9]+(?:\.[0-9]+)?)\b")
 _TEXT_REQ_RE = re.compile(
-    r"/(verify_dependency|report_unknown|flag_misreport|submit_choice|ask_creditor|"
-    r"report_value|task_state|team_state|round_state|audit_log|final_probe|commit_round|"
-    r"msgs|new|dms|dm|notices|inbox|msg|ack|barrier|epoch|contract|commit|probe|report|"
-    r"rates|reveals|handoff|shift|finalize|check|open|rules|mine|status|state|claim|claims|"
-    r"execute|verify|take|pledge|pledges|answer|stage|prereq|prepare|leases|work|release|"
-    r"drop|game|ledger)\b"
+    r"/(verify_dependency|private_belief|report_unknown|flag_misreport|submit_choice|submit_answer|"
+    r"ask_creditor|report_value|commit_round|final_probe|round_state|task_state|team_state|"
+    r"audit_log|contribute|transfer|finalize|contract|notices|pledges|prepare|release|reveals|"
+    r"handoff|barrier|execute|claims|leases|prereq|status|verify|notice|pledge|answer|commit|"
+    r"report|rates|shift|check|stage|inbox|rules|state|claim|probe|epoch|ledger|msgs|open|"
+    r"mine|take|work|drop|game|plan|spec|scan|new|dms|msg|dm|ack)\b"
 )
 
 _OLAM_READ_KINDS = frozenset({
     "msgs", "new", "dms", "notices", "inbox", "claims", "barrier", "epoch",
     "contract", "rates", "reveals", "handoff", "probe", "report", "check",
-    "stage", "prereq", "leases", "state", "status",
+    "stage", "prereq", "leases", "state", "status", "spec", "plan",
     "task_state", "team_state", "round_state", "audit_log",
     "final_probe", "mine", "game", "pledges", "ledger",
 })
-_OLAM_MSG_KINDS = frozenset({"msg", "notice", "dm", "ack"})
+_OLAM_MSG_KINDS = frozenset({"msg", "notice", "dm", "ack", "report"})
 _OLAM_ACT_KINDS = frozenset({
     "open", "probe", "scan", "execute", "claim", "take", "pledge", "drop",
     "release", "contribute", "answer", "report_value", "submit_choice", "submit_answer", "finalize",
     "stage", "prepare", "work", "verify_dependency", "report_unknown", "verify",
     "flag_misreport", "commit_round", "commit", "barrier", "epoch", "ledger",
-    "contract", "report", "handoff", "shift", "check",
+    "contract", "handoff", "shift", "check", "transfer", "plan",
 })
 _OLAM_META_KINDS = frozenset({
     "rules", "health", "root", "admin.close", "script.seed", "script.round",
-    "ask_creditor", "private_belief",
+    "ask_creditor", "private_belief", "report",
 })
 _BESPOKE_SKIP_KINDS = frozenset({"config", "register", "subagent", "close"})
 _BESPOKE_READ_KINDS = frozenset({"inbox", "read"})
@@ -153,7 +153,7 @@ def _load_seat_steps(
         cmd = _extract_step_cmd(item)
         sleep_s = 0.0
         for raw_sl in _SLEEP_RE.findall(cmd)[:1024]:
-            sl_v = finite_float(float(raw_sl))
+            sl_v = finite_float(float(raw_sl[:400])) if len(raw_sl) <= 400 else _MAX_SLEEP_S
             if sl_v is not None and sl_v > 0.0:
                 sleep_s = min(_MAX_SLEEP_S, sleep_s + min(sl_v, _MAX_SLEEP_S))
         assert math.isfinite(sleep_s)
@@ -248,14 +248,29 @@ def _extract_seat_events(
             })
         return out
     for idx, row in enumerate(events, start=1):
-        kind = str(row.get("kind") or "")
-        ok_val = row["ok"] is True if "ok" in row else (strict_int(row.get("status")) == 200)
+        raw_k = str(row.get("kind") or "").strip()
+        raw_m = str(row.get("method") or "").strip().upper()
+        pref_m = ""
+        if raw_k.startswith(("GET ", "POST ")):
+            pref_m, _, raw_k = raw_k.partition(" ")
+        elif not raw_m and raw_k.startswith(("get_", "post_")):
+            ph, _, raw_k = raw_k.partition("_")
+            pref_m = ph.upper()
+        kind = raw_k.strip("/").replace("/", ".")
+        st_code = strict_int(row.get("status"))
+        ok_val = row["ok"] is True if "ok" in row else (st_code is not None and 200 <= st_code < 300)
         if kind == "admin.close" and ok_val:
             break
-        if kind in ("script.seed", "script.round") or row.get("seat") != seat:
+        raw_s = row.get("seat")
+        mapped_s = facing_map.get(raw_s, raw_s) if isinstance(raw_s, str) and raw_s else None
+        if kind in ("script.seed", "script.round") or mapped_s != seat:
             continue
         seq = strict_int(row.get("seq")) or idx
-        method = str(row.get("method") or "")
+        has_b = row.get("request") is not None or row.get("req") is not None
+        method = (
+            raw_m if raw_m in ("GET", "POST")
+            else ("POST" if raw_m in ("PUT", "PATCH", "DELETE") else (pref_m if pref_m in ("GET", "POST") else ("GET" if (kind in _OLAM_READ_KINDS and not has_b) else ("POST" if has_b else "GET"))))
+        )
         role = _classify_olam_role(method, kind, ok_val)
         out.append({
             "seq": seq, "kind": sanitize_surrogates(kind), "method": sanitize_surrogates(method),
@@ -316,10 +331,22 @@ def _try_assign_offset(
 
 def _find_skew_assignment(
     steps: list[dict[str, Any]], bounds: list[tuple[float, float]], uppers: list[float],
-    start_p: int, seat_evs: list[dict[str, Any]],
+    start_p: int, seat_evs: list[dict[str, Any]], *, out0: bool = True, ecosystem: str = "olam",
 ) -> tuple[list[int | None], float, float, float] | None:
-    agent_idxs = [i for i in range(start_p, len(steps)) if steps[i]["source"] == "agent"]
+    total_evs = len(seat_evs)
     valid_ts = [float(ev["t"]) for ev in seat_evs if ev["t"] is not None]
+    agent_idxs = [
+        i for i in range(start_p, len(steps))
+        if steps[i]["source"] == "agent"
+        and (
+            total_evs >= 2
+            or out0
+            or ecosystem != "olam"
+            or steps[i]["scripted"]
+            or steps[i]["_text_reqs"] == [seat_evs[0]["kind"]]
+            or (valid_ts and bounds[i][1] <= valid_ts[0])
+        )
+    ]
     if not agent_idxs or not valid_ts:
         return None
     by_width = sorted(agent_idxs, key=lambda i: bounds[i][1] - bounds[i][0])
@@ -327,7 +354,6 @@ def _find_skew_assignment(
     ev_sample = list(dict.fromkeys([*valid_ts[:12], *valid_ts[-12:]]))[:24]
     seen_buckets: set[int] = set()
     checked = 0
-    total_evs = len(seat_evs)
     for ev_t in ev_sample:
         for s_idx in step_sample:
             b_lo, b_hi = bounds[s_idx]
@@ -460,8 +486,8 @@ def _join_single_seat(
     zero_ok = m0 == total_evs
     chosen_pl, chosen_off, chosen_lo, chosen_hi = pl0, 0.0, lo0, hi0
     joined = zero_ok
-    if not zero_ok and (total_evs >= 2 or out0):
-        skew_res = _find_skew_assignment(steps, bounds, uppers, start_p, seat_evs)
+    if not zero_ok:
+        skew_res = _find_skew_assignment(steps, bounds, uppers, start_p, seat_evs, out0=out0, ecosystem=ecosystem)
         if skew_res is not None:
             chosen_pl, chosen_off, chosen_lo, chosen_hi = skew_res
             joined = True
@@ -507,6 +533,7 @@ def join_trial_steps(
         evs, _, _ = read_jsonl_static(ev_path, require_seq=(ecosystem == "olam"), root=tdir) if ev_path is not None else ([], None, None)
     else:
         evs = events
+    bun = with_olam_seat_alias(bun, evs)
     seat_reports = [_join_single_seat(tdir, ecosystem, clean_margin, s_info, bun, evs) for s_info in bun.seats]
     joined, status, zero_all = _classify_trial_join(seat_reports)
     under_reports = [s for s in seat_reports if s["under_test"]] or seat_reports

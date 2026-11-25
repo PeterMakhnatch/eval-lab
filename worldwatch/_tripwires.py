@@ -38,6 +38,14 @@ _SHARED_TARGET_KEYS = (
 
 _SINGLE_ANSWER_KINDS = frozenset({"answer", "submit_answer", "finalize"})
 _FRICTION_HTTP_CODES = frozenset({400, 401, 403, 404, 405, 422})
+_GAME_CAP_429_ERRS = frozenset({
+    "channel_full", "dm_channel_full", "lease_table_full",
+    "barrier_limit_reached", "belief_update_limit_reached",
+})
+_POOL_LEFT_429_KEYS = (
+    "shared_probes_left", "probe_pool_left", "shared_budget_left",
+    "pool_budget_left", "probes_left", "pool_left", "team_budget_left", "global_budget_left",
+)
 
 
 def _event_seat(row: Mapping[str, Any], ecosystem: str, facing_map: Mapping[str, str]) -> str | None:
@@ -47,7 +55,7 @@ def _event_seat(row: Mapping[str, Any], ecosystem: str, facing_map: Mapping[str,
             return facing_map.get(raw, raw)
         return None
     raw = row.get("seat")
-    return raw if isinstance(raw, str) and raw else None
+    return facing_map.get(raw, raw) if isinstance(raw, str) and raw else None
 
 
 def _event_time(row: Mapping[str, Any]) -> datetime | None:
@@ -80,14 +88,19 @@ def is_world_friction_rejection(row: Mapping[str, Any], ecosystem: str) -> bool:
     st = strict_int(row.get("status"))
     if st == 409:
         return False
-    resp = as_map(row.get("response"))
-    err_txt = str(resp.get("error") or "").lower()
+    resp = as_map(row.get("response")) or as_map(row.get("resp")) or as_map(row.get("res"))
+    err_txt = str(resp.get("error") or "").strip().lower()
     if st == 429:
+        bl = resp.get("budget_left")
+        zero_bl = (bl == 0 and not isinstance(bl, bool)) or (
+            isinstance(bl, Mapping) and any(v == 0 and not isinstance(v, bool) for v in bl.values())
+        )
+        zero_pool = any(resp.get(k) == 0 and not isinstance(resp.get(k), bool) for k in _POOL_LEFT_429_KEYS)
         return not (
-            resp.get("budget_left") == 0
-            or "budget" in err_txt
-            or "calls left" in err_txt
-            or "quota" in err_txt
+            zero_bl
+            or zero_pool
+            or err_txt in _GAME_CAP_429_ERRS
+            or any(tok in err_txt for tok in ("budget", "calls left", "quota", "pool exhausted", "pool_exhausted"))
         )
     if st is not None:
         return st in _FRICTION_HTTP_CODES or st >= 500
@@ -188,7 +201,7 @@ def shared_action_target(row: Mapping[str, Any]) -> str | None:
     if kind in _SINGLE_ANSWER_KINDS:
         return f"{kind}:team_singleton"
     req = as_map(row.get("request")) or as_map(row.get("req"))
-    resp = as_map(row.get("response")) or as_map(row.get("res"))
+    resp = as_map(row.get("response")) or as_map(row.get("resp")) or as_map(row.get("res"))
     rnd = strict_int(req.get("round")) if kind == "verify" else None
     if rnd is None and kind == "verify":
         rnd = strict_int(resp.get("round"))
@@ -223,7 +236,7 @@ def detect_dup_unseen_events(
         seq = raw_seq if raw_seq is not None else idx
         kind = str(row.get("kind") or "")
         method = str(row.get("method") or "")
-        resp = as_map(row.get("response")) or as_map(row.get("res"))
+        resp = as_map(row.get("response")) or as_map(row.get("resp")) or as_map(row.get("res"))
         if method == "POST" and kind in ("msg", "notice", "claim", "dm"):
             mid = strict_int(resp.get("id"))
             if mid is not None:

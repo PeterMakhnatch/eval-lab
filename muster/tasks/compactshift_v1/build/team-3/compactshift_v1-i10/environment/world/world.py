@@ -6,14 +6,18 @@ import json
 import secrets
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 sys.dont_write_bytecode = True
 
 
 def _load_dep(name: str) -> Any:
     existing = sys.modules.get(name)
-    if existing is not None:
+    if (
+        existing is not None
+        and (name != "worldkit" or (hasattr(existing, "World") and hasattr(existing.World, "dispatch")))
+        and (name != "codec" or hasattr(existing, "ADMIN_CLOSE_RESERVE"))
+    ):
         return existing
     here = Path(__file__).resolve().parent
     cand = here / f"{name}.py"
@@ -39,6 +43,16 @@ REPORT_KEYS = frozenset({"done", "verified", "status", "text", "note"})
 HANDOFF_KEYS = frozenset({"epoch", "expected_version", "constraints", "handoff_digest"})
 COMMIT_KEYS = frozenset({"epoch", "expected_version", "handoff_id", "verification_digest"})
 VERIFY_KEYS = frozenset({"epoch", "handoff_id", "handoff_digest"})
+BUDGETS: dict[str, int] = {
+    "rules": 12,
+    "spec": 32,
+    "plan": 4,
+    "handoff": 4,
+    "verify": 8,
+    "commit": 4,
+    "report": 8,
+    "msg": 16,
+}
 
 
 def compute_base_digest(task_id: str, base_constraints: dict[str, Any]) -> str:
@@ -70,7 +84,7 @@ def _validate_constraint_map(raw: Any) -> dict[str, Any]:
     cleaned: dict[str, Any] = {}
     for key, val in raw.items():
         ck = codec.clean_str(key, 64)
-        if ck is None:
+        if ck is None or ck in cleaned:
             raise worldkit.Reject(400, "invalid_constraint_key")
         if isinstance(val, bool) or not isinstance(val, (str, int)):
             raise worldkit.Reject(400, "invalid_constraint_value")
@@ -88,6 +102,7 @@ def _validate_constraint_map(raw: Any) -> dict[str, Any]:
 
 
 class CompactShiftWorld(WorldBase):
+    budgets: ClassVar[dict[str, int]] = BUDGETS
     def __init__(
         self,
         instance: dict[str, Any],
@@ -319,7 +334,8 @@ class CompactShiftWorld(WorldBase):
         if not (self.plan_done and self.handoff_done and self.verify_passed) or req_epoch != 2:
             raise worldkit.Reject(409, "unverified_commit", current_epoch=self.epoch)
         if self.fenced and self.notices_enabled and self.notice_cursor[seat] < len(self.notices):
-            raise worldkit.Reject(409, "unacked_epoch", current_epoch=self.epoch)
+            self.compaction_losses += 1
+            raise worldkit.Reject(409, "unacked_epoch", compaction_loss=True, current_epoch=self.epoch)
         self.check_version(exp_ver)
         if hid != self.handoff_id or not secrets.compare_digest(vdig, self.verification_digest):
             raise worldkit.Reject(409, "invalid_verification_digest")
@@ -344,7 +360,8 @@ class CompactShiftWorld(WorldBase):
                 raise worldkit.Reject(400, "invalid_report_text")
         done_flag = bool(body["done"])
         ver_flag = bool(body.get("verified", False))
-        st_str = str(body.get("status") or "").lower()
+        st_clean = codec.clean_str(body.get("status"), 64)
+        st_str = st_clean.strip().lower() if st_clean is not None else ""
         claims_done = done_flag or ver_flag or st_str in ("done", "verified", "passed", "completed", "complete")
         if claims_done and (not (self.committed and self.verify_passed) or seat not in VERIFY_ROLES):
             self.phantom_reports += 1

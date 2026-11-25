@@ -1,0 +1,3004 @@
+{
+  "builtins": [
+    {
+      "episodes": 4320,
+      "id": "builtin.determinism",
+      "status": "PASS"
+    },
+    {
+      "episodes": 17281,
+      "id": "builtin.replay",
+      "status": "PASS"
+    },
+    {
+      "episodes": 17281,
+      "id": "builtin.state_matches_log",
+      "status": "PASS"
+    },
+    {
+      "episodes": 17281,
+      "id": "builtin.no_world_error",
+      "status": "PASS"
+    },
+    {
+      "episodes": 17281,
+      "id": "builtin.no_hidden_string",
+      "status": "PASS"
+    },
+    {
+      "episodes": 17281,
+      "id": "builtin.policies_end",
+      "status": "PASS"
+    },
+    {
+      "episodes": 17281,
+      "id": "builtin.log_continuous",
+      "status": "PASS"
+    },
+    {
+      "episodes": 17281,
+      "id": "builtin.reward_range",
+      "status": "PASS"
+    },
+    {
+      "episodes": 960,
+      "id": "builtin.oracle_ceiling",
+      "status": "PASS"
+    },
+    {
+      "episodes": 960,
+      "id": "builtin.credited_events_matter",
+      "status": "PASS"
+    },
+    {
+      "episodes": 9693,
+      "id": "builtin.refused_events_do_not_matter",
+      "status": "PASS"
+    },
+    {
+      "episodes": 960,
+      "id": "builtin.floor",
+      "status": "PASS"
+    },
+    {
+      "episodes": 19,
+      "id": "builtin.findings_regress",
+      "status": "PASS"
+    }
+  ],
+  "claims": [
+    {
+      "episodes": 960,
+      "id": "equals-oracle-reward-calm-probe-calm-guard-calm-solo-calm-team-clash-probe-clash-guard-clash-solo-clash-team-skew-probe-skew-guard-skew-solo-skew-team-limbo-probe-limbo-guard-limbo-solo-limbo-team-takeover-probe-takeover-guard-takeover-solo-takeover-team-storm-probe-storm-guard-storm-solo-storm-team",
+      "status": "PASS"
+    },
+    {
+      "episodes": 960,
+      "id": "equals-oracle-clean-calm-probe-calm-guard-calm-solo-calm-team-clash-probe-clash-guard-clash-solo-clash-team-skew-probe-skew-guard-skew-solo-skew-team-limbo-probe-limbo-guard-limbo-solo-limbo-team-takeover-probe-takeover-guard-takeover-solo-takeover-team-storm-probe-storm-guard-storm-solo-storm-team",
+      "status": "PASS"
+    },
+    {
+      "episodes": 300,
+      "id": "probe-skills",
+      "status": "PASS"
+    },
+    {
+      "episodes": 50,
+      "id": "below-reread-reward-clash-probe-skew-probe-limbo-probe-takeover-probe-storm-probe",
+      "status": "PASS"
+    },
+    {
+      "episodes": 50,
+      "id": "below-follower-reward-clash-probe-skew-probe-limbo-probe-takeover-probe-storm-probe",
+      "status": "PASS"
+    },
+    {
+      "episodes": 20,
+      "id": "below-cas_version-reward-limbo-probe-storm-probe",
+      "status": "PASS"
+    },
+    {
+      "episodes": 20,
+      "id": "below-cas_value-reward-limbo-probe-storm-probe",
+      "status": "PASS"
+    },
+    {
+      "episodes": 20,
+      "id": "below-cas_check_once-reward-limbo-probe-storm-probe",
+      "status": "PASS"
+    },
+    {
+      "episodes": 20,
+      "id": "below-cas_dedupe_first-reward-limbo-probe-storm-probe",
+      "status": "PASS"
+    },
+    {
+      "episodes": 20,
+      "id": "below-cas_check_once-reward-takeover-probe-storm-probe",
+      "status": "PASS"
+    },
+    {
+      "episodes": 20,
+      "id": "below-cas_dedupe_first-reward-takeover-probe-storm-probe",
+      "status": "PASS"
+    },
+    {
+      "episodes": 20,
+      "id": "below-cas_dedupe_ticket-reward-takeover-probe-storm-probe",
+      "status": "PASS"
+    },
+    {
+      "episodes": 10,
+      "id": "equals-repair-reward-clash-probe",
+      "status": "PASS"
+    },
+    {
+      "episodes": 10,
+      "id": "below-repair-clean-clash-probe",
+      "status": "PASS"
+    },
+    {
+      "episodes": 60,
+      "id": "equals-follower-reward-calm-guard-clash-guard-skew-guard-limbo-guard-takeover-guard-storm-guard",
+      "status": "PASS"
+    },
+    {
+      "episodes": 60,
+      "id": "equals-cas-reward-calm-guard-clash-guard-skew-guard-limbo-guard-takeover-guard-storm-guard",
+      "status": "PASS"
+    },
+    {
+      "episodes": 60,
+      "id": "equals-cas_readset-reward-calm-guard-clash-guard-skew-guard-limbo-guard-takeover-guard-storm-guard",
+      "status": "PASS"
+    },
+    {
+      "episodes": 60,
+      "id": "equals-cas_dedupe-reward-calm-guard-clash-guard-skew-guard-limbo-guard-takeover-guard-storm-guard",
+      "status": "PASS"
+    },
+    {
+      "episodes": 60,
+      "id": "equals-oracle-reward-calm-guard-clash-guard-skew-guard-limbo-guard-takeover-guard-storm-guard",
+      "status": "PASS"
+    },
+    {
+      "episodes": 60,
+      "id": "equals-cas_dedupe-reward-calm-solo-clash-solo-skew-solo-limbo-solo-takeover-solo-storm-solo",
+      "status": "PASS"
+    },
+    {
+      "episodes": 60,
+      "id": "equals-oracle-reward-calm-solo-clash-solo-skew-solo-limbo-solo-takeover-solo-storm-solo",
+      "status": "PASS"
+    },
+    {
+      "episodes": 40,
+      "id": "equals-blind-reward-calm-solo-clash-solo-skew-solo-limbo-solo",
+      "status": "PASS"
+    },
+    {
+      "episodes": 20,
+      "id": "below-blind-reward-takeover-solo-storm-solo",
+      "status": "PASS"
+    },
+    {
+      "episodes": 30,
+      "id": "below-cas-reward-limbo-solo-takeover-solo-storm-solo",
+      "status": "PASS"
+    },
+    {
+      "episodes": 650,
+      "id": "below-blind-reward-clash-team-skew-team-limbo-team-takeover-team-storm-team",
+      "status": "PASS"
+    },
+    {
+      "episodes": 520,
+      "id": "below-cas-reward-skew-team-limbo-team-takeover-team-storm-team",
+      "status": "PASS"
+    },
+    {
+      "episodes": 390,
+      "id": "below-cas_readset-reward-limbo-team-takeover-team-storm-team",
+      "status": "PASS"
+    },
+    {
+      "episodes": 261,
+      "id": "below-cas_dedupe-reward-skew-team-storm-team",
+      "status": "PASS"
+    },
+    {
+      "episodes": 960,
+      "id": "at_most-spam-focal-calm-probe-calm-guard-calm-solo-calm-team-clash-probe-clash-guard-clash-solo-clash-team-skew-probe-skew-guard-skew-solo-skew-team-limbo-probe-limbo-guard-limbo-solo-limbo-team-takeover-probe-takeover-guard-takeover-solo-takeover-team-storm-probe-storm-guard-storm-solo-storm-team",
+      "status": "PASS"
+    },
+    {
+      "episodes": 960,
+      "id": "at_most-decliner-focal-calm-probe-calm-guard-calm-solo-calm-team-clash-probe-clash-guard-clash-solo-clash-team-skew-probe-skew-guard-skew-solo-skew-team-limbo-probe-limbo-guard-limbo-solo-limbo-team-takeover-probe-takeover-guard-takeover-solo-takeover-team-storm-probe-storm-guard-storm-solo-storm-team",
+      "status": "PASS"
+    },
+    {
+      "episodes": 640,
+      "id": "equals-idle-focal-calm-probe-calm-guard-calm-solo-calm-team-clash-probe-clash-guard-clash-solo-clash-team-skew-probe-skew-guard-skew-solo-skew-team-limbo-probe-limbo-guard-limbo-solo-limbo-team",
+      "status": "PASS"
+    },
+    {
+      "episodes": 20,
+      "id": "equals-idle-focal-takeover-probe-takeover-guard",
+      "status": "PASS"
+    },
+    {
+      "episodes": 140,
+      "id": "equals-idle-focal-takeover-solo-takeover-team",
+      "status": "PASS"
+    },
+    {
+      "episodes": 20,
+      "id": "equals-idle-focal-storm-probe-storm-guard",
+      "status": "PASS"
+    },
+    {
+      "episodes": 140,
+      "id": "equals-idle-focal-storm-solo-storm-team",
+      "status": "PASS"
+    },
+    {
+      "episodes": 0,
+      "id": "equal-facet-budget",
+      "status": "PASS"
+    },
+    {
+      "episodes": 960,
+      "id": "fuzz-no-500",
+      "status": "PASS"
+    },
+    {
+      "episodes": 960,
+      "id": "oracle-no-429",
+      "status": "PASS"
+    }
+  ],
+  "conditions": [
+    "calm-probe",
+    "calm-guard",
+    "calm-solo",
+    "calm-team",
+    "clash-probe",
+    "clash-guard",
+    "clash-solo",
+    "clash-team",
+    "skew-probe",
+    "skew-guard",
+    "skew-solo",
+    "skew-team",
+    "limbo-probe",
+    "limbo-guard",
+    "limbo-solo",
+    "limbo-team",
+    "takeover-probe",
+    "takeover-guard",
+    "takeover-solo",
+    "takeover-team",
+    "storm-probe",
+    "storm-guard",
+    "storm-solo",
+    "storm-team"
+  ],
+  "family": "depot",
+  "matrix": {
+    "blind": {
+      "calm-guard": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "calm-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-guard": {
+        "episodes": 10,
+        "max": 0.375,
+        "mean": 0.375,
+        "min": 0.375
+      },
+      "clash-probe": {
+        "episodes": 10,
+        "max": 0.375,
+        "mean": 0.375,
+        "min": 0.375
+      },
+      "clash-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-team": {
+        "episodes": 130,
+        "max": 0.875,
+        "mean": 0.5182692307692308,
+        "min": 0.375
+      },
+      "limbo-guard": {
+        "episodes": 10,
+        "max": 0.4,
+        "mean": 0.4,
+        "min": 0.4
+      },
+      "limbo-probe": {
+        "episodes": 10,
+        "max": 0.5,
+        "mean": 0.5,
+        "min": 0.5
+      },
+      "limbo-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "limbo-team": {
+        "episodes": 130,
+        "max": 0.6,
+        "mean": 0.40076923076923077,
+        "min": 0.3
+      },
+      "skew-guard": {
+        "episodes": 10,
+        "max": 0.15789473684210525,
+        "mean": 0.15789473684210525,
+        "min": 0.15789473684210525
+      },
+      "skew-probe": {
+        "episodes": 10,
+        "max": 0.6842105263157895,
+        "mean": 0.6210526315789473,
+        "min": 0.5263157894736842
+      },
+      "skew-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "skew-team": {
+        "episodes": 130,
+        "max": 0.8421052631578947,
+        "mean": 0.6854251012145749,
+        "min": 0.5263157894736842
+      },
+      "storm-guard": {
+        "episodes": 10,
+        "max": 0.14285714285714285,
+        "mean": 0.14285714285714285,
+        "min": 0.14285714285714285
+      },
+      "storm-probe": {
+        "episodes": 10,
+        "max": 0.6190476190476191,
+        "mean": 0.5714285714285714,
+        "min": 0.5238095238095238
+      },
+      "storm-solo": {
+        "episodes": 10,
+        "max": 0.8571428571428571,
+        "mean": 0.8571428571428571,
+        "min": 0.8571428571428571
+      },
+      "storm-team": {
+        "episodes": 130,
+        "max": 0.7142857142857143,
+        "mean": 0.5941391941391941,
+        "min": 0.5238095238095238
+      },
+      "takeover-guard": {
+        "episodes": 10,
+        "max": 0.36363636363636365,
+        "mean": 0.36363636363636365,
+        "min": 0.36363636363636365
+      },
+      "takeover-probe": {
+        "episodes": 10,
+        "max": 0.5454545454545454,
+        "mean": 0.5454545454545454,
+        "min": 0.5454545454545454
+      },
+      "takeover-solo": {
+        "episodes": 10,
+        "max": 0.7272727272727273,
+        "mean": 0.7272727272727273,
+        "min": 0.7272727272727273
+      },
+      "takeover-team": {
+        "episodes": 130,
+        "max": 0.7272727272727273,
+        "mean": 0.5706293706293706,
+        "min": 0.45454545454545453
+      }
+    },
+    "cas": {
+      "calm-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "limbo-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "limbo-probe": {
+        "episodes": 10,
+        "max": 0.7,
+        "mean": 0.7,
+        "min": 0.7
+      },
+      "limbo-solo": {
+        "episodes": 10,
+        "max": 0.3,
+        "mean": 0.22000000000000003,
+        "min": 0.1
+      },
+      "limbo-team": {
+        "episodes": 130,
+        "max": 0.3,
+        "mean": 0.22,
+        "min": 0.1
+      },
+      "skew-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "skew-probe": {
+        "episodes": 10,
+        "max": 0.9473684210526315,
+        "mean": 0.8842105263157893,
+        "min": 0.7894736842105263
+      },
+      "skew-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "skew-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 0.9781376518218624,
+        "min": 0.8421052631578947
+      },
+      "storm-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "storm-probe": {
+        "episodes": 10,
+        "max": 0.6190476190476191,
+        "mean": 0.5714285714285714,
+        "min": 0.5238095238095238
+      },
+      "storm-solo": {
+        "episodes": 10,
+        "max": 0.6666666666666666,
+        "mean": 0.6285714285714286,
+        "min": 0.6190476190476191
+      },
+      "storm-team": {
+        "episodes": 130,
+        "max": 0.6190476190476191,
+        "mean": 0.5703296703296703,
+        "min": 0.47619047619047616
+      },
+      "takeover-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "takeover-probe": {
+        "episodes": 10,
+        "max": 0.6363636363636364,
+        "mean": 0.6363636363636364,
+        "min": 0.6363636363636364
+      },
+      "takeover-solo": {
+        "episodes": 10,
+        "max": 0.7272727272727273,
+        "mean": 0.7272727272727273,
+        "min": 0.7272727272727273
+      },
+      "takeover-team": {
+        "episodes": 130,
+        "max": 0.6363636363636364,
+        "mean": 0.6363636363636364,
+        "min": 0.6363636363636364
+      }
+    },
+    "cas_check_once": {
+      "calm-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "limbo-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "limbo-probe": {
+        "episodes": 10,
+        "max": 0.9,
+        "mean": 0.9,
+        "min": 0.9
+      },
+      "limbo-solo": {
+        "episodes": 10,
+        "max": 0.7,
+        "mean": 0.7,
+        "min": 0.7
+      },
+      "limbo-team": {
+        "episodes": 130,
+        "max": 0.7,
+        "mean": 0.7,
+        "min": 0.7
+      },
+      "skew-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "skew-probe": {
+        "episodes": 10,
+        "max": 0.9473684210526315,
+        "mean": 0.8842105263157893,
+        "min": 0.7894736842105263
+      },
+      "skew-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "skew-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 0.9781376518218624,
+        "min": 0.8421052631578947
+      },
+      "storm-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "storm-probe": {
+        "episodes": 10,
+        "max": 0.7142857142857143,
+        "mean": 0.6666666666666667,
+        "min": 0.6190476190476191
+      },
+      "storm-solo": {
+        "episodes": 10,
+        "max": 0.7619047619047619,
+        "mean": 0.7619047619047619,
+        "min": 0.7619047619047619
+      },
+      "storm-team": {
+        "episodes": 130,
+        "max": 0.7142857142857143,
+        "mean": 0.7032967032967034,
+        "min": 0.6190476190476191
+      },
+      "takeover-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "takeover-probe": {
+        "episodes": 10,
+        "max": 0.6363636363636364,
+        "mean": 0.6363636363636364,
+        "min": 0.6363636363636364
+      },
+      "takeover-solo": {
+        "episodes": 10,
+        "max": 0.7272727272727273,
+        "mean": 0.7272727272727273,
+        "min": 0.7272727272727273
+      },
+      "takeover-team": {
+        "episodes": 130,
+        "max": 0.6363636363636364,
+        "mean": 0.6363636363636364,
+        "min": 0.6363636363636364
+      }
+    },
+    "cas_dedupe": {
+      "calm-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "limbo-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "limbo-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "limbo-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "limbo-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "skew-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "skew-probe": {
+        "episodes": 10,
+        "max": 0.9473684210526315,
+        "mean": 0.8842105263157893,
+        "min": 0.7894736842105263
+      },
+      "skew-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "skew-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 0.9639676113360324,
+        "min": 0.8421052631578947
+      },
+      "storm-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "storm-probe": {
+        "episodes": 10,
+        "max": 0.9523809523809523,
+        "mean": 0.9047619047619048,
+        "min": 0.8571428571428571
+      },
+      "storm-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "storm-team": {
+        "episodes": 131,
+        "max": 1.0,
+        "mean": 0.9818247909850963,
+        "min": 0.9047619047619048
+      },
+      "takeover-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "takeover-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "takeover-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "takeover-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      }
+    },
+    "cas_dedupe_first": {
+      "calm-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "limbo-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "limbo-probe": {
+        "episodes": 10,
+        "max": 0.9,
+        "mean": 0.9,
+        "min": 0.9
+      },
+      "limbo-solo": {
+        "episodes": 10,
+        "max": 0.7,
+        "mean": 0.7,
+        "min": 0.7
+      },
+      "limbo-team": {
+        "episodes": 130,
+        "max": 0.7,
+        "mean": 0.7,
+        "min": 0.7
+      },
+      "skew-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "skew-probe": {
+        "episodes": 10,
+        "max": 0.9473684210526315,
+        "mean": 0.8842105263157893,
+        "min": 0.7894736842105263
+      },
+      "skew-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "skew-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 0.9627530364372469,
+        "min": 0.8421052631578947
+      },
+      "storm-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "storm-probe": {
+        "episodes": 10,
+        "max": 0.8571428571428571,
+        "mean": 0.8095238095238095,
+        "min": 0.7619047619047619
+      },
+      "storm-solo": {
+        "episodes": 10,
+        "max": 0.9047619047619048,
+        "mean": 0.9047619047619048,
+        "min": 0.9047619047619048
+      },
+      "storm-team": {
+        "episodes": 130,
+        "max": 0.9047619047619048,
+        "mean": 0.8871794871794871,
+        "min": 0.8095238095238095
+      },
+      "takeover-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "takeover-probe": {
+        "episodes": 10,
+        "max": 0.9090909090909091,
+        "mean": 0.909090909090909,
+        "min": 0.9090909090909091
+      },
+      "takeover-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "takeover-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 0.9979020979020978,
+        "min": 0.9090909090909091
+      }
+    },
+    "cas_dedupe_ticket": {
+      "calm-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "limbo-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "limbo-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "limbo-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "limbo-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "skew-guard": {
+        "episodes": 10,
+        "max": 0.8421052631578947,
+        "mean": 0.8421052631578947,
+        "min": 0.8421052631578947
+      },
+      "skew-probe": {
+        "episodes": 10,
+        "max": 0.7894736842105263,
+        "mean": 0.7263157894736841,
+        "min": 0.631578947368421
+      },
+      "skew-solo": {
+        "episodes": 10,
+        "max": 0.8421052631578947,
+        "mean": 0.8421052631578947,
+        "min": 0.8421052631578947
+      },
+      "skew-team": {
+        "episodes": 130,
+        "max": 0.8421052631578947,
+        "mean": 0.8060728744939271,
+        "min": 0.6842105263157895
+      },
+      "storm-guard": {
+        "episodes": 10,
+        "max": 0.8095238095238095,
+        "mean": 0.8095238095238095,
+        "min": 0.8095238095238095
+      },
+      "storm-probe": {
+        "episodes": 10,
+        "max": 0.7619047619047619,
+        "mean": 0.7142857142857142,
+        "min": 0.6666666666666666
+      },
+      "storm-solo": {
+        "episodes": 10,
+        "max": 0.8095238095238095,
+        "mean": 0.8095238095238095,
+        "min": 0.8095238095238095
+      },
+      "storm-team": {
+        "episodes": 130,
+        "max": 0.8095238095238095,
+        "mean": 0.7915750915750915,
+        "min": 0.7142857142857143
+      },
+      "takeover-guard": {
+        "episodes": 10,
+        "max": 0.8181818181818182,
+        "mean": 0.8181818181818181,
+        "min": 0.8181818181818182
+      },
+      "takeover-probe": {
+        "episodes": 10,
+        "max": 0.8181818181818182,
+        "mean": 0.8181818181818181,
+        "min": 0.8181818181818182
+      },
+      "takeover-solo": {
+        "episodes": 10,
+        "max": 0.7272727272727273,
+        "mean": 0.7272727272727273,
+        "min": 0.7272727272727273
+      },
+      "takeover-team": {
+        "episodes": 130,
+        "max": 0.7272727272727273,
+        "mean": 0.7272727272727273,
+        "min": 0.7272727272727273
+      }
+    },
+    "cas_readset": {
+      "calm-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "limbo-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "limbo-probe": {
+        "episodes": 10,
+        "max": 0.7,
+        "mean": 0.7,
+        "min": 0.7
+      },
+      "limbo-solo": {
+        "episodes": 10,
+        "max": 0.3,
+        "mean": 0.22000000000000003,
+        "min": 0.1
+      },
+      "limbo-team": {
+        "episodes": 130,
+        "max": 0.3,
+        "mean": 0.22,
+        "min": 0.1
+      },
+      "skew-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "skew-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "skew-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "skew-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "storm-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "storm-probe": {
+        "episodes": 10,
+        "max": 0.6666666666666666,
+        "mean": 0.6666666666666666,
+        "min": 0.6666666666666666
+      },
+      "storm-solo": {
+        "episodes": 10,
+        "max": 0.6666666666666666,
+        "mean": 0.6285714285714286,
+        "min": 0.6190476190476191
+      },
+      "storm-team": {
+        "episodes": 130,
+        "max": 0.6190476190476191,
+        "mean": 0.5809523809523809,
+        "min": 0.5714285714285714
+      },
+      "takeover-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "takeover-probe": {
+        "episodes": 10,
+        "max": 0.6363636363636364,
+        "mean": 0.6363636363636364,
+        "min": 0.6363636363636364
+      },
+      "takeover-solo": {
+        "episodes": 10,
+        "max": 0.7272727272727273,
+        "mean": 0.7272727272727273,
+        "min": 0.7272727272727273
+      },
+      "takeover-team": {
+        "episodes": 130,
+        "max": 0.6363636363636364,
+        "mean": 0.6363636363636364,
+        "min": 0.6363636363636364
+      }
+    },
+    "cas_value": {
+      "calm-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "limbo-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "limbo-probe": {
+        "episodes": 10,
+        "max": 0.7,
+        "mean": 0.7,
+        "min": 0.7
+      },
+      "limbo-solo": {
+        "episodes": 10,
+        "max": 0.7,
+        "mean": 0.7,
+        "min": 0.7
+      },
+      "limbo-team": {
+        "episodes": 130,
+        "max": 0.7,
+        "mean": 0.6846153846153846,
+        "min": 0.5
+      },
+      "skew-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "skew-probe": {
+        "episodes": 10,
+        "max": 0.9473684210526315,
+        "mean": 0.8842105263157893,
+        "min": 0.7894736842105263
+      },
+      "skew-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "skew-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 0.9781376518218624,
+        "min": 0.8421052631578947
+      },
+      "storm-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "storm-probe": {
+        "episodes": 10,
+        "max": 0.6190476190476191,
+        "mean": 0.5714285714285714,
+        "min": 0.5238095238095238
+      },
+      "storm-solo": {
+        "episodes": 10,
+        "max": 0.7619047619047619,
+        "mean": 0.7619047619047619,
+        "min": 0.7619047619047619
+      },
+      "storm-team": {
+        "episodes": 130,
+        "max": 0.7142857142857143,
+        "mean": 0.7021978021978023,
+        "min": 0.6190476190476191
+      },
+      "takeover-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "takeover-probe": {
+        "episodes": 10,
+        "max": 0.6363636363636364,
+        "mean": 0.6363636363636364,
+        "min": 0.6363636363636364
+      },
+      "takeover-solo": {
+        "episodes": 10,
+        "max": 0.7272727272727273,
+        "mean": 0.7272727272727273,
+        "min": 0.7272727272727273
+      },
+      "takeover-team": {
+        "episodes": 130,
+        "max": 0.6363636363636364,
+        "mean": 0.6363636363636364,
+        "min": 0.6363636363636364
+      }
+    },
+    "cas_version": {
+      "calm-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "limbo-guard": {
+        "episodes": 10,
+        "max": 0.8,
+        "mean": 0.8,
+        "min": 0.8
+      },
+      "limbo-probe": {
+        "episodes": 10,
+        "max": 0.7,
+        "mean": 0.7,
+        "min": 0.7
+      },
+      "limbo-solo": {
+        "episodes": 10,
+        "max": 0.7,
+        "mean": 0.7,
+        "min": 0.7
+      },
+      "limbo-team": {
+        "episodes": 130,
+        "max": 0.7,
+        "mean": 0.6753846153846154,
+        "min": 0.5
+      },
+      "skew-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "skew-probe": {
+        "episodes": 10,
+        "max": 0.9473684210526315,
+        "mean": 0.8842105263157893,
+        "min": 0.7894736842105263
+      },
+      "skew-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "skew-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 0.9781376518218624,
+        "min": 0.8421052631578947
+      },
+      "storm-guard": {
+        "episodes": 10,
+        "max": 0.9047619047619048,
+        "mean": 0.9047619047619048,
+        "min": 0.9047619047619048
+      },
+      "storm-probe": {
+        "episodes": 10,
+        "max": 0.6190476190476191,
+        "mean": 0.5714285714285714,
+        "min": 0.5238095238095238
+      },
+      "storm-solo": {
+        "episodes": 10,
+        "max": 0.7619047619047619,
+        "mean": 0.7619047619047619,
+        "min": 0.7619047619047619
+      },
+      "storm-team": {
+        "episodes": 130,
+        "max": 0.7142857142857143,
+        "mean": 0.701098901098901,
+        "min": 0.6190476190476191
+      },
+      "takeover-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "takeover-probe": {
+        "episodes": 10,
+        "max": 0.6363636363636364,
+        "mean": 0.6363636363636364,
+        "min": 0.6363636363636364
+      },
+      "takeover-solo": {
+        "episodes": 10,
+        "max": 0.7272727272727273,
+        "mean": 0.7272727272727273,
+        "min": 0.7272727272727273
+      },
+      "takeover-team": {
+        "episodes": 130,
+        "max": 0.6363636363636364,
+        "mean": 0.6363636363636364,
+        "min": 0.6363636363636364
+      }
+    },
+    "decliner": {
+      "calm-guard": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "calm-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "calm-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "calm-team": {
+        "episodes": 130,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "clash-guard": {
+        "episodes": 10,
+        "max": 0.375,
+        "mean": 0.375,
+        "min": 0.375
+      },
+      "clash-probe": {
+        "episodes": 10,
+        "max": 0.375,
+        "mean": 0.375,
+        "min": 0.375
+      },
+      "clash-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "clash-team": {
+        "episodes": 130,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "limbo-guard": {
+        "episodes": 10,
+        "max": 0.4,
+        "mean": 0.4,
+        "min": 0.4
+      },
+      "limbo-probe": {
+        "episodes": 10,
+        "max": 0.4,
+        "mean": 0.4,
+        "min": 0.4
+      },
+      "limbo-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "limbo-team": {
+        "episodes": 130,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "skew-guard": {
+        "episodes": 10,
+        "max": 0.3684210526315789,
+        "mean": 0.27368421052631575,
+        "min": 0.21052631578947367
+      },
+      "skew-probe": {
+        "episodes": 10,
+        "max": 0.3684210526315789,
+        "mean": 0.27368421052631575,
+        "min": 0.21052631578947367
+      },
+      "skew-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "skew-team": {
+        "episodes": 130,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "storm-guard": {
+        "episodes": 10,
+        "max": 0.2857142857142857,
+        "mean": 0.23809523809523808,
+        "min": 0.19047619047619047
+      },
+      "storm-probe": {
+        "episodes": 10,
+        "max": 0.2857142857142857,
+        "mean": 0.23809523809523808,
+        "min": 0.19047619047619047
+      },
+      "storm-solo": {
+        "episodes": 10,
+        "max": 0.047619047619047616,
+        "mean": 0.047619047619047616,
+        "min": 0.047619047619047616
+      },
+      "storm-team": {
+        "episodes": 130,
+        "max": 0.047619047619047616,
+        "mean": 0.047619047619047616,
+        "min": 0.047619047619047616
+      },
+      "takeover-guard": {
+        "episodes": 10,
+        "max": 0.36363636363636365,
+        "mean": 0.36363636363636365,
+        "min": 0.36363636363636365
+      },
+      "takeover-probe": {
+        "episodes": 10,
+        "max": 0.36363636363636365,
+        "mean": 0.36363636363636365,
+        "min": 0.36363636363636365
+      },
+      "takeover-solo": {
+        "episodes": 10,
+        "max": 0.09090909090909091,
+        "mean": 0.09090909090909091,
+        "min": 0.09090909090909091
+      },
+      "takeover-team": {
+        "episodes": 130,
+        "max": 0.09090909090909091,
+        "mean": 0.09090909090909091,
+        "min": 0.09090909090909091
+      }
+    },
+    "follower": {
+      "calm-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-probe": {
+        "episodes": 10,
+        "max": 0.375,
+        "mean": 0.375,
+        "min": 0.375
+      },
+      "clash-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 0.8615384615384616,
+        "min": 0.375
+      },
+      "limbo-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "limbo-probe": {
+        "episodes": 10,
+        "max": 0.7,
+        "mean": 0.7,
+        "min": 0.7
+      },
+      "limbo-solo": {
+        "episodes": 10,
+        "max": 0.6,
+        "mean": 0.52,
+        "min": 0.4
+      },
+      "limbo-team": {
+        "episodes": 130,
+        "max": 0.6,
+        "mean": 0.5130769230769231,
+        "min": 0.3
+      },
+      "skew-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "skew-probe": {
+        "episodes": 10,
+        "max": 0.6842105263157895,
+        "mean": 0.6210526315789473,
+        "min": 0.5263157894736842
+      },
+      "skew-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "skew-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 0.9404858299595141,
+        "min": 0.7368421052631579
+      },
+      "storm-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "storm-probe": {
+        "episodes": 10,
+        "max": 0.7142857142857143,
+        "mean": 0.6666666666666667,
+        "min": 0.6190476190476191
+      },
+      "storm-solo": {
+        "episodes": 10,
+        "max": 0.7619047619047619,
+        "mean": 0.7238095238095238,
+        "min": 0.7142857142857143
+      },
+      "storm-team": {
+        "episodes": 130,
+        "max": 0.7619047619047619,
+        "mean": 0.6684981684981685,
+        "min": 0.5238095238095238
+      },
+      "takeover-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "takeover-probe": {
+        "episodes": 10,
+        "max": 0.5454545454545454,
+        "mean": 0.5454545454545454,
+        "min": 0.5454545454545454
+      },
+      "takeover-solo": {
+        "episodes": 10,
+        "max": 0.7272727272727273,
+        "mean": 0.7272727272727273,
+        "min": 0.7272727272727273
+      },
+      "takeover-team": {
+        "episodes": 130,
+        "max": 0.7272727272727273,
+        "mean": 0.6265734265734265,
+        "min": 0.45454545454545453
+      }
+    },
+    "fuzz": {
+      "calm-guard": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "calm-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "calm-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "calm-team": {
+        "episodes": 130,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "clash-guard": {
+        "episodes": 10,
+        "max": 0.375,
+        "mean": 0.375,
+        "min": 0.375
+      },
+      "clash-probe": {
+        "episodes": 10,
+        "max": 0.375,
+        "mean": 0.375,
+        "min": 0.375
+      },
+      "clash-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "clash-team": {
+        "episodes": 130,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "limbo-guard": {
+        "episodes": 10,
+        "max": 0.4,
+        "mean": 0.4,
+        "min": 0.4
+      },
+      "limbo-probe": {
+        "episodes": 10,
+        "max": 0.4,
+        "mean": 0.4,
+        "min": 0.4
+      },
+      "limbo-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "limbo-team": {
+        "episodes": 130,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "skew-guard": {
+        "episodes": 10,
+        "max": 0.15789473684210525,
+        "mean": 0.15789473684210525,
+        "min": 0.15789473684210525
+      },
+      "skew-probe": {
+        "episodes": 10,
+        "max": 0.15789473684210525,
+        "mean": 0.15789473684210525,
+        "min": 0.15789473684210525
+      },
+      "skew-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "skew-team": {
+        "episodes": 130,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "storm-guard": {
+        "episodes": 10,
+        "max": 0.14285714285714285,
+        "mean": 0.14285714285714285,
+        "min": 0.14285714285714285
+      },
+      "storm-probe": {
+        "episodes": 10,
+        "max": 0.14285714285714285,
+        "mean": 0.14285714285714285,
+        "min": 0.14285714285714285
+      },
+      "storm-solo": {
+        "episodes": 10,
+        "max": 0.047619047619047616,
+        "mean": 0.047619047619047616,
+        "min": 0.047619047619047616
+      },
+      "storm-team": {
+        "episodes": 130,
+        "max": 0.047619047619047616,
+        "mean": 0.047619047619047616,
+        "min": 0.047619047619047616
+      },
+      "takeover-guard": {
+        "episodes": 10,
+        "max": 0.36363636363636365,
+        "mean": 0.36363636363636365,
+        "min": 0.36363636363636365
+      },
+      "takeover-probe": {
+        "episodes": 10,
+        "max": 0.36363636363636365,
+        "mean": 0.36363636363636365,
+        "min": 0.36363636363636365
+      },
+      "takeover-solo": {
+        "episodes": 10,
+        "max": 0.09090909090909091,
+        "mean": 0.09090909090909091,
+        "min": 0.09090909090909091
+      },
+      "takeover-team": {
+        "episodes": 130,
+        "max": 0.09090909090909091,
+        "mean": 0.09090909090909091,
+        "min": 0.09090909090909091
+      }
+    },
+    "idle": {
+      "calm-guard": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "calm-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "calm-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "calm-team": {
+        "episodes": 130,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "clash-guard": {
+        "episodes": 10,
+        "max": 0.375,
+        "mean": 0.375,
+        "min": 0.375
+      },
+      "clash-probe": {
+        "episodes": 10,
+        "max": 0.375,
+        "mean": 0.375,
+        "min": 0.375
+      },
+      "clash-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "clash-team": {
+        "episodes": 130,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "limbo-guard": {
+        "episodes": 10,
+        "max": 0.4,
+        "mean": 0.4,
+        "min": 0.4
+      },
+      "limbo-probe": {
+        "episodes": 10,
+        "max": 0.4,
+        "mean": 0.4,
+        "min": 0.4
+      },
+      "limbo-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "limbo-team": {
+        "episodes": 130,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "skew-guard": {
+        "episodes": 10,
+        "max": 0.15789473684210525,
+        "mean": 0.15789473684210525,
+        "min": 0.15789473684210525
+      },
+      "skew-probe": {
+        "episodes": 10,
+        "max": 0.15789473684210525,
+        "mean": 0.15789473684210525,
+        "min": 0.15789473684210525
+      },
+      "skew-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "skew-team": {
+        "episodes": 130,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "storm-guard": {
+        "episodes": 10,
+        "max": 0.14285714285714285,
+        "mean": 0.14285714285714285,
+        "min": 0.14285714285714285
+      },
+      "storm-probe": {
+        "episodes": 10,
+        "max": 0.14285714285714285,
+        "mean": 0.14285714285714285,
+        "min": 0.14285714285714285
+      },
+      "storm-solo": {
+        "episodes": 10,
+        "max": 0.047619047619047616,
+        "mean": 0.047619047619047616,
+        "min": 0.047619047619047616
+      },
+      "storm-team": {
+        "episodes": 130,
+        "max": 0.047619047619047616,
+        "mean": 0.047619047619047616,
+        "min": 0.047619047619047616
+      },
+      "takeover-guard": {
+        "episodes": 10,
+        "max": 0.36363636363636365,
+        "mean": 0.36363636363636365,
+        "min": 0.36363636363636365
+      },
+      "takeover-probe": {
+        "episodes": 10,
+        "max": 0.36363636363636365,
+        "mean": 0.36363636363636365,
+        "min": 0.36363636363636365
+      },
+      "takeover-solo": {
+        "episodes": 10,
+        "max": 0.09090909090909091,
+        "mean": 0.09090909090909091,
+        "min": 0.09090909090909091
+      },
+      "takeover-team": {
+        "episodes": 130,
+        "max": 0.09090909090909091,
+        "mean": 0.09090909090909091,
+        "min": 0.09090909090909091
+      }
+    },
+    "oracle": {
+      "calm-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "limbo-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "limbo-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "limbo-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "limbo-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "skew-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "skew-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "skew-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "skew-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "storm-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "storm-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "storm-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "storm-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "takeover-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "takeover-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "takeover-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "takeover-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      }
+    },
+    "repair": {
+      "calm-guard": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "calm-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-guard": {
+        "episodes": 10,
+        "max": 0.375,
+        "mean": 0.375,
+        "min": 0.375
+      },
+      "clash-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "limbo-guard": {
+        "episodes": 10,
+        "max": 0.4,
+        "mean": 0.4,
+        "min": 0.4
+      },
+      "limbo-probe": {
+        "episodes": 10,
+        "max": 0.8,
+        "mean": 0.8,
+        "min": 0.8
+      },
+      "limbo-solo": {
+        "episodes": 10,
+        "max": 0.6,
+        "mean": 0.52,
+        "min": 0.4
+      },
+      "limbo-team": {
+        "episodes": 130,
+        "max": 0.6,
+        "mean": 0.5123076923076922,
+        "min": 0.4
+      },
+      "skew-guard": {
+        "episodes": 10,
+        "max": 0.15789473684210525,
+        "mean": 0.15789473684210525,
+        "min": 0.15789473684210525
+      },
+      "skew-probe": {
+        "episodes": 10,
+        "max": 0.9473684210526315,
+        "mean": 0.8842105263157893,
+        "min": 0.7894736842105263
+      },
+      "skew-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "skew-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 0.9825910931174089,
+        "min": 0.8421052631578947
+      },
+      "storm-guard": {
+        "episodes": 10,
+        "max": 0.14285714285714285,
+        "mean": 0.14285714285714285,
+        "min": 0.14285714285714285
+      },
+      "storm-probe": {
+        "episodes": 10,
+        "max": 0.6666666666666666,
+        "mean": 0.6190476190476191,
+        "min": 0.5714285714285714
+      },
+      "storm-solo": {
+        "episodes": 10,
+        "max": 0.7619047619047619,
+        "mean": 0.7238095238095238,
+        "min": 0.7142857142857143
+      },
+      "storm-team": {
+        "episodes": 130,
+        "max": 0.7142857142857143,
+        "mean": 0.6637362637362637,
+        "min": 0.5714285714285714
+      },
+      "takeover-guard": {
+        "episodes": 10,
+        "max": 0.36363636363636365,
+        "mean": 0.36363636363636365,
+        "min": 0.36363636363636365
+      },
+      "takeover-probe": {
+        "episodes": 10,
+        "max": 0.6363636363636364,
+        "mean": 0.6363636363636364,
+        "min": 0.6363636363636364
+      },
+      "takeover-solo": {
+        "episodes": 10,
+        "max": 0.7272727272727273,
+        "mean": 0.7272727272727273,
+        "min": 0.7272727272727273
+      },
+      "takeover-team": {
+        "episodes": 130,
+        "max": 0.6363636363636364,
+        "mean": 0.6363636363636364,
+        "min": 0.6363636363636364
+      }
+    },
+    "reread": {
+      "calm-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-probe": {
+        "episodes": 10,
+        "max": 0.375,
+        "mean": 0.375,
+        "min": 0.375
+      },
+      "clash-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 0.8615384615384616,
+        "min": 0.375
+      },
+      "limbo-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "limbo-probe": {
+        "episodes": 10,
+        "max": 0.7,
+        "mean": 0.7,
+        "min": 0.7
+      },
+      "limbo-solo": {
+        "episodes": 10,
+        "max": 0.6,
+        "mean": 0.52,
+        "min": 0.4
+      },
+      "limbo-team": {
+        "episodes": 130,
+        "max": 0.6,
+        "mean": 0.5130769230769231,
+        "min": 0.3
+      },
+      "skew-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "skew-probe": {
+        "episodes": 10,
+        "max": 0.6842105263157895,
+        "mean": 0.6210526315789473,
+        "min": 0.5263157894736842
+      },
+      "skew-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "skew-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 0.9404858299595141,
+        "min": 0.7368421052631579
+      },
+      "storm-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "storm-probe": {
+        "episodes": 10,
+        "max": 0.7142857142857143,
+        "mean": 0.6666666666666667,
+        "min": 0.6190476190476191
+      },
+      "storm-solo": {
+        "episodes": 10,
+        "max": 0.7619047619047619,
+        "mean": 0.7238095238095238,
+        "min": 0.7142857142857143
+      },
+      "storm-team": {
+        "episodes": 130,
+        "max": 0.7619047619047619,
+        "mean": 0.6684981684981685,
+        "min": 0.5238095238095238
+      },
+      "takeover-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "takeover-probe": {
+        "episodes": 10,
+        "max": 0.5454545454545454,
+        "mean": 0.5454545454545454,
+        "min": 0.5454545454545454
+      },
+      "takeover-solo": {
+        "episodes": 10,
+        "max": 0.7272727272727273,
+        "mean": 0.7272727272727273,
+        "min": 0.7272727272727273
+      },
+      "takeover-team": {
+        "episodes": 130,
+        "max": 0.7272727272727273,
+        "mean": 0.6265734265734265,
+        "min": 0.45454545454545453
+      }
+    },
+    "slack_guess": {
+      "calm-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "calm-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "clash-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "limbo-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "limbo-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "limbo-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "limbo-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "skew-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 0.9631578947368421,
+        "min": 0.9473684210526315
+      },
+      "skew-probe": {
+        "episodes": 10,
+        "max": 0.9473684210526315,
+        "mean": 0.8631578947368421,
+        "min": 0.7894736842105263
+      },
+      "skew-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 0.8736842105263157,
+        "min": 0.7894736842105263
+      },
+      "skew-team": {
+        "episodes": 130,
+        "max": 0.9473684210526315,
+        "mean": 0.8623481781376517,
+        "min": 0.7894736842105263
+      },
+      "storm-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 0.9904761904761905,
+        "min": 0.9523809523809523
+      },
+      "storm-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 0.9333333333333333,
+        "min": 0.9047619047619048
+      },
+      "storm-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 0.9333333333333333,
+        "min": 0.9047619047619048
+      },
+      "storm-team": {
+        "episodes": 130,
+        "max": 0.9523809523809523,
+        "mean": 0.8952380952380953,
+        "min": 0.8571428571428571
+      },
+      "takeover-guard": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "takeover-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "takeover-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "takeover-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      }
+    },
+    "spam": {
+      "calm-guard": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "calm-probe": {
+        "episodes": 10,
+        "max": 0.625,
+        "mean": 0.625,
+        "min": 0.625
+      },
+      "calm-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "calm-team": {
+        "episodes": 130,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "clash-guard": {
+        "episodes": 10,
+        "max": 0.375,
+        "mean": 0.375,
+        "min": 0.375
+      },
+      "clash-probe": {
+        "episodes": 10,
+        "max": 0.375,
+        "mean": 0.375,
+        "min": 0.375
+      },
+      "clash-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "clash-team": {
+        "episodes": 130,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "limbo-guard": {
+        "episodes": 10,
+        "max": 0.4,
+        "mean": 0.4,
+        "min": 0.4
+      },
+      "limbo-probe": {
+        "episodes": 10,
+        "max": 0.4,
+        "mean": 0.4,
+        "min": 0.4
+      },
+      "limbo-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "limbo-team": {
+        "episodes": 130,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "skew-guard": {
+        "episodes": 10,
+        "max": 0.15789473684210525,
+        "mean": 0.15789473684210525,
+        "min": 0.15789473684210525
+      },
+      "skew-probe": {
+        "episodes": 10,
+        "max": 0.15789473684210525,
+        "mean": 0.15789473684210525,
+        "min": 0.15789473684210525
+      },
+      "skew-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "skew-team": {
+        "episodes": 130,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "storm-guard": {
+        "episodes": 10,
+        "max": 0.14285714285714285,
+        "mean": 0.14285714285714285,
+        "min": 0.14285714285714285
+      },
+      "storm-probe": {
+        "episodes": 10,
+        "max": 0.14285714285714285,
+        "mean": 0.1380952380952381,
+        "min": 0.09523809523809523
+      },
+      "storm-solo": {
+        "episodes": 10,
+        "max": 0.047619047619047616,
+        "mean": 0.047619047619047616,
+        "min": 0.047619047619047616
+      },
+      "storm-team": {
+        "episodes": 130,
+        "max": 0.047619047619047616,
+        "mean": 0.04285714285714286,
+        "min": 0.0
+      },
+      "takeover-guard": {
+        "episodes": 10,
+        "max": 0.36363636363636365,
+        "mean": 0.36363636363636365,
+        "min": 0.36363636363636365
+      },
+      "takeover-probe": {
+        "episodes": 10,
+        "max": 0.36363636363636365,
+        "mean": 0.36363636363636365,
+        "min": 0.36363636363636365
+      },
+      "takeover-solo": {
+        "episodes": 10,
+        "max": 0.09090909090909091,
+        "mean": 0.09090909090909091,
+        "min": 0.09090909090909091
+      },
+      "takeover-team": {
+        "episodes": 130,
+        "max": 0.09090909090909091,
+        "mean": 0.09090909090909091,
+        "min": 0.09090909090909091
+      }
+    }
+  },
+  "not_checkable_at_build_time": [
+    "Instruction fairness (human review or blind implementer)",
+    "Actual difficulty and construct attribution",
+    "Discrimination between models",
+    "Reliability across attempts and scaffolds",
+    "Team benefit at equal aggregate cost",
+    "Statistical power and contamination",
+    "Run loss and provider liveness",
+    "Live harness fidelity and container isolation"
+  ],
+  "ok": true,
+  "parameters": {
+    "instances": null,
+    "schedules": 12,
+    "seed": 0,
+    "worst": 24
+  },
+  "policies": [
+    "blind",
+    "repair",
+    "idle",
+    "decliner",
+    "spam",
+    "fuzz",
+    "slack_guess",
+    "cas",
+    "cas_check_once",
+    "cas_dedupe",
+    "cas_dedupe_first",
+    "cas_dedupe_ticket",
+    "cas_readset",
+    "cas_value",
+    "cas_version",
+    "follower",
+    "oracle",
+    "reread"
+  ],
+  "schema_version": 1,
+  "sources": {
+    "files": {
+      "muster/tasks/_kit/build.py": "89620f7633a1c8ccce5cda8281d1249d73e3952428bda8d46c35749ffd3956de",
+      "muster/tasks/_kit/stagekit.py": "70046cbdc0a9e5fd1662c8112d192bd266bf0ab235b8db7e11c82534ddca57e2",
+      "muster/tasks/_kit/worldkit.py": "6704df23c208d3a7aea5b1c382f727b2b19da99a19f401781fb986d4736ecf6d",
+      "muster/tasks/depot/family.toml": "7522fc9cac7b1ee00541d9487fe7f445bd95aff08e27ff56bfd659e6dc0216e1",
+      "muster/tasks/depot/findings/01-limbo.json": "45295a2a24d6836b1a838206803d66d650a202ed7afe6805be8bdaa70b94065e",
+      "muster/tasks/depot/findings/02-takeover.json": "6e460a8581d32c5c9eb72aa4798d4c7795319b7934fd52d28beb40e775813e91",
+      "muster/tasks/depot/findings/03-skew.json": "b84576a0b1ed524351b3e849bfb2417afc2b1dae2f2b83b7410c4ab881e6f493",
+      "muster/tasks/depot/findings/04-storm.json": "5d56e779e37f1efc1d8b9054058aa47608b83e79ca76cd093804d50666b0d720",
+      "muster/tasks/depot/findings/05-skew-first.json": "d5f02c3d8392d142e6fe5fd078df5667cf0957a72fd23487cace69b18e40ccb3",
+      "muster/tasks/depot/findings/06-skew-second.json": "b0d3d0a2838c4b94fbc016450cbe30163a13b8915f58895de408c7b561e6d905",
+      "muster/tasks/depot/findings/baseline.py": "7cf013e9e31243d985bdea00e83352cce4f682778d993d19e3d05aad263d1d8d",
+      "muster/tasks/depot/findings/depot-rt-d1-shortcuts-01.json": "cf5e7735b594c4b6aee549552c772ae7d5f73794d98c63fb29ad7c4398ad6da0",
+      "muster/tasks/depot/findings/depot-rv-d1-skills-01.json": "ffb472cee9738b460a96d4ddacdfd9197a3782c0c275a947cd91192356dc145b",
+      "muster/tasks/depot/findings/depot-rv-d1-skills-02.json": "95ddde62a8552165bdbd2c194572bf54322ec73be8bb01ac85328cd4d5042fb0",
+      "muster/tasks/depot/findings/depot-rv-d1-skills-03.json": "44810cf99bf81165d2d35192e3e7c59e4f86c9cc4c1bfda35c4d038117ffcee2",
+      "muster/tasks/depot/findings/depot-rv-d1-skills-04.json": "a56322ab3467e8b86677247b3b96f47aff9e8d84b525b51bfa28dfb771709964",
+      "muster/tasks/depot/findings/depot-rv-d1-skills-05.json": "7ce522c312774dc609e4a2e697ab29f7511a2f1af8d5324f2b9e2bb209ac5114",
+      "muster/tasks/depot/findings/depot-rv-d1-skills-06.json": "6e8e7dbd1fe969fd920d8ff8aaeb2e42befb4938ec190e02e4786701a44d7e4f",
+      "muster/tasks/depot/findings/depot-rv-d1-skills-07.json": "d5f8925ca267ca620c323a1f30f45b3d4f4681b8f5fe878000abadfd05eecea3",
+      "muster/tasks/depot/findings/depot-rv-d1-skills-08.json": "7070093710ba6610b7fcb1a8a3a373d31f89335df7e1488c29d7131f16aaa2d1",
+      "muster/tasks/depot/findings/depot-rv-d1-skills-09.json": "473e18f06577242939367128cf4625ca2cd78fad47b32c8ec0e0e31df6728ff5",
+      "muster/tasks/depot/findings/depot-rv-d1-skills-10.json": "14e57fb1b6a5fc2286c2e76aa3a56471656e938fe2fce641e53235632a456071",
+      "muster/tasks/depot/findings/depot-rv-d1-skills-11.json": "c715da184ae469537e3be27dfb1be97294911430cf959bbee961d141da02154d",
+      "muster/tasks/depot/findings/partial-clash-i01.json": "5ce8f9176939bba44eeabb52e6081a639d5bcf1c5b689f9a50ef9ffaccfe37f3",
+      "muster/tasks/depot/findings/policies.py": "66d7c721d9a0c44689b992e795af608226e90ad10cb33ad1abe7aeb4a8e3d710",
+      "muster/tasks/depot/findings/probes.py": "ebf8fc0d2ebc931335a9bbe7fc8b120865d4abd3020c05f7a0b1dc2c0a7e98b9",
+      "muster/tasks/depot/generate.py": "f63feec74d9df97d614cdc9ff3570d7daa9b4a64429d3b6c21db839868821820",
+      "muster/tasks/depot/instances.py": "e9a0d1768d697b50133495aca1b17999d51da4b6664f2e01dd4b504a70192527",
+      "muster/tasks/depot/lab.py": "29c85f3a99fe4cdecf6587e320f06891e6de9d22957b012383f525badf7131b5",
+      "muster/tasks/depot/selfcheck.py": "9112265acef7a99724f6f0d347c4b80a893565ec3fead37bf798d5fff5eb3104",
+      "muster/tasks/depot/template/instructions/fragments.toml": "54d7957e3cba6c2f95a15cf11c6558bc5b4d8f39767e77042459fd44590ed30a",
+      "muster/tasks/depot/template/instructions/seat.md": "5fbb252eac05938cbe61a3ec6ebcbeea663a6479c20324a42c11a7dbf3ad012a",
+      "muster/tasks/depot/template/policies/driver.py": "180d1f4e9e35f52319705d4064fef3c20db9590bcb52b8008310dc762eb3e085",
+      "muster/tasks/depot/template/policies/seat.sh": "f027f723b5e437f5b0a9a428385ce8651399706a1b89f15c47cd147ba896aa56",
+      "muster/tasks/depot/template/verify.py": "2d92ae5d48f86035dc64ccbdd1fd8a3f7c499fe710d3300f25fc738536ffe9bf",
+      "muster/tasks/depot/template/world.py": "1899d04bff7076d784baad593ae7ac6a674c4835088da19e29d15d26f4a28318",
+      "muster/tasks/depot/zoo.py": "4cc7a4cecf4e501fd34ae4a39c73ee9b74e8d6563fae0947b5f7bfd20e252bb7"
+    },
+    "status": "PASS"
+  },
+  "summary": {
+    "FAIL": 0,
+    "NOT_CHECKED": 0,
+    "PASS": 51,
+    "episodes": 17281
+  }
+}

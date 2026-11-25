@@ -1,0 +1,19 @@
+{
+  "id": "depot-rv-d1-skills-11",
+  "family": "depot",
+  "condition": "storm-probe",
+  "instance": "i03",
+  "kind": "wrong_pass",
+  "lineup": {
+    "p1": "file:probes.py:last_unknown_retry"
+  },
+  "schedule": "round",
+  "expect": {
+    "measure": "clean",
+    "op": "==",
+    "value": 1.0
+  },
+  "claim": "Design section 4 lists dedupe as needed in storm; review threshold >2/10.",
+  "note": "In v4 last_unknown_retry omitted dedupe and passed clean on 4/10 instances. In v4.1 five unknown outcomes include two drops; retrying only one ordinal misses at least one drop at the unchanged instance ID.",
+  "status": "fixed"
+}

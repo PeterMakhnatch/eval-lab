@@ -1,0 +1,19 @@
+{
+  "id": "depot-rv-d1-skills-04",
+  "family": "depot",
+  "condition": "skew-probe",
+  "instance": "i01",
+  "kind": "wrong_pass",
+  "lineup": {
+    "p1": "file:baseline.py:combined_cas"
+  },
+  "schedule": "round",
+  "expect": {
+    "measure": "clean",
+    "op": "==",
+    "value": 1.0
+  },
+  "claim": "Design section 4 lists readset as needed in skew; review threshold >2/10.",
+  "note": "In v4 combined_cas omitted readset and passed clean on 6/10 instances. In v4.1 four independent classes replace the complementary layout; the original instance ID still exercises a wrong slack guess.",
+  "status": "fixed"
+}

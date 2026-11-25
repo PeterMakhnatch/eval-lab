@@ -1,0 +1,19 @@
+{
+  "id": "depot-rv-d1-skills-01",
+  "family": "depot",
+  "condition": "skew-probe",
+  "instance": "i01",
+  "kind": "wrong_pass",
+  "lineup": {
+    "p1": "file:baseline.py:first_cas"
+  },
+  "schedule": "round",
+  "expect": {
+    "measure": "clean",
+    "op": "==",
+    "value": 1.0
+  },
+  "claim": "Design section 4 lists readset as needed in skew; review threshold >2/10.",
+  "note": "In v4 first_cas omitted readset and passed clean on 4/10 instances. In v4.1 four independent classes give a complete fixed guess probability of 1/16; the original instance ID still exercises a wrong first-draw guess.",
+  "status": "fixed"
+}

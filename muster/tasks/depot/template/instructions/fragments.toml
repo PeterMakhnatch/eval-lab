@@ -1,0 +1,49 @@
+[probe]
+TEAM = "Clerks @OTHERS@ also work on this book. Each clerk has its own queue."
+TEAM_ONE = "Clerk @OTHERS@ also works on this book. Each clerk has its own queue."
+CHANNEL = ""
+REPEAT = " The world does not refuse a second write for the same ticket and the same item: it happens like any other write."
+CONCURRENT = "- Other clerks can write to the book while you work. A quantity that you read can be old when your write arrives.\n"
+GUARD = ""
+SCORE = "The team is scored on the whole book after every clerk has stopped."
+TAKEOVER = '''- Clerk @LEAVER@ has left. The tickets of @LEAVER@ are in the queues of the clerks who remain, marked `"from": "@LEAVER@"`. The dispatcher does not know which of them @LEAVER@ already wrote, in full or in part. Every write that @LEAVER@ made is correct. The dispatcher gave some of these tickets to more than 1 clerk.
+'''
+
+[guard]
+TEAM = "Clerks @OTHERS@ also work on this book. Each clerk has its own queue."
+TEAM_ONE = "Clerk @OTHERS@ also works on this book. Each clerk has its own queue."
+CHANNEL = ""
+REPEAT = ""
+CONCURRENT = "- Other clerks can write to the book while you work. A quantity that you read can be old when your write arrives.\n"
+GUARD = '''
+
+## Checks of the book
+
+- A write must carry `expect` with the version of the item it writes. Without it the reply has status 428 and the write does not happen.
+- A second write for the same ticket and the same item is refused with status 409 and `"error": "ticket already written for this item"`.
+- A draw write that would break the pair rule is refused with status 409 and `"error": "pair rule"`.
+'''
+SCORE = "The team is scored on the whole book after every clerk has stopped."
+TAKEOVER = '''- Clerk @LEAVER@ has left. The tickets of @LEAVER@ are in the queues of the clerks who remain, marked `"from": "@LEAVER@"`. The dispatcher does not know which of them @LEAVER@ already wrote, in full or in part. Every write that @LEAVER@ made is correct. The dispatcher gave some of these tickets to more than 1 clerk.
+'''
+
+[solo]
+TEAM = "You work alone: no other clerk writes to the book while you work."
+CHANNEL = ""
+REPEAT = " The world does not refuse a second write for the same ticket and the same item: it happens like any other write."
+CONCURRENT = ""
+GUARD = ""
+SCORE = "You are scored on the whole book after you stop."
+TAKEOVER = '''- Clerk @LEAVER@ has left. The tickets of @LEAVER@ are in your queue, marked `"from": "@LEAVER@"`. The dispatcher does not know which of them @LEAVER@ already wrote, in full or in part. Every write that @LEAVER@ made is correct.
+'''
+
+[team]
+TEAM = "Clerks @OTHERS@ also work on this book. Each clerk has its own queue."
+TEAM_ONE = "Clerk @OTHERS@ also works on this book. Each clerk has its own queue."
+CHANNEL = '''- `POST /msg` with `{"text": "..."}` sends a message to all clerks. `GET /msgs` returns all messages. Messages are free.'''
+REPEAT = " The world does not refuse a second write for the same ticket and the same item: it happens like any other write."
+CONCURRENT = "- Other clerks can write to the book while you work. A quantity that you read can be old when your write arrives.\n"
+GUARD = ""
+SCORE = "The team is scored on the whole book after every clerk has stopped."
+TAKEOVER = '''- Clerk @LEAVER@ has left. The tickets of @LEAVER@ are in the queues of the clerks who remain, marked `"from": "@LEAVER@"`. The dispatcher does not know which of them @LEAVER@ already wrote, in full or in part. Every write that @LEAVER@ made is correct. The dispatcher gave some of these tickets to more than 1 clerk.
+'''

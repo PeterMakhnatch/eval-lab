@@ -1,0 +1,40 @@
+name = "depot"
+description = """
+Clerks settle tickets against one shared stock book.
+Whole-value writes can lose changes by another clerk.
+Draw tickets require a rule over the sum of 2 items.
+Unknown write outcomes and takeover require checking prior effects.
+The probe arm stages correct teammate work just in time.
+The guard arm enforces checks; the solo arm removes live teammates.
+The team arm tests real concurrent clerks with a message channel.
+The committed card.json (muster card depot --write) is the reference.
+"""
+seed = "depot-v4.1"
+instances = 10
+facets = ["calm", "clash", "skew", "limbo", "takeover", "storm"]
+arms = ["probe", "guard", "solo", "team"]
+policies = ["oracle", "blind", "follower", "idle"]
+known_limits = [
+    "It does not show that any model fails. Only a run can show that. The prior work suggests that strong models pass `clash`; `limbo`, `takeover`, `skew` and `storm` are where points can be lost.",
+    "A team can also pass by talk, by splitting hot items, or by repair after the fact. The reward accepts every route to a right book; `clean` and the measures tell the routes apart.",
+    "The `team` arm is not deterministic: real seats race. The `probe` arm is.",
+    "A failure in `probe` can have other causes than a missing synchronization behaviour: arithmetic or ticket misreading (the `solo` arm of `calm`, `clash`, `skew` separates it), tool calls sent in 1 batch before any reply is read (the step join of `muster events` separates it), an exhausted budget (`refused_for_budget`). The guard arm changes 3 things at once and states them in the text; single guards and a sham guard are later work.",
+    "Idle focal is 0.0 except in takeover and storm, where some groups in the real clerks' queues are already right due to the departed clerk's or the staged teammate's writes.",
+    "The slack_guess policy is a chance baseline for guessing which draws are tight from initial slack. It checks other legs correctly; its draw decision does not use peer-effect evidence. No pass or fail claim applies to it.",
+    "Draw classes are independent; a fixed complete class guess has probability 1/16 in skew and 1/8 in storm. A fixed retry set among the five focal unknown write outcomes has probability at most 1/10. Even when the late ordinal is known, the bound is 1/6. Clean success is possible without observation by chance.",
+    "All-roomy and all-tight layouts are permitted. The skill matrix asserts the result on the ten fixed instances produced by the seed, not every possible random layout.",
+    "The seat measure scores whole shared groups. The legs measure separately scores the log evidence for each ticket leg in a seat's queue.",
+]
+
+[skills]
+cond = "Condition a write on the version of the item it writes."
+readset = "Condition a draw write on the versions of both items of the pair."
+dedupe = "Check prior effects per ticket leg against the versions used for a write."
+
+[needs]
+calm = []
+clash = ["cond"]
+skew = ["cond", "readset"]
+limbo = ["cond", "dedupe"]
+takeover = ["cond", "dedupe"]
+storm = ["cond", "readset", "dedupe"]

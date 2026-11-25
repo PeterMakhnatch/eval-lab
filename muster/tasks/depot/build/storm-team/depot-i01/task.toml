@@ -1,0 +1,29 @@
+schema_version = "1.4"
+artifacts = ["/logs/world/events.jsonl"]
+
+[task]
+name = "depot-i01"
+description = "Clerks settle tickets against one shared stock book.\nWhole-value writes can lose changes by another clerk.\nDraw tickets require a rule over the sum of 2 items.\nUnknown write outcomes and takeover require checking prior effects.\nThe probe arm stages correct teammate work just in time.\nThe guard arm enforces checks; the solo arm removes live teammates.\nThe team arm tests real concurrent clerks with a message channel.\nThe committed card.json (muster card depot --write) is the reference."
+keywords = ["seats", "multi-agent", "muster"]
+
+[metadata]
+condition = "storm-team"
+facet = "storm"
+arm = "team"
+family = "depot"
+instance = "i01"
+oracle_reward = 1.0
+card = "muster/tasks/depot/card.json"
+
+[verifier]
+timeout_sec = 120.0
+
+[agent]
+timeout_sec = 900.0
+
+[environment]
+build_timeout_sec = 600.0
+
+[agents.p1]
+
+[agents.p3]

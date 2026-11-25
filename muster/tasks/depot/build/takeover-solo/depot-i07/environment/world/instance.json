@@ -1,0 +1,286 @@
+{
+ "arm": "solo",
+ "channel": false,
+ "clerks": [
+  "p1",
+  "p2"
+ ],
+ "condition": "takeover-solo",
+ "facet": "takeover",
+ "faults": {},
+ "guard": false,
+ "id": "i07",
+ "items": {
+  "stock01": 82,
+  "stock02": 52,
+  "stock03": 54,
+  "stock04": 68,
+  "stock05": 41,
+  "stock06": 59,
+  "stock07": 63,
+  "stock08": 88,
+  "stock09": 51,
+  "stock10": 71,
+  "stock11": 50
+ },
+ "left": [
+  "p2"
+ ],
+ "pairs": [],
+ "queues": {
+  "p1": [
+   {
+    "delta": -3,
+    "id": "p1-2",
+    "item": "stock06",
+    "kind": "adjust"
+   },
+   {
+    "id": "p1-3",
+    "item": "stock08",
+    "kind": "move",
+    "n": 6,
+    "to": "stock05"
+   },
+   {
+    "delta": 3,
+    "id": "p3-5",
+    "item": "stock02",
+    "kind": "adjust"
+   },
+   {
+    "delta": -5,
+    "from": "p2",
+    "id": "p2-5",
+    "item": "stock03",
+    "kind": "adjust"
+   },
+   {
+    "delta": -7,
+    "id": "p1-4",
+    "item": "stock09",
+    "kind": "adjust"
+   },
+   {
+    "delta": 2,
+    "id": "p3-4",
+    "item": "stock09",
+    "kind": "adjust"
+   },
+   {
+    "from": "p2",
+    "id": "p2-2",
+    "item": "stock01",
+    "kind": "move",
+    "n": 7,
+    "to": "stock04"
+   },
+   {
+    "id": "p3-2",
+    "item": "stock07",
+    "kind": "move",
+    "n": 7,
+    "to": "stock10"
+   },
+   {
+    "delta": 7,
+    "from": "p2",
+    "id": "p2-1",
+    "item": "stock06",
+    "kind": "adjust"
+   },
+   {
+    "delta": 1,
+    "id": "p3-3",
+    "item": "stock06",
+    "kind": "adjust"
+   },
+   {
+    "delta": -2,
+    "from": "p2",
+    "id": "p2-3",
+    "item": "stock02",
+    "kind": "adjust"
+   },
+   {
+    "delta": 8,
+    "id": "p3-1",
+    "item": "stock11",
+    "kind": "adjust"
+   },
+   {
+    "delta": -9,
+    "id": "p1-1",
+    "item": "stock11",
+    "kind": "adjust"
+   },
+   {
+    "delta": -4,
+    "id": "p1-5",
+    "item": "stock02",
+    "kind": "adjust"
+   },
+   {
+    "delta": -6,
+    "from": "p2",
+    "id": "p2-4",
+    "item": "stock11",
+    "kind": "adjust"
+   }
+  ]
+ },
+ "real": [
+  "p1"
+ ],
+ "stage": {
+  "real": [
+   "p1"
+  ],
+  "rules": [
+   {
+    "id": "start",
+    "units": [
+     "start-p2-4",
+     "start-p2-1",
+     "start-p2-2"
+    ],
+    "when": "start"
+   }
+  ],
+  "units": [
+   {
+    "id": "start-p2-4",
+    "seat": "p2",
+    "ticket": "p2-4"
+   },
+   {
+    "id": "start-p2-1",
+    "seat": "p2",
+    "ticket": "p2-1"
+   },
+   {
+    "id": "start-p2-2",
+    "item": "stock04",
+    "seat": "p2",
+    "ticket": "p2-2"
+   }
+  ]
+ },
+ "tickets": [
+  {
+   "delta": -9,
+   "id": "p1-1",
+   "item": "stock11",
+   "kind": "adjust",
+   "owner": "p1"
+  },
+  {
+   "delta": -4,
+   "id": "p1-5",
+   "item": "stock02",
+   "kind": "adjust",
+   "owner": "p1"
+  },
+  {
+   "delta": -7,
+   "id": "p1-4",
+   "item": "stock09",
+   "kind": "adjust",
+   "owner": "p1"
+  },
+  {
+   "delta": -3,
+   "id": "p1-2",
+   "item": "stock06",
+   "kind": "adjust",
+   "owner": "p1"
+  },
+  {
+   "delta": -6,
+   "id": "p2-4",
+   "item": "stock11",
+   "kind": "adjust",
+   "owner": "p2"
+  },
+  {
+   "delta": -2,
+   "id": "p2-3",
+   "item": "stock02",
+   "kind": "adjust",
+   "owner": "p2"
+  },
+  {
+   "delta": -5,
+   "id": "p2-5",
+   "item": "stock03",
+   "kind": "adjust",
+   "owner": "p2"
+  },
+  {
+   "delta": 7,
+   "id": "p2-1",
+   "item": "stock06",
+   "kind": "adjust",
+   "owner": "p2"
+  },
+  {
+   "delta": 8,
+   "id": "p3-1",
+   "item": "stock11",
+   "kind": "adjust",
+   "owner": "p3"
+  },
+  {
+   "delta": 3,
+   "id": "p3-5",
+   "item": "stock02",
+   "kind": "adjust",
+   "owner": "p3"
+  },
+  {
+   "delta": 2,
+   "id": "p3-4",
+   "item": "stock09",
+   "kind": "adjust",
+   "owner": "p3"
+  },
+  {
+   "delta": 1,
+   "id": "p3-3",
+   "item": "stock06",
+   "kind": "adjust",
+   "owner": "p3"
+  },
+  {
+   "id": "p1-3",
+   "item": "stock08",
+   "kind": "move",
+   "n": 6,
+   "owner": "p1",
+   "to": "stock05"
+  },
+  {
+   "id": "p2-2",
+   "item": "stock01",
+   "kind": "move",
+   "n": 7,
+   "owner": "p2",
+   "to": "stock04"
+  },
+  {
+   "id": "p3-2",
+   "item": "stock07",
+   "kind": "move",
+   "n": 7,
+   "owner": "p3",
+   "to": "stock10"
+  }
+ ],
+ "tokens": {
+  "p1": "37618cc39251a9e8ee23b32fcc2e2c3b"
+ },
+ "write_budget": {
+  "p1": 47,
+  "p2": 3
+ }
+}

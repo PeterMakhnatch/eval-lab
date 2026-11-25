@@ -1,0 +1,597 @@
+{
+ "arm": "probe",
+ "channel": false,
+ "clerks": [
+  "p1",
+  "p2",
+  "p3"
+ ],
+ "condition": "skew-probe",
+ "facet": "skew",
+ "faults": {},
+ "guard": false,
+ "id": "i07",
+ "items": {
+  "pair1a": 68,
+  "pair1b": 79,
+  "pair2a": 76,
+  "pair2b": 62,
+  "pair3a": 87,
+  "pair3b": 88,
+  "pair4a": 57,
+  "pair4b": 66,
+  "stock01": 44,
+  "stock02": 89,
+  "stock03": 49,
+  "stock04": 75,
+  "stock05": 61,
+  "stock06": 80,
+  "stock07": 56,
+  "stock08": 81,
+  "stock09": 77,
+  "stock10": 63,
+  "stock11": 81,
+  "stock12": 75,
+  "stock13": 49,
+  "stock14": 53,
+  "stock15": 51
+ },
+ "left": [],
+ "pairs": [
+  {
+   "floor": 131,
+   "items": [
+    "pair1a",
+    "pair1b"
+   ]
+  },
+  {
+   "floor": 121,
+   "items": [
+    "pair2a",
+    "pair2b"
+   ]
+  },
+  {
+   "floor": 158,
+   "items": [
+    "pair3a",
+    "pair3b"
+   ]
+  },
+  {
+   "floor": 108,
+   "items": [
+    "pair4a",
+    "pair4b"
+   ]
+  }
+ ],
+ "queues": {
+  "p1": [
+   {
+    "id": "p1-9",
+    "item": "pair1a",
+    "kind": "draw",
+    "take": 3
+   },
+   {
+    "delta": -9,
+    "id": "p1-6",
+    "item": "stock01",
+    "kind": "adjust"
+   },
+   {
+    "delta": -1,
+    "id": "p1-12",
+    "item": "stock11",
+    "kind": "adjust"
+   },
+   {
+    "id": "p1-2",
+    "item": "pair3a",
+    "kind": "draw",
+    "take": 8
+   },
+   {
+    "delta": 8,
+    "id": "p1-5",
+    "item": "stock09",
+    "kind": "adjust"
+   },
+   {
+    "delta": -8,
+    "id": "p1-11",
+    "item": "stock05",
+    "kind": "adjust"
+   },
+   {
+    "id": "p1-8",
+    "item": "pair2a",
+    "kind": "draw",
+    "take": 9
+   },
+   {
+    "id": "p1-3",
+    "item": "pair4a",
+    "kind": "draw",
+    "take": 9
+   },
+   {
+    "delta": 1,
+    "id": "p1-7",
+    "item": "stock02",
+    "kind": "adjust"
+   },
+   {
+    "delta": 6,
+    "id": "p1-4",
+    "item": "stock08",
+    "kind": "adjust"
+   },
+   {
+    "id": "p1-13",
+    "item": "stock14",
+    "kind": "move",
+    "n": 7,
+    "to": "stock06"
+   },
+   {
+    "id": "p1-10",
+    "item": "stock15",
+    "kind": "move",
+    "n": 7,
+    "to": "stock10"
+   },
+   {
+    "id": "p1-1",
+    "item": "stock12",
+    "kind": "move",
+    "n": 8,
+    "to": "stock07"
+   }
+  ]
+ },
+ "real": [
+  "p1"
+ ],
+ "stage": {
+  "real": [
+   "p1"
+  ],
+  "rules": [
+   {
+    "id": "trigger-work-p2-p2-5",
+    "kinds": [
+     "write",
+     "decline"
+    ],
+    "match": {
+     "ticket": "p1-9"
+    },
+    "seat": "p1",
+    "units": [
+     "work-p2-p2-5"
+    ],
+    "when": "before"
+   },
+   {
+    "id": "trigger-work-p2-p2-7",
+    "kinds": [
+     "write"
+    ],
+    "match": {
+     "ticket": "p1-6"
+    },
+    "seat": "p1",
+    "units": [
+     "work-p2-p2-7"
+    ],
+    "when": "before"
+   },
+   {
+    "id": "trigger-work-p3-p3-6",
+    "kinds": [
+     "write"
+    ],
+    "match": {
+     "ticket": "p1-6"
+    },
+    "seat": "p1",
+    "units": [
+     "work-p3-p3-6"
+    ],
+    "when": "before"
+   },
+   {
+    "id": "trigger-work-p2-p2-4",
+    "kinds": [
+     "write"
+    ],
+    "match": {
+     "ticket": "p1-12"
+    },
+    "seat": "p1",
+    "units": [
+     "work-p2-p2-4"
+    ],
+    "when": "before"
+   },
+   {
+    "id": "trigger-work-p2-p2-6",
+    "kinds": [
+     "write",
+     "decline"
+    ],
+    "match": {
+     "ticket": "p1-2"
+    },
+    "seat": "p1",
+    "units": [
+     "work-p2-p2-6"
+    ],
+    "when": "before"
+   },
+   {
+    "id": "trigger-work-p3-p3-1",
+    "kinds": [
+     "write"
+    ],
+    "match": {
+     "ticket": "p1-11"
+    },
+    "seat": "p1",
+    "units": [
+     "work-p3-p3-1"
+    ],
+    "when": "before"
+   },
+   {
+    "id": "trigger-work-p3-p3-4",
+    "kinds": [
+     "write",
+     "decline"
+    ],
+    "match": {
+     "ticket": "p1-8"
+    },
+    "seat": "p1",
+    "units": [
+     "work-p3-p3-4"
+    ],
+    "when": "before"
+   },
+   {
+    "id": "trigger-work-p3-p3-7",
+    "kinds": [
+     "write",
+     "decline"
+    ],
+    "match": {
+     "ticket": "p1-3"
+    },
+    "seat": "p1",
+    "units": [
+     "work-p3-p3-7"
+    ],
+    "when": "before"
+   },
+   {
+    "id": "trigger-work-p3-p3-2",
+    "kinds": [
+     "write"
+    ],
+    "match": {
+     "ticket": "p1-7"
+    },
+    "seat": "p1",
+    "units": [
+     "work-p3-p3-2"
+    ],
+    "when": "before"
+   },
+   {
+    "id": "trigger-work-p2-p2-2",
+    "kinds": [
+     "write"
+    ],
+    "match": {
+     "ticket": "p1-4"
+    },
+    "seat": "p1",
+    "units": [
+     "work-p2-p2-2"
+    ],
+    "when": "before"
+   },
+   {
+    "id": "trigger-work-p3-p3-3",
+    "kinds": [
+     "write"
+    ],
+    "match": {
+     "ticket": "p1-4"
+    },
+    "seat": "p1",
+    "units": [
+     "work-p3-p3-3"
+    ],
+    "when": "before"
+   }
+  ],
+  "units": [
+   {
+    "id": "work-p2-p2-7",
+    "seat": "p2",
+    "ticket": "p2-7"
+   },
+   {
+    "id": "work-p2-p2-2",
+    "seat": "p2",
+    "ticket": "p2-2"
+   },
+   {
+    "id": "work-p2-p2-4",
+    "seat": "p2",
+    "ticket": "p2-4"
+   },
+   {
+    "id": "work-p2-p2-3",
+    "seat": "p2",
+    "ticket": "p2-3"
+   },
+   {
+    "id": "work-p2-p2-1",
+    "seat": "p2",
+    "ticket": "p2-1"
+   },
+   {
+    "id": "work-p3-p3-6",
+    "seat": "p3",
+    "ticket": "p3-6"
+   },
+   {
+    "id": "work-p3-p3-3",
+    "seat": "p3",
+    "ticket": "p3-3"
+   },
+   {
+    "id": "work-p3-p3-2",
+    "seat": "p3",
+    "ticket": "p3-2"
+   },
+   {
+    "id": "work-p3-p3-1",
+    "seat": "p3",
+    "ticket": "p3-1"
+   },
+   {
+    "id": "work-p3-p3-5",
+    "seat": "p3",
+    "ticket": "p3-5"
+   },
+   {
+    "id": "work-p2-p2-5",
+    "seat": "p2",
+    "ticket": "p2-5"
+   },
+   {
+    "id": "work-p3-p3-4",
+    "seat": "p3",
+    "ticket": "p3-4"
+   },
+   {
+    "id": "work-p2-p2-6",
+    "seat": "p2",
+    "ticket": "p2-6"
+   },
+   {
+    "id": "work-p3-p3-7",
+    "seat": "p3",
+    "ticket": "p3-7"
+   }
+  ]
+ },
+ "tickets": [
+  {
+   "delta": -9,
+   "id": "p1-6",
+   "item": "stock01",
+   "kind": "adjust",
+   "owner": "p1"
+  },
+  {
+   "delta": 6,
+   "id": "p1-4",
+   "item": "stock08",
+   "kind": "adjust",
+   "owner": "p1"
+  },
+  {
+   "delta": -1,
+   "id": "p1-12",
+   "item": "stock11",
+   "kind": "adjust",
+   "owner": "p1"
+  },
+  {
+   "delta": 1,
+   "id": "p1-7",
+   "item": "stock02",
+   "kind": "adjust",
+   "owner": "p1"
+  },
+  {
+   "delta": -8,
+   "id": "p1-11",
+   "item": "stock05",
+   "kind": "adjust",
+   "owner": "p1"
+  },
+  {
+   "delta": 8,
+   "id": "p1-5",
+   "item": "stock09",
+   "kind": "adjust",
+   "owner": "p1"
+  },
+  {
+   "delta": -4,
+   "id": "p2-7",
+   "item": "stock01",
+   "kind": "adjust",
+   "owner": "p2"
+  },
+  {
+   "delta": 2,
+   "id": "p2-2",
+   "item": "stock08",
+   "kind": "adjust",
+   "owner": "p2"
+  },
+  {
+   "delta": -5,
+   "id": "p2-4",
+   "item": "stock11",
+   "kind": "adjust",
+   "owner": "p2"
+  },
+  {
+   "delta": -2,
+   "id": "p2-3",
+   "item": "stock13",
+   "kind": "adjust",
+   "owner": "p2"
+  },
+  {
+   "delta": -3,
+   "id": "p2-1",
+   "item": "stock04",
+   "kind": "adjust",
+   "owner": "p2"
+  },
+  {
+   "delta": -6,
+   "id": "p3-6",
+   "item": "stock01",
+   "kind": "adjust",
+   "owner": "p3"
+  },
+  {
+   "delta": -7,
+   "id": "p3-3",
+   "item": "stock08",
+   "kind": "adjust",
+   "owner": "p3"
+  },
+  {
+   "delta": 4,
+   "id": "p3-2",
+   "item": "stock02",
+   "kind": "adjust",
+   "owner": "p3"
+  },
+  {
+   "delta": 5,
+   "id": "p3-1",
+   "item": "stock05",
+   "kind": "adjust",
+   "owner": "p3"
+  },
+  {
+   "delta": 3,
+   "id": "p3-5",
+   "item": "stock03",
+   "kind": "adjust",
+   "owner": "p3"
+  },
+  {
+   "id": "p1-10",
+   "item": "stock15",
+   "kind": "move",
+   "n": 7,
+   "owner": "p1",
+   "to": "stock10"
+  },
+  {
+   "id": "p1-1",
+   "item": "stock12",
+   "kind": "move",
+   "n": 8,
+   "owner": "p1",
+   "to": "stock07"
+  },
+  {
+   "id": "p1-13",
+   "item": "stock14",
+   "kind": "move",
+   "n": 7,
+   "owner": "p1",
+   "to": "stock06"
+  },
+  {
+   "id": "p1-9",
+   "item": "pair1a",
+   "kind": "draw",
+   "owner": "p1",
+   "take": 3
+  },
+  {
+   "id": "p2-5",
+   "item": "pair1b",
+   "kind": "draw",
+   "owner": "p2",
+   "take": 16
+  },
+  {
+   "id": "p1-8",
+   "item": "pair2a",
+   "kind": "draw",
+   "owner": "p1",
+   "take": 9
+  },
+  {
+   "id": "p3-4",
+   "item": "pair2b",
+   "kind": "draw",
+   "owner": "p3",
+   "take": 8
+  },
+  {
+   "id": "p1-2",
+   "item": "pair3a",
+   "kind": "draw",
+   "owner": "p1",
+   "take": 8
+  },
+  {
+   "id": "p2-6",
+   "item": "pair3b",
+   "kind": "draw",
+   "owner": "p2",
+   "take": 6
+  },
+  {
+   "id": "p1-3",
+   "item": "pair4a",
+   "kind": "draw",
+   "owner": "p1",
+   "take": 9
+  },
+  {
+   "id": "p3-7",
+   "item": "pair4b",
+   "kind": "draw",
+   "owner": "p3",
+   "take": 3
+  }
+ ],
+ "tokens": {
+  "p1": "37618cc39251a9e8ee23b32fcc2e2c3b"
+ },
+ "write_budget": {
+  "p1": 34,
+  "p2": 16,
+  "p3": 16
+ }
+}

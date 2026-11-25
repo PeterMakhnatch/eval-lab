@@ -1,0 +1,13 @@
+{
+  "id": "depot-rt-d1-shortcuts-01",
+  "family": "depot",
+  "condition": "skew-probe",
+  "instance": "i01",
+  "kind": "wrong_pass",
+  "lineup": {"p1": "file:policies.py:conservative_draw"},
+  "schedule": "round",
+  "expect": {"measure": "clean", "op": ">=", "value": 1.0},
+  "claim": "Design section 4 says skew-probe needs readset; a clean pass can instead be obtained by deciding a decline on a book where the draw is feasible, without checking any version on either draw.",
+  "note": "The world still stages the peer draw before a preemptive decline. Initial slack and first take no longer predict the peer draw class deterministically; the heuristic fails on this instance.",
+  "status": "fixed"
+}

@@ -1,0 +1,19 @@
+{
+  "id": "depot-rv-d1-skills-06",
+  "family": "depot",
+  "condition": "storm-probe",
+  "instance": "i02",
+  "kind": "wrong_pass",
+  "lineup": {
+    "p1": "file:probes.py:margin_guess"
+  },
+  "schedule": "round",
+  "expect": {
+    "measure": "clean",
+    "op": "==",
+    "value": 1.0
+  },
+  "claim": "Design section 4 lists readset as needed in storm; review threshold >2/10.",
+  "note": "In v4 margin_guess omitted readset and passed clean on 4/10 instances. In v4.1 three independent classes replace the complementary layout; the original instance ID still exercises a wrong margin guess.",
+  "status": "fixed"
+}

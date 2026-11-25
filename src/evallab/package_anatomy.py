@@ -758,7 +758,7 @@ def _reward_gate(test_sh: str, sources: Sequence[TestSource]) -> dict[str, Any]:
     reward_lines = _with_commands(_find(test_sh, r"reward\.(?:txt|json)", limit=6), commands)
     if re.search(r"\$\?|\$\{?RC\}?|\bRC=|\bif\s+\S.*;\s*then\s+echo\s+1|&&\s*echo\s+1", test_sh):
         mechanisms.append("exit_code")
-    if re.search(r"junit|--json-report|ctrf|report\.json|expected_report|jq\s|xml\.etree|passed.*failed", test_sh, re.I):
+    if re.search(r"\bjq\s|xml\.etree|junitparser|json\.loads?\(|expected_report|passed.*failed", test_sh, re.I):
         mechanisms.append("structured_report")
     if re.search(r"grep\s+-[a-zA-Z]*q[a-zA-Z]*\s+['\"]?(?:PASS|passed|OK|ok\b|✓)", test_sh, re.I):
         mechanisms.append("log_grep")

@@ -467,5 +467,82 @@
     "seed": 95,
     "step": 189,
     "subsystem": "anatomy-hypotheses"
+  },
+  {
+    "found_at_utc": "2026-11-25T21:00:00+00:00",
+    "invariant": "mechanics_mechanisms",
+    "seed": 75,
+    "step": 154,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T21:00:00+00:00",
+    "invariant": "mechanics_mechanisms",
+    "seed": 80,
+    "step": 158,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T21:00:00+00:00",
+    "invariant": "mechanics_mechanisms",
+    "seed": 83,
+    "step": 157,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T21:00:00+00:00",
+    "invariant": "mechanics_mechanisms",
+    "seed": 85,
+    "step": 158,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T21:00:00+00:00",
+    "invariant": "mechanics_mechanisms",
+    "seed": 94,
+    "step": 158,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T21:00:00+00:00",
+    "invariant": "mechanics_mechanisms",
+    "seed": 96,
+    "step": 157,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T21:00:00+00:00",
+    "invariant": "mechanics_mechanisms",
+    "seed": 98,
+    "step": 154,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T21:00:00+00:00",
+    "invariant": "mechanics_mechanisms",
+    "seed": 102,
+    "step": 157,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T21:00:00+00:00",
+    "invariant": "mechanics_mechanisms",
+    "seed": 117,
+    "step": 159,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T21:00:00+00:00",
+    "invariant": "mechanics_mechanisms",
+    "seed": 119,
+    "step": 158,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T21:00:00+00:00",
+    "invariant": "mechanics_mechanisms",
+    "seed": 124,
+    "step": 154,
+    "subsystem": "grader-script-mechanics"
   }
 ]

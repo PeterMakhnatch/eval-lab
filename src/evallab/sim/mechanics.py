@@ -55,6 +55,13 @@ _EXIT_LINE = {
     "and_echo": "pytest {target} && echo 1",
 }
 _PIPE = "pytest {target} -q | tee /tmp/pytest.out"
+_REPORTS = ("none", "written", "read")
+_REPORT_WRITE = "pytest --ctrf /tmp/report.json {target}"
+_REPORT_READS = (
+    "jq . /tmp/report.json",
+    "python3 -c \"import json; json.load(open('/tmp/report.json'))\"",
+    "jq -e '.results.summary.failed == 0 and .results.summary.passed > 0' /tmp/report.json",
+)
 _PLUGIN = "export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1"
 _REWARD_ZERO = "echo 0 > /logs/verifier/reward.txt"
 _REWARD_ONE = "echo 1 > /logs/verifier/reward.txt"
@@ -97,7 +104,7 @@ _Hit = tuple[int, str]
 @dataclass(frozen=True, slots=True)
 class _Plan:
     exit_trigger: str
-    structured: bool
+    reads_report: bool
     log_grep: bool
     python_writes: bool
     unconditional_count: int
@@ -127,6 +134,12 @@ class _Plan:
     wrapper_split: bool
     python_arg: bool
     operand: str
+    writes_report: bool
+    report_read: str
+
+    @property
+    def report(self) -> str:
+        return "read" if self.reads_report else "written" if self.writes_report else "none"
 
     @property
     def unconditional(self) -> bool:
@@ -171,7 +184,7 @@ def _plan(rng: Random) -> _Plan:
     extra_count = rng.randint(0, 2)
     plan = _Plan(
         exit_trigger=rng.choice(_EXIT_TRIGGERS),
-        structured=_flag(rng),
+        reads_report=_flag(rng),
         log_grep=_flag(rng),
         python_writes=_flag(rng),
         unconditional_count=rng.randint(0, 2),
@@ -201,8 +214,11 @@ def _plan(rng: Random) -> _Plan:
         wrapper_split=_flag(rng),
         python_arg=_flag(rng),
         operand=rng.choice(tuple(_OPERANDS)),
+        writes_report=_flag(rng),
+        report_read=rng.choice(_REPORT_READS),
     )
     assert plan.exit_trigger in _EXIT_TRIGGERS
+    assert plan.report in _REPORTS and plan.report_read in _REPORT_READS
     assert plan.saved_status in _SAVED_STATUS and plan.late_status in _SAVED_STATUS
     assert plan.addopts in _ADDOPTS and plan.workdir_mode in _WORKDIR and plan.operand in _OPERANDS
     assert len(plan.extra_bare) == extra_count <= 2
@@ -216,7 +232,7 @@ def _mechanisms(plan: _Plan) -> list[str]:
     found: list[str] = []
     if plan.exit_trigger != "none" or plan.saved_status != "none" or plan.late_status != "none":
         found.append("exit_code")
-    if plan.structured:
+    if plan.report == "read":
         found.append("structured_report")
     if plan.log_grep:
         found.append("log_grep")
@@ -262,7 +278,8 @@ def _isolation(plan: _Plan) -> dict[str, bool]:
 
 def _bare(plan: _Plan) -> list[str]:
     names = {"pytest"}
-    if plan.python_isolated or plan.python_arg:
+    python_read = plan.report == "read" and plan.report_read.startswith("python3 ")
+    if plan.python_isolated or plan.python_arg or python_read:
         names.add("python3")
     names.update(plan.extra_bare)
     if plan.wrapper != "none":
@@ -301,8 +318,10 @@ def _render(plan: _Plan) -> tuple[str, _Lines]:
     _render_status(script, "saved", plan.saved_status)
     if set_plus_e is not None and plan.saved_status != "gated":
         recorded.set_plus_e.append(set_plus_e)
-    if plan.structured:
-        script.add("jq . /tmp/report.json")
+    if plan.report != "none":
+        script.add(_run(_REPORT_WRITE, plan))
+    if plan.report == "read":
+        script.add(plan.report_read)
     if plan.log_grep:
         script.add("grep -q PASS /tmp/pytest.out")
     if plan.late_status != "none":
@@ -316,6 +335,8 @@ def _render(plan: _Plan) -> tuple[str, _Lines]:
     _render_tail(script, recorded, plan)
     text = script.text()
     assert _run(_PIPE, plan) in text
+    assert (_run(_REPORT_WRITE, plan) in text) is (plan.report != "none")
+    assert (plan.report_read in text) is (plan.report == "read")
     assert ("pipefail" in text) is plan.pipefail
     assert (_PLUGIN in text) is plan.plugin_autoload_disabled
     assert (recorded.pipe is not None) is (not plan.pipefail)
@@ -417,6 +438,7 @@ class MechanicsSimulation:
             late=plan.late_status,
             arg=plan.python_arg,
             operand=plan.operand,
+            report=plan.report,
         )
         self._require_bash()
         package = load_package(self.root)
@@ -449,7 +471,7 @@ class MechanicsSimulation:
         mechanisms = _mechanisms(plan)
         masks = _masks(lines)
         reward_lines = _reward_lines(lines)
-        sim.begin("mechanics-reward", mechanisms=len(mechanisms))
+        sim.begin("mechanics-reward", mechanisms=len(mechanisms), report=plan.report)
         sim.require(gate["mechanisms"] == mechanisms, "mechanics_mechanisms")
         sim.require(
             gate["reward_one_unconditional"] == plan.unconditional,
@@ -460,7 +482,7 @@ class MechanicsSimulation:
         sim.require(gate["reward_write_lines"] == reward_lines, "mechanics_reward_write_lines")
         sim.require(len(gate["reward_write_lines"]) == len(reward_lines), "mechanics_reward_line_count")
         sim.require(
-            gate["structured_report_count_check"] == ("structured_report" in mechanisms),
+            gate["structured_report_count_check"] is (plan.report == "read") is ("structured_report" in mechanisms),
             "mechanics_structured_report_count_check",
         )
 

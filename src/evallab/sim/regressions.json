@@ -425,5 +425,47 @@
     "seed": 59,
     "step": 157,
     "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T19:05:00.000000+00:00",
+    "invariant": "mechanics_reset_list",
+    "seed": 60,
+    "step": 156,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T19:05:00.000000+00:00",
+    "invariant": "mechanics_reset_list",
+    "seed": 69,
+    "step": 160,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T19:05:00.000000+00:00",
+    "invariant": "hypothesis_fires_GT-AUTOLOAD-WRITABLE",
+    "seed": 70,
+    "step": 183,
+    "subsystem": "anatomy-hypotheses"
+  },
+  {
+    "found_at_utc": "2026-11-25T19:05:00.000000+00:00",
+    "invariant": "mechanics_reset_list",
+    "seed": 76,
+    "step": 160,
+    "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-25T19:05:00.000000+00:00",
+    "invariant": "hypothesis_fires_GT-AUTOLOAD-WRITABLE",
+    "seed": 82,
+    "step": 183,
+    "subsystem": "anatomy-hypotheses"
+  },
+  {
+    "found_at_utc": "2026-11-25T19:05:00.000000+00:00",
+    "invariant": "hypothesis_fires_GT-AUTOLOAD-WRITABLE",
+    "seed": 95,
+    "step": 189,
+    "subsystem": "anatomy-hypotheses"
   }
 ]

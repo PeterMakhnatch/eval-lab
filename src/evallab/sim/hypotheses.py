@@ -61,7 +61,7 @@ _ROW_COUNTS = (0, 0, 1, 5, 6, 7, 9)
 _LAYOUTS = ("single_container", "single_container", "separate_verifier", "")
 _RUNNERS = ("pytest", "unittest", "jest", "custom_script", "unknown")
 _RUNNER_COMMANDS = {
-    "pytest": "pytest -q tests",
+    "pytest": "pytest -q {target}",
     "unittest": "python3 -m unittest discover tests",
     "jest": "npx jest",
     "custom_script": "python3 tests/run_checks.py",
@@ -78,7 +78,7 @@ _MECHANISMS = (
     ("log_grep",),
     ("none_detected",),
 )
-_HOOKS = ("conftest.py", "pytest.ini", "sitecustomize.py", "*.pth")
+_OPERANDS = {"relative": "tests", "absent": "", "inside": "/app/tests", "outside": "/tests"}
 _TEST_STEMS = ("test_alpha", "test_beta", "test_gamma", "test_delta", "test_omega")
 _NAMED_WORDS = ("harness", "leak", "expected", "golden", "answer", "solution", "reference", "verif", "grader", "oracle")
 _PLAIN_WORDS = ("data", "cache", "vendor", "assets", "fonts", "locale")
@@ -165,6 +165,7 @@ class _Plan:
     enforce: str = ""
     forbid: str = "none"
     instruction: str = ""
+    operand: str = "relative"
     artifacts: tuple[_Artifact, ...] = ()
 
 
@@ -214,6 +215,7 @@ def _plan_grader(rng: Random, plan: _Plan) -> None:
     plan.path_exposed = _flag(rng)
     plan.helpers = rng.choice(_ROW_COUNTS)
     plan.deselect = rng.choice(_ROW_COUNTS)
+    plan.operand = rng.choice(tuple(_OPERANDS))
 
 
 def _plan_overlaps(rng: Random, plan: _Plan) -> None:
@@ -369,7 +371,8 @@ def _files(plan: _Plan) -> dict[str, str]:
         "environment/Dockerfile": "FROM ubuntu:24.04\nWORKDIR /app\n",
     }
     if plan.test_sh:
-        lines = ["#!/bin/bash", "cd /app", _RUNNER_COMMANDS[plan.runner]]
+        command = " ".join(_RUNNER_COMMANDS[plan.runner].format(target=_OPERANDS[plan.operand]).split())
+        lines = ["#!/bin/bash", "cd /app", command]
         lines += [plan.enforce] if plan.enforce else []
         lines.append("echo 1 > /logs/verifier/reward.txt")
         files["tests/test.sh"] = "\n".join(lines) + "\n"
@@ -418,6 +421,7 @@ def _boundary(card: dict[str, Any], plan: _Plan) -> dict[str, Any]:
 
 def _grader(card: dict[str, Any], plan: _Plan) -> dict[str, Any]:
     grader = copy.deepcopy(card["grader_script_mechanics"])
+    hooks = grader["reset_list"]["autoload_hook_classes_left_writable"] if plan.hooks else []
     reward = [{"file": "tests/test.sh", "line": line, "text": "echo 1 > /logs/verifier/reward.txt"} for line in plan.reward_lines]
     executes = [
         {"kind": "test_sh_runs_baked_script", "script": f"/opt/check_{index}.py", **row}
@@ -431,7 +435,7 @@ def _grader(card: dict[str, Any], plan: _Plan) -> dict[str, Any]:
         ("executes_agent_writable_code", executes),
         ("early_exit_paths", _ev_rows(plan.early_exits, "tests/test.sh", "exit 1")),
         ("clears_reward_file_first", plan.clears_reward),
-        ("reset_list.autoload_hook_classes_left_writable", list(_HOOKS) if plan.hooks else []),
+        ("reset_list.autoload_hook_classes_left_writable", hooks),
         ("reset_list.helper_modules_not_shipped_by_patch", helpers),
         ("reward_gate.mechanisms", list(plan.mechanisms)),
         ("reward_gate.structured_report_count_check", plan.report_check),
@@ -500,7 +504,8 @@ def _expect_grader(plan: _Plan, out: list[_Want]) -> None:
         _want(out, "GT-BAKED-TESTS-EXECUTED")
     if plan.executes:
         _want(out, "GT-VERIFIER-RUNS-AGENT-CODE", evidence=plan.executes)
-    if single and plan.hooks and plan.workdir and not any(iso[name] for name in _ISOLATION):
+    loaded = plan.test_sh and (plan.runner == "jest" or (plan.runner == "pytest" and plan.operand != "outside"))
+    if single and plan.hooks and loaded and plan.workdir and not any(iso[name] for name in _ISOLATION):
         _want(out, "GT-AUTOLOAD-WRITABLE")
     if single and plan.mechanisms == ("exit_code",) and not plan.report_check and plan.runner != "unknown":
         _want(out, "EG-EXIT-CODE-ONLY-GATE", evidence=sum(1 for line in plan.reward_lines if line))

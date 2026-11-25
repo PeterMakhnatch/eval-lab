@@ -29,9 +29,8 @@ _MAX_EVIDENCE = 6
 _ARCHIVE_SUFFIXES = (".whl", ".zip", ".tar.gz", ".tgz", ".tar")
 
 _HOOK_CLASSES_BY_RUNNER = {
-    "pytest": ("conftest.py", "pytest.ini", "tox.ini", "setup.cfg", "pyproject.toml", "sitecustomize.py",
-               "usercustomize.py", "*.pth"),
-    "unittest": ("sitecustomize.py", "usercustomize.py", "*.pth", "setup.cfg", "pyproject.toml"),
+    "pytest": ("conftest.py", "pytest.ini", "tox.ini", "setup.cfg", "pyproject.toml"),
+    "unittest": (),
     "jest": ("jest.config.*", "package.json", "babel.config.*", ".babelrc"),
     "vitest": ("vitest.config.*", "package.json", "babel.config.*"),
     "mocha": (".mocharc*", "package.json"),
@@ -436,6 +435,33 @@ def _runner_operands(line: str) -> list[str]:
         else:
             operands.append(token.strip("\"'"))
     return operands
+
+
+def _operand_under(operand: str, anchor: str | None) -> bool:
+    path = operand.split("::", 1)[0]
+    if not path.startswith("/"):
+        return True
+    if not anchor:
+        return False
+    root = anchor.rstrip("/")
+    return path == root or path.startswith(root + "/")
+
+
+_PYTEST_TOKEN = re.compile(r"""(?:^|\s)["']?(?:\S*/)?py\.?test["']?(?=\s|$)""")
+
+
+def _pytest_loads_cwd_hooks(script: str, anchor: str | None) -> bool:
+    segments = [segment.strip() for _, line in _logical_lines(script) if not line.startswith("#")
+                for segment in re.split(r"&&|\|\|?|;", line)]
+    runs = [segment for segment in segments
+            if _PYTEST_TOKEN.search(segment) and not re.match(r"(?:echo|printf)\b", segment)]
+    if not runs:
+        return True
+    for segment in runs:
+        operands = _runner_operands(segment)
+        if not operands or any(_operand_under(operand, anchor) for operand in operands):
+            return True
+    return False
 
 
 def _is_executed_from_image(script: str, baked_tests: Sequence[str]) -> list[str]:
@@ -881,6 +907,8 @@ def grader_script_mechanics(package: Package, sources: Sequence[TestSource], pat
         match = re.search(r"^cd\s+(\S+)", test_sh, re.M)
         cwd = _expand(match.group(1), variables) if match else None
     agent_workdir = context["workdir"]
+    if runner == "pytest" and not _pytest_loads_cwd_hooks(test_sh + "\n" + test_cmd, cwd or agent_workdir):
+        hooks = ()
     runs_in_agent_tree = bool(cwd and agent_workdir and cwd.rstrip("/") == str(agent_workdir).rstrip("/")) or (
         bool(cwd) and cwd in {"/testbed", "/app", "/workspace", "/repo", "/src"}
     )
@@ -1458,9 +1486,9 @@ def build_hypotheses(package: Package, boundary: Mapping[str, Any], grader: Mapp
         if noisolation:
             witness = (
                 "As the agent add a root conftest.py whose pytest_runtest_makereport/pytest_collection_modifyitems hook forces "
-                "every test to pass (or a sitecustomize.py/.pth that sets the exit status 0), leave the feature unimplemented, "
+                "every test to pass (or a pytest.ini whose addopts collects only), leave the feature unimplemented, "
                 "run the verifier: reward 1 vs the empty-diff baseline 0 is the differential."
-                if runner in {"pytest", "unittest"} else
+                if runner == "pytest" else
                 f"As the agent edit one of the hook/config files ({', '.join(hook_classes)}) so the {runner} run reports success "
                 "(e.g. a setup file or script hook that forces exit 0), leave the feature unimplemented, run the verifier: "
                 "reward 1 vs the empty-diff baseline 0 is the differential."

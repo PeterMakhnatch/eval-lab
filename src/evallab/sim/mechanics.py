@@ -7,7 +7,6 @@ from random import Random
 from typing import Any
 
 from evallab.package_anatomy import (
-    _HOOK_CLASSES_BY_RUNNER,
     _test_sources,
     analyze_package,
     grader_script_mechanics,
@@ -25,7 +24,7 @@ _STATUS_LINES = {
     "read": ("{name}=$?", 'if [ "${name}" -ne 0 ]; then', "echo failed", "fi"),
     "gated": ("{name}=$?", 'if [ "${name}" -ne 0 ]; then', "exit 0", "fi"),
 }
-_LATE_RUN = "pytest tests -q"
+_LATE_RUN = "pytest {target} -q"
 _ADDOPTS = ("none", "mention", "clear", "both")
 _BARE = ("node", "npm", "cargo", "go", "ruby")
 _WRAPPERS = ("none", "uvx", "uv run", "uv tool run", "npx", "pipx run", "poetry run")
@@ -40,7 +39,7 @@ _ISOLATION = (
     "no_cacheprovider",
     "importlib_mode",
 )
-_DESELECT = ("pytest tests --deselect tests/a.py", "pytest tests --lf")
+_DESELECT = ("pytest {target} --deselect tests/a.py", "pytest {target} --lf")
 _PYPATH = ("export PYTHONPATH=/opt/lib1", "export PYTHONPATH=/opt/lib2")
 _BARE_LINE = {
     "node": "node --version",
@@ -53,9 +52,9 @@ _WRAPPED_LINE = {**_BARE_LINE, "pytest": "pytest --version", "python3": "python3
 _EXIT_LINE = {
     "dollar_q": "status=$?",
     "rc_assign": "RC=0",
-    "and_echo": "pytest tests && echo 1",
+    "and_echo": "pytest {target} && echo 1",
 }
-_PIPE = "pytest tests -q | tee /tmp/pytest.out"
+_PIPE = "pytest {target} -q | tee /tmp/pytest.out"
 _PLUGIN = "export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1"
 _REWARD_ZERO = "echo 0 > /logs/verifier/reward.txt"
 _REWARD_ONE = "echo 1 > /logs/verifier/reward.txt"
@@ -65,12 +64,22 @@ _EVALUATOR_SOURCE = "import sys\n\nopen(sys.argv[-1], 'w').write('1')\n"
 _REWARD_ARG = ("python3 /tests/evaluate.py \\", "--reward /logs/verifier/reward.txt")
 _REWARD_ARG_COMMAND = "python3 /tests/evaluate.py --reward /logs/verifier/reward.txt"
 _NO_TESTS = "WC-NO-TESTS-FOUND"
+_PYTEST_HOOKS = ("conftest.py", "pytest.ini", "tox.ini", "setup.cfg", "pyproject.toml")
+_OPERANDS = {"relative": "tests", "absent": "", "inside": "/app/tests", "outside": "/tests"}
+
+
+def _run(template: str, plan: _Plan) -> str:
+    line = " ".join(template.format(target=_OPERANDS[plan.operand]).split())
+    assert line and "{" not in line
+    return line
 
 
 def _reset(plan: _Plan) -> dict[str, Any]:
     patterns = plan.plugin_autoload_disabled or plan.noconftest
-    hooks = [] if patterns else list(_HOOK_CLASSES_BY_RUNNER["pytest"])
-    assert len(hooks) <= len(_HOOK_CLASSES_BY_RUNNER["pytest"])
+    bare_pytest = plan.wrapper != "none" and plan.wrapped_runner == "pytest"
+    loaded = plan.operand != "outside" or bare_pytest
+    hooks = list(_PYTEST_HOOKS) if loaded and not patterns else []
+    assert not {"sitecustomize.py", "usercustomize.py", "*.pth"} & set(hooks)
     return {
         "enumerated_files": [],
         "enumerated_count": 0,
@@ -117,6 +126,7 @@ class _Plan:
     wrapped_runner: str
     wrapper_split: bool
     python_arg: bool
+    operand: str
 
     @property
     def unconditional(self) -> bool:
@@ -190,10 +200,11 @@ def _plan(rng: Random) -> _Plan:
         wrapped_runner=rng.choice(_WRAPPED),
         wrapper_split=_flag(rng),
         python_arg=_flag(rng),
+        operand=rng.choice(tuple(_OPERANDS)),
     )
     assert plan.exit_trigger in _EXIT_TRIGGERS
     assert plan.saved_status in _SAVED_STATUS and plan.late_status in _SAVED_STATUS
-    assert plan.addopts in _ADDOPTS and plan.workdir_mode in _WORKDIR
+    assert plan.addopts in _ADDOPTS and plan.workdir_mode in _WORKDIR and plan.operand in _OPERANDS
     assert len(plan.extra_bare) == extra_count <= 2
     assert plan.wrapper in _WRAPPERS and plan.wrapped_runner in _WRAPPED
     assert 0 <= plan.pythonpath_count <= 2 and 0 <= plan.deselect_count <= 2
@@ -284,8 +295,8 @@ def _render(plan: _Plan) -> tuple[str, _Lines]:
     if plan.early_exit:
         recorded.early_exit = script.add("exit 1")
     if plan.mask_or_true:
-        recorded.or_true = script.add("pytest tests || true")
-    pipe = script.add(_PIPE)
+        recorded.or_true = script.add(_run("pytest {target} || true", plan))
+    pipe = script.add(_run(_PIPE, plan))
     recorded.pipe = None if plan.pipefail else pipe
     _render_status(script, "saved", plan.saved_status)
     if set_plus_e is not None and plan.saved_status != "gated":
@@ -296,7 +307,7 @@ def _render(plan: _Plan) -> tuple[str, _Lines]:
         script.add("grep -q PASS /tmp/pytest.out")
     if plan.late_status != "none":
         late = script.add("set +e")
-        script.add(_LATE_RUN)
+        script.add(_run(_LATE_RUN, plan))
         _render_status(script, "late", plan.late_status)
         if plan.late_status != "gated":
             recorded.set_plus_e.append(late)
@@ -304,7 +315,7 @@ def _render(plan: _Plan) -> tuple[str, _Lines]:
     _render_env(script, recorded, plan)
     _render_tail(script, recorded, plan)
     text = script.text()
-    assert _PIPE in text
+    assert _run(_PIPE, plan) in text
     assert ("pipefail" in text) is plan.pipefail
     assert (_PLUGIN in text) is plan.plugin_autoload_disabled
     assert (recorded.pipe is not None) is (not plan.pipefail)
@@ -319,19 +330,19 @@ def _render_status(script: _Script, name: str, status: str) -> None:
 
 def _render_env(script: _Script, recorded: _Lines, plan: _Plan) -> None:
     if plan.env_i:
-        script.add("env -i pytest tests")
+        script.add(_run("env -i pytest {target}", plan))
     if plan.python_isolated:
         script.add("python3 -I -c 'import app'")
     if plan.noconftest:
-        script.add("pytest tests --noconftest")
+        script.add(_run("pytest {target} --noconftest", plan))
     if plan.config_nulled:
-        script.add("pytest tests -c /dev/null")
+        script.add(_run("pytest {target} -c /dev/null", plan))
     if plan.plugin_autoload_disabled:
         script.add(_PLUGIN)
     if plan.no_cacheprovider:
-        script.add("pytest tests -p no:cacheprovider")
+        script.add(_run("pytest {target} -p no:cacheprovider", plan))
     if plan.importlib_mode:
-        script.add("pytest tests --import-mode=importlib")
+        script.add(_run("pytest {target} --import-mode=importlib", plan))
     if plan.addopts in ("mention", "both"):
         recorded.addopts.append(script.add("export PYTEST_ADDOPTS=-q"))
     if plan.addopts in ("clear", "both"):
@@ -344,7 +355,7 @@ def _render_env(script: _Script, recorded: _Lines, plan: _Plan) -> None:
         script.add(_BARE_LINE[name])
     _render_wrapper(script, plan)
     for index in range(plan.deselect_count):
-        recorded.deselect.append(script.add(_DESELECT[index]))
+        recorded.deselect.append(script.add(_run(_DESELECT[index], plan)))
     assert len(recorded.pythonpath) == plan.pythonpath_count
     assert len(recorded.deselect) == plan.deselect_count
 
@@ -368,7 +379,7 @@ def _render_tail(script: _Script, recorded: _Lines, plan: _Plan) -> None:
     elif plan.workdir_mode == "cd":
         recorded.cd = script.add("cd /app")
     if plan.exit_trigger != "none":
-        script.add(_EXIT_LINE[plan.exit_trigger])
+        script.add(_run(_EXIT_LINE[plan.exit_trigger], plan))
     if plan.python_arg:
         start, _ = script.add(_REWARD_ARG[0])
         script.add(_REWARD_ARG[1])
@@ -405,6 +416,7 @@ class MechanicsSimulation:
             saved=plan.saved_status,
             late=plan.late_status,
             arg=plan.python_arg,
+            operand=plan.operand,
         )
         self._require_bash()
         package = load_package(self.root)

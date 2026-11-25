@@ -1,7 +1,7 @@
 # Draft pre-registration: team state
 
 2026-11-25. Before any model trial of these families. Peter must approve the draft before any paid run.
-Family versions: `depot` v4.1, `dossier` v3.2, `inquiry` v2.5 (generator seeds `depot-v4.1`, `dossier-v3.2`, `inquiry-v2.5`; designs in `DESIGN-*.md` in this directory).
+Family versions: `depot` v4.1, `dossier` v3.3, `inquiry` v2.5 (generator seeds `depot-v4.1`, `dossier-v3.3`, `inquiry-v2.5`; designs in `DESIGN-*.md` in this directory).
 Every family has a committed `card.json` that `muster card FAMILY --verify` checks in the gate. `REVIEWS.md` lists every review.
 
 ## Question
@@ -131,7 +131,7 @@ The world checks that lines come from the writer's own reports or allowed disput
 A dossier loss can come from a wrong reading of the rule or a mistake with a perfect register.
 Tool batching is another possible cause. Inspect the solo, reader and event logs.
 A dossier team loss can also come from the barrier: every clerk must wait until close, and a delayed put can replace a newer line.
-In `dossier` v3.2, a reader that ignores the special line can pass `gone`, `cascade` and `dispute` by the rule "the site I reported myself is the special one" (`REVIEWS.md`). Do not run the pilot on v3.2 `cascade` and `dispute`; use a version that passes the same chance test.
+In `dossier`, a reader that ignores 1 kind of special line and guesses which 2 of 4 look-alike questions have that status is fully right with chance 1/6 per instance (asserted by the generator).
 Inquiry has 1 real agent. In `probe`, scripted colleagues state the full scope of each reply in 4 fixed sentence forms;
 `fields` gives the same replies as fields, `flagged` adds which fields differ, and `solo` gives the settling records.
 It tests the check and the correction, not the reading of loose prose. Its chain case is a designed adversary.

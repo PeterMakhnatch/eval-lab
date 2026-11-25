@@ -1,7 +1,7 @@
 # Trial and request budget (no prices)
 
 OBSERVED — Counts below come from the in-process lab, with no Docker or model.
-The family seeds are `depot-v4.1`, `dossier-v3.2` and `inquiry-v2.5`.
+The family seeds are `depot-v4.1`, `dossier-v3.3` and `inquiry-v2.5`.
 For each condition, run `uv run --no-sync python -m muster lab FAMILY --condition FACET-ARM --policy oracle --json`.
 Sum `steps` over the real seats of each returned episode. The unit is a world API request, not a model call.
 The command uses the default round schedule. Each condition contains 10 instances.
@@ -18,10 +18,10 @@ The family adapters can change before landing. Recheck these counts against the 
 | depot | storm | 88 | 86 | 115 | not an arm |
 | dossier | share | 17 | not an arm | 13 | 7 |
 | dossier | scarce | 17 | not an arm | 13 | 7 |
-| dossier | gone | 18 | not an arm | 14 | 8 |
-| dossier | cascade | 18 | not an arm | 14 | 8 |
-| dossier | dispute | 20 | not an arm | 14 | 8 |
-| dossier | mix | 25 | not an arm | 16 | 7 |
+| dossier | gone | 20 | not an arm | 16 | 10 |
+| dossier | cascade | 22 | not an arm | 18 | 12 |
+| dossier | dispute | 22 | not an arm | 16 | 10 |
+| dossier | mix | 31 | not an arm | 22 | 13 |
 
 | Family | Facet | Probe requests/trial | Fields requests/trial | Flagged requests/trial | Solo requests/trial |
 |---|---|---:|---:|---:|---:|
@@ -43,12 +43,12 @@ No lab adapter failed in this measurement. Every episode has reward 1.0.
 | depot | limbo | 102–108 (104.2) |
 | depot | takeover | 57–59 (57.4) |
 | depot | storm | 119–125 (121.2) |
-| dossier | share | 53–65 (57.8) |
-| dossier | scarce | 56–68 (62.0) |
-| dossier | gone | 54–72 (59.4) |
-| dossier | cascade | 54–66 (58.8) |
-| dossier | dispute | 60–72 (64.2) |
-| dossier | mix | 83–89 (86.6) |
+| dossier | share | 59–65 (60.2) |
+| dossier | scarce | 56–68 (59.0) |
+| dossier | gone | 56–68 (62.0) |
+| dossier | cascade | 64–76 (70.6) |
+| dossier | dispute | 68 |
+| dossier | mix | 90–96 (91.8) |
 
 Inquiry has no team arm. The team counts describe the measured schedule, not every possible schedule.
 
@@ -60,16 +60,16 @@ The oracle request totals are reference workload counts, not a cap on model requ
 | Cohort | Family | Instances × attempts × arms × facets | Trials | Oracle requests |
 |---|---|---|---:|---:|
 | pilot | depot | 10 × 1 × 2 × 4 | 80 | 4,800 |
-| pilot | dossier | 10 × 1 × 2 × 3 | 60 | 860 |
+| pilot | dossier | 10 × 1 × 2 × 3 | 60 | 1,100 |
 | pilot | inquiry | 10 × 1 × 2 × 1 | 20 | 432 |
-| pilot total | all 3 | | 160 | 6,092 |
+| pilot total | all 3 | | 160 | 6,332 |
 | replication non-team | depot | 10 × 3 × 3 × 6 | 540 | 30,840 |
-| replication non-team | dossier | 10 × 3 × 3 × 6 | 540 | 7,320 |
+| replication non-team | dossier | 10 × 3 × 3 × 6 | 540 | 8,580 |
 | replication non-team | inquiry | 10 × 3 × 4 × 6 | 720 | 13,104 |
 | replication team | depot | 10 × 3 × 1 × 6 | 180 | 14,694 |
-| replication team | dossier | 10 × 3 × 1 × 6 | 180 | 11,664 |
-| replication total | all 3 | | 2,160 | 77,622 |
-| smoke | all 3 | 10 × 1 × 4 × 18 | 720 | 25,874 |
+| replication team | dossier | 10 × 3 × 1 × 6 | 180 | 12,348 |
+| replication total | all 3 | | 2,160 | 79,566 |
+| smoke | all 3 | 10 × 1 × 4 × 18 | 720 | 26,522 |
 
 The smoke is scripted, with no model. This measurement did not start a Docker smoke.
 The replication is a separate cohort. It needs approval and a candidate gap from the pilot.

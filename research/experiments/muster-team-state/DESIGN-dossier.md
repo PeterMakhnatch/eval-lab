@@ -1,12 +1,12 @@
 # `dossier`: does a team keep a small shared register sufficient for questions it does not know yet?
 
-Status: design v3.2 (2026-11-25, Fable, muster lane). v2 replaced v1 after an independent review
-(12 defects, `REVIEWS.md`). v3 applied the first review round of the built family (section 0).
-v3.1 makes every line of the ideal scarce register matter to another clerk's question.
-v3.2 adds unreported questions to each special facet and keeps old site reports for closure cases.
-It balances incoming `mix` special cases and increases `mix` capacity pressure. The rule for current
-status, score and executable claims are unchanged. Nothing here was run with a model.
-Section 0 records the history; the later sections describe v3.2.
+Status: design v3.3 (2026-11-25, Fable, muster lane). v2 replaced v1 after an independent review
+(12 defects, `REVIEWS.md`). v3 applied the first review of the built family.
+v3.1 made every ideal scarce register line necessary for another clerk's question.
+v3.2 added unknown controls and restored historical closure reports.
+v3.3 matches incoming special questions to unreported or ordinary alternatives and tests the
+exact assignment chance. The world rules, score and executable claims are unchanged.
+Nothing here was run with a model. Section 0 records the history; the later sections describe v3.3.
 
 ## 0. Version 3 changes (review rounds of the built family)
 
@@ -21,13 +21,26 @@ Section 0 records the history; the later sections describe v3.2.
 
 Not changed, by decision: the played clerks still follow and repair by the correct protocol for ordinary reports, so `probe` measures p1's own writing only where no played clerk holds the evidence. Team repair is a property of the `team` arm, not a defect.
 
-v3.2 draws incoming and outgoing case assignments separately within each facet's promised skills,
-before candidate rejection. Every instance of a special facet asks p1 about an unreported watch
-site outside the closed zones (truth `unknown`). The generator checks that removing the deciding
-incoming special line changes the answer by the rule. It also checks that at least 1 asked site
-with no ideal site line has a true status different from p1's private statuses and `disputed`.
-The 8 round-3 findings are fixed on the 10 fixed instances; all 12 prior findings retain their
-statuses. See `REVIEWS.md` for the review record. The card passes all 20 finding regressions.
+v3.2 drew incoming and outgoing case assignments separately within each facet's promised skills,
+before candidate rejection. Every instance of a special facet asked p1 about an unreported watch
+site outside the closed zones (truth `unknown`). The generator checked that removing the deciding
+incoming special line changed the answer by the rule. It also checked that at least 1 asked site
+with no ideal site line had a true status different from p1's private statuses and `disputed`.
+The 8 round-3 findings were fixed on the 10 fixed instances; all 12 prior findings retained their
+statuses. The v3.2 card passed all 20 finding regressions.
+In v3.3, 6 new findings are fixed and the 20 earlier findings retain their status (`REVIEWS.md`).
+
+In v3.2, the private-present split passed 10 of 10 in standalone probe and reader conditions and
+passed most mix instances. In v3.3, no incoming special question has a private p1 site report.
+Each needed special kind has 2 incoming targets and 2 matched alternatives. The generator removes
+every line of that kind from the ideal register. It groups p1's questions by surviving site line
+presence, last writer, private site report presence, surviving zone closure, and surviving site status.
+It asserts that the product of inverse binomial coefficients for placing the answers of that kind
+within these groups is at most 1/6. This is the chance for uniform assignments conditional on the
+signatures and class counts, not a universal shortcut bound. The round-4 review reports no full
+passes by any of the tested split policies in cells that omit a needed kind (10 original and 30
+held-out instances per condition). It uses held-out seeds `dossier-v3.3-h1`, `dossier-v3.3-h2`
+and `dossier-v3.3-h3`. The full policy passes all of them. See `REVIEWS.md`.
 
 ## 1. The construct and the prior work
 
@@ -62,13 +75,13 @@ Skills, each with its own facet and paired control:
 | `cascade` | A zone closure is not stored, or not applied when reading: older site lines of that zone look current |
 | `dispute` | Reports with the same time have different statuses; the clerk stores or keeps only one side: the conflict disappears |
 
-The skills are sufficient for the named policies in the probe matrix, not the only ways to pass.
-In v3.2 the round-3 reader ablations, zone-density selection and no-register shortcuts pass 0 of 10
-in every targeted cell; `full` and `local_writer` pass 10 of 10 in all 12 probe and reader cells.
-All 11 round-2 policies without selection pass 0 of 10 in `scarce` and `mix`. A timestamp-distance
-selection policy passes 1 of 10 in `scarce`. Two no-register policies pass 1 of 10 in `share`
-by guessing ordinary answers. These are measured counts on the fixed instances, not population
-probabilities (`REVIEWS.md`).
+The skills certify named policies on fixed instances, not all possible ways to pass. The round-4
+review tested 31 policies. All split policies that omit a needed kind have 0 full passes on the
+10 original and 30 held-out instances in each applicable condition. The split policies select at
+most 1 candidate for the omitted kind, but v3.3 needs 2. The chance for a uniform assignment of
+2 among 4 matched questions is 1/6. This does not bound readers that use other evidence or rankings.
+Earlier low-probe cells remain at most 2 of 10; `full` and `local_writer` remain at 10 of 10.
+These are measured counts on the fixed instances, not population probabilities (`REVIEWS.md`).
 
 ## 2. World rules (exact)
 
@@ -110,25 +123,27 @@ There is no message channel in this family: the register is the channel.
 
 ## 4. Facets and the skills of the named policies
 
-In every facet, a teammate is asked about a site that only p1's reports decide. P1 has 2 questions
-that need teammates' register lines. In `share` and `scarce`, p1 also has an ordinary private-report
-control. In `gone`, `cascade` and `dispute`, p1 has both the ordinary control and an unreported site
-question. In `mix`, p1 instead has an unreported site as its third question; the former private-control
-site is a question of p3. The `unknown` control shows that absence of a site line is not the rule
-for an incoming special answer.
+Every facet has a peer question that needs p1's report. Share and scarce have 2 peer-dependent
+questions and 1 private ordinary question for p1. Gone and dispute have 2 incoming special
+questions and 2 unknown questions, with an incoming ordinary and a private ordinary control.
+Cascade has 2 incoming closures, 2 same-status ordinary alternatives, 2 unknowns and the other
+2 ordinary controls. Mix has 2 incoming questions of each of the 3 special kinds, 2 unknown
+controls, and an incoming ordinary question with a stale private report. The generator assigns
+incoming and outgoing roles at random, subject to the layout and dependency constraints.
 
 | Facet | The writer case and the reader case of p1 | Sufficient skills in the probe matrix |
 |---|---|---|
 | `share` | A plain site report. Slots are ample. | `pool` |
 | `scarce` | As `share`, but slots equal the number of keys in the ideal register. Each key matters to another clerk's question. p1's feed contains 5 off-watch reports at drawn positions. | `pool`, `select` |
-| `gone` | Writer: p1 holds a withdrawal of a watch site on which the asker has an older report. Reader: a site of p1's asks has a withdrawal line that is newer than p1's own report. P1 also gets an unreported site question (truth `unknown`). | `pool`, `tombstone` |
-| `cascade` | Writer: p1 holds a zone closure newer than the site's report of the asking clerk. Reader: p1 has an older private site report and an older site line from a peer; the newer zone line must override both. P1 also gets an unreported site question (truth `unknown`). | `pool`, `cascade` |
-| `dispute` | Writer: p1 holds 2 reports of a watch site with the same `at` and different statuses; neither belongs to a played clerk. Reader: p1 is asked about a site whose line is `disputed`. P1 also gets an unreported site question (truth `unknown`). | `pool`, `dispute` |
-| `mix` | All 5 skills and 2 of the 3 incoming special cases, balanced over the 10 instances. The incoming pair and outgoing case assignment are drawn separately. Closure cases retain the old site report. Mix has more necessary ordinary peer questions and off-watch reports than `scarce`. Slots suffice for writers that retain old site reports. The ideal register omits strictly dominated keys; every ideal key matters to another clerk's question. | all 5 |
+| `gone` | Writer: p1 holds a withdrawal of a watched site with an older peer report. Reader: p1 has 2 peer withdrawal lines and 2 unreported alternatives. No private site report distinguishes them. | `pool`, `tombstone` |
+| `cascade` | Writer: p1 holds a closure newer than the asking clerk's site report. Reader: 2 incoming closure lines override older p2 site lines. P1 also has 2 matched ordinary p2 site lines and 2 unknown questions. | `pool`, `cascade` |
+| `dispute` | Writer: p1 holds 2 reports with the same site and time but different statuses. Neither belongs to a played clerk. Reader: p1 has 2 disputed peer lines and 2 unreported alternatives. | `pool`, `dispute` |
+| `mix` | All 5 skills, scarce slots, 2 incoming cases of each special kind, 2 unreported alternatives. Each candidate site is in a different zone of equal watch density; the neighboring watched role is drawn separately. The raw feeds retain all 3 old closure-site reports. The ideal omits their strictly dominated keys; the slots allow retaining them. Each ideal key matters to another clerk's question. | all 5 |
 
-A condition is `<facet>-<arm>`: 24 conditions, 10 instances each. An instance has the same underlying
-reports, watch list and truth in the 4 arms of a facet. The non-solo arms share asks; `solo` merges
-the reports and asks each distinct site once.
+A condition is `<facet>-<arm>`: 24 conditions, 10 instances each (240 tasks). The generator uses
+seed `dossier-v3.3` and instance ids `i01` to `i10`. Each facet and instance index has its own
+deterministic draw stream. The 4 arms of a facet share reports, watch list and truth. The non-solo
+arms share asks; `solo` merges the reports and asks each distinct site once.
 
 ## 5. World-played clerks in `probe`
 
@@ -203,45 +218,65 @@ Every policy receives only its seat name. Reader deficits are part of each skill
    credited score events. Private feeds are visible only to their clerk, except for register lines
    and the combined feed in `solo`.
 
-The v3.2 card reports 33 PASS, 0 FAIL, 0 NOT_CHECKED, including all 20 finding regressions.
+The v3.3 card reports 33 PASS, 0 FAIL, 0 NOT_CHECKED. Its finding-regression check passes all
+26 findings. The card records 14,400 episodes with schedule seed 0 and schedule parameter 12.
 See `REVIEWS.md` for the build and review evidence.
 
-## 9. Instance constraints (the generator asserts each one)
+## 9. Instance construction and constraints
 
-- `share`, `scarce`, `gone`, `cascade` and `dispute` have 16 sites in 4 zones of 4. `mix` has 24
-  sites in 4 zones of 6. There are 6 ordinary and 4 special statuses, 3 clerks and times 1..40.
-  Share and scarce have 9 watch sites; gone, cascade and dispute have 10; mix has 12.
-  Question counts in p1/p2/p3 order are 3/3/3 in share, 3/4/5 in scarce, 4/3/3 in gone,
-  cascade and dispute, and 3/5/7 in mix (9, 12, 10 and 15 questions respectively).
-  In scarce, p3 also gets p1's private-report control and p2 and p3 each get the other's control.
-  Solo asks once per watch site.
-- Every special instance has exactly 1 unreported watch site with true status `unknown`.
-  In mix, p1 and p3 both get its question. No true answer is `unknown` in share or scarce.
-  No 2 reports of 1 clerk in the non-solo arms share key, time and status. The merged solo feed
-  can contain copies of the same report. The same key and time with different statuses is permitted.
-- In probe, every played clerk has at least 1 focal question and at least 1 it can answer without p1.
-  P1 has exactly 2 register-dependent questions and an ordinary private-report control in all
-  but mix. Each special facet has the unknown control. Across the 10 mix instances the incoming
-  pair gives 7 withdrawals, 7 closures and 6 disputes. Removing the deciding special line from
-  the full ideal changes the rule-derived answer to each incoming special question.
-  Standalone cascade retains an older site line; every incoming closure retains an older
-  private site report.
-- The facet's writer and reader cases exist as section 4 states; in `dispute` the focal tied site is
-  asked of the clerk who holds neither of the 2 reports.
-- `scarce` and `mix`: slots = the number of distinct reported watch-relevant keys. Removing any
-  1 ideal line makes an actual question of a clerk other than its writer wrong. Scarce has no
-  omitted reported watch keys (9 slots). Mix's ideal has 11 keys and omits 1 or 2 strictly
-  dominated historical site keys. Its 12 or 13 slots permit other correct writers to keep
-  those keys. P1 has 5 distinct off-watch reports in scarce and 12 in mix, at drawn positions
-  and times. In each of the 4 raw orders in section 0, the full register lacks at least 1
-  needed key in scarce and at least 2 in mix. Other facets have 6 more slots than the number
-  of reported watch-relevant keys.
-- The generator builds the register that correct sequential clerks produce and asserts that it
-  fits the slots and is sufficient for every actual question.
-- No fixed answer exceeds 0.34 of focal questions across the 10 instances of a condition.
-  The answers `withdrawn`, `closed` and `disputed` occur on focal questions only in the facets
-  that need them. `unknown` occurs only in the special facets.
-- Put budget per clerk: its number of reports plus 4. Answer budget: its number of asks.
+The generator draws candidates, rejects those that fail its dependency and capacity checks,
+and asserts the instance and condition constraints below.
+
+| Facet | Zones × sites per zone | Watch sites | Asks p1/p2/p3 | Ideal lines | Slots | Off-watch reports |
+|---|---:|---:|---|---:|---:|---:|
+| `share` | 4 × 4 | 9 | 3/3/3 | 9 | 15 | 0 |
+| `scarce` | 4 × 4 | 9 | 3/4/5 | 9 | 9 | 5 |
+| `gone` | 4 × 4 | 12 | 6/3/3 | 10 | 16 | 0 |
+| `cascade` | 6 × 5 | 14 | 8/3/3 | 15 | 21 | 0 |
+| `dispute` | 4 × 4 | 12 | 6/3/3 | 10 | 16 | 0 |
+| `mix` | 9 × 4 | 18 | 9/5/8 | 16 | 19 | 18 |
+
+- Share, scarce, gone and dispute have 16 sites; cascade has 30; mix has 36.
+  There are 6 ordinary and 4 special statuses, and 3 clerks in the non-solo arms.
+  Times are whole numbers in 1..40. No 2 reports of 1 clerk in the non-solo arms share key,
+  time and status. The merged solo feed can contain copies of the same report. The same key
+  and time with different statuses is permitted.
+- Solo asks once per watch site and has 0 register slots. In scarce, p3 also gets p1's private
+  control question. In mix, p3 also gets both of p1's unknown questions. In both facets, p2 and p3
+  each get the other's third question from the role assignment before the final ask lists are shuffled.
+- Every special instance contains exactly 2 unreported watched sites with truth `unknown`.
+  In probe, each peer has at least 1 focal and 1 nonfocal question.
+  Each incoming special question depends on a peer, has no private p1 site report, and changes
+  answer when its deciding special line is removed from the ideal register.
+- Cascade places the 4 matched sites in 4 separately drawn zones, each with exactly 1 watched
+  site. A fifth zone contains the outgoing closure and 4 other watched sites. The sixth zone
+  contains the 2 unknowns and 3 other watched sites. All 4 matched site lines come from p2 and
+  have the same randomly drawn ordinary status. Each of their times is independently drawn from
+  1..20. The 2 incoming closure times are drawn from 21..40. P2 publishes before p3, so the
+  old site lines survive in the ideal. Without the closure lines, the 2 targets and 2 alternatives
+  have the same signature. Removing a deciding closure changes the answer to the older p2 status.
+- Mix draws 2 watched sites per zone, leaving 2 off-watch sites per zone. The first site of each
+  pair supplies 2 cases of each incoming special kind, 2 unknowns and 1 outgoing closure across
+  the 9 zones. The second site of each pair is shuffled separately among the other roles.
+  In mix the generator draws early times from 1..10, closure times from 11..20, and current site
+  times from 21..40. These ranges let the neighboring current observation win over a zone closure.
+  The draw law for neighboring current observations does not depend on the kind of the first site.
+  The peer that holds each incoming closure also holds its older site report. P1 holds both reports
+  of the outgoing closure. The outgoing dispute has 2 p1 reports at the same latest time, with
+  an older report of the asking clerk (not at the tie time). In standalone dispute the asking
+  clerk holds neither side of the deciding tie.
+- Scarce and mix slots equal the number of distinct reported watch-relevant keys. Each ideal
+  key matters to another clerk's actual question. Scarce has 9 ideal keys and 9 slots. Mix has
+  16 ideal keys and 19 slots; its 3 omitted site keys are strictly older than a zone closure.
+  In scarce there are 5 off-watch reports; in mix every off-watch site (18) has 1 ordinary p1
+  report. Decoy times are drawn from 1..40 and all feeds are shuffled. In each of the 4 raw
+  write orders in section 0, at least 1 needed key is absent when scarce fills, at least 2
+  when mix fills. Other facets have 6 slots beyond reported watch-relevant keys.
+- The generator asserts full ideal sufficiency, class assignment chance at most 1/6 per incoming
+  kind, and the 0.34 focal answer-frequency ceiling across the 10 instances of a condition.
+  The focal answers `withdrawn`, `closed` and `disputed` occur only in the facets that need them.
+  `unknown` appears only in the special facets.
+- Put budget per clerk: its number of private reports plus 4. Answer budget: its number of asks.
 
 ## 10. What the family does not claim
 
@@ -259,9 +294,12 @@ See `REVIEWS.md` for the build and review evidence.
   put can overwrite a newer or dispute line after a teammate stops. The zoo bounds its wait at 60
   ready polls; the card covers explored schedules, not arbitrary starvation (`REVIEWS.md`).
 - A standalone facet fixes the allowed special kinds to preserve the single-skill controls.
-  It does not fix the status of a particular asked site. The incoming mix pair varies separately
-  from the outgoing role assignment. The unreported-site control does not prove that a reader
-  applied the rule rather than guessed.
-- Restoring strictly dominated observations in mix leaves 1 or 2 slots a correct minimal register
+  It does not fix the status of a particular asked site. Mix has 2 incoming cases of each kind
+  in every instance. The 2 shared unknowns act as alternatives for each omitted kind.
+  The signature bound assumes uniform assignment within the observed class. It does not prove a
+  cap for every ranking on a fixed sample or independence from all API observations. The paired
+  arms and fixed counts are not independent evidence of model behavior.
+- Restoring strictly dominated observations in mix leaves 3 slots that a correct minimal register
   may not use. All ideal keys still matter to actual peer questions. The tested selection heuristics
-  fail on their target cells, but another ordering may succeed.
+  fail on their target cells, but another ordering may succeed. The accepted stale-dispute limit
+  remains: an unconditional `put` can overwrite a correct line after the knowledgeable clerk stops.

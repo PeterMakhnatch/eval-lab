@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import builtins
 import fnmatch
 import hashlib
 import io
@@ -1169,15 +1170,42 @@ _MENTION = re.compile(
     r"`[^`\n]*`|(?<![\w-])--[a-z][\w-]+|(?<![\w/.])[\w./-]+\.(?:py|js|ts|rs|go|json|toml|ya?ml|csv|sh|cfg|ini)\b"
 )
 _CUE_TOKEN = re.compile(r"--[a-z][\w-]+|(?<![\w.])\.[A-Za-z_][\w./-]*+(?!\()|[A-Za-z_][\w./-]*")
+_BUILTIN_NAMES = frozenset(name for name in dir(builtins) if not name.startswith("_"))
+_FROM_IMPORT = re.compile(r"^[ \t]*(?:>>>[ \t]*)?from[ \t]+[\w.]+[ \t]+import[ \t]+\(?([\w \t,]+)\)?[ \t]*$", re.M)
+_PLAIN_IMPORT = re.compile(r"^[ \t]*(?:>>>[ \t]*)?import[ \t]+([\w.]+(?:[ \t]+as[ \t]+\w+)?(?:[ \t]*,[ \t]*[\w.]+(?:[ \t]+as[ \t]+\w+)?)*)[ \t]*$", re.M)
+_CALL = re.compile(r"\b([A-Za-z_]\w{2,})\(\)?")
+
+
+def _import_bound(instruction: str) -> set[str]:
+    bound: set[str] = set()
+    for match in _FROM_IMPORT.finditer(instruction):
+        for part in match.group(1).split(","):
+            words = part.split()
+            if words:
+                bound.add(words[-1])
+    for match in _PLAIN_IMPORT.finditer(instruction):
+        for part in match.group(1).split(","):
+            words = part.split()
+            bound.add(words[-1] if len(words) == 3 else words[0].split(".")[0])
+    return bound
+
+
+def _quoted_code_calls(instruction: str) -> frozenset[str]:
+    called = {m.group(1) for m in _CALL.finditer(instruction)}
+    plain = {m.group(1) for m in _CALL.finditer(instruction) if instruction[m.start() - 1 : m.start()] != "."}
+    skipped = (called & _BUILTIN_NAMES) | (called - plain) | (called & _import_bound(instruction))
+    assert skipped <= called
+    return frozenset(skipped)
 
 
 def instruction_cues(instruction: str) -> list[dict[str, Any]]:
     cues: dict[str, dict[str, Any]] = {}
     sentences = re.split(r"(?<=[.!?])\s+|\n+", instruction)
+    quoted_code = _quoted_code_calls(instruction)
     for sentence in sentences:
         constrained = bool(_CONSTRAINT.search(_MENTION.sub(" ", sentence)))
         spans = [(m.group(1), m.group(1)) for m in re.finditer(r"`([^`\n]{2,80})`", sentence)]
-        spans += [(m.group(1), m.group(0)) for m in re.finditer(r"\b([A-Za-z_]\w{2,})\(\)?", sentence)]
+        spans += [(m.group(1), m.group(0)) for m in _CALL.finditer(sentence) if m.group(1) not in quoted_code]
         spans += [(m.group(0), m.group(0)) for m in re.finditer(r"(?<![\w-])--[a-z][\w-]+", sentence)]
         spans += [(m.group(0), m.group(0)) for m in re.finditer(r"(?<![\w/.])[\w./-]+\.(?:py|js|ts|rs|go|json|toml|ya?ml|csv|sh|cfg|ini)\b", sentence)]
         for span, raw in spans:

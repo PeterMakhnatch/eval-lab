@@ -29,6 +29,8 @@ _DOTFILE_STEM = "rc"
 _DOTFILE_SUFFIX = "example"
 _FLAG_SUFFIXES = ("on", "only", "strict", "never")
 _EXTENSIONS = ("py", "json", "toml", "yaml", "csv", "sh")
+_BUILTIN_CALLS = tuple(name for name in ("abs", "sum", "sorted", "round", "divmod", "ord", "max", "enumerate") if name not in _IDENT_STOP)
+_IMPORT_STYLES = ("from", "grouped", "alias")
 _CONSTRAINT_WORDS = (
     "must",
     "MUST",
@@ -203,10 +205,56 @@ class _Cue:
 
 
 @dataclass(frozen=True, slots=True)
+class _QuotedCode:
+    builtin: str
+    module: str
+    sibling: str
+    imported: str
+    import_style: str
+    attribute: str
+    shared: str | None
+    prompt: bool
+    backticked: bool
+
+    @property
+    def absent(self) -> tuple[str, ...]:
+        called = (self.imported, self.attribute)
+        return called if self.backticked else (self.builtin, *called)
+
+    @property
+    def plan(self) -> str:
+        shape = f"{self.import_style}:{int(self.prompt)}{int(self.backticked)}"
+        return shape + (":shared" if self.shared is not None else "")
+
+    @property
+    def text(self) -> str:
+        lead = ">>> " if self.prompt else "    "
+        binding = {
+            "from": f"from {self.module} import {self.imported}",
+            "grouped": f"from {self.module} import ({self.sibling}, {self.imported})",
+            "alias": f"import {self.module} as {self.imported}",
+        }[self.import_style]
+        calls = [f"{self.builtin}(value)", f"value.{self.attribute}()", f"{self.imported}(value)"]
+        if self.shared is not None:
+            calls.append(f"value.{self.shared}(value)")
+        lines = [f"{lead}{binding}", f"{lead}total = " + " + ".join(calls)]
+        if self.backticked:
+            lines.append(f"See `{self.builtin}` in the guide.")
+        return "\n".join(lines)
+
+    @property
+    def expected(self) -> list[dict[str, Any]]:
+        if not self.backticked:
+            return []
+        return [{"symbol": self.builtin, "kind": "name", "constraint": False, "sentence": ""}]
+
+
+@dataclass(frozen=True, slots=True)
 class _Instruction:
     cues: tuple[_Cue, ...]
     decoy: bool
     newline: bool
+    quoted: _QuotedCode | None
 
     @property
     def text(self) -> str:
@@ -215,7 +263,21 @@ class _Instruction:
             if cue.repeat:
                 sentences.append(f"Also see {cue.mention} below.")
             sentences.append(cue.sentence)
-        return ("\n" if self.newline else " ").join(sentences) + "\n"
+        text = ("\n" if self.newline else " ").join(sentences)
+        return text + ("" if self.quoted is None else "\n" + self.quoted.text) + "\n"
+
+    @property
+    def expected(self) -> list[dict[str, Any]]:
+        extra = [] if self.quoted is None else self.quoted.expected
+        return [cue.expected for cue in self.cues] + extra
+
+    @property
+    def absent(self) -> list[dict[str, Any]]:
+        rows = [{**cue.expected, "weight": cue.weight} for cue in self.cues if not cue.present]
+        extra = [] if self.quoted is None else self.quoted.expected
+        rows += [{**row, "weight": _WEIGHTS["name"]} for row in extra]
+        rows.sort(key=lambda row: (-row["weight"], row["symbol"]))
+        return rows
 
 
 @dataclass(frozen=True, slots=True)
@@ -292,10 +354,31 @@ def _cue(rng: Random, names: _Names) -> _Cue:
     return cue
 
 
-def _instruction(rng: Random, names: _Names) -> _Instruction:
+def _quoted_code(rng: Random, cues: tuple[_Cue, ...]) -> _QuotedCode | None:
+    if rng.random() < 0.25:
+        return None
+    names = _Names(rng)
+    calls = [cue.symbol for cue in cues if cue.kind == "function" and cue.style == "call"]
+    quoted = _QuotedCode(
+        builtin=rng.choice(_BUILTIN_CALLS),
+        module=names.token("m"),
+        sibling=names.token("w"),
+        imported=names.token("g"),
+        import_style=rng.choice(_IMPORT_STYLES),
+        attribute=names.token("h"),
+        shared=rng.choice(calls) if calls and _flag(rng) else None,
+        prompt=_flag(rng),
+        backticked=_flag(rng),
+    )
+    assert not set(quoted.absent) & {cue.symbol for cue in cues}
+    assert quoted.builtin not in _IDENT_STOP and len(quoted.builtin) >= 3
+    return quoted
+
+
+def _instruction(rng: Random, names: _Names, quoted_rng: Random) -> _Instruction:
     count = rng.randint(1, 5)
     cues = tuple(_cue(rng, names) for _ in range(count))
-    plan = _Instruction(cues, _flag(rng), _flag(rng))
+    plan = _Instruction(cues, _flag(rng), _flag(rng), _quoted_code(quoted_rng, cues))
     assert len({cue.symbol for cue in plan.cues}) == count
     return plan
 
@@ -452,7 +535,7 @@ class SurfaceSimulation:
 
     def run(self) -> None:
         names = _Names(self.rng)
-        instruction = _instruction(self.rng, names)
+        instruction = _instruction(self.rng, names, Random(f"surface-quoted-code:{self.sim.seed}"))
         files = _files(self.rng, names)
         tests = _tests_text(instruction, files)
         patch, numbers = _render_patch(files)
@@ -463,14 +546,18 @@ class SurfaceSimulation:
 
     def _check_cues(self, instruction: _Instruction) -> None:
         sim = self.sim
-        expected = [cue.expected for cue in instruction.cues]
+        expected = instruction.expected
+        quoted = instruction.quoted
         sim.begin(
             "surface-cues",
             cues=[cue.plan for cue in instruction.cues],
             decoy=instruction.decoy,
             newline=instruction.newline,
+            quoted=None if quoted is None else quoted.plan,
         )
         result = instruction_cues(instruction.text)
+        absent = set() if quoted is None else set(quoted.absent)
+        sim.require(not absent & {row["symbol"] for row in result}, "surface_quoted_code_absent")
         sim.require(len(result) == len(expected), "surface_cue_count")
         for got, want in zip(result, expected, strict=False):
             sim.require(set(got) == set(want), "surface_cue_fields")
@@ -482,8 +569,7 @@ class SurfaceSimulation:
 
     def _check_mismatch(self, instruction: _Instruction, tests: str) -> None:
         sim = self.sim
-        expected = [{**cue.expected, "weight": cue.weight} for cue in instruction.cues if not cue.present]
-        expected.sort(key=lambda row: (-row["weight"], row["symbol"]))
+        expected = instruction.absent
         sim.begin(
             "surface-mismatch",
             absent=len(expected),

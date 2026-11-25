@@ -1,0 +1,43 @@
+{
+  "base_spec": {
+    "base_constraints": {
+      "batch_cap": 320,
+      "region": "us-west-2"
+    },
+    "schema": "v1",
+    "service": "ingress-drain"
+  },
+  "channel": false,
+  "condition": "solo-x3",
+  "domain": "ingress-drain",
+  "family": "compactshift_v1",
+  "fenced": false,
+  "handoff_digest": "7bdf090874385d7437c1d72b6c939d33",
+  "handoff_id": "ho-04-00d9423a22",
+  "instance": 4,
+  "invariant_token": "inv-04-dcbe152c72",
+  "notices_enabled": true,
+  "plan_seal": "ps-04-3ebf6cea4c2f",
+  "required_constraints": [
+    "region",
+    "batch_cap",
+    "drain_mode",
+    "invariant_token"
+  ],
+  "seats": [
+    "p1"
+  ],
+  "shift_constraints": [
+    {
+      "key": "drain_mode",
+      "value": "strict-quiesce"
+    },
+    {
+      "key": "invariant_token",
+      "value": "inv-04-dcbe152c72"
+    }
+  ],
+  "task_id": "cshift-04-5a0cfd",
+  "unread_guard_kinds": [],
+  "verification_digest": "9eb723f7cd1f6c05f6aabd0fae0a83ab"
+}

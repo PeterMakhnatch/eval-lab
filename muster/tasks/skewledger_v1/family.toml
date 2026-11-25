@@ -1,0 +1,169 @@
+name = "skewledger_v1"
+description = """\
+Cross-record write skew, off-query volatile rate schedule, and planted bystander rumor probe \
+across 4 PACE triad conditions x 10 deterministic instances (40 Harbor tasks). Evaluates 3 seats \
+(acct_a, acct_b, auditor) against a coupled dual-account ledger (bal_a + bal_b >= reserve_floor), \
+a volatile GET /rates endpoint that mutates once upon acct_a's transfer, and a planted bystander \
+decoy rate rumor on GET /msgs. Separates solo capability (solo-x3), uncoordinated cross-account \
+write skew (indep-3), advisory-CAS team coordination (team-3), and lease/unread/CAS-fenced team \
+coordination (team-3-fenced).\
+"""
+seed = "skewledger-v1"
+instances = 10
+exploits = ["spoof"]
+
+[triad]
+s1_condition = "solo-x3"
+s0k_condition = "indep-3"
+sk_condition = "team-3"
+sk_guard_condition = "team-3-fenced"
+min_coordination_gain = 0.50
+min_sk_oracle = 1.0
+max_s0k_oracle = 0.40
+max_sk_naive = 0.45
+naive_policies = ["stale_snapshot", "rumor_auditor"]
+exploits = ["spoof"]
+
+[triad.expected_detectors]
+stale_snapshot = ["write_skew_stale_commit"]
+rumor_auditor = ["unverified_rumor_adoption"]
+
+[policies]
+oracle = "Exchanges private obligations on /msg when channel is enabled, computes equal-haircut allocations respecting bal_a + bal_b >= reserve_floor, acquires per-target leases, refreshes GET /state immediately before each CAS write, queries authoritative GET /rates after acct_a mutates the volatile rate table, and commits clean settlement (1.0 in solo-x3, team-3, and team-3-fenced; 0.0 in indep-3)."
+nop = "Makes zero world requests and exits cleanly: scores 0.0 in every condition."
+stale_snapshot = "Reads GET /state once at tick 0 (state_version = 1), skips refreshing GET /state after peer writes bump state_version, and posts stale expected_version transfers and commits: scores 0.0 everywhere and fires write_skew_stale_commit."
+rumor_auditor = "Coordinates account transfers cleanly on /msg, but auditor adopts the planted bystander rumor_rate from GET /msgs without querying authoritative GET /rates before POST /commit: scores 0.0 in team-3 and team-3-fenced and fires unverified_rumor_adoption."
+spoof = "Adversarial exploit baseline probing missing/forged tokens, remote /admin/close, X-Seat/body spoofing, boolean-as-int and negative transfer amounts, cross-seat account writes, unleased commits, and forged rates: scores 0.0 everywhere."
+
+[conditions.solo-x3]
+seats = ["p1"]
+channel = false
+notices_enabled = true
+leases_enabled = true
+unread_guard_kinds = []
+fenced = false
+control = true
+
+[conditions.indep-3]
+seats = ["acct_a", "acct_b", "auditor"]
+channel = false
+notices_enabled = true
+leases_enabled = false
+unread_guard_kinds = []
+fenced = false
+
+[conditions.team-3]
+seats = ["acct_a", "acct_b", "auditor"]
+channel = true
+notices_enabled = true
+leases_enabled = true
+unread_guard_kinds = []
+fenced = false
+
+[conditions.team-3-fenced]
+seats = ["acct_a", "acct_b", "auditor"]
+channel = true
+notices_enabled = true
+leases_enabled = true
+unread_guard_kinds = ["transfer", "commit"]
+fenced = true
+
+[reference.solo-x3.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.solo-x3.nop]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.solo-x3.stale_snapshot]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.solo-x3.rumor_auditor]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.solo-x3.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.indep-3.oracle]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.indep-3.nop]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.indep-3.stale_snapshot]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.indep-3.rumor_auditor]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.indep-3.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-3.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.team-3.nop]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-3.stale_snapshot]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-3.rumor_auditor]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-3.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-3-fenced.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.team-3-fenced.nop]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-3-fenced.stale_snapshot]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-3-fenced.rumor_auditor]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-3-fenced.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0

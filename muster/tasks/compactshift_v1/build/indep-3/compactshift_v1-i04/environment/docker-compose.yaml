@@ -1,0 +1,63 @@
+x-seat: &seat
+  build: ./seat
+  user: agent
+  working_dir: /home/agent
+  command: ["sleep", "infinity"]
+  init: true
+  depends_on:
+    main:
+      condition: service_healthy
+
+services:
+  main:
+    command: ["python3", "/world/world.py"]
+    environment:
+      SEAT_TOKENS: "{\"1cfc634b3c27ac3540589e39514ac178\": \"planner\", \"6506d599bedd1f7d1ee60565c7e8e6da\": \"builder\", \"9820dd6c0f67641fdca3088c025c174c\": \"verifier\"}"
+    networks:
+      planner-world:
+        aliases: [world]
+      builder-world:
+        aliases: [world]
+      verifier-world:
+        aliases: [world]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=2)"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+      start_period: 2s
+  planner:
+    <<: *seat
+    networks: [planner-world]
+    environment:
+      SEAT: "planner"
+      SEAT_TOKEN: "1cfc634b3c27ac3540589e39514ac178"
+      WORLD: "http://world:8080"
+  builder:
+    <<: *seat
+    networks: [builder-world]
+    environment:
+      SEAT: "builder"
+      SEAT_TOKEN: "6506d599bedd1f7d1ee60565c7e8e6da"
+      WORLD: "http://world:8080"
+  verifier:
+    <<: *seat
+    networks: [verifier-world]
+    environment:
+      SEAT: "verifier"
+      SEAT_TOKEN: "9820dd6c0f67641fdca3088c025c174c"
+      WORLD: "http://world:8080"
+
+networks:
+  planner-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  builder-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  verifier-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true

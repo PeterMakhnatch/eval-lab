@@ -1,0 +1,206 @@
+{
+  "family": "protofit_v1",
+  "condition": "solo-x4",
+  "instance": 5,
+  "seats": [
+    "p1"
+  ],
+  "channel": false,
+  "barrier_enabled": true,
+  "barrier_quorum": 1,
+  "probe_pool": 8,
+  "max_msg_bytes": 180,
+  "unread_guard_kinds": [],
+  "fenced": false,
+  "task_id": "pf-05-2712ca",
+  "domain": "consensus-wal-envelope",
+  "active_regime": 6,
+  "regime_code": "02170c09",
+  "true_cfg": 107,
+  "target_digest": "01cd4b1cc66a7609",
+  "all_constraints": [
+    {
+      "constraint_id": "c01",
+      "owner_seat": "p1",
+      "coupled_subsystems": "framing->flow",
+      "bit_mask": 98,
+      "base_parity": 0,
+      "regime_mask": 5
+    },
+    {
+      "constraint_id": "c02",
+      "owner_seat": "p1",
+      "coupled_subsystems": "framing->recovery",
+      "bit_mask": 170,
+      "base_parity": 1,
+      "regime_mask": 9
+    },
+    {
+      "constraint_id": "c03",
+      "owner_seat": "p2",
+      "coupled_subsystems": "flow->recovery",
+      "bit_mask": 156,
+      "base_parity": 1,
+      "regime_mask": 14
+    },
+    {
+      "constraint_id": "c04",
+      "owner_seat": "p2",
+      "coupled_subsystems": "flow->security",
+      "bit_mask": 37,
+      "base_parity": 1,
+      "regime_mask": 12
+    },
+    {
+      "constraint_id": "c05",
+      "owner_seat": "p3",
+      "coupled_subsystems": "recovery->security",
+      "bit_mask": 127,
+      "base_parity": 0,
+      "regime_mask": 5
+    },
+    {
+      "constraint_id": "c06",
+      "owner_seat": "p3",
+      "coupled_subsystems": "recovery->framing",
+      "bit_mask": 105,
+      "base_parity": 1,
+      "regime_mask": 12
+    },
+    {
+      "constraint_id": "c07",
+      "owner_seat": "p4",
+      "coupled_subsystems": "security->framing",
+      "bit_mask": 193,
+      "base_parity": 0,
+      "regime_mask": 1
+    },
+    {
+      "constraint_id": "c08",
+      "owner_seat": "p4",
+      "coupled_subsystems": "security->flow",
+      "bit_mask": 119,
+      "base_parity": 0,
+      "regime_mask": 1
+    }
+  ],
+  "seat_constraints": {
+    "p1": {
+      "task_id": "pf-05-2712ca",
+      "domain": "consensus-wal-envelope",
+      "seat": "p1",
+      "num_regimes": 16,
+      "num_configs": 256,
+      "parity_rule": "((cfg_id & bit_mask).bit_count() & 1) == (base_parity ^ ((regime & regime_mask).bit_count() & 1))",
+      "digest_formula": "sha256(f'{task_id}:{regime}:{regime_code}:{cfg_id:03d}').hexdigest()[:16]",
+      "lanes": [
+        {
+          "bit": 0,
+          "subsystem": "framing",
+          "name": "crc_width_toggle",
+          "note": "Selects 32-bit vs 64-bit frame trailer checksum envelope."
+        },
+        {
+          "bit": 1,
+          "subsystem": "framing",
+          "name": "header_varint_mode",
+          "note": "Controls compact varint vs aligned fixed-slot header packing."
+        },
+        {
+          "bit": 2,
+          "subsystem": "flow",
+          "name": "credit_window_scale",
+          "note": "Switches coarse vs fine receiver credit grant quantizer."
+        },
+        {
+          "bit": 3,
+          "subsystem": "flow",
+          "name": "backpressure_watermark",
+          "note": "Selects early vs deferred congestion pause threshold."
+        },
+        {
+          "bit": 4,
+          "subsystem": "recovery",
+          "name": "selective_nack_bitmap",
+          "note": "Enables sparse range NACK blocks vs cumulative replay."
+        },
+        {
+          "bit": 5,
+          "subsystem": "recovery",
+          "name": "epoch_fence_strict",
+          "note": "Requires monotonic generation tag on retransmit frames."
+        },
+        {
+          "bit": 6,
+          "subsystem": "security",
+          "name": "key_phase_ratchet",
+          "note": "Couples per-window AEAD nonce rotation to frame counter."
+        },
+        {
+          "bit": 7,
+          "subsystem": "security",
+          "name": "Zero_copy_trailer_mac",
+          "note": "Aligns detached MAC tag boundary with DMA scatter-gather."
+        }
+      ],
+      "local_constraints": [
+        {
+          "constraint_id": "c01",
+          "coupled_subsystems": "framing->flow",
+          "bit_mask": 98,
+          "base_parity": 0,
+          "regime_mask": 5
+        },
+        {
+          "constraint_id": "c02",
+          "coupled_subsystems": "framing->recovery",
+          "bit_mask": 170,
+          "base_parity": 1,
+          "regime_mask": 9
+        },
+        {
+          "constraint_id": "c03",
+          "coupled_subsystems": "flow->recovery",
+          "bit_mask": 156,
+          "base_parity": 1,
+          "regime_mask": 14
+        },
+        {
+          "constraint_id": "c04",
+          "coupled_subsystems": "flow->security",
+          "bit_mask": 37,
+          "base_parity": 1,
+          "regime_mask": 12
+        },
+        {
+          "constraint_id": "c05",
+          "coupled_subsystems": "recovery->security",
+          "bit_mask": 127,
+          "base_parity": 0,
+          "regime_mask": 5
+        },
+        {
+          "constraint_id": "c06",
+          "coupled_subsystems": "recovery->framing",
+          "bit_mask": 105,
+          "base_parity": 1,
+          "regime_mask": 12
+        },
+        {
+          "constraint_id": "c07",
+          "coupled_subsystems": "security->framing",
+          "bit_mask": 193,
+          "base_parity": 0,
+          "regime_mask": 1
+        },
+        {
+          "constraint_id": "c08",
+          "coupled_subsystems": "security->flow",
+          "bit_mask": 119,
+          "base_parity": 0,
+          "regime_mask": 1
+        }
+      ]
+    }
+  }
+}

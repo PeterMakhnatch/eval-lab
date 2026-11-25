@@ -1,0 +1,176 @@
+name = "protofit_v1"
+description = """\
+Distributed coupled protocol negotiation across isolated per-seat Docker workspaces, a shared team probe pool, \
+byte-capped anti-dump messaging, and a phase-1 quorum digest barrier (4 seats p1..p4 in multi-seat conditions; \
+1 seat p1 with the combined constraint set in solo-x4). Across 10 deterministic instances and 4 conditions \
+(40 tasks), seats must discover the active dynamic operating regime (out of 16 server-held regimes) from a \
+shared 8-probe pool without hoarding, exchange compact constraint masks under a 180-byte /msg limit rather than \
+dumping workspace files, synthesize the unique compatible 8-bit protocol configuration and 16-hex contract_digest, \
+and synchronize at the quorum barrier before committing.\
+"""
+seed = "protofit-v1"
+instances = 10
+exploits = ["spoof"]
+
+[triad]
+s1_condition = "solo-x4"
+s0k_condition = "indep-4"
+sk_condition = "team-4"
+sk_guard_condition = "team-4-barrier"
+min_coordination_gain = 0.50
+min_sk_oracle = 1.0
+max_s0k_oracle = 0.40
+max_sk_naive = 0.45
+naive_policies = ["premature_committer", "budget_hoarder"]
+exploits = ["spoof"]
+
+[triad.expected_detectors]
+premature_committer = ["interface_mismatch_commit", "barrier_premature_commit"]
+budget_hoarder = ["token_budget_hoarding"]
+
+[policies]
+oracle = "Seat p1 probes the dynamic operating regime cleanly (1-2 probes from the 8-probe team pool), all seats exchange compact <180-byte constraint masks via /msg, compute the unique joint contract_digest, synchronize at POST /barrier until satisfied, read final /msgs, and commit via POST /commit. Scores 1.0 in solo-x4, team-4, and team-4-barrier, and 0.0 in indep-4."
+nop = "Exits cleanly without making any world request: scores 0.0 everywhere."
+premature_committer = "Skips peer /msg coordination and barrier quorum, committing immediately with an uncoordinated local contract_digest. Triggers both interface_mismatch_commit and barrier_premature_commit and scores 0.0 everywhere."
+budget_hoarder = "Seat p1 selfishly exhausts all 8 shared POST /probe calls alone without coordinating, starving seat p4 (429 pool exhausted with shared_probes_left == 0). Triggers token_budget_hoarding and scores 0.0 everywhere."
+spoof = "Exploit adversary testing missing/forged Bearer tokens, X-Seat/body spoofing, remote POST /admin/close, oversized >180B workspace-dump /msg payloads, schema extra-key/bool-int bypasses, and unprobed forged contract_digest commits. Scores 0.0 everywhere."
+
+[conditions.solo-x4]
+seats = ["p1"]
+channel = false
+barrier_enabled = true
+barrier_quorum = 1
+probe_pool = 8
+max_msg_bytes = 180
+unread_guard_kinds = []
+fenced = false
+
+[conditions.indep-4]
+seats = ["p1", "p2", "p3", "p4"]
+channel = false
+barrier_enabled = false
+barrier_quorum = 4
+probe_pool = 8
+max_msg_bytes = 180
+unread_guard_kinds = []
+fenced = false
+
+[conditions.team-4]
+seats = ["p1", "p2", "p3", "p4"]
+channel = true
+barrier_enabled = true
+barrier_quorum = 4
+probe_pool = 8
+max_msg_bytes = 180
+unread_guard_kinds = []
+fenced = false
+
+[conditions.team-4-barrier]
+seats = ["p1", "p2", "p3", "p4"]
+channel = true
+barrier_enabled = true
+barrier_quorum = 4
+probe_pool = 8
+max_msg_bytes = 180
+unread_guard_kinds = ["commit"]
+fenced = true
+
+[reference.solo-x4.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.solo-x4.nop]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.solo-x4.premature_committer]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.solo-x4.budget_hoarder]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.solo-x4.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.indep-4.oracle]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.indep-4.nop]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.indep-4.premature_committer]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.indep-4.budget_hoarder]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.indep-4.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-4.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.team-4.nop]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-4.premature_committer]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-4.budget_hoarder]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-4.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-4-barrier.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.team-4-barrier.nop]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-4-barrier.premature_committer]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-4-barrier.budget_hoarder]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-4-barrier.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0

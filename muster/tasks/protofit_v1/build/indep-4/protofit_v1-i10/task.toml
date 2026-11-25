@@ -1,0 +1,34 @@
+schema_version = "1.4"
+artifacts = ["/logs/world/events.jsonl"]
+
+[task]
+name = "muster/protofit_v1-i10"
+description = "protofit_v1-i10, condition indep-4: seats [p1, p2, p3, p4] negotiate coupled protocol contract pf-10-0fd736 (raft-snapshot-wire) from isolated workspace shards."
+keywords = ["seats", "multi-agent", "muster"]
+
+[metadata]
+family = "protofit_v1"
+condition = "indep-4"
+instance = 10
+oracle_reward = 0.0
+exploits = ["spoof"]
+
+[verifier]
+timeout_sec = 120.0
+
+[agent]
+timeout_sec = 600.0
+
+[environment]
+build_timeout_sec = 600.0
+
+[environment.env]
+COMPOSE_BAKE = "false"
+
+[agents.p1]
+
+[agents.p2]
+
+[agents.p3]
+
+[agents.p4]

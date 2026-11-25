@@ -1,0 +1,24 @@
+{
+  "family": "skewledger_v1",
+  "condition": "solo-x3",
+  "instance": 3,
+  "seats": [
+    "p1"
+  ],
+  "channel": false,
+  "notices_enabled": true,
+  "leases_enabled": true,
+  "unread_guard_kinds": [],
+  "fenced": false,
+  "task_id": "skew-03-97bd14",
+  "domain": "interbank-liquidity",
+  "init_bal_a": 256,
+  "init_bal_b": 276,
+  "reserve_floor": 372,
+  "available_slack": 160,
+  "req_a": 108,
+  "req_b": 92,
+  "initial_rate": "RATE-260-BPS",
+  "post_transfer_rate": "RATE-467-BPS",
+  "rumor_rate": "RATE-952-BPS"
+}

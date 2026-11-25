@@ -1,0 +1,45 @@
+{
+  "base_spec": {
+    "base_constraints": {
+      "batch_cap": 256,
+      "region": "us-east-1"
+    },
+    "schema": "v1",
+    "service": "kv-rebalance"
+  },
+  "channel": true,
+  "condition": "team-3",
+  "domain": "kv-rebalance",
+  "family": "compactshift_v1",
+  "fenced": false,
+  "handoff_digest": "e309f0f8f67b19478121ba19fe9e7510",
+  "handoff_id": "ho-09-26588e409f",
+  "instance": 9,
+  "invariant_token": "inv-09-32b83c86bb",
+  "notices_enabled": true,
+  "plan_seal": "ps-09-273c9174ffb7",
+  "required_constraints": [
+    "region",
+    "batch_cap",
+    "drain_mode",
+    "invariant_token"
+  ],
+  "seats": [
+    "planner",
+    "builder",
+    "verifier"
+  ],
+  "shift_constraints": [
+    {
+      "key": "drain_mode",
+      "value": "strict-quiesce"
+    },
+    {
+      "key": "invariant_token",
+      "value": "inv-09-32b83c86bb"
+    }
+  ],
+  "task_id": "cshift-09-193e5c",
+  "unread_guard_kinds": [],
+  "verification_digest": "4f203795826fbced663c664d22bde3ac"
+}

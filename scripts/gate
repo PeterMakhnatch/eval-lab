@@ -21,10 +21,13 @@ uv run --no-sync python -m muster.sim check
 uv run --no-sync python -m muster.lab.sim check
 uv run --no-sync python -m campaign.sim check
 uv run --no-sync python -m worldwatch.sim check
-for family in boxes ledger commons scarce crowd field crowdrules horde standin standing_v1 trustcal_v1 crowdscale_v1 stalehand_v1 orderladder_v1 claimlease_v1; do
+for family in boxes ledger commons scarce crowd field crowdrules horde standin standing_v1 trustcal_v1 crowdscale_v1 stalehand_v1 orderladder_v1 claimlease_v1 compactshift_v1 skewledger_v1 protofit_v1; do
   uv run --no-sync python "muster/tasks/$family/generate.py" --check
 done
 for family in depot dossier inquiry; do
   uv run --no-sync python "muster/tasks/$family/generate.py" --check
   uv run --no-sync python -m muster card "$family" --verify --jobs 0
+done
+for family in compactshift_v1 skewledger_v1 protofit_v1; do
+  uv run --no-sync python -m worldwatch certify-suite "muster/tasks/$family"
 done

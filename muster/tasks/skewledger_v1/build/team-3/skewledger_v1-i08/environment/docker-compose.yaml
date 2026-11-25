@@ -1,0 +1,63 @@
+x-seat: &seat
+  build: ./seat
+  user: agent
+  working_dir: /home/agent
+  command: ["sleep", "infinity"]
+  init: true
+  depends_on:
+    main:
+      condition: service_healthy
+
+services:
+  main:
+    command: ["python3", "/world/world.py"]
+    environment:
+      SEAT_TOKENS: "{\"4dd3aa253619ab08a65943a023ad8496\": \"acct_b\", \"9e10b3779bc58b2e3eca17330d255ac3\": \"acct_a\", \"e81bd9c5ee15de10d37d59ad4b3b5f76\": \"auditor\"}"
+    networks:
+      acct_a-world:
+        aliases: [world]
+      acct_b-world:
+        aliases: [world]
+      auditor-world:
+        aliases: [world]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=2)"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+      start_period: 2s
+  acct_a:
+    <<: *seat
+    networks: [acct_a-world]
+    environment:
+      SEAT: "acct_a"
+      SEAT_TOKEN: "9e10b3779bc58b2e3eca17330d255ac3"
+      WORLD: "http://world:8080"
+  acct_b:
+    <<: *seat
+    networks: [acct_b-world]
+    environment:
+      SEAT: "acct_b"
+      SEAT_TOKEN: "4dd3aa253619ab08a65943a023ad8496"
+      WORLD: "http://world:8080"
+  auditor:
+    <<: *seat
+    networks: [auditor-world]
+    environment:
+      SEAT: "auditor"
+      SEAT_TOKEN: "e81bd9c5ee15de10d37d59ad4b3b5f76"
+      WORLD: "http://world:8080"
+
+networks:
+  acct_a-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  acct_b-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  auditor-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true

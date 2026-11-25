@@ -27,6 +27,7 @@ def load_score(task: Path) -> tuple[Callable[[list[dict], dict], dict] | None, d
     sys.path.insert(0, str(world))
     sys.dont_write_bytecode = True
     sys.modules.pop("worldkit", None)
+    sys.modules.pop("codec", None)
     try:
         spec.loader.exec_module(module)
     except Exception as error:
@@ -35,6 +36,7 @@ def load_score(task: Path) -> tuple[Callable[[list[dict], dict], dict] | None, d
         sys.path[:] = saved_path
         sys.dont_write_bytecode = saved_flag
         sys.modules.pop("worldkit", None)
+        sys.modules.pop("codec", None)
     score = getattr(module, "score", None)
     if not callable(score):
         return None, None, "tests/verify.py has no score(events, instance)"

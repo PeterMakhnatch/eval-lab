@@ -1,0 +1,43 @@
+{
+  "base_spec": {
+    "base_constraints": {
+      "batch_cap": 256,
+      "region": "ap-south-1"
+    },
+    "schema": "v1",
+    "service": "wal-rotation"
+  },
+  "channel": false,
+  "condition": "solo-x3",
+  "domain": "wal-rotation",
+  "family": "compactshift_v1",
+  "fenced": false,
+  "handoff_digest": "5f3b0196d0e3325be413513c3d461941",
+  "handoff_id": "ho-01-6e58c49241",
+  "instance": 1,
+  "invariant_token": "inv-01-b38dc9a90d",
+  "notices_enabled": true,
+  "plan_seal": "ps-01-7630c8416eb3",
+  "required_constraints": [
+    "region",
+    "batch_cap",
+    "quorum_fence",
+    "invariant_token"
+  ],
+  "seats": [
+    "p1"
+  ],
+  "shift_constraints": [
+    {
+      "key": "quorum_fence",
+      "value": "epoch-fenced"
+    },
+    {
+      "key": "invariant_token",
+      "value": "inv-01-b38dc9a90d"
+    }
+  ],
+  "task_id": "cshift-01-7b308a",
+  "unread_guard_kinds": [],
+  "verification_digest": "73cb4db9753ef22b40046335f6aec54b"
+}

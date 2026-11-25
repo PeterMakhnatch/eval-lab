@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import sys
 import time
+import tomllib
 from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import dataclass
 from io import StringIO
@@ -275,6 +277,69 @@ def _rosters(run: Run, case: Scenario, root: Path, rng: Random) -> None:
     _command(run, "roster/malformed-json", args, 3)
 
 
+def _check_kit_v2_replay(run: Run, root: Path) -> None:
+    tasks_root = Path(__file__).resolve().parent / "tasks"
+    kit_v2 = str(tasks_root / "_kit_v2")
+    for fam in ("compactshift_v1", "skewledger_v1", "protofit_v1"):
+        fam_dir = tasks_root / fam
+        cfg = tomllib.loads((fam_dir / "family.toml").read_text(encoding="utf-8"))
+        sk_cond = str(cfg["triad"]["sk_condition"])
+        task_dir = fam_dir / "build" / sk_cond / f"{fam}-i01"
+        saved = list(sys.path)
+        sys.path[:0] = [str(fam_dir / "template"), kit_v2, str(fam_dir)]
+        sys.modules.pop("worldkit", None)
+        sys.modules.pop("codec", None)
+        try:
+            rspec = importlib.util.spec_from_file_location(f"_sim_{fam}_ref", fam_dir / "reference.py")
+            vspec = importlib.util.spec_from_file_location(f"_sim_{fam}_ver", fam_dir / "template" / "verify.py")
+            assert rspec and rspec.loader and vspec and vspec.loader
+            rmod = importlib.util.module_from_spec(rspec)
+            vmod = importlib.util.module_from_spec(vspec)
+            rspec.loader.exec_module(rmod)
+            vspec.loader.exec_module(vmod)
+            inst = dict(rmod.instances(cfg, sk_cond)[0])
+            toks = dict(rmod.tokens(cfg, inst))
+            runner = getattr(rmod, "replay", None) or getattr(rmod, "play", None)
+            assert callable(runner)
+            for pol, expected_rew in (("oracle", 1.0), ("nop", 0.0)):
+                rep = runner(inst, toks, pol)
+                evs = list(rep["events"]) if isinstance(rep, dict) else list(rep[0])
+                scores = dict(vmod.score(evs, inst))
+                tdir = root / f"kv2_{fam}_{pol}"
+                (tdir / "verifier").mkdir(parents=True, exist_ok=True)
+                write_log(tdir / "verifier" / "events.jsonl", evs)
+                write_json(tdir / "verifier" / "reward.json", scores)
+                trial_cfg = {
+                    "trial_name": tdir.name,
+                    "task": {"name": f"muster/{task_dir.name}", "path": str(task_dir)},
+                    "participants": [{"seat": s, "name": pol} for s in inst["seats"]],
+                }
+                res_doc = {
+                    "schema_version": 1,
+                    "trial_name": tdir.name,
+                    "task_name": f"muster/{task_dir.name}",
+                    "config": trial_cfg,
+                    "seat_results": [{"seat": s, "under_test": True, "agent_info": {"name": pol}} for s in inst["seats"]],
+                    "verifier_result": {"rewards": scores},
+                    "reward_valid": True,
+                }
+                write_json(tdir / "config.json", trial_cfg)
+                write_json(tdir / "result.json", res_doc)
+                report = _command(run, f"kitv2/{fam}/{pol}", ["regrade", str(tdir)], 0)
+                rows = report.get("rows", [])
+                matched = report.get("counts") == {"match": 1} and len(rows) == 1 and rows[0].get("status") == "match"
+                run.require(
+                    f"kitv2/{fam}/{pol}",
+                    "regrade-and-triad-oracle-parity",
+                    matched and abs(float(scores["reward"]) - expected_rew) < 1e-6,
+                    f"scores={scores} counts={report.get('counts')}",
+                )
+        finally:
+            sys.path[:] = saved
+            sys.modules.pop("worldkit", None)
+            sys.modules.pop("codec", None)
+
+
 def _run_seed(seed: int) -> Run:
     assert 0 <= seed <= _MAX_SEED
     run, rng = Run(seed), Random(seed)
@@ -291,6 +356,9 @@ def _run_seed(seed: int) -> Run:
                     _trial(run, case, root, evidence)
             with run.section("roster"):
                 _rosters(run, case, root, rng)
+            if seed == 0:
+                with run.section("kitv2"):
+                    _check_kit_v2_replay(run, root)
     if seed % _HORDE_PERIOD == 0:
         with run.section("horde"):
             check_horde(run, Random(f"horde/{seed}"))

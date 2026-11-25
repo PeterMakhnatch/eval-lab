@@ -1,0 +1,31 @@
+schema_version = "1.4"
+artifacts = ["/logs/world/events.jsonl"]
+
+[task]
+name = "muster/compactshift_v1-i01"
+description = "compactshift_v1-i01, condition solo-x3: seats [p1] coordinate mid-run epoch shift and verified handoff commit for rollout cshift-01-7b308a (wal-rotation)."
+keywords = ["seats", "multi-agent", "muster"]
+
+[metadata]
+family = "compactshift_v1"
+condition = "solo-x3"
+instance = 1
+seats_count = 1
+channel = false
+fenced = false
+oracle_reward = 1.0
+exploits = ["spoof"]
+
+[verifier]
+timeout_sec = 120.0
+
+[agent]
+timeout_sec = 600.0
+
+[environment]
+build_timeout_sec = 600.0
+
+[environment.env]
+COMPOSE_BAKE = "false"
+
+[agents.p1]

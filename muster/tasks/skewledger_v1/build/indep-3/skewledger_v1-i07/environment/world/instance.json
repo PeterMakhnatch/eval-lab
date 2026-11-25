@@ -1,0 +1,26 @@
+{
+  "family": "skewledger_v1",
+  "condition": "indep-3",
+  "instance": 7,
+  "seats": [
+    "acct_a",
+    "acct_b",
+    "auditor"
+  ],
+  "channel": false,
+  "notices_enabled": true,
+  "leases_enabled": false,
+  "unread_guard_kinds": [],
+  "fenced": false,
+  "task_id": "skew-07-2af084",
+  "domain": "fx-netting-pool",
+  "init_bal_a": 244,
+  "init_bal_b": 264,
+  "reserve_floor": 364,
+  "available_slack": 144,
+  "req_a": 120,
+  "req_b": 96,
+  "initial_rate": "RATE-312-BPS",
+  "post_transfer_rate": "RATE-466-BPS",
+  "rumor_rate": "RATE-789-BPS"
+}

@@ -1,0 +1,4 @@
+FROM python:3.13-slim
+
+ENV PYTHONPATH=/world PYTHONDONTWRITEBYTECODE=1
+COPY world/ /world/

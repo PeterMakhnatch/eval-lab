@@ -1,0 +1,45 @@
+{
+  "base_spec": {
+    "base_constraints": {
+      "batch_cap": 64,
+      "region": "us-west-2"
+    },
+    "schema": "v1",
+    "service": "journal-epoch"
+  },
+  "channel": true,
+  "condition": "team-3",
+  "domain": "journal-epoch",
+  "family": "compactshift_v1",
+  "fenced": false,
+  "handoff_digest": "437e8f891b17a948ca623ae0336377de",
+  "handoff_id": "ho-03-93142fb210",
+  "instance": 3,
+  "invariant_token": "inv-03-5e4e4bb629",
+  "notices_enabled": true,
+  "plan_seal": "ps-03-82b79748314c",
+  "required_constraints": [
+    "region",
+    "batch_cap",
+    "drain_mode",
+    "invariant_token"
+  ],
+  "seats": [
+    "planner",
+    "builder",
+    "verifier"
+  ],
+  "shift_constraints": [
+    {
+      "key": "drain_mode",
+      "value": "strict-quiesce"
+    },
+    {
+      "key": "invariant_token",
+      "value": "inv-03-5e4e4bb629"
+    }
+  ],
+  "task_id": "cshift-03-0c14c9",
+  "unread_guard_kinds": [],
+  "verification_digest": "71d6a355308fcb3980ac946d294630e8"
+}

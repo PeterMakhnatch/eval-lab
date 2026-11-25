@@ -1,0 +1,24 @@
+{
+  "family": "skewledger_v1",
+  "condition": "solo-x3",
+  "instance": 2,
+  "seats": [
+    "p1"
+  ],
+  "channel": false,
+  "notices_enabled": true,
+  "leases_enabled": true,
+  "unread_guard_kinds": [],
+  "fenced": false,
+  "task_id": "skew-02-f67375",
+  "domain": "repo-triparty",
+  "init_bal_a": 324,
+  "init_bal_b": 328,
+  "reserve_floor": 492,
+  "available_slack": 160,
+  "req_a": 100,
+  "req_b": 108,
+  "initial_rate": "RATE-242-BPS",
+  "post_transfer_rate": "RATE-412-BPS",
+  "rumor_rate": "RATE-873-BPS"
+}

@@ -1,0 +1,26 @@
+{
+  "family": "skewledger_v1",
+  "condition": "team-3",
+  "instance": 6,
+  "seats": [
+    "acct_a",
+    "acct_b",
+    "auditor"
+  ],
+  "channel": true,
+  "notices_enabled": true,
+  "leases_enabled": true,
+  "unread_guard_kinds": [],
+  "fenced": false,
+  "task_id": "skew-06-158a2f",
+  "domain": "correspondent-nostro",
+  "init_bal_a": 240,
+  "init_bal_b": 272,
+  "reserve_floor": 336,
+  "available_slack": 176,
+  "req_a": 116,
+  "req_b": 92,
+  "initial_rate": "RATE-234-BPS",
+  "post_transfer_rate": "RATE-617-BPS",
+  "rumor_rate": "RATE-887-BPS"
+}

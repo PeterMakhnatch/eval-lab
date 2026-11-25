@@ -1,0 +1,45 @@
+{
+  "base_spec": {
+    "base_constraints": {
+      "batch_cap": 384,
+      "region": "us-west-2"
+    },
+    "schema": "v1",
+    "service": "config-compaction"
+  },
+  "channel": false,
+  "condition": "indep-3",
+  "domain": "config-compaction",
+  "family": "compactshift_v1",
+  "fenced": false,
+  "handoff_digest": "b26ba4180f907af4cef30bdfbfd5363a",
+  "handoff_id": "ho-08-939c030e0a",
+  "instance": 8,
+  "invariant_token": "inv-08-6c3d9e2749",
+  "notices_enabled": true,
+  "plan_seal": "ps-08-1919eef25bb4",
+  "required_constraints": [
+    "region",
+    "batch_cap",
+    "drain_mode",
+    "invariant_token"
+  ],
+  "seats": [
+    "planner",
+    "builder",
+    "verifier"
+  ],
+  "shift_constraints": [
+    {
+      "key": "drain_mode",
+      "value": "strict-quiesce"
+    },
+    {
+      "key": "invariant_token",
+      "value": "inv-08-6c3d9e2749"
+    }
+  ],
+  "task_id": "cshift-08-528f16",
+  "unread_guard_kinds": [],
+  "verification_digest": "65a8c7589710cf2f0ae8ea6fed38a0a6"
+}

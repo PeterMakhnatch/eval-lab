@@ -1,0 +1,48 @@
+{
+  "base_spec": {
+    "base_constraints": {
+      "batch_cap": 512,
+      "region": "us-east-1"
+    },
+    "schema": "v1",
+    "service": "quorum-reseed"
+  },
+  "channel": true,
+  "condition": "team-3-fenced",
+  "domain": "quorum-reseed",
+  "family": "compactshift_v1",
+  "fenced": true,
+  "handoff_digest": "a9b89ced7768a44f22d6376f7b8a7612",
+  "handoff_id": "ho-07-4c02bede0e",
+  "instance": 7,
+  "invariant_token": "inv-07-5dadc833fa",
+  "notices_enabled": true,
+  "plan_seal": "ps-07-06e19f748893",
+  "required_constraints": [
+    "region",
+    "batch_cap",
+    "quorum_fence",
+    "invariant_token"
+  ],
+  "seats": [
+    "planner",
+    "builder",
+    "verifier"
+  ],
+  "shift_constraints": [
+    {
+      "key": "quorum_fence",
+      "value": "epoch-fenced"
+    },
+    {
+      "key": "invariant_token",
+      "value": "inv-07-5dadc833fa"
+    }
+  ],
+  "task_id": "cshift-07-7ec8f6",
+  "unread_guard_kinds": [
+    "handoff",
+    "commit"
+  ],
+  "verification_digest": "7e154b0ab33b6f3b71af4ff64c89116c"
+}

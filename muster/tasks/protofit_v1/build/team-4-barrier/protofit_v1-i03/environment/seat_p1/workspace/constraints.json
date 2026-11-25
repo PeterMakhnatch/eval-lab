@@ -1,0 +1,75 @@
+{
+  "task_id": "pf-03-fa0a42",
+  "domain": "quic-transport-framing",
+  "seat": "p1",
+  "num_regimes": 16,
+  "num_configs": 256,
+  "parity_rule": "((cfg_id & bit_mask).bit_count() & 1) == (base_parity ^ ((regime & regime_mask).bit_count() & 1))",
+  "digest_formula": "sha256(f'{task_id}:{regime}:{regime_code}:{cfg_id:03d}').hexdigest()[:16]",
+  "lanes": [
+    {
+      "bit": 0,
+      "subsystem": "framing",
+      "name": "crc_width_toggle",
+      "note": "Selects 32-bit vs 64-bit frame trailer checksum envelope."
+    },
+    {
+      "bit": 1,
+      "subsystem": "framing",
+      "name": "header_varint_mode",
+      "note": "Controls compact varint vs aligned fixed-slot header packing."
+    },
+    {
+      "bit": 2,
+      "subsystem": "flow",
+      "name": "credit_window_scale",
+      "note": "Switches coarse vs fine receiver credit grant quantizer."
+    },
+    {
+      "bit": 3,
+      "subsystem": "flow",
+      "name": "backpressure_watermark",
+      "note": "Selects early vs deferred congestion pause threshold."
+    },
+    {
+      "bit": 4,
+      "subsystem": "recovery",
+      "name": "selective_nack_bitmap",
+      "note": "Enables sparse range NACK blocks vs cumulative replay."
+    },
+    {
+      "bit": 5,
+      "subsystem": "recovery",
+      "name": "epoch_fence_strict",
+      "note": "Requires monotonic generation tag on retransmit frames."
+    },
+    {
+      "bit": 6,
+      "subsystem": "security",
+      "name": "key_phase_ratchet",
+      "note": "Couples per-window AEAD nonce rotation to frame counter."
+    },
+    {
+      "bit": 7,
+      "subsystem": "security",
+      "name": "Zero_copy_trailer_mac",
+      "note": "Aligns detached MAC tag boundary with DMA scatter-gather."
+    }
+  ],
+  "local_constraints": [
+    {
+      "constraint_id": "c01",
+      "coupled_subsystems": "framing->flow",
+      "bit_mask": 93,
+      "base_parity": 0,
+      "regime_mask": 3
+    },
+    {
+      "constraint_id": "c02",
+      "coupled_subsystems": "framing->recovery",
+      "bit_mask": 195,
+      "base_parity": 0,
+      "regime_mask": 12
+    }
+  ]
+}

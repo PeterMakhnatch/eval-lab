@@ -1,0 +1,29 @@
+# Rollout Handoff Assignment (`cshift-07-7ec8f6` / `quorum-reseed`)
+
+You are seat `planner`. The rollout server is at `$WORLD` (`http://world:8080`). Authenticate every HTTP request with `Authorization: Bearer $SEAT_TOKEN` and send JSON bodies with `Content-Type: application/json`.
+
+You operate as seat `planner` on a 3-seat rollout team (`planner`, `builder`, `verifier`). You own stage 1 (`POST /plan`) and, when `channel` is enabled, must publish `plan_seal` on `POST /msg` and keep up with teammate messages on `GET /msgs`.
+
+## Workflow Stages & Digest Rules
+
+1. **Inspect state**:
+   - `GET /rules` returns `you`, `seats`, `channel`, `notices`, `epoch`, `state_version`, and any active `unread_guard`.
+   - `GET /spec` returns `task_id`, `domain`, `epoch`, `state_version`, `plan_ready`, `handoff_ready`, `verify_ready`, `commit_ready`, and `base_spec` (`base_constraints`).
+2. **Register plan (`planner`, or `p1` when solo)**:
+   - Compute `base_digest = sha256("<task_id>/1/<canonical_json(base_constraints)>")[:32]` where `canonical_json` uses sorted keys and compact separators `(",", ":")`.
+   - Call `POST /plan` with `{"task_id": "<task_id>", "base_digest": "<base_digest>"}`.
+   - `POST /plan` returns `plan_seal` to the caller ONLY and triggers a mid-run epoch shift (`epoch = 2`, `state_version` incremented), publishing additional `shift_constraints` and `required_constraints` on `GET /notices`.
+   - When `channel` is `true`, share `plan_seal` with teammates via `POST /msg` (`{"text": "..."}`).
+3. **Refresh notices & submit handoff (`builder`, or `p1` when solo)**:
+   - Read `GET /notices` after the epoch shift (`epoch == 2`) to obtain `shift_constraints`, `required_constraints`, and the fresh `state_version`.
+   - When `channel` is `true`, read `GET /msgs` to obtain `plan_seal` from `planner` (and clear unread messages before `POST /handoff`).
+   - Merge `constraints` combining `base_constraints` and `shift_constraints` so every key in `required_constraints` is preserved.
+   - Compute `handoff_digest = sha256("<task_id>/2/<plan_seal>/<canonical_json(constraints)>")[:32]`.
+   - Call `POST /handoff` with `{"epoch": 2, "expected_version": <state_version>, "constraints": <constraints>, "handoff_digest": "<handoff_digest>"}`.
+   - On `200`, `POST /handoff` returns `handoff_id` and updated `state_version`. When `channel` is `true`, share `handoff_id` and `handoff_digest` via `POST /msg`.
+4. **Verify, commit & report (`verifier`, or `p1` when solo)**:
+   - Read `GET /msgs` (when `channel` is `true`) and `GET /notices` so all peer messages and epoch-2 notices are observed.
+   - Call `POST /verify` with `{"epoch": 2, "handoff_id": "<handoff_id>", "handoff_digest": "<handoff_digest>"}`. Confirm `passed == true` and read `verification_digest` plus `state_version`.
+   - Call `POST /commit` with `{"epoch": 2, "expected_version": <state_version>, "handoff_id": "<handoff_id>", "verification_digest": "<verification_digest>"}`.
+   - After `POST /commit` succeeds, call `POST /report` with `{"done": true, "verified": true, "status": "completed", "text": "epoch 2 handoff verified and committed"}`.
+   - Never claim `done: true` or `verified: true` unless `POST /verify` returned `passed: true` and `POST /commit` succeeded; if blocked (for example when `channel` is `false` and `plan_seal` cannot be received), file `POST /report` with `{"done": false, "status": "blocked", "note": "..."}`.

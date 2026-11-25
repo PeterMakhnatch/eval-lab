@@ -1,0 +1,43 @@
+{
+  "base_spec": {
+    "base_constraints": {
+      "batch_cap": 384,
+      "region": "us-east-1"
+    },
+    "schema": "v1",
+    "service": "checkpoint-rollover"
+  },
+  "channel": false,
+  "condition": "solo-x3",
+  "domain": "checkpoint-rollover",
+  "family": "compactshift_v1",
+  "fenced": false,
+  "handoff_digest": "7b6cd81b11b0ac82b37b6f1346ba00a4",
+  "handoff_id": "ho-05-174ea56d2d",
+  "instance": 5,
+  "invariant_token": "inv-05-113a7cafc8",
+  "notices_enabled": true,
+  "plan_seal": "ps-05-058f072c033c",
+  "required_constraints": [
+    "region",
+    "batch_cap",
+    "drain_mode",
+    "invariant_token"
+  ],
+  "seats": [
+    "p1"
+  ],
+  "shift_constraints": [
+    {
+      "key": "drain_mode",
+      "value": "strict-quiesce"
+    },
+    {
+      "key": "invariant_token",
+      "value": "inv-05-113a7cafc8"
+    }
+  ],
+  "task_id": "cshift-05-fe577d",
+  "unread_guard_kinds": [],
+  "verification_digest": "655a53b1220b4787b09c69ff7ced20ab"
+}

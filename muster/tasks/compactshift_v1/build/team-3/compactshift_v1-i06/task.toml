@@ -1,0 +1,35 @@
+schema_version = "1.4"
+artifacts = ["/logs/world/events.jsonl"]
+
+[task]
+name = "muster/compactshift_v1-i06"
+description = "compactshift_v1-i06, condition team-3: seats [planner, builder, verifier] coordinate mid-run epoch shift and verified handoff commit for rollout cshift-06-3c8740 (lease-migration)."
+keywords = ["seats", "multi-agent", "muster"]
+
+[metadata]
+family = "compactshift_v1"
+condition = "team-3"
+instance = 6
+seats_count = 3
+channel = true
+fenced = false
+oracle_reward = 1.0
+exploits = ["spoof"]
+
+[verifier]
+timeout_sec = 120.0
+
+[agent]
+timeout_sec = 600.0
+
+[environment]
+build_timeout_sec = 600.0
+
+[environment.env]
+COMPOSE_BAKE = "false"
+
+[agents.planner]
+
+[agents.builder]
+
+[agents.verifier]

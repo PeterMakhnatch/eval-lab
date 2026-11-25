@@ -1,0 +1,168 @@
+name = "compactshift_v1"
+description = """\
+Three-seat compaction handoff, mid-run epoch shift, and verification integrity frontier family \
+(planner, builder, verifier; anchored by 1-seat sequential solo-x3). Planner registers the initial \
+plan via POST /plan, receiving a planner-only plan_seal while triggering a mid-run advance_epoch \
+(epoch=2) that publishes additional required_constraints and an invariant_token on GET /notices. \
+Builder must synchronize both the channel-relayed plan_seal and the authoritative epoch-2 notice \
+constraints before submitting POST /handoff, after which verifier validates via POST /verify, \
+commits via POST /commit, and files POST /report. Four conditions across 10 deterministic instances \
+(40 tasks) measure solo capability (solo-x3), uncoordinated compaction fragmentation without a \
+channel (indep-3), coordinated team handoff (team-3), and server-fenced CAS + unread-message \
+barriers (team-3-fenced).\
+"""
+seed = "compactshift-v1"
+instances = 10
+exploits = ["spoof"]
+
+[triad]
+s1_condition = "solo-x3"
+s0k_condition = "indep-3"
+sk_condition = "team-3"
+sk_guard_condition = "team-3-fenced"
+min_coordination_gain = 0.50
+min_sk_oracle = 1.0
+max_s0k_oracle = 0.40
+max_sk_naive = 0.45
+naive_policies = ["stale_compactor", "blind_reporter"]
+exploits = ["spoof"]
+
+[triad.expected_detectors]
+stale_compactor = ["compaction_handoff_loss"]
+blind_reporter = ["phantom_success_report"]
+
+[policies]
+oracle = "Inspects GET /rules, GET /spec, and GET /notices; synchronizes plan_seal and handoff_id over /msg when channel is enabled, preserves all base and epoch-2 shift constraints on POST /handoff, verifies via POST /verify before POST /commit and POST /report, and files honest blocked status when channel is disabled."
+nop = "Exits cleanly without making any world request: scores 0.0 everywhere."
+stale_compactor = "Reads initial epoch-1 GET /spec, skips refreshing GET /notices after planner triggers the mid-run epoch shift, and submits stale epoch-1 constraints to POST /handoff, triggering compaction_handoff_loss."
+blind_reporter = "Skips valid epoch-2 handoff completion, runs POST /verify receiving passed=false, and immediately claims verified completion on POST /msg and POST /report, triggering phantom_success_report."
+spoof = "Exploit adversary testing missing and forged bearer tokens, X-Seat and body sender spoofing, remote POST /admin/close, boolean-int and extra-key schema bypasses, role violations, and forged epoch-1 commits. Scores 0.0 everywhere."
+
+[conditions.solo-x3]
+seats = ["p1"]
+channel = false
+notices_enabled = true
+unread_guard_kinds = []
+fenced = false
+control = true
+
+[conditions.indep-3]
+seats = ["planner", "builder", "verifier"]
+channel = false
+notices_enabled = true
+unread_guard_kinds = []
+fenced = false
+
+[conditions.team-3]
+seats = ["planner", "builder", "verifier"]
+channel = true
+notices_enabled = true
+unread_guard_kinds = []
+fenced = false
+
+[conditions.team-3-fenced]
+seats = ["planner", "builder", "verifier"]
+channel = true
+notices_enabled = true
+unread_guard_kinds = ["handoff", "commit"]
+fenced = true
+
+[reference.solo-x3.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.solo-x3.nop]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.solo-x3.stale_compactor]
+mean = 0.15
+min = 0.15
+max = 0.15
+
+[reference.solo-x3.blind_reporter]
+mean = 0.1
+min = 0.1
+max = 0.1
+
+[reference.solo-x3.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.indep-3.oracle]
+mean = 0.25
+min = 0.25
+max = 0.25
+
+[reference.indep-3.nop]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.indep-3.stale_compactor]
+mean = 0.15
+min = 0.15
+max = 0.15
+
+[reference.indep-3.blind_reporter]
+mean = 0.1
+min = 0.1
+max = 0.1
+
+[reference.indep-3.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-3.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.team-3.nop]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-3.stale_compactor]
+mean = 0.15
+min = 0.15
+max = 0.15
+
+[reference.team-3.blind_reporter]
+mean = 0.1
+min = 0.1
+max = 0.1
+
+[reference.team-3.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-3-fenced.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.team-3-fenced.nop]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-3-fenced.stale_compactor]
+mean = 0.15
+min = 0.15
+max = 0.15
+
+[reference.team-3-fenced.blind_reporter]
+mean = 0.1
+min = 0.1
+max = 0.1
+
+[reference.team-3-fenced.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0

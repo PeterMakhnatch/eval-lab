@@ -1,0 +1,45 @@
+{
+  "base_spec": {
+    "base_constraints": {
+      "batch_cap": 320,
+      "region": "ap-south-1"
+    },
+    "schema": "v1",
+    "service": "lease-migration"
+  },
+  "channel": false,
+  "condition": "indep-3",
+  "domain": "lease-migration",
+  "family": "compactshift_v1",
+  "fenced": false,
+  "handoff_digest": "674794bdbdc5f51748d85479d92e1f77",
+  "handoff_id": "ho-06-4df09ccf07",
+  "instance": 6,
+  "invariant_token": "inv-06-473d9a6e35",
+  "notices_enabled": true,
+  "plan_seal": "ps-06-d1048625b3ae",
+  "required_constraints": [
+    "region",
+    "batch_cap",
+    "drain_mode",
+    "invariant_token"
+  ],
+  "seats": [
+    "planner",
+    "builder",
+    "verifier"
+  ],
+  "shift_constraints": [
+    {
+      "key": "drain_mode",
+      "value": "strict-quiesce"
+    },
+    {
+      "key": "invariant_token",
+      "value": "inv-06-473d9a6e35"
+    }
+  ],
+  "task_id": "cshift-06-3c8740",
+  "unread_guard_kinds": [],
+  "verification_digest": "e15869484480e4ca9b5cf998aa2d9836"
+}

@@ -1,0 +1,26 @@
+{
+  "family": "skewledger_v1",
+  "condition": "team-3",
+  "instance": 10,
+  "seats": [
+    "acct_a",
+    "acct_b",
+    "auditor"
+  ],
+  "channel": true,
+  "notices_enabled": true,
+  "leases_enabled": true,
+  "unread_guard_kinds": [],
+  "fenced": false,
+  "task_id": "skew-10-198dd6",
+  "domain": "custody-collateral",
+  "init_bal_a": 312,
+  "init_bal_b": 292,
+  "reserve_floor": 452,
+  "available_slack": 152,
+  "req_a": 100,
+  "req_b": 120,
+  "initial_rate": "RATE-293-BPS",
+  "post_transfer_rate": "RATE-547-BPS",
+  "rumor_rate": "RATE-797-BPS"
+}

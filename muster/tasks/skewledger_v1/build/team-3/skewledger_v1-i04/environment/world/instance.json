@@ -1,0 +1,26 @@
+{
+  "family": "skewledger_v1",
+  "condition": "team-3",
+  "instance": 4,
+  "seats": [
+    "acct_a",
+    "acct_b",
+    "auditor"
+  ],
+  "channel": true,
+  "notices_enabled": true,
+  "leases_enabled": true,
+  "unread_guard_kinds": [],
+  "fenced": false,
+  "task_id": "skew-04-69eda4",
+  "domain": "escrow-disbursement",
+  "init_bal_a": 336,
+  "init_bal_b": 300,
+  "reserve_floor": 460,
+  "available_slack": 176,
+  "req_a": 104,
+  "req_b": 112,
+  "initial_rate": "RATE-293-BPS",
+  "post_transfer_rate": "RATE-413-BPS",
+  "rumor_rate": "RATE-789-BPS"
+}

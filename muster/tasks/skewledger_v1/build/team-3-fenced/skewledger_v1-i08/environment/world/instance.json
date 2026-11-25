@@ -1,0 +1,29 @@
+{
+  "family": "skewledger_v1",
+  "condition": "team-3-fenced",
+  "instance": 8,
+  "seats": [
+    "acct_a",
+    "acct_b",
+    "auditor"
+  ],
+  "channel": true,
+  "notices_enabled": true,
+  "leases_enabled": true,
+  "unread_guard_kinds": [
+    "transfer",
+    "commit"
+  ],
+  "fenced": true,
+  "task_id": "skew-08-f1459b",
+  "domain": "clearinghouse-margin",
+  "init_bal_a": 256,
+  "init_bal_b": 312,
+  "reserve_floor": 400,
+  "available_slack": 168,
+  "req_a": 96,
+  "req_b": 112,
+  "initial_rate": "RATE-245-BPS",
+  "post_transfer_rate": "RATE-579-BPS",
+  "rumor_rate": "RATE-727-BPS"
+}

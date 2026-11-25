@@ -1,0 +1,26 @@
+{
+  "family": "skewledger_v1",
+  "condition": "team-3",
+  "instance": 1,
+  "seats": [
+    "acct_a",
+    "acct_b",
+    "auditor"
+  ],
+  "channel": true,
+  "notices_enabled": true,
+  "leases_enabled": true,
+  "unread_guard_kinds": [],
+  "fenced": false,
+  "task_id": "skew-01-309c17",
+  "domain": "prime-broker-sweep",
+  "init_bal_a": 288,
+  "init_bal_b": 268,
+  "reserve_floor": 412,
+  "available_slack": 144,
+  "req_a": 100,
+  "req_b": 120,
+  "initial_rate": "RATE-321-BPS",
+  "post_transfer_rate": "RATE-547-BPS",
+  "rumor_rate": "RATE-921-BPS"
+}

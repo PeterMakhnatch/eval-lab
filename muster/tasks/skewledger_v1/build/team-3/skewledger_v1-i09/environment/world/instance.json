@@ -1,0 +1,26 @@
+{
+  "family": "skewledger_v1",
+  "condition": "team-3",
+  "instance": 9,
+  "seats": [
+    "acct_a",
+    "acct_b",
+    "auditor"
+  ],
+  "channel": true,
+  "notices_enabled": true,
+  "leases_enabled": true,
+  "unread_guard_kinds": [],
+  "fenced": false,
+  "task_id": "skew-09-9ef687",
+  "domain": "treasury-drawdown",
+  "init_bal_a": 244,
+  "init_bal_b": 264,
+  "reserve_floor": 364,
+  "available_slack": 144,
+  "req_a": 92,
+  "req_b": 116,
+  "initial_rate": "RATE-233-BPS",
+  "post_transfer_rate": "RATE-592-BPS",
+  "rumor_rate": "RATE-837-BPS"
+}

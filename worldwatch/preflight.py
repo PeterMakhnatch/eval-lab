@@ -238,6 +238,33 @@ def _check_task_toml(
     return len(seat_names), bake_str
 
 
+def _check_shared_seat_networks(
+    seat_svcs: set[str],
+    svc_nets: Mapping[str, set[str]],
+    label: str,
+    findings: list[dict[str, Any]],
+) -> None:
+    if len(seat_svcs) < 2:
+        return
+    net_to_seats: dict[str, list[str]] = {}
+    no_net_seats: list[str] = []
+    for sname in sorted(seat_svcs):
+        snets = svc_nets.get(sname, set())
+        if not snets:
+            no_net_seats.append(sname)
+        for net_nm in sorted(snets):
+            net_to_seats.setdefault(net_nm, []).append(sname)
+    for net_nm, members in sorted(net_to_seats.items()):
+        if len(members) >= 2:
+            findings.append(
+                make_finding("compose-shared-seat-network", f"network {net_nm!r} shared by seats {members}", label)
+            )
+    if len(no_net_seats) >= 2:
+        findings.append(
+            make_finding("compose-shared-seat-network", f"implicit default network shared by seats {no_net_seats}", label)
+        )
+
+
 def _check_compose(
     task_dir: Path,
     label: str,
@@ -265,6 +292,7 @@ def _check_compose(
         services, svc_nets, net_internal, has_health = inspect_compose_lines(lines, label, findings)
         seat_svcs = {s for s in services if s not in ("main", "world")}
         max_compose_seats = max(max_compose_seats, len(seat_svcs))
+        _check_shared_seat_networks(seat_svcs, svc_nets, label, findings)
         if ("main" in services or "world" in services or seat_svcs) and not has_health:
             findings.append(make_finding("compose-missing-healthcheck", "world service missing /health healthcheck", label))
         non_main_nets = {n for n in net_internal if n != "main"}

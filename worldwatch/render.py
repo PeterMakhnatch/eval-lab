@@ -4,7 +4,14 @@ import json
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from worldwatch.model import MAX_REPORT_JSON_NODES, sanitize_surrogates, validate_json_tree
+from worldwatch.model import (
+    MAX_REPORT_JSON_NODES,
+    as_list,
+    as_map,
+    finite_float,
+    sanitize_surrogates,
+    validate_json_tree,
+)
 
 
 def pct(value: float | None, digits: int = 1) -> str:
@@ -212,6 +219,120 @@ def render_certify_baselines(report: Mapping[str, Any]) -> str:
     return sanitize_surrogates("\n".join(lines))
 
 
+def _fmt_signed(value: Any, digits: int = 4) -> str:
+    val = finite_float(value)
+    return "n/a" if val is None else f"{val:+.{digits}f}"
+
+
+def _fmt_usd(value: Any) -> str:
+    val = finite_float(value)
+    return "-" if val is None else f"${val:.4f}"
+
+
+def _render_compare_triad(triad: Mapping[str, Any]) -> list[str]:
+    pace = as_map(triad.get("pace"))
+    out = [
+        "",
+        f"triad: headcount={_fmt_signed(triad.get('headcount_delta'))} "
+        f"coordination={_fmt_signed(triad.get('coordination_delta'))} "
+        f"guard={_fmt_signed(triad.get('guard_delta'))} "
+        f"efficiency={pct(finite_float(triad.get('coordination_efficiency')))}",
+    ]
+    r_rows: list[list[Any]] = []
+    for rkey in ("S1", "S0k", "Sk", "Sk_guard"):
+        ent = triad.get(rkey)
+        if not isinstance(ent, Mapping):
+            continue
+        r_rows.append([
+            rkey,
+            ent.get("arm", "-"),
+            ent.get("measured", 0),
+            num(finite_float(ent.get("mean_reward"))),
+            pct(finite_float(ent.get("binary_pass_rate"))),
+            _fmt_usd(ent.get("mean_cost_usd")),
+            _fmt_usd(ent.get("cost_per_success_usd")),
+            num(finite_float(ent.get("tokens_per_success")), 1),
+        ])
+    if r_rows:
+        out.append(
+            table(
+                ["role", "arm", "measured", "mean", "pass_rate", "cost_usd", "usd_per_succ", "tok_per_succ"],
+                r_rows,
+                right=(2, 3, 4, 5, 6, 7),
+            )
+        )
+    out.append(
+        f"pace_ratios: sk/s1_cost={num(finite_float(pace.get('sk_vs_s1_cost_ratio')), 3)} "
+        f"sk/s0k_cost={num(finite_float(pace.get('sk_vs_s0k_cost_ratio')), 3)} "
+        f"sk/s1_tok={num(finite_float(pace.get('sk_vs_s1_token_ratio')), 3)} "
+        f"sk/s0k_tok={num(finite_float(pace.get('sk_vs_s0k_token_ratio')), 3)}"
+    )
+    return out
+
+
+def render_certify_suite(report: Mapping[str, Any]) -> str:
+    if "families" in report:
+        verdict = str(report.get("status", "failed")).upper()
+        lines = [
+            f"certify-suite ({report['root_dir']}): {verdict} "
+            f"({report.get('families_passed', 0)}/{report.get('families_checked', 0)} passed)",
+            "",
+        ]
+        f_rows = [
+            [
+                f.get("family", "-"),
+                str(f.get("status", "-")).upper(),
+                as_map(f.get("replay")).get("episodes_replayed", 0),
+                num(finite_float(as_map(f.get("triad")).get("s0k_oracle"))),
+                num(finite_float(as_map(f.get("triad")).get("sk_oracle"))),
+                _fmt_signed(as_map(f.get("triad")).get("coordination_gain")),
+                len(as_list(f.get("findings"))),
+            ]
+            for f in as_list(report.get("families"))
+            if isinstance(f, Mapping)
+        ]
+        if f_rows:
+            lines.append(table(["family", "status", "episodes", "s0k", "sk", "coord_gain", "findings"], f_rows, right=(2, 3, 4, 5, 6)))
+        return sanitize_surrogates("\n".join(lines))
+    lines = [
+        f"certify-suite {report.get('family', '-')} ({report.get('family_dir', '-')}): {str(report.get('status', '-')).upper()}",
+    ]
+    if report.get("error"):
+        lines.append(f"error: {report['error']}")
+        return sanitize_surrogates("\n".join(lines))
+    triad = as_map(report.get("triad"))
+    rep_meta = as_map(report.get("replay"))
+    pf_meta = as_map(report.get("preflight"))
+    lines.append(
+        f"triad: S1({triad.get('s1_condition')})={num(finite_float(triad.get('s1_oracle')))} "
+        f"S0k({triad.get('s0k_condition')})={num(finite_float(triad.get('s0k_oracle')))} "
+        f"Sk({triad.get('sk_condition')})={num(finite_float(triad.get('sk_oracle')))} "
+        f"gain={_fmt_signed(triad.get('coordination_gain'))} (min={num(finite_float(triad.get('min_coordination_gain')))})"
+    )
+    lines.append(
+        f"replay: episodes={rep_meta.get('episodes_replayed', 0)} chained={rep_meta.get('chained_episodes', 0)} "
+        f"engine={rep_meta.get('engine', '-')} oracle_fp={len(as_list(rep_meta.get('sk_oracle_false_positives')))} "
+        f"preflight={'PASS' if pf_meta.get('passed') else 'FAIL'} ({pf_meta.get('tasks_checked', 0)} tasks)"
+    )
+    matrix = as_map(report.get("matrix"))
+    m_rows: list[list[Any]] = []
+    for cond, pol_map in sorted(matrix.items()):
+        for pol, info in sorted(as_map(pol_map).items()):
+            inf_m = as_map(info)
+            m_rows.append([
+                cond, pol, inf_m.get("instances", 0), num(finite_float(inf_m.get("mean"))),
+                num(finite_float(inf_m.get("min"))), num(finite_float(inf_m.get("max"))),
+                "ok" if inf_m.get("chain_ok") else "FAIL", "ok" if inf_m.get("roundtrip_ok") else "FAIL",
+            ])
+    if m_rows:
+        lines.extend(["", table(["condition", "policy", "inst", "mean", "min", "max", "chain", "roundtrip"], m_rows, right=(2, 3, 4, 5))])
+    findings = [f for f in as_list(report.get("findings")) if isinstance(f, Mapping)]
+    if findings:
+        f_rows = [[f.get("severity", "error"), f.get("code", "-"), f.get("message", "")] for f in findings[:100]]
+        lines.extend(["", table(["severity", "code", "message"], f_rows)])
+    return sanitize_surrogates("\n".join(lines))
+
+
 def render_compare(report: Mapping[str, Any]) -> str:
     verdict = "PASS" if report.get("passed") else "FAIL"
     lines = [
@@ -256,6 +377,9 @@ def render_compare(report: Mapping[str, Any]) -> str:
         lines.extend(
             ["", table(["arm_a", "arm_b", "mode", "n", "delta", "sf_p", "mc_p", "fisher_p", "attr"], p_rows, right=(3, 4, 5, 6, 7))]
         )
+    triad_map = report.get("triad")
+    if isinstance(triad_map, Mapping) and triad_map:
+        lines.extend(_render_compare_triad(triad_map))
     return sanitize_surrogates("\n".join(lines))
 
 

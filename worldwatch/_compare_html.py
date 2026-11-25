@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import hashlib
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -9,14 +11,6 @@ from worldwatch.dashboard import esc, safe_json_for_html
 from worldwatch.model import DETECTOR_NAMES, as_list, as_map, finite_float
 
 _MAX_HTML_PAIRS = 2_016
-_MAX_DETECTOR_DISPLAY = len(DETECTOR_NAMES)
-
-_CSP = (
-    "default-src 'none'; "
-    "style-src 'unsafe-inline'; "
-    "script-src 'unsafe-inline'; "
-    "img-src data:;"
-)
 
 _CSS = """
 :root {
@@ -121,6 +115,16 @@ _JS = """
 })();
 """.strip()
 
+_JS_SHA256 = base64.b64encode(hashlib.sha256(_JS.encode("utf-8")).digest()).decode("ascii")
+_CSP = (
+    "default-src 'none'; "
+    "base-uri 'none'; "
+    "form-action 'none'; "
+    "style-src 'unsafe-inline'; "
+    f"script-src 'sha256-{_JS_SHA256}'; "
+    "img-src data:;"
+)
+
 
 def _fmt_num(value: Any, digits: int = 4, *, signed: bool = False) -> str:
     num = finite_float(value)
@@ -175,9 +179,52 @@ def _render_kpis(report: Mapping[str, Any]) -> str:
     return '<div class="kpis">' + "".join(cards) + "</div>"
 
 
+def _render_triad_section(triad_raw: Any) -> str:
+    if not isinstance(triad_raw, Mapping) or not triad_raw:
+        return ""
+    pace = as_map(triad_raw.get("pace"))
+    kpi_items = (
+        ("Headcount (S0k - S1)", esc(_fmt_num(triad_raw.get("headcount_delta"), 4, signed=True))),
+        ("Coord Gain (Sk - S0k)", esc(_fmt_num(triad_raw.get("coordination_delta"), 4, signed=True))),
+        ("Guard (Sk_g - Sk)", esc(_fmt_num(triad_raw.get("guard_delta"), 4, signed=True))),
+        ("Coord Efficiency", esc(_fmt_pct(triad_raw.get("coordination_efficiency")))),
+        ("Sk/S1 $/Success", esc(f"{_fmt_num(pace.get('sk_vs_s1_cost_ratio'), 3)}x" if finite_float(pace.get("sk_vs_s1_cost_ratio")) is not None else "n/a")),
+        ("Sk/S0k $/Success", esc(f"{_fmt_num(pace.get('sk_vs_s0k_cost_ratio'), 3)}x" if finite_float(pace.get("sk_vs_s0k_cost_ratio")) is not None else "n/a")),
+    )
+    cards_html = '<div class="kpis">' + "".join(
+        f'<div class="card"><div class="label">{esc(lbl)}</div><div class="val">{val}</div></div>'
+        for lbl, val in kpi_items
+    ) + "</div>"
+    rows: list[str] = []
+    for role_key in ("S1", "S0k", "Sk", "Sk_guard"):
+        entry = triad_raw.get(role_key)
+        if not isinstance(entry, Mapping):
+            continue
+        rows.append(
+            "<tr>"
+            f"<td><strong>{esc(role_key)}</strong></td>"
+            f"<td>{esc(entry.get('arm'))}</td>"
+            f'<td class="num">{esc(entry.get("measured", 0))}</td>'
+            f'<td class="num">{esc(_fmt_num(entry.get("mean_reward")))}</td>'
+            f'<td class="num">{esc(_fmt_pct(entry.get("binary_pass_rate")))}</td>'
+            f'<td class="num">{esc(_fmt_usd(entry.get("mean_cost_usd")))}</td>'
+            f'<td class="num">{esc(_fmt_usd(entry.get("cost_per_success_usd")))}</td>'
+            f'<td class="num">{esc(_fmt_num(entry.get("tokens_per_success"), 1))}</td>'
+            "</tr>"
+        )
+    tbl = (
+        "<table><thead><tr><th>Role</th><th>Arm</th>"
+        '<th class="num">Measured</th><th class="num">Mean Reward</th><th class="num">Pass %</th>'
+        '<th class="num">Mean Cost</th><th class="num">$/Success</th><th class="num">Tokens/Success</th>'
+        f"</tr></thead><tbody>{''.join(rows)}</tbody></table>"
+    )
+    return f"<h2>PACE Triad Decomposition</h2>\n{cards_html}\n{tbl}\n"
+
+
 def _render_arms_table(arms: list[Mapping[str, Any]]) -> str:
     if not arms:
         return '<div class="card">No arms evaluated.</div>'
+    det_cap = len(DETECTOR_NAMES)
     rows: list[str] = []
     for arm in arms[:256]:
         det_rates = as_map(arm.get("detector_rates"))
@@ -186,7 +233,7 @@ def _render_arms_table(arms: list[Mapping[str, Any]]) -> str:
             k
             for k in sorted(det_rates.keys())
             if (finite_float(det_counts.get(k) if k in det_counts else det_rates.get(k)) or 0.0) > 0.0
-        ][:_MAX_DETECTOR_DISPLAY]
+        ][:det_cap]
         active_dets = [f"{esc(k)}:{esc(_fmt_pct(det_rates.get(k)))}" for k in triggered_keys]
         det_txt = ", ".join(active_dets) if active_dets else "-"
         flt = esc(f"{arm.get('arm')} {' '.join(triggered_keys)}".strip())
@@ -215,6 +262,7 @@ def _render_arms_table(arms: list[Mapping[str, Any]]) -> str:
 def _render_pairs_table(pairs: list[Mapping[str, Any]]) -> str:
     if not pairs:
         return '<div class="card">No pairwise contrasts computed.</div>'
+    det_cap = len(DETECTOR_NAMES)
     ordered = (
         sorted(
             pairs,
@@ -241,7 +289,7 @@ def _render_pairs_table(pairs: list[Mapping[str, Any]]) -> str:
         nz_dets = [k for k in sorted(det_deltas.keys()) if (finite_float(det_deltas.get(k)) or 0.0) != 0.0]
         det_txt = ", ".join(
             f"{esc(k)}:{esc(_fmt_num(det_deltas.get(k), 3, signed=True))}"
-            for k in sorted(det_deltas.keys())[:_MAX_DETECTOR_DISPLAY]
+            for k in sorted(det_deltas.keys())[:det_cap]
         ) or "-"
         pair_label = f"{esc(pair.get('arm_a'))} vs {esc(pair.get('arm_b'))}"
         flt = esc(f"{pair.get('arm_a')} {pair.get('arm_b')} {' '.join(nz_dets)}".strip())
@@ -274,6 +322,7 @@ def render_compare_html(report: Mapping[str, Any]) -> str:
     arms = [a for a in as_list(report.get("arms")) if isinstance(a, Mapping)]
     pairs = [p for p in as_list(report.get("pairs")) if isinstance(p, Mapping)]
     arm_names = ", ".join(esc(a.get("arm")) for a in arms[:64])
+    triad_html = _render_triad_section(report.get("triad"))
     return (
         "<!DOCTYPE html>\n"
         '<html lang="en">\n<head>\n'
@@ -288,6 +337,7 @@ def render_compare_html(report: Mapping[str, Any]) -> str:
         f'<div class="meta">Seed: {esc(report.get("seed", 0))} | Stall: {esc(report.get("stall_seconds"))}s</div>'
         "</header>\n"
         f"{_render_kpis(report)}\n"
+        f"{triad_html}"
         '<div class="toolbar"><input id="ww-compare-filter" type="search" placeholder="Filter arms, contrasts, or detectors..."></div>\n'
         f"<h2>Arms ({len(arms)})</h2>\n"
         f"{_render_arms_table(arms)}\n"

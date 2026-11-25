@@ -36,23 +36,30 @@ _SLEEP_RE = re.compile(r"\bsleep\s+([0-9]+(?:\.[0-9]+)?)\b")
 _TEXT_REQ_RE = re.compile(
     r"/(verify_dependency|report_unknown|flag_misreport|submit_choice|ask_creditor|"
     r"report_value|task_state|team_state|round_state|audit_log|final_probe|commit_round|"
-    r"msgs|new|dms|notices|msg|open|rules|mine|status|state|claim|claims|execute|"
-    r"verify|take|pledge|pledges|answer|stage|prereq|prepare|leases|work|release|drop|"
-    r"game|ledger)\b"
+    r"msgs|new|dms|dm|notices|inbox|msg|ack|barrier|epoch|contract|commit|probe|report|"
+    r"rates|reveals|handoff|shift|finalize|check|open|rules|mine|status|state|claim|claims|"
+    r"execute|verify|take|pledge|pledges|answer|stage|prereq|prepare|leases|work|release|"
+    r"drop|game|ledger)\b"
 )
 
 _OLAM_READ_KINDS = frozenset({
-    "msgs", "new", "dms", "notices", "claims",
+    "msgs", "new", "dms", "notices", "inbox", "claims", "barrier", "epoch",
+    "contract", "rates", "reveals", "handoff", "probe", "report", "check",
     "stage", "prereq", "leases", "state", "status",
     "task_state", "team_state", "round_state", "audit_log",
     "final_probe", "mine", "game", "pledges", "ledger",
 })
-_OLAM_MSG_KINDS = frozenset({"msg", "notice"})
+_OLAM_MSG_KINDS = frozenset({"msg", "notice", "dm", "ack"})
 _OLAM_ACT_KINDS = frozenset({
     "open", "probe", "scan", "execute", "claim", "take", "pledge", "drop",
     "release", "contribute", "answer", "report_value", "submit_choice", "submit_answer", "finalize",
     "stage", "prepare", "work", "verify_dependency", "report_unknown", "verify",
-    "flag_misreport", "commit_round",
+    "flag_misreport", "commit_round", "commit", "barrier", "epoch", "ledger",
+    "contract", "report", "handoff", "shift", "check",
+})
+_OLAM_META_KINDS = frozenset({
+    "rules", "health", "root", "admin.close", "script.seed", "script.round",
+    "ask_creditor", "private_belief",
 })
 _BESPOKE_SKIP_KINDS = frozenset({"config", "register", "subagent", "close"})
 _BESPOKE_READ_KINDS = frozenset({"inbox", "read"})
@@ -185,12 +192,32 @@ def _olam_target_label(row: Mapping[str, Any]) -> str | None:
     shared = shared_action_target(row)
     if shared is not None:
         return sanitize_surrogates(shared)
-    for container in (as_map(row.get("request")), as_map(row.get("response"))):
-        for key in ("room", "target", "resource", "item", "commitment_id", "slot", "stage"):
+    req = as_map(row.get("request")) or as_map(row.get("req"))
+    resp = as_map(row.get("response")) or as_map(row.get("res"))
+    for container in (req, resp):
+        for key in ("room", "target", "resource", "item", "commitment_id", "slot", "stage", "key", "shard", "phase", "epoch"):
             val = container.get(key)
             if isinstance(val, (str, int)) and not isinstance(val, bool):
                 return sanitize_surrogates(f"{key}={val}")
     return None
+
+
+def _classify_olam_role(method: str, kind: str, ok_val: bool) -> str:
+    if not ok_val or not kind:
+        return "other"
+    if method == "GET" and kind in _OLAM_READ_KINDS:
+        return "read"
+    if method == "POST" and kind in _OLAM_MSG_KINDS:
+        return "msg"
+    if method == "POST" and kind in _OLAM_ACT_KINDS:
+        return "act"
+    if kind in _OLAM_META_KINDS:
+        return "other"
+    if method == "GET":
+        return "read"
+    if method == "POST":
+        return "act"
+    return "other"
 
 
 def _extract_seat_events(
@@ -222,17 +249,14 @@ def _extract_seat_events(
         return out
     for idx, row in enumerate(events, start=1):
         kind = str(row.get("kind") or "")
-        if kind == "admin.close" and row.get("ok"):
+        ok_val = row["ok"] is True if "ok" in row else (strict_int(row.get("status")) == 200)
+        if kind == "admin.close" and ok_val:
             break
         if kind in ("script.seed", "script.round") or row.get("seat") != seat:
             continue
         seq = strict_int(row.get("seq")) or idx
         method = str(row.get("method") or "")
-        ok_val = row.get("ok") is True
-        role = (
-            "read" if (method == "GET" and kind in _OLAM_READ_KINDS and ok_val)
-            else ("msg" if (method == "POST" and kind in _OLAM_MSG_KINDS and ok_val) else ("act" if (method == "POST" and kind in _OLAM_ACT_KINDS and ok_val) else "other"))
-        )
+        role = _classify_olam_role(method, kind, ok_val)
         out.append({
             "seq": seq, "kind": sanitize_surrogates(kind), "method": sanitize_surrogates(method),
             "ok": ok_val, "t": _event_epoch(row), "role": role, "target": _olam_target_label(row),

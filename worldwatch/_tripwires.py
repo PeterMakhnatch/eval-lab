@@ -22,47 +22,18 @@ from worldwatch.model import (
 )
 
 _CHANNEL_KINDS = frozenset({
-    "msg",
-    "msgs",
-    "new",
-    "dms",
-    "notice",
-    "notices",
-    "pledge",
-    "pledges",
-    "claim",
-    "claims",
-    "release",
-    "rules",
-    "status",
-    "health",
-    "admin.close",
-    "ask_creditor",
-    "private_belief",
-    "game",
-    "task_state",
-    "team_state",
-    "round_state",
-    "audit_log",
-    "final_probe",
-    "script.seed",
-    "script.round",
+    "msg", "msgs", "new", "dm", "dms", "notice", "notices", "inbox", "ack",
+    "barrier", "epoch", "ledger", "commit", "contract", "probe", "report",
+    "pledge", "pledges", "claim", "claims", "release", "rules", "status",
+    "health", "admin.close", "ask_creditor", "private_belief", "game",
+    "task_state", "team_state", "round_state", "audit_log", "final_probe",
+    "script.seed", "script.round",
 })
 
 _SHARED_TARGET_KEYS = (
-    "box",
-    "record",
-    "bus",
-    "crew",
-    "bug_id",
-    "target_id",
-    "item_id",
-    "task_id",
-    "file",
-    "path",
-    "prefix",
-    "slot",
-    "zone",
+    "box", "record", "bus", "crew", "bug_id", "target_id", "item_id",
+    "task_id", "file", "path", "prefix", "slot", "zone", "shard",
+    "partition", "key", "probe_id", "contract_id", "barrier_id",
 )
 
 _SINGLE_ANSWER_KINDS = frozenset({"answer", "submit_answer", "finalize"})
@@ -216,7 +187,8 @@ def shared_action_target(row: Mapping[str, Any]) -> str | None:
         return None
     if kind in _SINGLE_ANSWER_KINDS:
         return f"{kind}:team_singleton"
-    req, resp = as_map(row.get("request")), as_map(row.get("response"))
+    req = as_map(row.get("request")) or as_map(row.get("req"))
+    resp = as_map(row.get("response")) or as_map(row.get("res"))
     rnd = strict_int(req.get("round")) if kind == "verify" else None
     if rnd is None and kind == "verify":
         rnd = strict_int(resp.get("round"))
@@ -236,8 +208,8 @@ def detect_dup_unseen_events(
 ) -> tuple[int, list[str]]:
     if ecosystem == "bespoke":
         return _detect_bespoke_dup_unseen(events, facing_map)
-    seen_msgs: dict[str, set[int]] = {}
-    posts_by_seat: dict[str, list[tuple[int, int]]] = {}
+    seen_msgs: dict[str, set[tuple[str, int]]] = {}
+    posts_by_seat: dict[str, list[tuple[int, tuple[str, int]]]] = {}
     priors_by_target: dict[str, list[tuple[str, int]]] = {}
     dup_seats: list[str] = []
     hits = 0
@@ -251,19 +223,20 @@ def detect_dup_unseen_events(
         seq = raw_seq if raw_seq is not None else idx
         kind = str(row.get("kind") or "")
         method = str(row.get("method") or "")
-        resp = as_map(row.get("response"))
-        if method == "POST" and kind in ("msg", "notice", "claim"):
+        resp = as_map(row.get("response")) or as_map(row.get("res"))
+        if method == "POST" and kind in ("msg", "notice", "claim", "dm"):
             mid = strict_int(resp.get("id"))
             if mid is not None:
-                posts_by_seat.setdefault(seat, []).append((seq, mid))
+                ns = "dm" if kind == "dm" else ("notice" if kind == "notice" else ("claim" if kind == "claim" else "msg"))
+                posts_by_seat.setdefault(seat, []).append((seq, (ns, mid)))
             continue
-        if method == "GET" and kind in ("msgs", "new", "dms", "notices", "claims"):
+        if method == "GET" and kind in ("msgs", "new", "dms", "notices", "claims", "inbox"):
             bucket = seen_msgs.setdefault(seat, set())
-            for list_key in ("messages", "notices", "claims", "dms"):
+            for list_key, ns in (("messages", "msg"), ("notices", "notice"), ("claims", "claim"), ("dms", "dm")):
                 for msg in as_list(resp.get(list_key)):
                     mid = strict_int(as_map(msg).get("id"))
                     if mid is not None:
-                        bucket.add(mid)
+                        bucket.add((ns, mid))
             continue
         if method != "POST":
             continue

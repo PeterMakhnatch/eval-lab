@@ -60,6 +60,14 @@ DETECTOR_NAMES = (
     "batch_blind_act",
     "empty_room_open",
     "slow_report",
+    "compaction_handoff_loss",
+    "write_skew_stale_commit",
+    "phantom_success_report",
+    "interface_mismatch_commit",
+    "barrier_premature_commit",
+    "unverified_rumor_adoption",
+    "private_belief_divergence",
+    "token_budget_hoarding",
 )
 
 NO_MODEL_AGENTS = frozenset({

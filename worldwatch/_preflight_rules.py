@@ -347,6 +347,20 @@ def inspect_compose_lines(
     return services, svc_nets, net_internal, has_health
 
 
+def _collect_seat_dirs(env_dir: Path) -> list[Path]:
+    if not os.path.isdir(env_dir) or os.path.islink(env_dir):
+        return []
+    try:
+        entries = sorted(os.scandir(env_dir), key=lambda e: e.name)
+    except OSError:
+        return []
+    return [
+        Path(e.path)
+        for e in entries[:512]
+        if e.name.startswith("seat") and not e.is_symlink() and e.is_dir(follow_symlinks=False)
+    ]
+
+
 def check_dockerignores(task_dir: Path, label: str, findings: list[dict[str, Any]]) -> None:
     env_dir = task_dir / "environment"
     if not (
@@ -356,9 +370,7 @@ def check_dockerignores(task_dir: Path, label: str, findings: list[dict[str, Any
         or os.path.lexists(env_dir / "docker-compose.yml")
     ):
         return
-    required = [env_dir / ".dockerignore"]
-    if os.path.lexists(env_dir / "seat"):
-        required.append(env_dir / "seat" / ".dockerignore")
+    required = [env_dir / ".dockerignore", *(sdir / ".dockerignore" for sdir in _collect_seat_dirs(env_dir))]
     for di_path in required:
         rel = di_path.relative_to(task_dir).as_posix()
         txt, err = read_regular_text(di_path, max_bytes=65_536, root=task_dir)

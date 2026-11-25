@@ -13,6 +13,7 @@ from random import Random
 from typing import Any
 
 from worldwatch._io import check_no_symlink_ancestors, discover_trials
+from worldwatch._sim_frontier import inject_frontier_detector_events
 from worldwatch._sim_step_join import (
     inject_extra_detector_events,
     write_extra_detector_trajectories,
@@ -236,6 +237,7 @@ def exercise_all_detectors(
     if "early_stop_with_budget" not in active_subset:
         fault_evs.append({"t": t0 + 8.9, "seat": "p1", "kind": "rules", "method": "GET", "status": 200, "ok": True, "request": None, "response": {"budget_left": 0}})
     seats_cfg = inject_extra_detector_events(active_subset, fault_evs, t0)
+    inject_frontier_detector_events(active_subset, fault_evs, t0)
     if "tool_friction_storm" in active_subset:
         storm_n = max(9, 3 * len(seats_cfg), len(fault_evs))
         for idx in range(storm_n):

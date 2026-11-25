@@ -19,8 +19,9 @@ ALLOWED_COMMENTS = re.compile(
 FAMILIES = ("standing_v1", "trustcal_v1", "crowdscale_v1", "stalehand_v1", "orderladder_v1", "claimlease_v1")
 PURE_STDLIB = sys.stdlib_module_names | {"__future__"}
 WORLDWATCH_ALLOWED = PURE_STDLIB | {"worldwatch"}
-TASK_TEMPLATE_ALLOWED = PURE_STDLIB | {"worldkit"}
-TASK_HOST_ALLOWED = PURE_STDLIB | {"worldkit", "build", "world", "verify", "muster", "worldwatch"}
+TASK_TEMPLATE_ALLOWED = PURE_STDLIB | {"worldkit", "codec"}
+TASK_HOST_ALLOWED = PURE_STDLIB | {"worldkit", "codec", "build", "world", "verify", "muster", "worldwatch"}
+KIT_V2_ALLOWED = PURE_STDLIB | {"codec"}
 BANNED_DYNAMIC_IMPORTS = frozenset({"__import__", "import_module"})
 
 
@@ -44,11 +45,15 @@ def _collect_targets(root: Path) -> list[tuple[Path, str]]:
         files.append((path, "worldwatch"))
     for fam in FAMILIES:
         base = root / "muster" / "tasks" / fam
-        for py in (base / "generate.py", base / "reference.py"):
+        for py in (base / "generate.py", base / "reference.py", base / "policies.py"):
             if py.is_file():
                 files.append((py, "task_host"))
         for py in sorted((base / "template").glob("*.py")):
             files.append((py, "task_template"))
+    kit_v2 = root / "muster" / "tasks" / "_kit_v2"
+    if kit_v2.is_dir():
+        for py in sorted(kit_v2.glob("*.py")):
+            files.append((py, "kit_v2"))
     checker = root / "tools" / "check_tigerstyle_worldwatch.py"
     if checker.is_file():
         files.append((checker, "checker"))
@@ -67,6 +72,8 @@ def _allowed_for_mode(mode: str) -> frozenset[str]:
         return TASK_TEMPLATE_ALLOWED
     if mode == "task_host":
         return TASK_HOST_ALLOWED
+    if mode == "kit_v2":
+        return KIT_V2_ALLOWED
     return PURE_STDLIB
 
 

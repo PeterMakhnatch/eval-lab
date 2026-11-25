@@ -12,6 +12,7 @@ from worldwatch._detectors_extra import (
     rule_empty_room_open,
     rule_slow_report,
 )
+from worldwatch._detectors_frontier import evaluate_frontier_detectors
 from worldwatch._detectors_rules import (
     _hit,
     _row_seat,
@@ -230,9 +231,9 @@ def _collect_message_deliveries(
     events: list[dict[str, Any]],
     bundle: TrialBundle,
     seat_names: list[str],
-) -> tuple[dict[int, str | None], dict[str, set[int]], bool, bool]:
-    posted_msgs: dict[int, str | None] = {}
-    seen_by_seat: dict[str, set[int]] = {s: set() for s in seat_names}
+) -> tuple[dict[tuple[str, int], tuple[str | None, str | None]], dict[str, set[tuple[str, int]]], bool, bool]:
+    posted_msgs: dict[tuple[str, int], tuple[str | None, str | None]] = {}
+    seen_by_seat: dict[str, set[tuple[str, int]]] = {s: set() for s in seat_names}
     half = max(1, len(events) // 2)
     early_reads = late_reads = early_posts = late_posts = 0
     dm_available = False
@@ -243,42 +244,50 @@ def _collect_message_deliveries(
             ev = str(row.get("event") or "")
             b_seq = strict_int(row.get("seq"))
             if ev in ("send", "post") and b_seq is not None:
-                posted_msgs[b_seq] = seat
+                posted_msgs[("bsp", b_seq)] = (seat, None)
                 early_posts += int(first_half)
                 late_posts += int(not first_half)
             elif ev in ("inbox", "read") and seat in seen_by_seat:
                 for m in as_list(row.get("seqs")):
                     mi = strict_int(m)
                     if mi is not None:
-                        seen_by_seat[seat].add(mi)
+                        seen_by_seat[seat].add(("bsp", mi))
                 early_reads += int(first_half)
                 late_reads += int(not first_half)
             continue
         if not row.get("ok"):
             continue
         kind = str(row.get("kind") or "")
+        req = as_map(row.get("request"))
         resp = as_map(row.get("response"))
         if any((nonneg_int(resp.get(k)) or 0) > 0 for k in ("dm_count", "unread_dms", "total_dms")) or bool(
             as_list(resp.get("dms")) or as_list(resp.get("round1_dms"))
         ):
             dm_available = True
         mid = strict_int(resp.get("id"))
-        if kind in ("msg", "notice") and row.get("method") == "POST" and mid is not None:
-            posted_msgs[mid] = seat
+        if kind in ("msg", "notice", "dm") and row.get("method") == "POST" and mid is not None:
+            ns = "dm" if kind == "dm" else ("notice" if kind == "notice" else "msg")
+            to_raw = req.get("to") or resp.get("to") if kind == "dm" else None
+            to_seat = str(to_raw) if isinstance(to_raw, str) and to_raw else None
+            posted_msgs[(ns, mid)] = (seat, to_seat)
             early_posts += int(first_half)
             late_posts += int(not first_half)
-        elif kind in ("msgs", "new", "dms", "notices") and row.get("method") == "GET":
+        elif kind in ("msgs", "new", "dms", "notices", "inbox") and row.get("method") == "GET":
             early_reads += int(first_half)
             late_reads += int(not first_half)
-            for lkey in ("messages", "dms", "notices"):
+            for lkey, ns in (("messages", "msg"), ("dms", "dm"), ("notices", "notice")):
                 for item in as_list(resp.get(lkey)):
                     imap = as_map(item)
                     iid = strict_int(imap.get("id"))
                     if iid is not None:
                         sender = imap.get("from")
-                        posted_msgs.setdefault(iid, str(sender) if isinstance(sender, str) else None)
+                        s_str = str(sender) if isinstance(sender, str) else None
+                        to_r = imap.get("to")
+                        to_s = str(to_r) if isinstance(to_r, str) and to_r else (seat if ns == "dm" and len(seat_names) > 1 else None)
+                        if not (ns == "notice" and s_str == "system" and to_r is None):
+                            posted_msgs.setdefault((ns, iid), (s_str, to_s))
                         if seat in seen_by_seat:
-                            seen_by_seat[seat].add(iid)
+                            seen_by_seat[seat].add((ns, iid))
     decay = early_posts >= 2 and late_posts >= 2 and early_reads > 0 and late_reads == 0
     return posted_msgs, seen_by_seat, decay, dm_available
 
@@ -289,7 +298,10 @@ def _rule_message_neglect(events: list[dict[str, Any]], bundle: TrialBundle) -> 
     neglect_seats: list[str] = []
     unread_pairs = total_pairs = 0
     for seat in seat_names:
-        peer_ids = {mid for mid, sender in posted_msgs.items() if sender != seat}
+        peer_ids = {
+            mid for mid, (sender, recip) in posted_msgs.items()
+            if sender != seat and recip in (None, seat)
+        }
         if not peer_ids:
             continue
         total_pairs += len(peer_ids)
@@ -326,52 +338,35 @@ def analyze_trial_detectors(
     step_join: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     bundle = load_trial_bundle(trial_dir, ecosystem)
-    if ecosystem == "bespoke":
-        ev_path = find_bespoke_board_log(trial_dir)
-        events, chain_ok, chain_err = (
-            read_jsonl_static(ev_path, require_seq=False, root=trial_dir)
-            if ev_path is not None
-            else ([], None, None)
-        )
-    else:
-        ev_path = find_olam_event_log(trial_dir)
-        events, chain_ok, chain_err = (
-            read_jsonl_static(ev_path, require_seq=True, root=trial_dir)
-            if ev_path is not None
-            else ([], None, None)
-        )
+    ev_path = find_bespoke_board_log(trial_dir) if ecosystem == "bespoke" else find_olam_event_log(trial_dir)
+    events, chain_ok, chain_err = (
+        read_jsonl_static(ev_path, require_seq=(ecosystem != "bespoke"), root=trial_dir)
+        if ev_path is not None
+        else ([], None, None)
+    )
     joined_map = (
         step_join
         if step_join is not None
         else join_trial_steps(trial_dir, ecosystem, bundle=bundle, events=events)
     )
     dup_unseen, dup_seen = rule_duplicates(events, bundle, step_join=joined_map)
-    claim_churn = rule_claim_churn(events, bundle)
-    misreport = rule_misreport(events, bundle)
-    early_stop = rule_early_stop(events, bundle)
-    post_waste = rule_post_settlement_waste(events, bundle)
     unauth_rel, cred_over = _rule_authority(events, bundle)
-    silent = _rule_silent_seat(events, bundle, ev_path is not None)
-    friction = _rule_tool_friction(events, bundle)
-    neglect = _rule_message_neglect(events, bundle)
-    batch_blind = rule_batch_blind_act(events, bundle, joined_map)
-    empty_room = rule_empty_room_open(events, bundle, step_join=joined_map)
-    slow_rep = rule_slow_report(events, bundle, joined_map)
     hits_list = (
         dup_unseen,
         dup_seen,
-        claim_churn,
-        misreport,
-        early_stop,
-        post_waste,
+        rule_claim_churn(events, bundle),
+        rule_misreport(events, bundle),
+        rule_early_stop(events, bundle),
+        rule_post_settlement_waste(events, bundle),
         unauth_rel,
         cred_over,
-        silent,
-        friction,
-        neglect,
-        batch_blind,
-        empty_room,
-        slow_rep,
+        _rule_silent_seat(events, bundle, ev_path is not None),
+        _rule_tool_friction(events, bundle),
+        _rule_message_neglect(events, bundle),
+        rule_batch_blind_act(events, bundle, joined_map),
+        rule_empty_room_open(events, bundle, step_join=joined_map),
+        rule_slow_report(events, bundle, joined_map),
+        *evaluate_frontier_detectors(events, bundle, joined_map),
     )
     assert tuple(h.name for h in hits_list) == DETECTOR_NAMES
     detectors_map = {h.name: h.as_dict() for h in hits_list}

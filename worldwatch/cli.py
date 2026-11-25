@@ -12,6 +12,7 @@ from worldwatch import __version__
 from worldwatch.baselines import run_certify_baselines
 from worldwatch.compare import run_compare
 from worldwatch.detectors import run_detectors
+from worldwatch.eval_audit import run_certify_suite
 from worldwatch.model import (
     DEFAULT_MAX_REJECT_RATIO,
     DEFAULT_STALL_SECONDS,
@@ -21,6 +22,7 @@ from worldwatch.model import (
 from worldwatch.preflight import run_preflight
 from worldwatch.render import (
     render_certify_baselines,
+    render_certify_suite,
     render_compare,
     render_detectors,
     render_preflight,
@@ -171,6 +173,14 @@ def _cmd_certify(args: argparse.Namespace) -> int:
     return code
 
 
+def _cmd_certify_suite(args: argparse.Namespace) -> int:
+    report, code = run_certify_suite(args.family_dir)
+    if code == 2 and report.get("error"):
+        print(f"worldwatch: {report['error']}", file=sys.stderr)
+    print(to_json(report) if args.json else render_certify_suite(report))
+    return code
+
+
 def _cmd_compare(args: argparse.Namespace) -> int:
     report, code = run_compare(
         list(args.arms),
@@ -178,6 +188,7 @@ def _cmd_compare(args: argparse.Namespace) -> int:
         alpha=args.alpha,
         stall_seconds=args.stall_seconds,
         seed=args.seed,
+        triad=args.triad,
     )
     print(to_json(report) if args.json else render_compare(report))
     return code
@@ -201,6 +212,7 @@ def _configure_compare_and_preflight(subs: Any) -> None:
     p_cmp.add_argument("--alpha", type=_open_unit_float, default=0.05)
     p_cmp.add_argument("--stall-seconds", type=_pos_float, default=DEFAULT_STALL_SECONDS)
     p_cmp.add_argument("--seed", type=_nonneg_int, default=0)
+    p_cmp.add_argument("--triad", action="store_true", help="require PACE triad roles (S1, S0k, Sk) and compute decomposition")
     p_cmp.add_argument("--json", action="store_true", help="emit JSON report")
     p_cmp.set_defaults(handler=_cmd_compare)
 
@@ -284,6 +296,11 @@ def parser() -> argparse.ArgumentParser:
     p_cert.add_argument("family_dir", type=Path, help="task family directory with family.toml and reference.py")
     p_cert.add_argument("--json", action="store_true", help="emit JSON report")
     p_cert.set_defaults(handler=_cmd_certify)
+
+    p_suite = subs.add_parser("certify-suite", help="certify task family replay, hash chain, round-trip score, detectors, triad, and preflight")
+    p_suite.add_argument("family_dir", type=Path, help="task family directory with family.toml")
+    p_suite.add_argument("--json", action="store_true", help="emit JSON report")
+    p_suite.set_defaults(handler=_cmd_certify_suite)
 
     _configure_compare_and_preflight(subs)
     _configure_step_join_and_storyboard(subs)

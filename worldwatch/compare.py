@@ -11,6 +11,7 @@ from random import Random
 from typing import Any
 
 from worldwatch._compare_html import write_compare_html
+from worldwatch._compare_triad import compute_triad_decomposition, extract_trial_tokens
 from worldwatch._io import (
     check_no_symlink_ancestors,
     discover_trials,
@@ -51,6 +52,7 @@ class _TrialEntry:
     reward_valid: bool
     cost_usd: float | None
     triggered: frozenset[str]
+    tokens: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -229,6 +231,7 @@ def _evaluate_compare_arm(name: str, path: Path, stall_seconds: float) -> _ArmEv
         det_row = analyze_trial_detectors(tdir, eco)
         bundle = load_trial_bundle(tdir, eco)
         key = _extract_pairing_key(tdir, bundle)
+        toks = extract_trial_tokens(tdir, eco, bundle)
         entries.append(
             _TrialEntry(
                 trial=bundle.trial_name,
@@ -240,6 +243,7 @@ def _evaluate_compare_arm(name: str, path: Path, stall_seconds: float) -> _ArmEv
                 reward_valid=bundle.reward_valid,
                 cost_usd=bundle.cost_usd,
                 triggered=frozenset(str(x) for x in det_row["triggered"]),
+                tokens=toks,
             )
         )
     entries.sort(key=lambda item: (item.key, item.trial, item.path))
@@ -255,6 +259,7 @@ def _summarize_arm(name: str, path: Path, entries: tuple[_TrialEntry, ...]) -> _
     unmeasured_n = total - measured_n
     by_reason = Counter(e.unmeasured_reason for e in entries if not e.measured)
     costs = [float(e.cost_usd) for e in entries if e.cost_usd is not None and e.cost_usd >= 0.0]
+    toks = [int(e.tokens) for e in entries if e.tokens is not None and e.tokens > 0]
     pass_n = sum(1 for r in measured_rews if r >= _PASS_THRESHOLD)
     det_counts = {d: sum(1 for e in entries if d in e.triggered) for d in DETECTOR_NAMES}
     det_rates = {d: round(det_counts[d] / total, 6) for d in DETECTOR_NAMES}
@@ -276,6 +281,8 @@ def _summarize_arm(name: str, path: Path, entries: tuple[_TrialEntry, ...]) -> _
         "binary_pass_rate": round(pass_n / measured_n, 6) if measured_rews else None,
         "mean_cost_usd": round(sum(costs) / len(costs), 6) if costs else None,
         "total_cost_usd": round(sum(costs), 6) if costs else None,
+        "mean_tokens": round(sum(toks) / len(toks), 3) if toks else None,
+        "total_tokens": int(sum(toks)) if toks else None,
         "detector_rates": det_rates,
         "detector_counts": det_counts,
         "unique_keys": len(exact_groups),
@@ -446,6 +453,7 @@ def run_compare(
     alpha: float = 0.05,
     stall_seconds: float = DEFAULT_STALL_SECONDS,
     seed: int = 0,
+    triad: bool = False,
 ) -> tuple[dict[str, Any], int]:
     if not isinstance(arm_specs, list) or len(arm_specs) < 2:
         raise InputError("at least two arm paths are required")
@@ -469,6 +477,17 @@ def run_compare(
     for idx_a in range(len(evaluated)):
         for idx_b in range(idx_a + 1, len(evaluated)):
             pairs.append(_compare_pair(evaluated[idx_a], evaluated[idx_b], alpha=alpha_f, seed=seed))
+    arm_summaries = [ev.summary for ev in evaluated]
+    cond_hints = {
+        ev.summary["arm"]: {k[1] for k in ev.by_exact_key if k[1] != "default"}
+        for ev in evaluated
+    }
+    triad_summary = compute_triad_decomposition(
+        arm_summaries,
+        pairs=pairs,
+        condition_hints=cond_hints,
+        require_triad=bool(triad),
+    )
     diff_pairs = [f"{p['arm_a']} vs {p['arm_b']}" for p in pairs if p["differential_attrition"]]
     zero_pairs = [f"{p['arm_a']} vs {p['arm_b']}" for p in pairs if p["zero_paired_keys"]]
     rc = 1 if (diff_pairs or zero_pairs) else 0
@@ -480,8 +499,9 @@ def run_compare(
         "passed": rc == 0,
         "differential_pairs": diff_pairs,
         "zero_paired_pairs": zero_pairs,
-        "arms": [ev.summary for ev in evaluated],
+        "arms": arm_summaries,
         "pairs": pairs,
+        "triad": triad_summary,
     }
     if html_path is not None:
         try:

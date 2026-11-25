@@ -2,22 +2,22 @@
  "arm": "probe",
  "asks": {
   "p1": [
-   "s04",
    "s14",
-   "s11"
+   "s05",
+   "s08"
   ],
   "p2": [
-   "s09",
    "s01",
-   "s03",
-   "s10"
+   "s13",
+   "s15",
+   "s06"
   ],
   "p3": [
-   "s14",
+   "s13",
    "s16",
+   "s14",
    "s01",
-   "s10",
-   "s13"
+   "s07"
   ]
  },
  "budgets": {
@@ -45,93 +45,93 @@
  "feeds": {
   "p1": [
    {
-    "at": 20,
-    "key": "s08",
-    "status": "ready"
-   },
-   {
-    "at": 1,
-    "key": "s13",
-    "status": "open"
-   },
-   {
-    "at": 8,
-    "key": "s11",
-    "status": "busy"
-   },
-   {
-    "at": 21,
-    "key": "s02",
+    "at": 29,
+    "key": "s14",
     "status": "quiet"
    },
    {
     "at": 14,
-    "key": "s04",
-    "status": "limited"
-   },
-   {
-    "at": 32,
-    "key": "s09",
+    "key": "s05",
     "status": "busy"
    },
    {
     "at": 8,
-    "key": "s03",
-    "status": "limited"
-   },
-   {
-    "at": 34,
-    "key": "s12",
+    "key": "s02",
     "status": "busy"
    },
    {
-    "at": 15,
-    "key": "s15",
+    "at": 36,
+    "key": "s16",
     "status": "open"
    },
    {
-    "at": 6,
-    "key": "s14",
+    "at": 29,
+    "key": "s12",
+    "status": "quiet"
+   },
+   {
+    "at": 39,
+    "key": "s15",
+    "status": "busy"
+   },
+   {
+    "at": 11,
+    "key": "s03",
+    "status": "ready"
+   },
+   {
+    "at": 23,
+    "key": "s04",
+    "status": "repair"
+   },
+   {
+    "at": 18,
+    "key": "s08",
     "status": "limited"
    },
    {
-    "at": 27,
-    "key": "s05",
+    "at": 18,
+    "key": "s10",
+    "status": "open"
+   },
+   {
+    "at": 7,
+    "key": "s06",
     "status": "repair"
    }
   ],
   "p2": [
    {
-    "at": 5,
-    "key": "s14",
-    "status": "quiet"
+    "at": 38,
+    "key": "s08",
+    "status": "ready"
    },
    {
-    "at": 32,
-    "key": "s01",
+    "at": 6,
+    "key": "s14",
+    "status": "open"
+   },
+   {
+    "at": 14,
+    "key": "s13",
     "status": "repair"
    },
    {
-    "at": 37,
-    "key": "s16",
-    "status": "busy"
-   },
-   {
-    "at": 38,
-    "key": "s04",
-    "status": "ready"
+    "at": 22,
+    "key": "s07",
+    "status": "open"
    }
   ],
   "p3": [
    {
-    "at": 22,
-    "key": "s11",
-    "status": "repair"
+    "at": 27,
+    "key": "s01",
+    "status": "quiet"
    },
    {
-    "at": 22,
-    "key": "s10",
-    "status": "limited"
+    "at": 37,
+    "key": "s05",
+    "status": "repair"
    }
   ]
  },
@@ -178,68 +178,68 @@
   "unknown"
  ],
  "tokens": {
-  "p1": "08772a47169d40295ebabbce468e4b2b",
-  "p2": "a79fe79d9ac96982e35a179a6670dbc0",
-  "p3": "1eba189cd48aef34bedb323694dd4f54"
+  "p1": "0927564f6c7749566a77d984f49f8540",
+  "p2": "b4b701df450e054086290b7324445124",
+  "p3": "76b2b202a1fb0d910d32f37005513312"
  },
  "truth": {
-  "s01": "repair",
-  "s03": "limited",
-  "s04": "ready",
-  "s09": "busy",
-  "s10": "limited",
-  "s11": "repair",
-  "s13": "open",
-  "s14": "limited",
-  "s16": "busy"
+  "s01": "quiet",
+  "s05": "repair",
+  "s06": "repair",
+  "s07": "open",
+  "s08": "ready",
+  "s13": "repair",
+  "s14": "quiet",
+  "s15": "busy",
+  "s16": "open"
  },
  "watch": [
   "s01",
-  "s03",
-  "s04",
-  "s09",
-  "s10",
-  "s11",
+  "s05",
+  "s06",
+  "s07",
+  "s08",
   "s13",
   "s14",
+  "s15",
   "s16"
  ],
  "writer_focal": [
-  "s09",
-  "s03",
-  "s14",
-  "s13"
+  "s15",
+  "s06",
+  "s16",
+  "s14"
  ],
  "zone_order": [
-  "south",
-  "north",
   "east",
+  "north",
+  "south",
   "west"
  ],
  "zones": {
   "east": [
-   "s02",
    "s03",
-   "s11",
-   "s06"
-  ],
-  "north": [
-   "s12",
-   "s09",
-   "s14",
-   "s16"
-  ],
-  "south": [
-   "s04",
-   "s15",
    "s07",
+   "s04",
    "s01"
   ],
-  "west": [
-   "s10",
+  "north": [
    "s08",
+   "s06",
+   "s09",
+   "s11"
+  ],
+  "south": [
+   "s15",
+   "s10",
+   "s05",
+   "s16"
+  ],
+  "west": [
    "s13",
-   "s05"
+   "s14",
+   "s02",
+   "s12"
   ]
  }
 }

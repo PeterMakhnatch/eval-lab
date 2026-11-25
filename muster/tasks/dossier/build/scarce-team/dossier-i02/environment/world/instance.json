@@ -2,22 +2,22 @@
  "arm": "team",
  "asks": {
   "p1": [
-   "s04",
-   "s06",
-   "s14"
+   "s11",
+   "s05",
+   "s16"
   ],
   "p2": [
    "s15",
-   "s05",
-   "s03",
-   "s10"
+   "s13",
+   "s12",
+   "s07"
   ],
   "p3": [
-   "s03",
-   "s01",
-   "s14",
-   "s08",
-   "s05"
+   "s06",
+   "s05",
+   "s12",
+   "s07",
+   "s09"
   ]
  },
  "budgets": {
@@ -45,93 +45,93 @@
  "feeds": {
   "p1": [
    {
+    "at": 29,
+    "key": "s10",
+    "status": "quiet"
+   },
+   {
     "at": 40,
-    "key": "s07",
+    "key": "s08",
+    "status": "busy"
+   },
+   {
+    "at": 13,
+    "key": "s03",
+    "status": "quiet"
+   },
+   {
+    "at": 19,
+    "key": "s16",
+    "status": "ready"
+   },
+   {
+    "at": 28,
+    "key": "s01",
+    "status": "busy"
+   },
+   {
+    "at": 39,
+    "key": "s15",
+    "status": "quiet"
+   },
+   {
+    "at": 19,
+    "key": "s14",
+    "status": "limited"
+   },
+   {
+    "at": 4,
+    "key": "s06",
     "status": "busy"
    },
    {
     "at": 9,
-    "key": "s14",
-    "status": "limited"
-   },
-   {
-    "at": 26,
-    "key": "s11",
-    "status": "repair"
-   },
-   {
-    "at": 12,
-    "key": "s02",
-    "status": "limited"
-   },
-   {
-    "at": 19,
-    "key": "s06",
-    "status": "repair"
-   },
-   {
-    "at": 22,
-    "key": "s04",
-    "status": "busy"
-   },
-   {
-    "at": 28,
-    "key": "s15",
-    "status": "repair"
-   },
-   {
-    "at": 24,
-    "key": "s12",
+    "key": "s13",
     "status": "ready"
    },
    {
-    "at": 38,
-    "key": "s01",
-    "status": "limited"
+    "at": 7,
+    "key": "s11",
+    "status": "quiet"
    },
    {
-    "at": 11,
-    "key": "s10",
+    "at": 28,
+    "key": "s05",
     "status": "repair"
-   },
-   {
-    "at": 21,
-    "key": "s09",
-    "status": "busy"
    }
   ],
   "p2": [
    {
-    "at": 3,
-    "key": "s14",
-    "status": "repair"
+    "at": 5,
+    "key": "s09",
+    "status": "ready"
    },
    {
-    "at": 35,
-    "key": "s04",
-    "status": "repair"
+    "at": 11,
+    "key": "s07",
+    "status": "ready"
    },
    {
-    "at": 2,
+    "at": 34,
+    "key": "s11",
+    "status": "limited"
+   },
+   {
+    "at": 18,
     "key": "s05",
-    "status": "busy"
-   },
-   {
-    "at": 27,
-    "key": "s08",
-    "status": "open"
+    "status": "quiet"
    }
   ],
   "p3": [
    {
-    "at": 28,
-    "key": "s03",
-    "status": "open"
+    "at": 30,
+    "key": "s16",
+    "status": "busy"
    },
    {
-    "at": 28,
-    "key": "s06",
-    "status": "quiet"
+    "at": 9,
+    "key": "s12",
+    "status": "limited"
    }
   ]
  },
@@ -164,63 +164,63 @@
   "unknown"
  ],
  "tokens": {
-  "p1": "24ea7c0d09714ccd7e99aeb3c79eb7d0",
-  "p2": "efc1054967d32a108ff573ce2a7e4870",
-  "p3": "b3f7f9c013f608d95f5f1ed44c7ed5b8"
+  "p1": "afd20f65f12204b9d8a8bee432a9ee4d",
+  "p2": "b29d562e4bf1cbffb22dbebf68157250",
+  "p3": "bb6c9a9ff67fd44349f8adf120d9e418"
  },
  "truth": {
-  "s01": "limited",
-  "s03": "open",
-  "s04": "repair",
-  "s05": "busy",
-  "s06": "quiet",
-  "s08": "open",
-  "s10": "repair",
-  "s14": "limited",
-  "s15": "repair"
+  "s05": "repair",
+  "s06": "busy",
+  "s07": "ready",
+  "s09": "ready",
+  "s11": "limited",
+  "s12": "limited",
+  "s13": "ready",
+  "s15": "quiet",
+  "s16": "busy"
  },
  "watch": [
-  "s01",
-  "s03",
-  "s04",
   "s05",
   "s06",
-  "s08",
-  "s10",
-  "s14",
-  "s15"
+  "s07",
+  "s09",
+  "s11",
+  "s12",
+  "s13",
+  "s15",
+  "s16"
  ],
  "writer_focal": [],
  "zone_order": [
-  "west",
   "north",
   "south",
-  "east"
+  "east",
+  "west"
  ],
  "zones": {
   "east": [
-   "s08",
-   "s01",
-   "s12",
-   "s11"
+   "s06",
+   "s05",
+   "s13",
+   "s16"
   ],
   "north": [
-   "s15",
-   "s16",
-   "s03",
-   "s05"
+   "s01",
+   "s14",
+   "s11",
+   "s04"
   ],
   "south": [
-   "s07",
-   "s14",
-   "s10",
+   "s12",
+   "s09",
+   "s03",
    "s02"
   ],
   "west": [
-   "s13",
-   "s06",
-   "s04",
-   "s09"
+   "s10",
+   "s07",
+   "s15",
+   "s08"
   ]
  }
 }

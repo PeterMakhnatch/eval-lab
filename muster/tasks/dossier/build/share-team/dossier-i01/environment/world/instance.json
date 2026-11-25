@@ -1,0 +1,198 @@
+{
+ "arm": "team",
+ "asks": {
+  "p1": [
+   "s04",
+   "s15",
+   "s06"
+  ],
+  "p2": [
+   "s09",
+   "s02",
+   "s10"
+  ],
+  "p3": [
+   "s16",
+   "s13",
+   "s11"
+  ]
+ },
+ "budgets": {
+  "p1": {
+   "answer": 3,
+   "put": 10
+  },
+  "p2": {
+   "answer": 3,
+   "put": 8
+  },
+  "p3": {
+   "answer": 3,
+   "put": 6
+  }
+ },
+ "channel": false,
+ "clerks": [
+  "p1",
+  "p2",
+  "p3"
+ ],
+ "condition": "share-team",
+ "facet": "share",
+ "feeds": {
+  "p1": [
+   {
+    "at": 7,
+    "key": "s10",
+    "status": "quiet"
+   },
+   {
+    "at": 4,
+    "key": "s15",
+    "status": "limited"
+   },
+   {
+    "at": 16,
+    "key": "s02",
+    "status": "open"
+   },
+   {
+    "at": 36,
+    "key": "s06",
+    "status": "quiet"
+   },
+   {
+    "at": 9,
+    "key": "s04",
+    "status": "open"
+   },
+   {
+    "at": 22,
+    "key": "s16",
+    "status": "quiet"
+   }
+  ],
+  "p2": [
+   {
+    "at": 26,
+    "key": "s15",
+    "status": "repair"
+   },
+   {
+    "at": 11,
+    "key": "s11",
+    "status": "open"
+   },
+   {
+    "at": 29,
+    "key": "s09",
+    "status": "busy"
+   },
+   {
+    "at": 16,
+    "key": "s06",
+    "status": "limited"
+   }
+  ],
+  "p3": [
+   {
+    "at": 7,
+    "key": "s13",
+    "status": "quiet"
+   },
+   {
+    "at": 32,
+    "key": "s04",
+    "status": "limited"
+   }
+  ]
+ },
+ "id": "i01",
+ "real": [
+  "p1",
+  "p2",
+  "p3"
+ ],
+ "slots": 15,
+ "stage": {
+  "real": [
+   "p1",
+   "p2",
+   "p3"
+  ],
+  "rules": [],
+  "units": []
+ },
+ "statuses": [
+  "open",
+  "limited",
+  "busy",
+  "quiet",
+  "repair",
+  "ready",
+  "withdrawn",
+  "closed",
+  "disputed",
+  "unknown"
+ ],
+ "tokens": {
+  "p1": "8033d4a95eb51877700fa47b2970b59c",
+  "p2": "5e9789ca903aaad1bf6a399a02ac7dbe",
+  "p3": "7168188158258681d49db4da2cd30398"
+ },
+ "truth": {
+  "s02": "open",
+  "s04": "limited",
+  "s06": "quiet",
+  "s09": "busy",
+  "s10": "quiet",
+  "s11": "open",
+  "s13": "quiet",
+  "s15": "repair",
+  "s16": "quiet"
+ },
+ "watch": [
+  "s02",
+  "s04",
+  "s06",
+  "s09",
+  "s10",
+  "s11",
+  "s13",
+  "s15",
+  "s16"
+ ],
+ "writer_focal": [],
+ "zone_order": [
+  "south",
+  "west",
+  "north",
+  "east"
+ ],
+ "zones": {
+  "east": [
+   "s12",
+   "s01",
+   "s11",
+   "s02"
+  ],
+  "north": [
+   "s05",
+   "s08",
+   "s13",
+   "s14"
+  ],
+  "south": [
+   "s04",
+   "s09",
+   "s03",
+   "s15"
+  ],
+  "west": [
+   "s07",
+   "s16",
+   "s10",
+   "s06"
+  ]
+ }
+}

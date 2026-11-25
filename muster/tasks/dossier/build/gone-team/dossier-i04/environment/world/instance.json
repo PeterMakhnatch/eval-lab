@@ -1,0 +1,203 @@
+{
+ "arm": "team",
+ "asks": {
+  "p1": [
+   "s06",
+   "s10",
+   "s09"
+  ],
+  "p2": [
+   "s15",
+   "s05",
+   "s14"
+  ],
+  "p3": [
+   "s03",
+   "s07",
+   "s13"
+  ]
+ },
+ "budgets": {
+  "p1": {
+   "answer": 3,
+   "put": 10
+  },
+  "p2": {
+   "answer": 3,
+   "put": 9
+  },
+  "p3": {
+   "answer": 3,
+   "put": 6
+  }
+ },
+ "channel": false,
+ "clerks": [
+  "p1",
+  "p2",
+  "p3"
+ ],
+ "condition": "gone-team",
+ "facet": "gone",
+ "feeds": {
+  "p1": [
+   {
+    "at": 4,
+    "key": "s06",
+    "status": "repair"
+   },
+   {
+    "at": 11,
+    "key": "s09",
+    "status": "open"
+   },
+   {
+    "at": 29,
+    "key": "s05",
+    "status": "busy"
+   },
+   {
+    "at": 17,
+    "key": "s10",
+    "status": "ready"
+   },
+   {
+    "at": 32,
+    "key": "s15",
+    "status": "withdrawn"
+   },
+   {
+    "at": 22,
+    "key": "s07",
+    "status": "busy"
+   }
+  ],
+  "p2": [
+   {
+    "at": 9,
+    "key": "s09",
+    "status": "repair"
+   },
+   {
+    "at": 27,
+    "key": "s15",
+    "status": "limited"
+   },
+   {
+    "at": 5,
+    "key": "s13",
+    "status": "open"
+   },
+   {
+    "at": 20,
+    "key": "s14",
+    "status": "repair"
+   },
+   {
+    "at": 16,
+    "key": "s06",
+    "status": "withdrawn"
+   }
+  ],
+  "p3": [
+   {
+    "at": 18,
+    "key": "s03",
+    "status": "ready"
+   },
+   {
+    "at": 36,
+    "key": "s10",
+    "status": "repair"
+   }
+  ]
+ },
+ "id": "i04",
+ "real": [
+  "p1",
+  "p2",
+  "p3"
+ ],
+ "slots": 15,
+ "stage": {
+  "real": [
+   "p1",
+   "p2",
+   "p3"
+  ],
+  "rules": [],
+  "units": []
+ },
+ "statuses": [
+  "open",
+  "limited",
+  "busy",
+  "quiet",
+  "repair",
+  "ready",
+  "withdrawn",
+  "closed",
+  "disputed",
+  "unknown"
+ ],
+ "tokens": {
+  "p1": "f5d9eeaf21168fd73f5e19c1e67baed3",
+  "p2": "ce57e1448dffae262d6acfb09a8e19d4",
+  "p3": "d779573596acef1d2dade86fd987c396"
+ },
+ "truth": {
+  "s03": "ready",
+  "s05": "busy",
+  "s06": "withdrawn",
+  "s07": "busy",
+  "s09": "open",
+  "s10": "repair",
+  "s13": "open",
+  "s14": "repair",
+  "s15": "withdrawn"
+ },
+ "watch": [
+  "s03",
+  "s05",
+  "s06",
+  "s07",
+  "s09",
+  "s10",
+  "s13",
+  "s14",
+  "s15"
+ ],
+ "writer_focal": [],
+ "zone_order": [
+  "north",
+  "east",
+  "south",
+  "west"
+ ],
+ "zones": {
+  "east": [
+   "s02",
+   "s01",
+   "s16",
+   "s10"
+  ],
+  "north": [
+   "s07",
+   "s13",
+   "s11",
+   "s09"
+  ],
+  "south": [
+   "s03",
+   "s12",
+   "s04",
+   "s08"
+  ],
+  "west": [
+   "s06",
+   "s14",
+   "s05",
+   "s15"
+  ]
+ }
+}

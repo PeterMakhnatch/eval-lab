@@ -1,0 +1,203 @@
+{
+ "arm": "team",
+ "asks": {
+  "p1": [
+   "s14",
+   "s03",
+   "s11"
+  ],
+  "p2": [
+   "s08",
+   "s06",
+   "s13"
+  ],
+  "p3": [
+   "s01",
+   "s15",
+   "s04"
+  ]
+ },
+ "budgets": {
+  "p1": {
+   "answer": 3,
+   "put": 10
+  },
+  "p2": {
+   "answer": 3,
+   "put": 9
+  },
+  "p3": {
+   "answer": 3,
+   "put": 6
+  }
+ },
+ "channel": false,
+ "clerks": [
+  "p1",
+  "p2",
+  "p3"
+ ],
+ "condition": "cascade-team",
+ "facet": "cascade",
+ "feeds": {
+  "p1": [
+   {
+    "at": 1,
+    "key": "s03",
+    "status": "open"
+   },
+   {
+    "at": 25,
+    "key": "s11",
+    "status": "limited"
+   },
+   {
+    "at": 12,
+    "key": "s15",
+    "status": "quiet"
+   },
+   {
+    "at": 7,
+    "key": "s14",
+    "status": "repair"
+   },
+   {
+    "at": 21,
+    "key": "s06",
+    "status": "repair"
+   },
+   {
+    "at": 36,
+    "key": "south",
+    "status": "closed"
+   }
+  ],
+  "p2": [
+   {
+    "at": 4,
+    "key": "s01",
+    "status": "quiet"
+   },
+   {
+    "at": 6,
+    "key": "s11",
+    "status": "busy"
+   },
+   {
+    "at": 28,
+    "key": "west",
+    "status": "closed"
+   },
+   {
+    "at": 27,
+    "key": "s08",
+    "status": "open"
+   },
+   {
+    "at": 32,
+    "key": "s13",
+    "status": "limited"
+   }
+  ],
+  "p3": [
+   {
+    "at": 38,
+    "key": "s04",
+    "status": "quiet"
+   },
+   {
+    "at": 34,
+    "key": "s14",
+    "status": "ready"
+   }
+  ]
+ },
+ "id": "i10",
+ "real": [
+  "p1",
+  "p2",
+  "p3"
+ ],
+ "slots": 17,
+ "stage": {
+  "real": [
+   "p1",
+   "p2",
+   "p3"
+  ],
+  "rules": [],
+  "units": []
+ },
+ "statuses": [
+  "open",
+  "limited",
+  "busy",
+  "quiet",
+  "repair",
+  "ready",
+  "withdrawn",
+  "closed",
+  "disputed",
+  "unknown"
+ ],
+ "tokens": {
+  "p1": "e0aec0f07acf9685c19a89f4d94b4dd2",
+  "p2": "1e3e9dbf69b999295f4b289e8885bbbf",
+  "p3": "f179a0cee4b58927d3654c7db07bb4dc"
+ },
+ "truth": {
+  "s01": "quiet",
+  "s03": "closed",
+  "s04": "quiet",
+  "s06": "repair",
+  "s08": "closed",
+  "s11": "limited",
+  "s13": "limited",
+  "s14": "ready",
+  "s15": "quiet"
+ },
+ "watch": [
+  "s01",
+  "s03",
+  "s04",
+  "s06",
+  "s08",
+  "s11",
+  "s13",
+  "s14",
+  "s15"
+ ],
+ "writer_focal": [],
+ "zone_order": [
+  "south",
+  "west",
+  "east",
+  "north"
+ ],
+ "zones": {
+  "east": [
+   "s12",
+   "s06",
+   "s09",
+   "s05"
+  ],
+  "north": [
+   "s01",
+   "s15",
+   "s11",
+   "s14"
+  ],
+  "south": [
+   "s02",
+   "s08",
+   "s04",
+   "s10"
+  ],
+  "west": [
+   "s03",
+   "s13",
+   "s07",
+   "s16"
+  ]
+ }
+}

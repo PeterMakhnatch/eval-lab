@@ -1,0 +1,203 @@
+{
+ "arm": "team",
+ "asks": {
+  "p1": [
+   "s05",
+   "s15",
+   "s01"
+  ],
+  "p2": [
+   "s12",
+   "s11",
+   "s04"
+  ],
+  "p3": [
+   "s03",
+   "s10",
+   "s14"
+  ]
+ },
+ "budgets": {
+  "p1": {
+   "answer": 3,
+   "put": 10
+  },
+  "p2": {
+   "answer": 3,
+   "put": 9
+  },
+  "p3": {
+   "answer": 3,
+   "put": 6
+  }
+ },
+ "channel": false,
+ "clerks": [
+  "p1",
+  "p2",
+  "p3"
+ ],
+ "condition": "gone-team",
+ "facet": "gone",
+ "feeds": {
+  "p1": [
+   {
+    "at": 8,
+    "key": "s15",
+    "status": "quiet"
+   },
+   {
+    "at": 10,
+    "key": "s12",
+    "status": "withdrawn"
+   },
+   {
+    "at": 13,
+    "key": "s05",
+    "status": "open"
+   },
+   {
+    "at": 27,
+    "key": "s14",
+    "status": "ready"
+   },
+   {
+    "at": 4,
+    "key": "s11",
+    "status": "limited"
+   },
+   {
+    "at": 40,
+    "key": "s01",
+    "status": "repair"
+   }
+  ],
+  "p2": [
+   {
+    "at": 30,
+    "key": "s15",
+    "status": "withdrawn"
+   },
+   {
+    "at": 8,
+    "key": "s04",
+    "status": "quiet"
+   },
+   {
+    "at": 12,
+    "key": "s01",
+    "status": "ready"
+   },
+   {
+    "at": 39,
+    "key": "s03",
+    "status": "limited"
+   },
+   {
+    "at": 5,
+    "key": "s12",
+    "status": "busy"
+   }
+  ],
+  "p3": [
+   {
+    "at": 29,
+    "key": "s10",
+    "status": "busy"
+   },
+   {
+    "at": 28,
+    "key": "s05",
+    "status": "busy"
+   }
+  ]
+ },
+ "id": "i09",
+ "real": [
+  "p1",
+  "p2",
+  "p3"
+ ],
+ "slots": 15,
+ "stage": {
+  "real": [
+   "p1",
+   "p2",
+   "p3"
+  ],
+  "rules": [],
+  "units": []
+ },
+ "statuses": [
+  "open",
+  "limited",
+  "busy",
+  "quiet",
+  "repair",
+  "ready",
+  "withdrawn",
+  "closed",
+  "disputed",
+  "unknown"
+ ],
+ "tokens": {
+  "p1": "f17f85f9b113a3e3dac998035554d58f",
+  "p2": "b85438df505b5a65b867054f5f3bbfef",
+  "p3": "ce5afd3175cdb91c51cf88ac300f1cd8"
+ },
+ "truth": {
+  "s01": "repair",
+  "s03": "limited",
+  "s04": "quiet",
+  "s05": "busy",
+  "s10": "busy",
+  "s11": "limited",
+  "s12": "withdrawn",
+  "s14": "ready",
+  "s15": "withdrawn"
+ },
+ "watch": [
+  "s01",
+  "s03",
+  "s04",
+  "s05",
+  "s10",
+  "s11",
+  "s12",
+  "s14",
+  "s15"
+ ],
+ "writer_focal": [],
+ "zone_order": [
+  "north",
+  "east",
+  "west",
+  "south"
+ ],
+ "zones": {
+  "east": [
+   "s06",
+   "s08",
+   "s14",
+   "s02"
+  ],
+  "north": [
+   "s12",
+   "s03",
+   "s04",
+   "s11"
+  ],
+  "south": [
+   "s10",
+   "s05",
+   "s07",
+   "s09"
+  ],
+  "west": [
+   "s16",
+   "s01",
+   "s15",
+   "s13"
+  ]
+ }
+}

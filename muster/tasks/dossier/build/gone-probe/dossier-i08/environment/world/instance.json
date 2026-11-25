@@ -1,0 +1,221 @@
+{
+ "arm": "probe",
+ "asks": {
+  "p1": [
+   "s09",
+   "s14",
+   "s08"
+  ],
+  "p2": [
+   "s12",
+   "s05",
+   "s06"
+  ],
+  "p3": [
+   "s15",
+   "s10",
+   "s04"
+  ]
+ },
+ "budgets": {
+  "p1": {
+   "answer": 3,
+   "put": 10
+  },
+  "p2": {
+   "answer": 3,
+   "put": 9
+  },
+  "p3": {
+   "answer": 3,
+   "put": 6
+  }
+ },
+ "channel": false,
+ "clerks": [
+  "p1",
+  "p2",
+  "p3"
+ ],
+ "condition": "gone-probe",
+ "facet": "gone",
+ "feeds": {
+  "p1": [
+   {
+    "at": 13,
+    "key": "s09",
+    "status": "open"
+   },
+   {
+    "at": 12,
+    "key": "s08",
+    "status": "quiet"
+   },
+   {
+    "at": 19,
+    "key": "s12",
+    "status": "withdrawn"
+   },
+   {
+    "at": 4,
+    "key": "s06",
+    "status": "open"
+   },
+   {
+    "at": 31,
+    "key": "s10",
+    "status": "open"
+   },
+   {
+    "at": 19,
+    "key": "s14",
+    "status": "ready"
+   }
+  ],
+  "p2": [
+   {
+    "at": 28,
+    "key": "s05",
+    "status": "limited"
+   },
+   {
+    "at": 25,
+    "key": "s15",
+    "status": "quiet"
+   },
+   {
+    "at": 4,
+    "key": "s12",
+    "status": "repair"
+   },
+   {
+    "at": 3,
+    "key": "s14",
+    "status": "open"
+   },
+   {
+    "at": 34,
+    "key": "s08",
+    "status": "withdrawn"
+   }
+  ],
+  "p3": [
+   {
+    "at": 36,
+    "key": "s09",
+    "status": "quiet"
+   },
+   {
+    "at": 6,
+    "key": "s04",
+    "status": "repair"
+   }
+  ]
+ },
+ "id": "i08",
+ "real": [
+  "p1"
+ ],
+ "slots": 15,
+ "stage": {
+  "real": [
+   "p1"
+  ],
+  "rules": [
+   {
+    "id": "start",
+    "units": [
+     "start-p2",
+     "start-p3"
+    ],
+    "when": "start"
+   }
+  ],
+  "units": [
+   {
+    "id": "start-p2",
+    "seat": "p2"
+   },
+   {
+    "id": "start-p3",
+    "seat": "p3"
+   }
+  ]
+ },
+ "statuses": [
+  "open",
+  "limited",
+  "busy",
+  "quiet",
+  "repair",
+  "ready",
+  "withdrawn",
+  "closed",
+  "disputed",
+  "unknown"
+ ],
+ "tokens": {
+  "p1": "695e9d546d17df2afab9ac9096889ef3",
+  "p2": "f2cc3b4bb6c737491469f4eb104e32ac",
+  "p3": "967ea2a69db8474e7782178959366aa5"
+ },
+ "truth": {
+  "s04": "repair",
+  "s05": "limited",
+  "s06": "open",
+  "s08": "withdrawn",
+  "s09": "quiet",
+  "s10": "open",
+  "s12": "withdrawn",
+  "s14": "ready",
+  "s15": "quiet"
+ },
+ "watch": [
+  "s04",
+  "s05",
+  "s06",
+  "s08",
+  "s09",
+  "s10",
+  "s12",
+  "s14",
+  "s15"
+ ],
+ "writer_focal": [
+  "s12",
+  "s06",
+  "s10"
+ ],
+ "zone_order": [
+  "west",
+  "north",
+  "south",
+  "east"
+ ],
+ "zones": {
+  "east": [
+   "s13",
+   "s02",
+   "s08",
+   "s10"
+  ],
+  "north": [
+   "s07",
+   "s01",
+   "s04",
+   "s14"
+  ],
+  "south": [
+   "s03",
+   "s16",
+   "s15",
+   "s12"
+  ],
+  "west": [
+   "s06",
+   "s09",
+   "s11",
+   "s05"
+  ]
+ }
+}

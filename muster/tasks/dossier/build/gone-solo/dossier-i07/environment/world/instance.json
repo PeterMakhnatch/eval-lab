@@ -1,0 +1,181 @@
+{
+ "arm": "solo",
+ "asks": {
+  "p1": [
+   "s02",
+   "s14",
+   "s12",
+   "s08",
+   "s11",
+   "s07",
+   "s04",
+   "s09",
+   "s05"
+  ]
+ },
+ "budgets": {
+  "p1": {
+   "answer": 9,
+   "put": 17
+  }
+ },
+ "channel": false,
+ "clerks": [
+  "p1"
+ ],
+ "condition": "gone-solo",
+ "facet": "gone",
+ "feeds": {
+  "p1": [
+   {
+    "at": 1,
+    "key": "s02",
+    "status": "ready"
+   },
+   {
+    "at": 24,
+    "key": "s12",
+    "status": "repair"
+   },
+   {
+    "at": 14,
+    "key": "s14",
+    "status": "busy"
+   },
+   {
+    "at": 18,
+    "key": "s08",
+    "status": "limited"
+   },
+   {
+    "at": 16,
+    "key": "s04",
+    "status": "ready"
+   },
+   {
+    "at": 22,
+    "key": "s07",
+    "status": "withdrawn"
+   },
+   {
+    "at": 21,
+    "key": "s12",
+    "status": "limited"
+   },
+   {
+    "at": 6,
+    "key": "s07",
+    "status": "busy"
+   },
+   {
+    "at": 29,
+    "key": "s14",
+    "status": "withdrawn"
+   },
+   {
+    "at": 29,
+    "key": "s11",
+    "status": "open"
+   },
+   {
+    "at": 19,
+    "key": "s09",
+    "status": "busy"
+   },
+   {
+    "at": 21,
+    "key": "s05",
+    "status": "repair"
+   },
+   {
+    "at": 20,
+    "key": "s02",
+    "status": "limited"
+   }
+  ]
+ },
+ "id": "i07",
+ "real": [
+  "p1"
+ ],
+ "slots": 0,
+ "stage": {
+  "real": [
+   "p1"
+  ],
+  "rules": [],
+  "units": []
+ },
+ "statuses": [
+  "open",
+  "limited",
+  "busy",
+  "quiet",
+  "repair",
+  "ready",
+  "withdrawn",
+  "closed",
+  "disputed",
+  "unknown"
+ ],
+ "tokens": {
+  "p1": "6e146451cf894bce77d36ad888674c98",
+  "p2": "504c64abda509035e48ce0432a6a77b7",
+  "p3": "7cb23b0d78e26ed0121c46e17df14790"
+ },
+ "truth": {
+  "s02": "limited",
+  "s04": "ready",
+  "s05": "repair",
+  "s07": "withdrawn",
+  "s08": "limited",
+  "s09": "busy",
+  "s11": "open",
+  "s12": "repair",
+  "s14": "withdrawn"
+ },
+ "watch": [
+  "s02",
+  "s04",
+  "s05",
+  "s07",
+  "s08",
+  "s09",
+  "s11",
+  "s12",
+  "s14"
+ ],
+ "writer_focal": [],
+ "zone_order": [
+  "east",
+  "south",
+  "west",
+  "north"
+ ],
+ "zones": {
+  "east": [
+   "s11",
+   "s13",
+   "s09",
+   "s12"
+  ],
+  "north": [
+   "s07",
+   "s04",
+   "s05",
+   "s06"
+  ],
+  "south": [
+   "s08",
+   "s03",
+   "s14",
+   "s02"
+  ],
+  "west": [
+   "s15",
+   "s16",
+   "s01",
+   "s10"
+  ]
+ }
+}

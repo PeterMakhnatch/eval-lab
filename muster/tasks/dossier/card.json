@@ -1,0 +1,2465 @@
+{
+  "builtins": [
+    {
+      "episodes": 3600,
+      "id": "builtin.determinism",
+      "status": "PASS"
+    },
+    {
+      "episodes": 14400,
+      "id": "builtin.replay",
+      "status": "PASS"
+    },
+    {
+      "episodes": 14400,
+      "id": "builtin.state_matches_log",
+      "status": "PASS"
+    },
+    {
+      "episodes": 14400,
+      "id": "builtin.no_world_error",
+      "status": "PASS"
+    },
+    {
+      "episodes": 14400,
+      "id": "builtin.no_hidden_string",
+      "status": "PASS"
+    },
+    {
+      "episodes": 14400,
+      "id": "builtin.policies_end",
+      "status": "PASS"
+    },
+    {
+      "episodes": 14400,
+      "id": "builtin.log_continuous",
+      "status": "PASS"
+    },
+    {
+      "episodes": 14400,
+      "id": "builtin.reward_range",
+      "status": "PASS"
+    },
+    {
+      "episodes": 960,
+      "id": "builtin.oracle_ceiling",
+      "status": "PASS"
+    },
+    {
+      "episodes": 960,
+      "id": "builtin.credited_events_matter",
+      "status": "PASS"
+    },
+    {
+      "episodes": 10918,
+      "id": "builtin.refused_events_do_not_matter",
+      "status": "PASS"
+    },
+    {
+      "episodes": 960,
+      "id": "builtin.floor",
+      "status": "PASS"
+    },
+    {
+      "episodes": 12,
+      "id": "builtin.findings_regress",
+      "status": "PASS"
+    }
+  ],
+  "claims": [
+    {
+      "episodes": 960,
+      "id": "1-oracle-ceiling",
+      "status": "PASS"
+    },
+    {
+      "episodes": 960,
+      "id": "1-oracle-register-sufficient",
+      "status": "PASS"
+    },
+    {
+      "episodes": 420,
+      "id": "probe-skills",
+      "status": "PASS"
+    },
+    {
+      "episodes": 20,
+      "id": "3-cleaner-ceiling",
+      "status": "PASS"
+    },
+    {
+      "episodes": 20,
+      "id": "3-cleaner-peak",
+      "status": "PASS"
+    },
+    {
+      "episodes": 20,
+      "id": "v3-ascending-capacity",
+      "status": "PASS"
+    },
+    {
+      "episodes": 20,
+      "id": "v3-reverse-capacity",
+      "status": "PASS"
+    },
+    {
+      "episodes": 20,
+      "id": "v3-feed_order-capacity",
+      "status": "PASS"
+    },
+    {
+      "episodes": 10,
+      "id": "v3-ascending-dispute",
+      "status": "PASS"
+    },
+    {
+      "episodes": 10,
+      "id": "v3-feed_order-dispute",
+      "status": "PASS"
+    },
+    {
+      "episodes": 120,
+      "id": "4-own-first-miss",
+      "status": "PASS"
+    },
+    {
+      "episodes": 40,
+      "id": "5-reader-pooler-miss",
+      "status": "PASS"
+    },
+    {
+      "episodes": 10,
+      "id": "5-reader-burier",
+      "status": "PASS"
+    },
+    {
+      "episodes": 10,
+      "id": "5-reader-closer",
+      "status": "PASS"
+    },
+    {
+      "episodes": 10,
+      "id": "5-reader-umpire",
+      "status": "PASS"
+    },
+    {
+      "episodes": 40,
+      "id": "6-solo-pooler-miss",
+      "status": "PASS"
+    },
+    {
+      "episodes": 780,
+      "id": "7-team-hoarder-miss",
+      "status": "PASS"
+    },
+    {
+      "episodes": 960,
+      "id": "8-idle-floor",
+      "status": "PASS"
+    },
+    {
+      "episodes": 60,
+      "id": "8-spam-floor",
+      "status": "PASS"
+    },
+    {
+      "episodes": 960,
+      "id": "8-fuzz-no-500",
+      "status": "PASS"
+    }
+  ],
+  "conditions": [
+    "share-probe",
+    "share-reader",
+    "share-solo",
+    "share-team",
+    "scarce-probe",
+    "scarce-reader",
+    "scarce-solo",
+    "scarce-team",
+    "gone-probe",
+    "gone-reader",
+    "gone-solo",
+    "gone-team",
+    "cascade-probe",
+    "cascade-reader",
+    "cascade-solo",
+    "cascade-team",
+    "dispute-probe",
+    "dispute-reader",
+    "dispute-solo",
+    "dispute-team",
+    "mix-probe",
+    "mix-reader",
+    "mix-solo",
+    "mix-team"
+  ],
+  "family": "dossier",
+  "matrix": {
+    "ascending": {
+      "cascade-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "cascade-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "cascade-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "cascade-team": {
+        "episodes": 130,
+        "max": 0.3333333333333333,
+        "mean": 0.07692307692307693,
+        "min": 0.0
+      },
+      "dispute-probe": {
+        "episodes": 10,
+        "max": 0.8888888888888888,
+        "mean": 0.888888888888889,
+        "min": 0.8888888888888888
+      },
+      "dispute-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "dispute-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "dispute-team": {
+        "episodes": 130,
+        "max": 0.3333333333333333,
+        "mean": 0.02564102564102564,
+        "min": 0.0
+      },
+      "gone-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "gone-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "gone-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "gone-team": {
+        "episodes": 130,
+        "max": 0.3333333333333333,
+        "mean": 0.07692307692307693,
+        "min": 0.0
+      },
+      "mix-probe": {
+        "episodes": 10,
+        "max": 0.9166666666666666,
+        "mean": 0.7166666666666666,
+        "min": 0.5833333333333334
+      },
+      "mix-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "mix-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "mix-team": {
+        "episodes": 130,
+        "max": 0.3333333333333333,
+        "mean": 0.021153846153846155,
+        "min": 0.0
+      },
+      "scarce-probe": {
+        "episodes": 10,
+        "max": 0.9166666666666666,
+        "mean": 0.8333333333333334,
+        "min": 0.75
+      },
+      "scarce-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "scarce-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "scarce-team": {
+        "episodes": 130,
+        "max": 0.3333333333333333,
+        "mean": 0.04294871794871795,
+        "min": 0.0
+      },
+      "share-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "share-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "share-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "share-team": {
+        "episodes": 130,
+        "max": 0.3333333333333333,
+        "mean": 0.07692307692307693,
+        "min": 0.0
+      }
+    },
+    "burier": {
+      "cascade-probe": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "cascade-reader": {
+        "episodes": 10,
+        "max": 0.8888888888888888,
+        "mean": 0.888888888888889,
+        "min": 0.8888888888888888
+      },
+      "cascade-solo": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "cascade-team": {
+        "episodes": 130,
+        "max": 0.7777777777777778,
+        "mean": 0.770940170940171,
+        "min": 0.6666666666666666
+      },
+      "dispute-probe": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "dispute-reader": {
+        "episodes": 10,
+        "max": 0.8888888888888888,
+        "mean": 0.888888888888889,
+        "min": 0.8888888888888888
+      },
+      "dispute-solo": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "dispute-team": {
+        "episodes": 130,
+        "max": 0.7777777777777778,
+        "mean": 0.7700854700854701,
+        "min": 0.6666666666666666
+      },
+      "gone-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "gone-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "gone-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "gone-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 0.9700854700854701,
+        "min": 0.7777777777777778
+      },
+      "mix-probe": {
+        "episodes": 10,
+        "max": 0.75,
+        "mean": 0.625,
+        "min": 0.5
+      },
+      "mix-reader": {
+        "episodes": 10,
+        "max": 0.9166666666666666,
+        "mean": 0.8916666666666666,
+        "min": 0.8333333333333334
+      },
+      "mix-solo": {
+        "episodes": 10,
+        "max": 0.6666666666666666,
+        "mean": 0.6333333333333333,
+        "min": 0.5555555555555556
+      },
+      "mix-team": {
+        "episodes": 130,
+        "max": 0.75,
+        "mean": 0.6243589743589744,
+        "min": 0.4166666666666667
+      },
+      "scarce-probe": {
+        "episodes": 10,
+        "max": 0.9166666666666666,
+        "mean": 0.8333333333333334,
+        "min": 0.75
+      },
+      "scarce-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "scarce-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "scarce-team": {
+        "episodes": 130,
+        "max": 0.9166666666666666,
+        "mean": 0.8166666666666667,
+        "min": 0.5833333333333334
+      },
+      "share-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "share-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "share-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "share-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 0.9854700854700855,
+        "min": 0.8888888888888888
+      }
+    },
+    "cleaner": {
+      "cascade-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "cascade-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "cascade-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "cascade-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "dispute-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "dispute-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "dispute-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "dispute-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "gone-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "gone-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "gone-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "gone-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "mix-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "mix-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "mix-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "mix-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 0.9993589743589743,
+        "min": 0.9166666666666666
+      },
+      "scarce-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "scarce-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "scarce-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "scarce-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 0.9993589743589743,
+        "min": 0.9166666666666666
+      },
+      "share-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "share-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "share-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "share-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      }
+    },
+    "closer": {
+      "cascade-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "cascade-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "cascade-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "cascade-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 0.9914529914529915,
+        "min": 0.8888888888888888
+      },
+      "dispute-probe": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "dispute-reader": {
+        "episodes": 10,
+        "max": 0.8888888888888888,
+        "mean": 0.888888888888889,
+        "min": 0.8888888888888888
+      },
+      "dispute-solo": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "dispute-team": {
+        "episodes": 130,
+        "max": 0.7777777777777778,
+        "mean": 0.7700854700854701,
+        "min": 0.6666666666666666
+      },
+      "gone-probe": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "gone-reader": {
+        "episodes": 10,
+        "max": 0.8888888888888888,
+        "mean": 0.888888888888889,
+        "min": 0.8888888888888888
+      },
+      "gone-solo": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "gone-team": {
+        "episodes": 130,
+        "max": 0.7777777777777778,
+        "mean": 0.7692307692307693,
+        "min": 0.6666666666666666
+      },
+      "mix-probe": {
+        "episodes": 10,
+        "max": 0.6666666666666666,
+        "mean": 0.575,
+        "min": 0.4166666666666667
+      },
+      "mix-reader": {
+        "episodes": 10,
+        "max": 0.9166666666666666,
+        "mean": 0.8916666666666666,
+        "min": 0.8333333333333334
+      },
+      "mix-solo": {
+        "episodes": 10,
+        "max": 0.6666666666666666,
+        "mean": 0.6333333333333333,
+        "min": 0.5555555555555556
+      },
+      "mix-team": {
+        "episodes": 130,
+        "max": 0.6666666666666666,
+        "mean": 0.5807692307692308,
+        "min": 0.4166666666666667
+      },
+      "scarce-probe": {
+        "episodes": 10,
+        "max": 0.9166666666666666,
+        "mean": 0.8333333333333334,
+        "min": 0.75
+      },
+      "scarce-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "scarce-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "scarce-team": {
+        "episodes": 130,
+        "max": 0.9166666666666666,
+        "mean": 0.8166666666666667,
+        "min": 0.5833333333333334
+      },
+      "share-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "share-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "share-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "share-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 0.9854700854700855,
+        "min": 0.8888888888888888
+      }
+    },
+    "feed_order": {
+      "cascade-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "cascade-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "cascade-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "cascade-team": {
+        "episodes": 130,
+        "max": 0.3333333333333333,
+        "mean": 0.07692307692307693,
+        "min": 0.0
+      },
+      "dispute-probe": {
+        "episodes": 10,
+        "max": 0.8888888888888888,
+        "mean": 0.888888888888889,
+        "min": 0.8888888888888888
+      },
+      "dispute-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "dispute-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "dispute-team": {
+        "episodes": 130,
+        "max": 0.3333333333333333,
+        "mean": 0.02564102564102564,
+        "min": 0.0
+      },
+      "gone-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "gone-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "gone-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "gone-team": {
+        "episodes": 130,
+        "max": 0.3333333333333333,
+        "mean": 0.07692307692307693,
+        "min": 0.0
+      },
+      "mix-probe": {
+        "episodes": 10,
+        "max": 0.8333333333333334,
+        "mean": 0.7083333333333333,
+        "min": 0.5833333333333334
+      },
+      "mix-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "mix-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "mix-team": {
+        "episodes": 130,
+        "max": 0.25,
+        "mean": 0.016025641025641028,
+        "min": 0.0
+      },
+      "scarce-probe": {
+        "episodes": 10,
+        "max": 0.9166666666666666,
+        "mean": 0.8333333333333334,
+        "min": 0.75
+      },
+      "scarce-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "scarce-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "scarce-team": {
+        "episodes": 130,
+        "max": 0.3333333333333333,
+        "mean": 0.041025641025641026,
+        "min": 0.0
+      },
+      "share-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "share-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "share-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "share-team": {
+        "episodes": 130,
+        "max": 0.3333333333333333,
+        "mean": 0.07692307692307693,
+        "min": 0.0
+      }
+    },
+    "fuzz": {
+      "cascade-probe": {
+        "episodes": 10,
+        "max": 0.3333333333333333,
+        "mean": 0.3333333333333333,
+        "min": 0.3333333333333333
+      },
+      "cascade-reader": {
+        "episodes": 10,
+        "max": 0.6666666666666666,
+        "mean": 0.6666666666666666,
+        "min": 0.6666666666666666
+      },
+      "cascade-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "cascade-team": {
+        "episodes": 130,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "dispute-probe": {
+        "episodes": 10,
+        "max": 0.3333333333333333,
+        "mean": 0.3333333333333333,
+        "min": 0.3333333333333333
+      },
+      "dispute-reader": {
+        "episodes": 10,
+        "max": 0.6666666666666666,
+        "mean": 0.6666666666666666,
+        "min": 0.6666666666666666
+      },
+      "dispute-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "dispute-team": {
+        "episodes": 130,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "gone-probe": {
+        "episodes": 10,
+        "max": 0.3333333333333333,
+        "mean": 0.3333333333333333,
+        "min": 0.3333333333333333
+      },
+      "gone-reader": {
+        "episodes": 10,
+        "max": 0.6666666666666666,
+        "mean": 0.6666666666666666,
+        "min": 0.6666666666666666
+      },
+      "gone-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "gone-team": {
+        "episodes": 130,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "mix-probe": {
+        "episodes": 10,
+        "max": 0.3333333333333333,
+        "mean": 0.3333333333333333,
+        "min": 0.3333333333333333
+      },
+      "mix-reader": {
+        "episodes": 10,
+        "max": 0.75,
+        "mean": 0.75,
+        "min": 0.75
+      },
+      "mix-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "mix-team": {
+        "episodes": 130,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "scarce-probe": {
+        "episodes": 10,
+        "max": 0.4166666666666667,
+        "mean": 0.4166666666666667,
+        "min": 0.4166666666666667
+      },
+      "scarce-reader": {
+        "episodes": 10,
+        "max": 0.75,
+        "mean": 0.75,
+        "min": 0.75
+      },
+      "scarce-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "scarce-team": {
+        "episodes": 130,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "share-probe": {
+        "episodes": 10,
+        "max": 0.3333333333333333,
+        "mean": 0.3333333333333333,
+        "min": 0.3333333333333333
+      },
+      "share-reader": {
+        "episodes": 10,
+        "max": 0.6666666666666666,
+        "mean": 0.6666666666666666,
+        "min": 0.6666666666666666
+      },
+      "share-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "share-team": {
+        "episodes": 130,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      }
+    },
+    "hoarder": {
+      "cascade-probe": {
+        "episodes": 10,
+        "max": 0.4444444444444444,
+        "mean": 0.4444444444444445,
+        "min": 0.4444444444444444
+      },
+      "cascade-reader": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "cascade-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "cascade-team": {
+        "episodes": 130,
+        "max": 0.3333333333333333,
+        "mean": 0.3333333333333333,
+        "min": 0.3333333333333333
+      },
+      "dispute-probe": {
+        "episodes": 10,
+        "max": 0.4444444444444444,
+        "mean": 0.4444444444444445,
+        "min": 0.4444444444444444
+      },
+      "dispute-reader": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "dispute-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "dispute-team": {
+        "episodes": 130,
+        "max": 0.3333333333333333,
+        "mean": 0.3333333333333333,
+        "min": 0.3333333333333333
+      },
+      "gone-probe": {
+        "episodes": 10,
+        "max": 0.4444444444444444,
+        "mean": 0.4444444444444445,
+        "min": 0.4444444444444444
+      },
+      "gone-reader": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "gone-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "gone-team": {
+        "episodes": 130,
+        "max": 0.3333333333333333,
+        "mean": 0.3333333333333333,
+        "min": 0.3333333333333333
+      },
+      "mix-probe": {
+        "episodes": 10,
+        "max": 0.4166666666666667,
+        "mean": 0.4166666666666667,
+        "min": 0.4166666666666667
+      },
+      "mix-reader": {
+        "episodes": 10,
+        "max": 0.8333333333333334,
+        "mean": 0.8333333333333334,
+        "min": 0.8333333333333334
+      },
+      "mix-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "mix-team": {
+        "episodes": 130,
+        "max": 0.25,
+        "mean": 0.25,
+        "min": 0.25
+      },
+      "scarce-probe": {
+        "episodes": 10,
+        "max": 0.5,
+        "mean": 0.5,
+        "min": 0.5
+      },
+      "scarce-reader": {
+        "episodes": 10,
+        "max": 0.8333333333333334,
+        "mean": 0.8333333333333334,
+        "min": 0.8333333333333334
+      },
+      "scarce-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "scarce-team": {
+        "episodes": 130,
+        "max": 0.25,
+        "mean": 0.25,
+        "min": 0.25
+      },
+      "share-probe": {
+        "episodes": 10,
+        "max": 0.4444444444444444,
+        "mean": 0.4444444444444445,
+        "min": 0.4444444444444444
+      },
+      "share-reader": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "share-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "share-team": {
+        "episodes": 130,
+        "max": 0.3333333333333333,
+        "mean": 0.3333333333333333,
+        "min": 0.3333333333333333
+      }
+    },
+    "idle": {
+      "cascade-probe": {
+        "episodes": 10,
+        "max": 0.3333333333333333,
+        "mean": 0.3333333333333333,
+        "min": 0.3333333333333333
+      },
+      "cascade-reader": {
+        "episodes": 10,
+        "max": 0.6666666666666666,
+        "mean": 0.6666666666666666,
+        "min": 0.6666666666666666
+      },
+      "cascade-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "cascade-team": {
+        "episodes": 130,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "dispute-probe": {
+        "episodes": 10,
+        "max": 0.3333333333333333,
+        "mean": 0.3333333333333333,
+        "min": 0.3333333333333333
+      },
+      "dispute-reader": {
+        "episodes": 10,
+        "max": 0.6666666666666666,
+        "mean": 0.6666666666666666,
+        "min": 0.6666666666666666
+      },
+      "dispute-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "dispute-team": {
+        "episodes": 130,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "gone-probe": {
+        "episodes": 10,
+        "max": 0.3333333333333333,
+        "mean": 0.3333333333333333,
+        "min": 0.3333333333333333
+      },
+      "gone-reader": {
+        "episodes": 10,
+        "max": 0.6666666666666666,
+        "mean": 0.6666666666666666,
+        "min": 0.6666666666666666
+      },
+      "gone-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "gone-team": {
+        "episodes": 130,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "mix-probe": {
+        "episodes": 10,
+        "max": 0.3333333333333333,
+        "mean": 0.3333333333333333,
+        "min": 0.3333333333333333
+      },
+      "mix-reader": {
+        "episodes": 10,
+        "max": 0.75,
+        "mean": 0.75,
+        "min": 0.75
+      },
+      "mix-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "mix-team": {
+        "episodes": 130,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "scarce-probe": {
+        "episodes": 10,
+        "max": 0.4166666666666667,
+        "mean": 0.4166666666666667,
+        "min": 0.4166666666666667
+      },
+      "scarce-reader": {
+        "episodes": 10,
+        "max": 0.75,
+        "mean": 0.75,
+        "min": 0.75
+      },
+      "scarce-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "scarce-team": {
+        "episodes": 130,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "share-probe": {
+        "episodes": 10,
+        "max": 0.3333333333333333,
+        "mean": 0.3333333333333333,
+        "min": 0.3333333333333333
+      },
+      "share-reader": {
+        "episodes": 10,
+        "max": 0.6666666666666666,
+        "mean": 0.6666666666666666,
+        "min": 0.6666666666666666
+      },
+      "share-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "share-team": {
+        "episodes": 130,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      }
+    },
+    "oracle": {
+      "cascade-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "cascade-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "cascade-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "cascade-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "dispute-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "dispute-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "dispute-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "dispute-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "gone-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "gone-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "gone-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "gone-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "mix-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "mix-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "mix-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "mix-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "scarce-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "scarce-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "scarce-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "scarce-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "share-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "share-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "share-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "share-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      }
+    },
+    "own_first": {
+      "cascade-probe": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "cascade-reader": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "cascade-solo": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "cascade-team": {
+        "episodes": 130,
+        "max": 0.6666666666666666,
+        "mean": 0.6666666666666666,
+        "min": 0.6666666666666666
+      },
+      "dispute-probe": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "dispute-reader": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "dispute-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "dispute-team": {
+        "episodes": 130,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "gone-probe": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "gone-reader": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "gone-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "gone-team": {
+        "episodes": 130,
+        "max": 0.6666666666666666,
+        "mean": 0.6666666666666666,
+        "min": 0.6666666666666666
+      },
+      "mix-probe": {
+        "episodes": 10,
+        "max": 0.9166666666666666,
+        "mean": 0.8916666666666666,
+        "min": 0.8333333333333334
+      },
+      "mix-reader": {
+        "episodes": 10,
+        "max": 0.9166666666666666,
+        "mean": 0.8916666666666666,
+        "min": 0.8333333333333334
+      },
+      "mix-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "mix-team": {
+        "episodes": 130,
+        "max": 0.8333333333333334,
+        "mean": 0.8083333333333335,
+        "min": 0.75
+      },
+      "scarce-probe": {
+        "episodes": 10,
+        "max": 0.8333333333333334,
+        "mean": 0.8333333333333334,
+        "min": 0.8333333333333334
+      },
+      "scarce-reader": {
+        "episodes": 10,
+        "max": 0.8333333333333334,
+        "mean": 0.8333333333333334,
+        "min": 0.8333333333333334
+      },
+      "scarce-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "scarce-team": {
+        "episodes": 130,
+        "max": 0.8333333333333334,
+        "mean": 0.8333333333333334,
+        "min": 0.8333333333333334
+      },
+      "share-probe": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "share-reader": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "share-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "share-team": {
+        "episodes": 130,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      }
+    },
+    "pooler": {
+      "cascade-probe": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "cascade-reader": {
+        "episodes": 10,
+        "max": 0.8888888888888888,
+        "mean": 0.888888888888889,
+        "min": 0.8888888888888888
+      },
+      "cascade-solo": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "cascade-team": {
+        "episodes": 130,
+        "max": 0.7777777777777778,
+        "mean": 0.770940170940171,
+        "min": 0.6666666666666666
+      },
+      "dispute-probe": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "dispute-reader": {
+        "episodes": 10,
+        "max": 0.8888888888888888,
+        "mean": 0.888888888888889,
+        "min": 0.8888888888888888
+      },
+      "dispute-solo": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "dispute-team": {
+        "episodes": 130,
+        "max": 0.7777777777777778,
+        "mean": 0.7700854700854701,
+        "min": 0.6666666666666666
+      },
+      "gone-probe": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "gone-reader": {
+        "episodes": 10,
+        "max": 0.8888888888888888,
+        "mean": 0.888888888888889,
+        "min": 0.8888888888888888
+      },
+      "gone-solo": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "gone-team": {
+        "episodes": 130,
+        "max": 0.7777777777777778,
+        "mean": 0.7692307692307693,
+        "min": 0.6666666666666666
+      },
+      "mix-probe": {
+        "episodes": 10,
+        "max": 0.5833333333333334,
+        "mean": 0.4916666666666667,
+        "min": 0.4166666666666667
+      },
+      "mix-reader": {
+        "episodes": 10,
+        "max": 0.8333333333333334,
+        "mean": 0.8333333333333334,
+        "min": 0.8333333333333334
+      },
+      "mix-solo": {
+        "episodes": 10,
+        "max": 0.4444444444444444,
+        "mean": 0.4444444444444445,
+        "min": 0.4444444444444444
+      },
+      "mix-team": {
+        "episodes": 130,
+        "max": 0.5833333333333334,
+        "mean": 0.5006410256410256,
+        "min": 0.4166666666666667
+      },
+      "scarce-probe": {
+        "episodes": 10,
+        "max": 0.9166666666666666,
+        "mean": 0.8333333333333334,
+        "min": 0.75
+      },
+      "scarce-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "scarce-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "scarce-team": {
+        "episodes": 130,
+        "max": 0.9166666666666666,
+        "mean": 0.8166666666666667,
+        "min": 0.5833333333333334
+      },
+      "share-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "share-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "share-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "share-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 0.9854700854700855,
+        "min": 0.8888888888888888
+      }
+    },
+    "reverse": {
+      "cascade-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "cascade-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "cascade-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "cascade-team": {
+        "episodes": 130,
+        "max": 0.3333333333333333,
+        "mean": 0.07692307692307693,
+        "min": 0.0
+      },
+      "dispute-probe": {
+        "episodes": 10,
+        "max": 0.8888888888888888,
+        "mean": 0.888888888888889,
+        "min": 0.8888888888888888
+      },
+      "dispute-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "dispute-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "dispute-team": {
+        "episodes": 130,
+        "max": 0.3333333333333333,
+        "mean": 0.02564102564102564,
+        "min": 0.0
+      },
+      "gone-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "gone-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "gone-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "gone-team": {
+        "episodes": 130,
+        "max": 0.3333333333333333,
+        "mean": 0.07692307692307693,
+        "min": 0.0
+      },
+      "mix-probe": {
+        "episodes": 10,
+        "max": 0.8333333333333334,
+        "mean": 0.75,
+        "min": 0.5833333333333334
+      },
+      "mix-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "mix-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "mix-team": {
+        "episodes": 130,
+        "max": 0.16666666666666666,
+        "mean": 0.010897435897435897,
+        "min": 0.0
+      },
+      "scarce-probe": {
+        "episodes": 10,
+        "max": 0.9166666666666666,
+        "mean": 0.8333333333333334,
+        "min": 0.75
+      },
+      "scarce-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "scarce-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "scarce-team": {
+        "episodes": 130,
+        "max": 0.25,
+        "mean": 0.032692307692307694,
+        "min": 0.0
+      },
+      "share-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "share-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "share-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "share-team": {
+        "episodes": 130,
+        "max": 0.3333333333333333,
+        "mean": 0.07692307692307693,
+        "min": 0.0
+      }
+    },
+    "selector": {
+      "cascade-probe": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "cascade-reader": {
+        "episodes": 10,
+        "max": 0.8888888888888888,
+        "mean": 0.888888888888889,
+        "min": 0.8888888888888888
+      },
+      "cascade-solo": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "cascade-team": {
+        "episodes": 130,
+        "max": 0.7777777777777778,
+        "mean": 0.770940170940171,
+        "min": 0.6666666666666666
+      },
+      "dispute-probe": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "dispute-reader": {
+        "episodes": 10,
+        "max": 0.8888888888888888,
+        "mean": 0.888888888888889,
+        "min": 0.8888888888888888
+      },
+      "dispute-solo": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "dispute-team": {
+        "episodes": 130,
+        "max": 0.7777777777777778,
+        "mean": 0.7700854700854701,
+        "min": 0.6666666666666666
+      },
+      "gone-probe": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "gone-reader": {
+        "episodes": 10,
+        "max": 0.8888888888888888,
+        "mean": 0.888888888888889,
+        "min": 0.8888888888888888
+      },
+      "gone-solo": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "gone-team": {
+        "episodes": 130,
+        "max": 0.7777777777777778,
+        "mean": 0.7692307692307693,
+        "min": 0.6666666666666666
+      },
+      "mix-probe": {
+        "episodes": 10,
+        "max": 0.5833333333333334,
+        "mean": 0.5833333333333334,
+        "min": 0.5833333333333334
+      },
+      "mix-reader": {
+        "episodes": 10,
+        "max": 0.8333333333333334,
+        "mean": 0.8333333333333334,
+        "min": 0.8333333333333334
+      },
+      "mix-solo": {
+        "episodes": 10,
+        "max": 0.4444444444444444,
+        "mean": 0.4444444444444445,
+        "min": 0.4444444444444444
+      },
+      "mix-team": {
+        "episodes": 130,
+        "max": 0.5833333333333334,
+        "mean": 0.5833333333333334,
+        "min": 0.5833333333333334
+      },
+      "scarce-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "scarce-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "scarce-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "scarce-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 0.9782051282051283,
+        "min": 0.8333333333333334
+      },
+      "share-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "share-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "share-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "share-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 0.9854700854700855,
+        "min": 0.8888888888888888
+      }
+    },
+    "spam": {
+      "cascade-probe": {
+        "episodes": 10,
+        "max": 0.6666666666666666,
+        "mean": 0.6666666666666666,
+        "min": 0.6666666666666666
+      },
+      "cascade-reader": {
+        "episodes": 10,
+        "max": 0.6666666666666666,
+        "mean": 0.6666666666666666,
+        "min": 0.6666666666666666
+      },
+      "cascade-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "cascade-team": {
+        "episodes": 130,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "dispute-probe": {
+        "episodes": 10,
+        "max": 0.5555555555555556,
+        "mean": 0.5555555555555556,
+        "min": 0.5555555555555556
+      },
+      "dispute-reader": {
+        "episodes": 10,
+        "max": 0.6666666666666666,
+        "mean": 0.6666666666666666,
+        "min": 0.6666666666666666
+      },
+      "dispute-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "dispute-team": {
+        "episodes": 130,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "gone-probe": {
+        "episodes": 10,
+        "max": 0.6666666666666666,
+        "mean": 0.6666666666666666,
+        "min": 0.6666666666666666
+      },
+      "gone-reader": {
+        "episodes": 10,
+        "max": 0.6666666666666666,
+        "mean": 0.6666666666666666,
+        "min": 0.6666666666666666
+      },
+      "gone-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "gone-team": {
+        "episodes": 130,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "mix-probe": {
+        "episodes": 10,
+        "max": 0.5833333333333334,
+        "mean": 0.5333333333333334,
+        "min": 0.4166666666666667
+      },
+      "mix-reader": {
+        "episodes": 10,
+        "max": 0.75,
+        "mean": 0.75,
+        "min": 0.75
+      },
+      "mix-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "mix-team": {
+        "episodes": 130,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "scarce-probe": {
+        "episodes": 10,
+        "max": 0.6666666666666666,
+        "mean": 0.5833333333333333,
+        "min": 0.5
+      },
+      "scarce-reader": {
+        "episodes": 10,
+        "max": 0.75,
+        "mean": 0.75,
+        "min": 0.75
+      },
+      "scarce-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "scarce-team": {
+        "episodes": 130,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "share-probe": {
+        "episodes": 10,
+        "max": 0.6666666666666666,
+        "mean": 0.6666666666666666,
+        "min": 0.6666666666666666
+      },
+      "share-reader": {
+        "episodes": 10,
+        "max": 0.6666666666666666,
+        "mean": 0.6666666666666666,
+        "min": 0.6666666666666666
+      },
+      "share-solo": {
+        "episodes": 10,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      },
+      "share-team": {
+        "episodes": 130,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0
+      }
+    },
+    "umpire": {
+      "cascade-probe": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "cascade-reader": {
+        "episodes": 10,
+        "max": 0.8888888888888888,
+        "mean": 0.888888888888889,
+        "min": 0.8888888888888888
+      },
+      "cascade-solo": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "cascade-team": {
+        "episodes": 130,
+        "max": 0.7777777777777778,
+        "mean": 0.770940170940171,
+        "min": 0.6666666666666666
+      },
+      "dispute-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "dispute-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "dispute-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "dispute-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 0.9769230769230769,
+        "min": 0.7777777777777778
+      },
+      "gone-probe": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "gone-reader": {
+        "episodes": 10,
+        "max": 0.8888888888888888,
+        "mean": 0.888888888888889,
+        "min": 0.8888888888888888
+      },
+      "gone-solo": {
+        "episodes": 10,
+        "max": 0.7777777777777778,
+        "mean": 0.7777777777777778,
+        "min": 0.7777777777777778
+      },
+      "gone-team": {
+        "episodes": 130,
+        "max": 0.7777777777777778,
+        "mean": 0.7692307692307693,
+        "min": 0.6666666666666666
+      },
+      "mix-probe": {
+        "episodes": 10,
+        "max": 0.75,
+        "mean": 0.6166666666666667,
+        "min": 0.5833333333333334
+      },
+      "mix-reader": {
+        "episodes": 10,
+        "max": 0.9166666666666666,
+        "mean": 0.8833333333333334,
+        "min": 0.8333333333333334
+      },
+      "mix-solo": {
+        "episodes": 10,
+        "max": 0.6666666666666666,
+        "mean": 0.6222222222222222,
+        "min": 0.5555555555555556
+      },
+      "mix-team": {
+        "episodes": 130,
+        "max": 0.75,
+        "mean": 0.6173076923076923,
+        "min": 0.5
+      },
+      "scarce-probe": {
+        "episodes": 10,
+        "max": 0.9166666666666666,
+        "mean": 0.8333333333333334,
+        "min": 0.75
+      },
+      "scarce-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "scarce-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "scarce-team": {
+        "episodes": 130,
+        "max": 0.9166666666666666,
+        "mean": 0.8166666666666667,
+        "min": 0.5833333333333334
+      },
+      "share-probe": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "share-reader": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "share-solo": {
+        "episodes": 10,
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0
+      },
+      "share-team": {
+        "episodes": 130,
+        "max": 1.0,
+        "mean": 0.9854700854700855,
+        "min": 0.8888888888888888
+      }
+    }
+  },
+  "not_checkable_at_build_time": [
+    "Instruction fairness (human review or blind implementer)",
+    "Actual difficulty and construct attribution",
+    "Discrimination between models",
+    "Reliability across attempts and scaffolds",
+    "Team benefit at equal aggregate cost",
+    "Statistical power and contamination",
+    "Run loss and provider liveness",
+    "Live harness fidelity and container isolation"
+  ],
+  "ok": true,
+  "parameters": {
+    "instances": null,
+    "schedules": 12,
+    "seed": 0,
+    "worst": 24
+  },
+  "policies": [
+    "hoarder",
+    "pooler",
+    "selector",
+    "burier",
+    "closer",
+    "umpire",
+    "oracle",
+    "own_first",
+    "cleaner",
+    "idle",
+    "spam",
+    "fuzz",
+    "feed_order",
+    "ascending",
+    "reverse"
+  ],
+  "schema_version": 1,
+  "sources": {
+    "files": {
+      "muster/tasks/_kit/build.py": "89620f7633a1c8ccce5cda8281d1249d73e3952428bda8d46c35749ffd3956de",
+      "muster/tasks/_kit/stagekit.py": "70046cbdc0a9e5fd1662c8112d192bd266bf0ab235b8db7e11c82534ddca57e2",
+      "muster/tasks/_kit/worldkit.py": "6704df23c208d3a7aea5b1c382f727b2b19da99a19f401781fb986d4736ecf6d",
+      "muster/tasks/dossier/family.toml": "1368efa97846ab1ab0faf25a7560828f7f57482ef057fcb3104e52df07c5fbd3",
+      "muster/tasks/dossier/findings/01-chronology.json": "5e27f14366ea8b80f707b2948e4014354d133f9c0084132e43672bc81b758976",
+      "muster/tasks/dossier/findings/02-peer-dispute.json": "06df90e20a55dc782f7772c87800357a3bb65f4c4d41f33a4080012e595fd5d5",
+      "muster/tasks/dossier/findings/03-private-ordinary.json": "e095fc9ca79eb48a3bf4658d326f609aa8129f94b5a05746e9ce6e41a2bdce66",
+      "muster/tasks/dossier/findings/04-private-specials.json": "c4d12f20dc75015dae9d1941bd08c5c71c2222cf207c669cac9a0515d06b55b1",
+      "muster/tasks/dossier/findings/05-special-early.json": "26d43a384fefc43dacf44de5f2e7b5a871b41a10d992c01bf648bc3b17cd0197",
+      "muster/tasks/dossier/findings/06-special-late.json": "394b2104d213957f68560d7a9f84ec98dfa43982cb102016ecdca858d9a6f967",
+      "muster/tasks/dossier/findings/07-special-zone.json": "f5064ddb15be7defb859c579adec6a0cc477f60a76e4f4fb56af16ad34df32cf",
+      "muster/tasks/dossier/findings/08-dominance-early.json": "dd2c6f5a554e47a9c9595a254dbdc8804b92fd90bd3f2f52128132845b93c8e8",
+      "muster/tasks/dossier/findings/09-dominance-late.json": "85d6eaa1c3635f84d4a6a0199c03bebe312402f7be74674f49f7f3ed8e089c8a",
+      "muster/tasks/dossier/findings/10-team-starved.json": "57ef5b9877bad47499f449669df2e0fd0f55b52b72a262fbf3fa34bb289aa75f",
+      "muster/tasks/dossier/findings/11-team-late-close.json": "ed30cc3991129c7a97557514042d1348484f3a062a36023c382140586eccb6fe",
+      "muster/tasks/dossier/findings/12-team-stale-dispute.json": "21046677c4c3c97537201a4dd591ebd4cdf7a2d580f42588a27934b9458fceb7",
+      "muster/tasks/dossier/findings/ablations.py": "8abaffd7af65b15f37558275febc062bebb6b7dfd2ee74b75997234597373792",
+      "muster/tasks/dossier/findings/policies.py": "2430830882c13f1fea68203baa2cf67a84b891eba9010da9cff9656fe50300f8",
+      "muster/tasks/dossier/generate.py": "7f4336399c9f0e67086baa81003059b89221778585910c5d18408c77480f57c9",
+      "muster/tasks/dossier/instances.py": "3af08f4a8b41ca1b306c0cbca0acf07ac54f8ffa7795fe5879e31950bb4de500",
+      "muster/tasks/dossier/lab.py": "8e6a82ec36234221e045cc1cd49f84b0a2e6e70b958991b9ecb6da449ba0ec1a",
+      "muster/tasks/dossier/selfcheck.py": "19fedf2e5e4dd582d266b66a6334e3e19ee113d5cf3d6b4a21a420e3631466fb",
+      "muster/tasks/dossier/template/instructions/fragments.toml": "aa2acebb3fd8fcb23913a1c90d54b1a80217a9f4c1f42eab92430328e2c323d5",
+      "muster/tasks/dossier/template/instructions/seat.md": "f55cab88f8db73239a49fb4ab432ddfbbb15ef676837dded870b8ba8ffb3e7b4",
+      "muster/tasks/dossier/template/policies/driver.py": "ce08cb5ccc41d6f07887015b6c98da08ffc28f1a04f9b54c57f622bf0b553721",
+      "muster/tasks/dossier/template/policies/seat.sh": "f027f723b5e437f5b0a9a428385ce8651399706a1b89f15c47cd147ba896aa56",
+      "muster/tasks/dossier/template/verify.py": "e6001fdee189d6eb99610b0028ac0f14e17b38262a87827a996281ef5ba05641",
+      "muster/tasks/dossier/template/world.py": "9cc3ff7846a78f63393e237522c5812110910df85e5a5db0acc7886ce3f9e23e",
+      "muster/tasks/dossier/zoo.py": "a6c2d34d89cdc41e9f36b5400392ef1e645fedf498536c36690a1fd6f189e81f"
+    },
+    "status": "PASS"
+  },
+  "summary": {
+    "FAIL": 0,
+    "NOT_CHECKED": 0,
+    "PASS": 33,
+    "episodes": 14400
+  }
+}

@@ -1,0 +1,246 @@
+{
+ "arm": "probe",
+ "asks": {
+  "p1": [
+   "s02",
+   "s11",
+   "s14"
+  ],
+  "p2": [
+   "s16",
+   "s10",
+   "s05",
+   "s07"
+  ],
+  "p3": [
+   "s14",
+   "s12",
+   "s10",
+   "s09",
+   "s07"
+  ]
+ },
+ "budgets": {
+  "p1": {
+   "answer": 3,
+   "put": 16
+  },
+  "p2": {
+   "answer": 4,
+   "put": 7
+  },
+  "p3": {
+   "answer": 5,
+   "put": 6
+  }
+ },
+ "channel": false,
+ "clerks": [
+  "p1",
+  "p2",
+  "p3"
+ ],
+ "condition": "mix-probe",
+ "facet": "mix",
+ "feeds": {
+  "p1": [
+   {
+    "at": 30,
+    "key": "s06",
+    "status": "limited"
+   },
+   {
+    "at": 35,
+    "key": "s12",
+    "status": "ready"
+   },
+   {
+    "at": 21,
+    "key": "s09",
+    "status": "quiet"
+   },
+   {
+    "at": 13,
+    "key": "s11",
+    "status": "limited"
+   },
+   {
+    "at": 21,
+    "key": "s09",
+    "status": "repair"
+   },
+   {
+    "at": 38,
+    "key": "s14",
+    "status": "repair"
+   },
+   {
+    "at": 11,
+    "key": "s03",
+    "status": "repair"
+   },
+   {
+    "at": 6,
+    "key": "s04",
+    "status": "open"
+   },
+   {
+    "at": 40,
+    "key": "s15",
+    "status": "ready"
+   },
+   {
+    "at": 21,
+    "key": "north",
+    "status": "closed"
+   },
+   {
+    "at": 34,
+    "key": "s16",
+    "status": "withdrawn"
+   },
+   {
+    "at": 26,
+    "key": "s01",
+    "status": "repair"
+   }
+  ],
+  "p2": [
+   {
+    "at": 38,
+    "key": "s11",
+    "status": "withdrawn"
+   },
+   {
+    "at": 11,
+    "key": "s07",
+    "status": "repair"
+   },
+   {
+    "at": 33,
+    "key": "s16",
+    "status": "repair"
+   }
+  ],
+  "p3": [
+   {
+    "at": 4,
+    "key": "south",
+    "status": "closed"
+   },
+   {
+    "at": 9,
+    "key": "s10",
+    "status": "quiet"
+   }
+  ]
+ },
+ "id": "i10",
+ "real": [
+  "p1"
+ ],
+ "slots": 9,
+ "stage": {
+  "real": [
+   "p1"
+  ],
+  "rules": [
+   {
+    "id": "start",
+    "units": [
+     "start-p2",
+     "start-p3"
+    ],
+    "when": "start"
+   }
+  ],
+  "units": [
+   {
+    "id": "start-p2",
+    "seat": "p2"
+   },
+   {
+    "id": "start-p3",
+    "seat": "p3"
+   }
+  ]
+ },
+ "statuses": [
+  "open",
+  "limited",
+  "busy",
+  "quiet",
+  "repair",
+  "ready",
+  "withdrawn",
+  "closed",
+  "disputed",
+  "unknown"
+ ],
+ "tokens": {
+  "p1": "1f048b9986bba0afec3022e6d662139d",
+  "p2": "17679c22fda728cb4c72c6e1d23ef177",
+  "p3": "744437aa6416a589e846c5843c87dc3d"
+ },
+ "truth": {
+  "s02": "closed",
+  "s05": "closed",
+  "s07": "repair",
+  "s09": "disputed",
+  "s10": "quiet",
+  "s11": "withdrawn",
+  "s12": "ready",
+  "s14": "repair",
+  "s16": "withdrawn"
+ },
+ "watch": [
+  "s02",
+  "s05",
+  "s07",
+  "s09",
+  "s10",
+  "s11",
+  "s12",
+  "s14",
+  "s16"
+ ],
+ "writer_focal": [
+  "s16",
+  "s05",
+  "s14",
+  "s12",
+  "s09"
+ ],
+ "zone_order": [
+  "east",
+  "north",
+  "west",
+  "south"
+ ],
+ "zones": {
+  "east": [
+   "s15",
+   "s12",
+   "s08",
+   "s14"
+  ],
+  "north": [
+   "s03",
+   "s05",
+   "s16",
+   "s06"
+  ],
+  "south": [
+   "s02",
+   "s04",
+   "s01",
+   "s13"
+  ],
+  "west": [
+   "s11",
+   "s07",
+   "s10",
+   "s09"
+  ]
+ }
+}

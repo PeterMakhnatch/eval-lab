@@ -1,0 +1,27 @@
+schema_version = "1.4"
+artifacts = ["/logs/world/events.jsonl"]
+
+[task]
+name = "dossier-i10"
+description = "Clerks survey sites and keep a small shared register of reports.\nThe register freezes before the questions become visible.\nThe probe arm uses correct world-played clerks; the reader arm starts with a sufficient register.\nThe solo arm gives one clerk every report; the team arm uses concurrent clerks.\nThe committed card.json (muster card dossier --write) is the reference."
+keywords = ["seats", "multi-agent", "muster"]
+
+[metadata]
+condition = "cascade-solo"
+facet = "cascade"
+arm = "solo"
+family = "dossier"
+instance = "i10"
+oracle_reward = 1.0
+card = "muster/tasks/dossier/card.json"
+
+[verifier]
+timeout_sec = 120.0
+
+[agent]
+timeout_sec = 900.0
+
+[environment]
+build_timeout_sec = 600.0
+
+[agents.p1]

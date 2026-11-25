@@ -1,0 +1,186 @@
+{
+ "arm": "solo",
+ "asks": {
+  "p1": [
+   "s11",
+   "s15",
+   "s04",
+   "s14",
+   "s13",
+   "s05",
+   "s16",
+   "s07",
+   "s01"
+  ]
+ },
+ "budgets": {
+  "p1": {
+   "answer": 9,
+   "put": 18
+  }
+ },
+ "channel": false,
+ "clerks": [
+  "p1"
+ ],
+ "condition": "dispute-solo",
+ "facet": "dispute",
+ "feeds": {
+  "p1": [
+   {
+    "at": 29,
+    "key": "s16",
+    "status": "open"
+   },
+   {
+    "at": 36,
+    "key": "s15",
+    "status": "quiet"
+   },
+   {
+    "at": 20,
+    "key": "s05",
+    "status": "limited"
+   },
+   {
+    "at": 22,
+    "key": "s04",
+    "status": "limited"
+   },
+   {
+    "at": 22,
+    "key": "s14",
+    "status": "busy"
+   },
+   {
+    "at": 20,
+    "key": "s05",
+    "status": "quiet"
+   },
+   {
+    "at": 7,
+    "key": "s11",
+    "status": "busy"
+   },
+   {
+    "at": 32,
+    "key": "s13",
+    "status": "limited"
+   },
+   {
+    "at": 7,
+    "key": "s04",
+    "status": "open"
+   },
+   {
+    "at": 25,
+    "key": "s01",
+    "status": "open"
+   },
+   {
+    "at": 38,
+    "key": "s15",
+    "status": "limited"
+   },
+   {
+    "at": 24,
+    "key": "s11",
+    "status": "repair"
+   },
+   {
+    "at": 40,
+    "key": "s07",
+    "status": "ready"
+   },
+   {
+    "at": 38,
+    "key": "s15",
+    "status": "quiet"
+   }
+  ]
+ },
+ "id": "i08",
+ "real": [
+  "p1"
+ ],
+ "slots": 0,
+ "stage": {
+  "real": [
+   "p1"
+  ],
+  "rules": [],
+  "units": []
+ },
+ "statuses": [
+  "open",
+  "limited",
+  "busy",
+  "quiet",
+  "repair",
+  "ready",
+  "withdrawn",
+  "closed",
+  "disputed",
+  "unknown"
+ ],
+ "tokens": {
+  "p1": "7f2d72a37c2101c87c43e451d8429db1",
+  "p2": "3b443a64c5026121deeceaecc3803b6e",
+  "p3": "85e5121e4cd72bc920bb7ba5de7369ed"
+ },
+ "truth": {
+  "s01": "open",
+  "s04": "limited",
+  "s05": "disputed",
+  "s07": "ready",
+  "s11": "repair",
+  "s13": "limited",
+  "s14": "busy",
+  "s15": "disputed",
+  "s16": "open"
+ },
+ "watch": [
+  "s01",
+  "s04",
+  "s05",
+  "s07",
+  "s11",
+  "s13",
+  "s14",
+  "s15",
+  "s16"
+ ],
+ "writer_focal": [],
+ "zone_order": [
+  "south",
+  "west",
+  "north",
+  "east"
+ ],
+ "zones": {
+  "east": [
+   "s14",
+   "s09",
+   "s07",
+   "s03"
+  ],
+  "north": [
+   "s13",
+   "s01",
+   "s05",
+   "s02"
+  ],
+  "south": [
+   "s06",
+   "s15",
+   "s11",
+   "s16"
+  ],
+  "west": [
+   "s08",
+   "s04",
+   "s10",
+   "s12"
+  ]
+ }
+}

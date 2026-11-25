@@ -1,7 +1,7 @@
 # Trial and request budget (no prices)
 
 OBSERVED — Counts below come from the in-process lab, with no Docker or model.
-The family seeds are `depot-v4.1`, `dossier-v3.3` and `inquiry-v2.5`.
+The family seeds are `depot-v4.1`, `dossier-v3.4` and `inquiry-v2.5`.
 For each condition, run `uv run --no-sync python -m muster lab FAMILY --condition FACET-ARM --policy oracle --json`.
 Sum `steps` over the real seats of each returned episode. The unit is a world API request, not a model call.
 The command uses the default round schedule. Each condition contains 10 instances.
@@ -44,11 +44,11 @@ No lab adapter failed in this measurement. Every episode has reward 1.0.
 | depot | takeover | 57–59 (57.4) |
 | depot | storm | 119–125 (121.2) |
 | dossier | share | 59–65 (60.2) |
-| dossier | scarce | 56–68 (59.0) |
-| dossier | gone | 56–68 (62.0) |
-| dossier | cascade | 64–76 (70.6) |
-| dossier | dispute | 68 |
-| dossier | mix | 90–96 (91.8) |
+| dossier | scarce | 56–62 (59.0) |
+| dossier | gone | 56–68 (62.6) |
+| dossier | cascade | 64–76 (71.2) |
+| dossier | dispute | 62–74 (67.4) |
+| dossier | mix | 90–102 (94.8) |
 
 Inquiry has no team arm. The team counts describe the measured schedule, not every possible schedule.
 
@@ -67,9 +67,9 @@ The oracle request totals are reference workload counts, not a cap on model requ
 | replication non-team | dossier | 10 × 3 × 3 × 6 | 540 | 8,580 |
 | replication non-team | inquiry | 10 × 3 × 4 × 6 | 720 | 13,104 |
 | replication team | depot | 10 × 3 × 1 × 6 | 180 | 14,694 |
-| replication team | dossier | 10 × 3 × 1 × 6 | 180 | 12,348 |
-| replication total | all 3 | | 2,160 | 79,566 |
-| smoke | all 3 | 10 × 1 × 4 × 18 | 720 | 26,522 |
+| replication team | dossier | 10 × 3 × 1 × 6 | 180 | 12,456 |
+| replication total | all 3 | | 2,160 | 79,674 |
+| smoke | all 3 | 10 × 1 × 4 × 18 | 720 | 26,558 |
 
 The smoke is scripted, with no model. This measurement did not start a Docker smoke.
 The replication is a separate cohort. It needs approval and a candidate gap from the pilot.

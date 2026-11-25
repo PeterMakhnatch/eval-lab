@@ -1,12 +1,13 @@
 # `dossier`: does a team keep a small shared register sufficient for questions it does not know yet?
 
-Status: design v3.3 (2026-11-25, Fable, muster lane). v2 replaced v1 after an independent review
+Status: design v3.4 (2026-11-25, Fable, muster lane). v2 replaced v1 after an independent review
 (12 defects, `REVIEWS.md`). v3 applied the first review of the built family.
 v3.1 made every ideal scarce register line necessary for another clerk's question.
 v3.2 added unknown controls and restored historical closure reports.
 v3.3 matches incoming special questions to unreported or ordinary alternatives and tests the
-exact assignment chance. The world rules, score and executable claims are unchanged.
-Nothing here was run with a model. Section 0 records the history; the later sections describe v3.3.
+exact assignment chance. v3.4 matches the draw law and placement of current ordinary watched
+and off-watch reports in scarce and mix. The world rules, score and executable claims are unchanged.
+Nothing here was run with a model. Section 0 records the history; the later sections describe v3.4.
 
 ## 0. Version 3 changes (review rounds of the built family)
 
@@ -41,6 +42,16 @@ signatures and class counts, not a universal shortcut bound. The round-4 review 
 passes by any of the tested split policies in cells that omit a needed kind (10 original and 30
 held-out instances per condition). It uses held-out seeds `dossier-v3.3-h1`, `dossier-v3.3-h2`
 and `dossier-v3.3-h3`. The full policy passes all of them. See `REVIEWS.md`.
+
+Round 5 finds a replicated writer dependency in v3.3: a writer without the watch list passes mix
+5 of 10 built, 19 of 30 held-out and 52 of 100 further held-out instances. It ranks by peer
+occupancy, time band and own report count. v3.4 uses the same current time law for watched and
+off-watch ordinary reports, and removes the fixed 2-watch-site quota per zone in mix. The same
+writer scores 0 of 10 and 2 of 30; all 7 frozen no-watch writer variants score 0 of 10 in scarce
+and mix and at most 2 of 30 held-out in either. The 38 reader rankings are chance controls,
+not a deterministic upper bound on reader scores. The exact reader signature chance remains 1/6
+on the built and tested held-out cohorts. The generator checks that it is at most 1/6.
+See `REVIEWS.md`.
 
 ## 1. The construct and the prior work
 
@@ -82,6 +93,11 @@ most 1 candidate for the omitted kind, but v3.3 needs 2. The chance for a unifor
 2 among 4 matched questions is 1/6. This does not bound readers that use other evidence or rankings.
 Earlier low-probe cells remain at most 2 of 10; `full` and `local_writer` remain at 10 of 10.
 These are measured counts on the fixed instances, not population probabilities (`REVIEWS.md`).
+
+The tested v3.4 no-watch writer policies meet the predeclared thresholds on the 10 built and
+30 held-out instances. The generator matches current ordinary time laws and samples mix watch
+roles without a fixed zone quota. This removes the replicated v3.3 cue; it is not a proof that
+every possible writer has at most chance performance after generator rejection.
 
 ## 2. World rules (exact)
 
@@ -138,10 +154,10 @@ incoming and outgoing roles at random, subject to the layout and dependency cons
 | `gone` | Writer: p1 holds a withdrawal of a watched site with an older peer report. Reader: p1 has 2 peer withdrawal lines and 2 unreported alternatives. No private site report distinguishes them. | `pool`, `tombstone` |
 | `cascade` | Writer: p1 holds a closure newer than the asking clerk's site report. Reader: 2 incoming closure lines override older p2 site lines. P1 also has 2 matched ordinary p2 site lines and 2 unknown questions. | `pool`, `cascade` |
 | `dispute` | Writer: p1 holds 2 reports with the same site and time but different statuses. Neither belongs to a played clerk. Reader: p1 has 2 disputed peer lines and 2 unreported alternatives. | `pool`, `dispute` |
-| `mix` | All 5 skills, scarce slots, 2 incoming cases of each special kind, 2 unreported alternatives. Each candidate site is in a different zone of equal watch density; the neighboring watched role is drawn separately. The raw feeds retain all 3 old closure-site reports. The ideal omits their strictly dominated keys; the slots allow retaining them. Each ideal key matters to another clerk's question. | all 5 |
+| `mix` | All 5 skills, scarce slots, 2 incoming cases of each special kind, 2 unreported alternatives. Each incoming special and unknown anchor site is in a distinct zone. The remaining watched roles are sampled over the other sites without a quota for each zone. The raw feeds retain all 3 old closure-site reports. The ideal omits their strictly dominated keys; the slots allow retaining them. Each ideal key matters to another clerk's question. | all 5 |
 
 A condition is `<facet>-<arm>`: 24 conditions, 10 instances each (240 tasks). The generator uses
-seed `dossier-v3.3` and instance ids `i01` to `i10`. Each facet and instance index has its own
+seed `dossier-v3.4` and instance ids `i01` to `i10`. Each facet and instance index has its own
 deterministic draw stream. The 4 arms of a facet share reports, watch list and truth. The non-solo
 arms share asks; `solo` merges the reports and asks each distinct site once.
 
@@ -218,8 +234,8 @@ Every policy receives only its seat name. Reader deficits are part of each skill
    credited score events. Private feeds are visible only to their clerk, except for register lines
    and the combined feed in `solo`.
 
-The v3.3 card reports 33 PASS, 0 FAIL, 0 NOT_CHECKED. Its finding-regression check passes all
-26 findings. The card records 14,400 episodes with schedule seed 0 and schedule parameter 12.
+The v3.4 card reports 33 PASS, 0 FAIL, 0 NOT_CHECKED. Its finding-regression check passes all
+27 findings. The card records 14,400 episodes with schedule seed 0 and schedule parameter 12.
 See `REVIEWS.md` for the build and review evidence.
 
 ## 9. Instance construction and constraints
@@ -255,23 +271,33 @@ and asserts the instance and condition constraints below.
   1..20. The 2 incoming closure times are drawn from 21..40. P2 publishes before p3, so the
   old site lines survive in the ideal. Without the closure lines, the 2 targets and 2 alternatives
   have the same signature. Removing a deciding closure changes the answer to the older p2 status.
-- Mix draws 2 watched sites per zone, leaving 2 off-watch sites per zone. The first site of each
-  pair supplies 2 cases of each incoming special kind, 2 unknowns and 1 outgoing closure across
-  the 9 zones. The second site of each pair is shuffled separately among the other roles.
-  In mix the generator draws early times from 1..10, closure times from 11..20, and current site
-  times from 21..40. These ranges let the neighboring current observation win over a zone closure.
-  The draw law for neighboring current observations does not depend on the kind of the first site.
-  The peer that holds each incoming closure also holds its older site report. P1 holds both reports
-  of the outgoing closure. The outgoing dispute has 2 p1 reports at the same latest time, with
-  an older report of the asking clerk (not at the tie time). In standalone dispute the asking
-  clerk holds neither side of the deciding tie.
+- Mix draws one anchor site in each of 9 zones. It permutes these anchors among 2 cases of
+  each incoming special kind, 2 unknowns and 1 outgoing closure. The other 9 watch roles
+  are uniformly sampled without replacement from the remaining 27 sites. There are 18 watched
+  and 18 off-watch sites, but watched sites per zone vary from 1 to 4. Mix draws early times
+  from 1..10, closure times from 11..20, and all current site times from 21..40. An off-watch
+  site has one ordinary current p1 report, drawn from the same distribution as a watched
+  ordinary current report before candidate rejection. The peer that holds each incoming closure
+  also holds its older site report. P1 holds both reports of the outgoing closure. The outgoing
+  dispute has 2 p1 reports at the same latest time, with an older report of the asking clerk
+  (not at the tie time). In standalone dispute the asking clerk holds neither side of the
+  deciding tie.
 - Scarce and mix slots equal the number of distinct reported watch-relevant keys. Each ideal
   key matters to another clerk's actual question. Scarce has 9 ideal keys and 9 slots. Mix has
   16 ideal keys and 19 slots; its 3 omitted site keys are strictly older than a zone closure.
-  In scarce there are 5 off-watch reports; in mix every off-watch site (18) has 1 ordinary p1
-  report. Decoy times are drawn from 1..40 and all feeds are shuffled. In each of the 4 raw
-  write orders in section 0, at least 1 needed key is absent when scarce fills, at least 2
-  when mix fills. Other facets have 6 slots beyond reported watch-relevant keys.
+  In scarce there are 5 off-watch reports; in mix every off-watch site (18) has 1 ordinary current
+  p1 report. Scarce current site times are uniform 2..40, with a witnessed predecessor uniform
+  from 1 to the current time minus 1. Both watched and off-watch current times use the same
+  draw function. All feeds are shuffled. The generator asserts that W (4 watched sites with
+  a normal p1 writer role) and D (5 or 18 distinct off-watch p1 keys) are disjoint, have exactly
+  one ordinary current p1 report per key, and use the facet's common current interval. For every
+  zone Z the count of W keys plus the count of D keys equals the count of their union in Z;
+  the union in Z is contained in the sites of Z outside `watch - W`, and equals that set in mix.
+  This checks the site partition and time support, not equality of random realized histograms.
+  In mix, conditional on the other watch roles, uniform placement matches normalized expected
+  zone counts before rejection. In each of the 4 raw write orders in section 0, at least 1
+  needed key is absent when scarce fills, at least 2 when mix fills. Other facets have 6 slots
+  beyond reported watch-relevant keys.
 - The generator asserts full ideal sufficiency, class assignment chance at most 1/6 per incoming
   kind, and the 0.34 focal answer-frequency ceiling across the 10 instances of a condition.
   The focal answers `withdrawn`, `closed` and `disputed` occur only in the facets that need them.
@@ -303,3 +329,8 @@ and asserts the instance and condition constraints below.
   may not use. All ideal keys still matter to actual peer questions. The tested selection heuristics
   fail on their target cells, but another ordering may succeed. The accepted stale-dispute limit
   remains: an unconditional `put` can overwrite a correct line after the knowledgeable clerk stops.
+- The writer matching construction gives the same current time law for ordinary watched and
+  off-watch reports. It assigns variable watch counts across zones, not identical realized
+  counts for the two classes. Capacity rejection can condition these draws. The frozen no-watch
+  writer policies are empirical controls. Their full-pass counts do not prove a bound for any
+  possible ranking.

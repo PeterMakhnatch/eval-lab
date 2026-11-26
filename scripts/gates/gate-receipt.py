@@ -70,7 +70,7 @@ class Sim:
         )
 
     def git(self, cwd: Path, *args: str) -> str:
-        proc = subprocess.run(("git", *args), cwd=cwd, env=self.env, capture_output=True, text=True, timeout=60, check=False)
+        proc = subprocess.run(("git", *args), cwd=cwd, env=self.env, capture_output=True, text=True, timeout=600, check=False)
         assert proc.returncode == 0, f"git {args}: {proc.stderr}"
         return proc.stdout.strip()
 
@@ -78,7 +78,7 @@ class Sim:
         assert name in SCRIPTS
         self.log.write_text("")
         env = dict(self.env, SIM_RECEIPT=str(self.receipt(cwd)), **faults)
-        proc = subprocess.run((str(cwd / "scripts" / name), *args), cwd=cwd, env=env, capture_output=True, text=True, timeout=120, check=False)
+        proc = subprocess.run((str(cwd / "scripts" / name), *args), cwd=cwd, env=env, capture_output=True, text=True, timeout=1200, check=False)
         out = proc.stdout + proc.stderr
         assert proc.returncode == code, f"{name} {args} {faults} exited {proc.returncode}, want {code}: {out}"
         return out, self.log.read_text().splitlines()

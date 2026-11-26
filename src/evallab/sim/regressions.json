@@ -581,17 +581,17 @@
     "subsystem": "grader-script-mechanics"
   },
   {
-    "found_at_utc": "2026-11-25T21:30:00.000000+00:00",
+    "found_at_utc": "2026-11-26T00:30:00.000000+00:00",
     "invariant": "hypothesis_fires_GT-AUTOLOAD-WRITABLE",
-    "seed": 44,
-    "step": 178,
+    "seed": 109,
+    "step": 182,
     "subsystem": "anatomy-hypotheses"
   },
   {
-    "found_at_utc": "2026-11-25T21:30:00.000000+00:00",
+    "found_at_utc": "2026-11-26T00:30:00.000000+00:00",
     "invariant": "hypothesis_fires_GT-AUTOLOAD-WRITABLE",
-    "seed": 113,
-    "step": 184,
+    "seed": 189,
+    "step": 178,
     "subsystem": "anatomy-hypotheses"
   }
 ]

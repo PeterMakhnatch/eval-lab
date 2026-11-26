@@ -13,30 +13,94 @@ require_clean() {
 }
 
 require_clean
+LAND_LOCK_WAIT_SECONDS=${LAND_LOCK_WAIT_SECONDS:-3600}
+if [[ ! $LAND_LOCK_WAIT_SECONDS =~ ^[1-9][0-9]{0,5}$ ]]; then
+  printf 'land: LAND_LOCK_WAIT_SECONDS must be a whole number of seconds from 1 to 999999\n' >&2
+  exit 2
+fi
+lock_report_seconds=60
+lock_reap_abandoned_minutes=1
 lock="$HOME/.cache/evallab-land.lock"
-mkdir -p "$(dirname "$lock")"
-if command -v flock >/dev/null 2>&1; then
-  exec 9>"$lock"
-  if ! flock -w 600 9; then
-    printf 'land: could not acquire %s\n' "$lock" >&2
-    exit 1
+lock_dir="$lock.d"
+
+lock_fail() {
+  printf 'land: could not acquire %s within LAND_LOCK_WAIT_SECONDS=%ss\n' "$1" "$LAND_LOCK_WAIT_SECONDS" >&2
+  exit 1
+}
+
+lock_holder() {
+  local holder=''
+  { read -r holder <"$lock_dir/pid"; } 2>/dev/null || holder=''
+  if [[ $holder =~ ^[1-9][0-9]*$ ]]; then
+    printf '%s' "$holder"
   fi
-else
-  lock_dir="$lock.d"
-  for ((waited = 0; ; waited++)); do
+}
+
+reap_stale_lock() {
+  local reap="$lock_dir.reap" holder removed=1
+  if [[ -d $reap && -n $(find "$reap" -maxdepth 0 -mmin +"$lock_reap_abandoned_minutes" 2>/dev/null) ]]; then
+    rmdir "$reap" 2>/dev/null || true
+  fi
+  mkdir "$reap" 2>/dev/null || return 1
+  holder=$(lock_holder)
+  if [[ -n $holder ]] && ! kill -0 "$holder" 2>/dev/null; then
+    rm -rf "$lock_dir"
+    printf 'land: removed stale lock of pid %s\n' "$holder" >&2
+    removed=0
+  fi
+  rmdir "$reap"
+  return "$removed"
+}
+
+release_dir_lock() {
+  if [[ $(lock_holder) == "$$" ]]; then
+    rm -rf "$lock_dir"
+  fi
+}
+
+acquire_dir_lock() {
+  local start=$SECONDS elapsed holder next_report=0
+  while true; do
     if mkdir "$lock_dir" 2>/dev/null; then
-      trap 'rmdir "$lock_dir"' EXIT
-      trap 'exit 130' INT
-      trap 'exit 143' TERM
-      trap 'exit 129' HUP
-      break
+      printf '%s\n' "$$" >"$lock_dir/pid.$$"
+      mv -f "$lock_dir/pid.$$" "$lock_dir/pid"
+      [[ $(lock_holder) == "$$" ]] || lock_fail "$lock_dir"
+      return 0
     fi
-    if [[ ! -d "$lock_dir" || $waited -ge 600 ]]; then
-      printf 'land: could not acquire %s\n' "$lock_dir" >&2
-      exit 1
+    elapsed=$((SECONDS - start))
+    if ((elapsed >= LAND_LOCK_WAIT_SECONDS)); then
+      lock_fail "$lock_dir"
+    fi
+    if reap_stale_lock; then
+      continue
+    fi
+    if ((elapsed >= next_report)); then
+      holder=$(lock_holder)
+      printf 'land: waiting for lock held by pid %s (%ss)\n' "${holder:-unknown}" "$elapsed" >&2
+      next_report=$((next_report + lock_report_seconds))
     fi
     sleep 1
   done
+}
+
+acquire_flock() {
+  exec 9>"$lock"
+  if flock -n 9; then
+    return 0
+  fi
+  printf 'land: waiting for lock %s (up to %ss)\n' "$lock" "$LAND_LOCK_WAIT_SECONDS" >&2
+  flock -w "$LAND_LOCK_WAIT_SECONDS" 9 || lock_fail "$lock"
+}
+
+mkdir -p "$(dirname "$lock")"
+if command -v flock >/dev/null 2>&1; then
+  acquire_flock
+else
+  trap release_dir_lock EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  trap 'exit 129' HUP
+  acquire_dir_lock
 fi
 
 for ((attempt = 1; attempt <= 5; attempt++)); do

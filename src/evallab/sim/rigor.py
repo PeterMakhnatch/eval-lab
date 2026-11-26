@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from random import Random
+from typing import Any
 
 from evallab.package_anatomy import (
     Counts,
@@ -583,7 +584,7 @@ class RigorSimulation:
         )
         self._require_counts(asdict(counts), expected, "rigor_chain_counts")
 
-    def _delegation_card(self, name: str, form: str, stem: str, checks: int) -> dict[str, object]:
+    def _delegation_card(self, name: str, form: str, stem: str, checks: int) -> dict[str, Any]:
         root = self.root / name
         files = {
             "instruction.md": _INSTRUCTION,
@@ -608,7 +609,7 @@ class RigorSimulation:
         sim.begin("rigor-delegating-wrapper", form=form, stem=stem, checks=checks)
         card = self._delegation_card("delegating", form, stem, checks)
         rigor = card["test_suite_rigor"]
-        assert isinstance(rigor, dict)
+        assert isinstance(rigor, dict) and isinstance(card["vulnerability_hypotheses"], list)
         sim.require(rigor.get("delegated_grader_modules") == [f"tests/{stem}.py"], "rigor_delegated_module_named")
         expected = Counts(files=1, tests=1, assertions=1, mode_ast_files=1)
         self._require_counts(rigor["counts"], expected, "rigor_delegated_counts")
@@ -619,7 +620,7 @@ class RigorSimulation:
         sim.begin("rigor-plain-single-test", form=plain_form, stem=stem)
         card = self._delegation_card("plain", plain_form, stem, 0)
         rigor = card["test_suite_rigor"]
-        assert isinstance(rigor, dict)
+        assert isinstance(rigor, dict) and isinstance(card["vulnerability_hypotheses"], list)
         sim.require(rigor.get("delegated_grader_modules") == [], "rigor_plain_no_delegated_module")
         plain = Counts(files=2, tests=1, assertions=1, mode_ast_files=2)
         self._require_counts(rigor["counts"], plain, "rigor_plain_counts")

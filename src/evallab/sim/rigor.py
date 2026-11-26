@@ -219,6 +219,17 @@ _UNITTEST_SHAPES = (
     _Shape("raise_helper", Counts(assertions=1), (), ("require(flag)",)),
     _Shape("without", Counts(tests_without_assertion=1), (), ("value = compute()",)),
 )
+_LONE_OR_SHAPES = (
+    (next(shape for shape in _PYTEST_SHAPES if shape.name == "negative_or"), "rigor_lone_or_negative"),
+    (
+        _Shape("negative_or_twice", Counts(assertions=1, negative_assertions=1), (), ("assert not accepted or code != 0",)),
+        "rigor_lone_or_negative_once",
+    ),
+    (
+        _Shape("positive_or", Counts(assertions=1), (), ('assert result.returncode == 0 or "ok" in result.stdout',)),
+        "rigor_lone_or_positive",
+    ),
+)
 
 
 def _plan(rng: Random, shapes: tuple[_Shape, ...]) -> list[_TestCase]:
@@ -487,13 +498,13 @@ class RigorSimulation:
         sim.require(result["fragment_files"] == 0, "rigor_fragment_files_absent")
 
     def _check_lone_or_negative(self) -> None:
-        shape = next(shape for shape in _PYTEST_SHAPES if shape.name == "negative_or")
-        text = _render_pytest([_TestCase("test_case_or", (shape,), False)], False)
-        counts = _py_counts(_source(_PYTEST_PATH, text))
-        assert counts is not None
-        self.sim.require(counts.tests == 1 and counts.negative_named_tests == 0, "rigor_lone_or_single_test")
-        self.sim.require(counts.assertions == 1, "rigor_lone_or_assertions")
-        self.sim.require(counts.negative_assertions == 1, "rigor_lone_or_negative")
+        for shape, invariant in _LONE_OR_SHAPES:
+            text = _render_pytest([_TestCase("test_case_or", (shape,), False)], False)
+            counts = _py_counts(_source(_PYTEST_PATH, text))
+            assert counts is not None
+            self.sim.require(counts.tests == 1 and counts.negative_named_tests == 0, "rigor_lone_or_single_test")
+            self.sim.require(counts.assertions == shape.delta.assertions == 1, "rigor_lone_or_assertions")
+            self.sim.require(counts.negative_assertions == shape.delta.negative_assertions, invariant)
 
     def check_regex_fallback(self) -> None:
         sim = self.sim

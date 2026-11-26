@@ -6,23 +6,24 @@ executed health card. It uses no Docker, no network, no model calls, and no Moda
 It is the anatomy counterpart of the task-lint join in
 [`../task-lint-vs-executed-health/`](../task-lint-vs-executed-health/README.md) (HAR-454).
 
-Source commit: the CSV was rebuilt and checked at eval-lab commit `46f423ea7`
+Source commit: the CSV was rebuilt and checked at eval-lab commit `671964783`
 (`origin/main` at rebuild time, HAR-511). The anatomy source `src/evallab/package_anatomy.py`
-last changed at `88184767c` (HAR-512), after the tiny-suite change at `60993c77a` (HAR-509).
+last changed at `671964783` (HAR-513), after `88184767c` (HAR-512) and the tiny-suite
+change at `60993c77a` (HAR-509).
 The first build was at `e61c1dca4`, with the anatomy source at `b62d5bae0` (HAR-501).
 
 ## The answer
 
 The health card has 95 tasks: 49 `clean` and 46 not clean (51.6% clean).
-Anatomy reports **314 hypotheses** with **16 distinct codes** on the same 95 task packages.
+Anatomy reports **316 hypotheses** with **16 distinct codes** on the same 95 task packages.
 One code separates the classes strongly:
 
 | Code | Tasks | `clean` | Not clean | Clean share | Fisher two-sided p |
 |---|---:|---:|---:|---:|---:|
-| `EG-EXIT-CODE-ONLY-GATE` | 54 | 45 | 9 | 83% | 1.8e-13 |
+| `EG-EXIT-CODE-ONLY-GATE` | 56 | 45 | 11 | 80% | 4.2e-12 |
 
 - `EG-EXIT-CODE-ONLY-GATE` flags mostly clean tasks.
-- It fires on 54 of the 58 tasks without the grader wrapper (below)
+- It fires on 56 of the 58 tasks without the grader wrapper (below)
   and on 0 of the 37 tasks with it. It therefore also tracks the wrapper shape.
 - `WC-TINY-SUITE` now fires on 1 task only, `sign-vector-game` (`clean`, p = 1).
 
@@ -83,7 +84,12 @@ The anatomy no longer counts that delegated module as tests.
 The task therefore also lost `WC-TEST-WITHOUT-ASSERTION`.
 HAR-512 counts a raised `AssertionError` as an assertion. Two more `clean` tasks,
 `service-deployment-wave-planner` and `task-xxe-exploit`, then lost `WC-TEST-WITHOUT-ASSERTION`.
-The code dropped from 5 tasks to 2. Every other code count is the same as in the first build.
+The code dropped from 5 tasks to 2.
+HAR-513 counts a quoted `echo 1` to a reward path variable inside a command `if` as an
+exit-code gate. Two not-clean tasks, `protein-sequence` (`reference_below_one`) and
+`smiles-data-lab` (`reference_unmeasured`), then gained `EG-EXIT-CODE-ONLY-GATE`.
+The code went from 54 tasks (p = 1.8e-13) to 56 (p = 4.2e-12).
+Every other code count is the same as in the first build.
 
 All 26 `no_reference` tasks use the wrapper.
 The old `WC-TINY-SUITE` split tracked how the import packaged these tasks, not how strong their checks are.
@@ -143,7 +149,7 @@ that are no more likely than the observed table.
 |---|---:|---:|---:|---:|---:|---:|---:|---|---:|
 | `GT-PATH-HIJACK` | 94 | 49 | 45 | 9 | 9 | 26 | 1 | 35 | 0.48 |
 | `GT-SITE-PACKAGES-HOOK` | 84 | 44 | 40 | 7 | 6 | 26 | 1 | 40 | 0.75 |
-| `EG-EXIT-CODE-ONLY-GATE` | 54 | 45 | 9 | 2 | 6 | 0 | 1 | 50 | 1.8e-13 |
+| `EG-EXIT-CODE-ONLY-GATE` | 56 | 45 | 11 | 3 | 7 | 0 | 1 | 50 | 4.2e-12 |
 | `WC-INSTRUCTION-SYMBOL-UNTESTED` | 37 | 24 | 13 | 2 | 4 | 7 | 0 | 45–75 | 0.058 |
 | `AR-TESTS-IN-IMAGE` | 9 | 4 | 5 | 1 | 0 | 3 | 1 | 85–92 | 0.74 |
 | `EG-ARTIFACT-ONLY-CHECK` | 7 | 6 | 1 | 0 | 1 | 0 | 0 | 72 | 0.11 |
@@ -160,28 +166,30 @@ that are no more likely than the observed table.
 
 Changes against the first build: `WC-TINY-SUITE` went from 37 tasks (3 `clean`, 34 not clean,
 p = 4.5e-12) to 1 task (HAR-509). `WC-TEST-WITHOUT-ASSERTION` went from 5 tasks (p = 0.36)
-to 4 (HAR-509) and then to 2 (HAR-512). No other row changed.
+to 4 (HAR-509) and then to 2 (HAR-512). `EG-EXIT-CODE-ONLY-GATE` went from 54 tasks
+(p = 1.8e-13) to 56 (HAR-513). No other row changed.
 
 Notes on single tasks:
 
 - `GT-PATH-HIJACK` misses only `okhttp-trailers-crash` (`reference_unmeasured`).
 - `WC-NO-TESTS-FOUND` flags `okhttp-trailers-crash`, `protein-sequence`, and `smiles-data-lab`.
-- 4 non-wrapper tasks lack `EG-EXIT-CODE-ONLY-GATE`: `jq-data-processing` and
-  `service-deployment-wave-planner` (`clean`), `protein-sequence`, and `smiles-data-lab`.
+- 2 non-wrapper tasks lack `EG-EXIT-CODE-ONLY-GATE`: `jq-data-processing` and
+  `service-deployment-wave-planner` (both `clean`).
 
 ## Hypotheses by executed class
 
 | Class | Tasks | Hypotheses | Mean per task | Min | Max |
 |---|---:|---:|---:|---:|---:|
 | `clean` | 49 | 188 | 3.84 | 2 | 6 |
-| `reference_below_one` | 9 | 23 | 2.56 | 2 | 5 |
-| `reference_unmeasured` | 10 | 31 | 3.10 | 2 | 6 |
+| `reference_below_one` | 9 | 24 | 2.67 | 2 | 5 |
+| `reference_unmeasured` | 10 | 32 | 3.20 | 2 | 6 |
 | `no_reference` | 26 | 66 | 2.54 | 2 | 4 |
 | `cannot_run` | 1 | 6 | 6.00 | 6 | 6 |
-| **Total** | **95** | **314** | **3.31** | **2** | **6** |
+| **Total** | **95** | **316** | **3.33** | **2** | **6** |
 
 The first build had 353 hypotheses. The rebuild removes 36 `WC-TINY-SUITE` hypotheses
 and 3 `WC-TEST-WITHOUT-ASSERTION` hypotheses (1 after HAR-509, 2 after HAR-512).
+It adds 2 `EG-EXIT-CODE-ONLY-GATE` hypotheses (HAR-513).
 Every task has at least 2 distinct codes. No task has zero hypotheses.
 
 ## Limits

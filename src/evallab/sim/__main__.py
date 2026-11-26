@@ -53,7 +53,10 @@ def record(failure: InvariantViolation) -> None:
     key = failure_key(failure)
     if any(matches(row, key) for row in rows):
         return
-    rows.append({**key, "found_at_utc": datetime.now(UTC).isoformat()})
+    same = [index for index, row in enumerate(rows) if row["subsystem"] == key["subsystem"]]
+    position = same[-1] + 1 if same else len(rows)
+    assert 0 <= position <= len(rows)
+    rows.insert(position, {**key, "found_at_utc": datetime.now(UTC).isoformat()})
     path = None
     try:
         with NamedTemporaryFile(mode="w", dir=REGRESSIONS.parent, delete=False) as handle:

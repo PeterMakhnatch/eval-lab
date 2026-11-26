@@ -9,6 +9,7 @@ from typing import Any
 
 from evallab.package_anatomy import (
     _MAX_EVIDENCE,
+    _MAX_LIST,
     MECHANISM_CLASSES,
     Hypothesis,
     TestSource,
@@ -120,6 +121,7 @@ _CONSTANT_NAMES = "ABCDEF"
 assert len(_RULES) == 31
 assert all(rule[0] in MECHANISM_CLASSES for rule in _RULES.values())
 assert _MAX_EVIDENCE == 6 and max(_ROW_COUNTS) > _MAX_EVIDENCE
+_SOURCE_HIT_COUNTS = (0, 0, 1, 3, _MAX_LIST)
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,6 +168,7 @@ class _Plan:
     weights: tuple[int, ...] = ()
     reference: tuple[int, int, int, int] | None = None
     test_files: int = 0
+    source_hits: tuple[int, ...] = ()
     fragment: int = 0
     test_sh: bool = True
     enforce: str = ""
@@ -314,6 +317,17 @@ def _plan_delegated(rng: Random, token: str) -> tuple[str, ...]:
     delegated = tuple(f"tests/{stem}_{token}.py" for stem in rng.sample(("grader", "scoring", "model_for_tests"), count))
     assert len(delegated) == count <= 2
     return delegated
+
+
+def _plan_source_hits(rng: Random, rows: int) -> tuple[int, ...]:
+    hits = tuple(rng.choice(_SOURCE_HIT_COUNTS) for _ in range(rows))
+    assert len(hits) == rows and all(0 <= count <= _MAX_LIST for count in hits)
+    return hits
+
+
+def _source_hit_rows(row: int, count: int) -> list[dict[str, Any]]:
+    assert 0 <= count <= _MAX_LIST
+    return [{"line": 20 * row + index + 1, "text": f'assert "token_{index}" in source_{row}'} for index in range(count)]
 
 
 def _forbid_text(rng: Random, form: str) -> str:
@@ -490,7 +504,11 @@ def _rigor(card: dict[str, Any], plan: _Plan) -> dict[str, Any]:
         {"kind": "function", "symbol": f"sym_{index}", "weight": weight, "constraint": index % 2 == 0, "sentence": f"Call sym_{index}."}
         for index, weight in enumerate(plan.weights)
     ]
-    test_files = [{"file": f"tests/test_{index}.py", "mode": "ast", "tests": index, "assertions": index} for index in range(plan.test_files)]
+    test_files = [
+        {"file": f"tests/test_{index}.py", "mode": "ast", "tests": index, "assertions": index,
+         "source_text_hits": _source_hit_rows(index, plan.source_hits[index])}
+        for index in range(plan.test_files)
+    ]
     for name, value in plan.counts.items():
         _put(rigor, f"counts.{name}", value)
     for path, value in (
@@ -590,7 +608,7 @@ def _expect_counts(plan: _Plan, out: list[_Want]) -> None:
     if tests and 2 * counts["surface_only_tests"] >= tests:
         _want(out, "WC-SURFACE-ONLY", evidence=rows)
     if counts["source_text_assertions"]:
-        _want(out, "WC-SOURCE-TEXT-ASSERT", evidence=rows)
+        _want(out, "WC-SOURCE-TEXT-ASSERT", evidence=sum(plan.source_hits))
     if counts["mock_assertions"] and 2 * counts["mock_assertions"] >= asserts:
         _want(out, "WC-MOCK-ONLY", evidence=rows)
     if plan.error_words and tests and not counts["negative_assertions"] and not counts["negative_named_tests"]:
@@ -645,6 +663,7 @@ class HypothesisSimulation:
         sim = self.sim
         plan = _plan(self.rng)
         plan.delegated = _plan_delegated(Random(f"hypotheses-delegation:{sim.seed}:{index}"), plan.token)
+        plan.source_hits = _plan_source_hits(Random(f"hypotheses-source-hits:{sim.seed}:{index}"), plan.test_files)
         root = self.root / f"case-{index}"
         files = _files(plan)
         _write(root, files)
@@ -664,6 +683,19 @@ class HypothesisSimulation:
         sim.begin("hypotheses-rules", case=index, expected=[want.rule for want in expected])
         result = build_hypotheses(package, boundary, grader, rigor, sources)
         self._check(result, expected)
+        self._check_source_evidence(result, plan)
+
+    def _check_source_evidence(self, result: Sequence[Hypothesis], plan: _Plan) -> None:
+        found = [hypothesis for hypothesis in result if hypothesis.id == "WC-SOURCE-TEXT-ASSERT"]
+        assert len(found) <= 1
+        if not found:
+            return
+        planned = [
+            {"file": f"tests/test_{row}.py", **hit}
+            for row, count in enumerate(plan.source_hits)
+            for hit in _source_hit_rows(row, count)
+        ]
+        self.sim.require(list(found[0].evidence) == planned[:_MAX_EVIDENCE], "hypothesis_source_text_evidence_rows")
 
     def _check(self, result: Sequence[Hypothesis], expected: Sequence[_Want]) -> None:
         sim = self.sim

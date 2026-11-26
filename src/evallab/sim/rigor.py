@@ -6,6 +6,7 @@ from random import Random
 from typing import Any
 
 from evallab.package_anatomy import (
+    _MAX_LIST,
     Counts,
     Package,
     TestSource,
@@ -38,7 +39,18 @@ _IMPORT_FORMS = ("inner_from", "top_from", "alias_import", "relative_from")
 _PLAIN_FORMS = ("single_assert", "constant_import", "uncalled_import")
 _MAX_GRADER_CHECKS = 6
 _INSTRUCTION = "Run the generated checks and report every failure.\n"
-_HELPERS = ("def check(value):", "    assert value", "", "def require(value):", "    if not value:", "        raise AssertionError", "")
+_HELPERS = (
+    "APP_DIR = Path('/app')",
+    "SCRIPT_PATH = APP_DIR / 'main.py'",
+    "",
+    "def check(value):",
+    "    assert value",
+    "",
+    "def require(value):",
+    "    if not value:",
+    "        raise AssertionError",
+    "",
+)
 _TEST_SH = "#!/bin/bash\ncd /tests\npytest -q test_outputs.py\n"
 _COUNT_FIELDS = (
     "files",
@@ -111,6 +123,7 @@ class _Shape:
     delta: Counts
     decorators: tuple[str, ...] = ()
     body: tuple[str, ...] = ()
+    hit: int = -1
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,6 +161,32 @@ _PYTEST_SHAPES = (
         Counts(assertions=1, surface_assertions=1, source_text_assertions=1),
         (),
         ("source = Path(__file__).read_text()", 'assert "example.py" in source'),
+        1,
+    ),
+    _Shape(
+        "source_alias",
+        Counts(assertions=1, surface_assertions=1, source_text_assertions=1),
+        (),
+        ("with open(SCRIPT_PATH) as handle:", "    script = handle.read()", 'assert "main" in script.lower()'),
+        2,
+    ),
+    _Shape(
+        "unrelated_in",
+        Counts(assertions=1),
+        (),
+        ("source = Path(__file__).read_text()", "log = run_cli()", 'assert "example.py" in log'),
+    ),
+    _Shape(
+        "reused_alias",
+        Counts(assertions=1),
+        (),
+        (
+            "with open('/app/cmd.sh') as handle:",
+            "    command = handle.read()",
+            "with open('/app/report.json') as handle:",
+            "    report = handle.read()",
+            'assert "null" in report',
+        ),
     ),
     _Shape(
         "loop",
@@ -195,6 +234,20 @@ _UNITTEST_SHAPES = (
         Counts(assertions=1, surface_assertions=1, source_text_assertions=1),
         (),
         ("source = Path(__file__).read_text()", 'self.assertIn("example.py", source)'),
+        1,
+    ),
+    _Shape(
+        "source_alias",
+        Counts(assertions=1, surface_assertions=1, source_text_assertions=1),
+        (),
+        ("with open(SCRIPT_PATH) as handle:", "    script = handle.read()", 'self.assertIn("main", script[:400])'),
+        2,
+    ),
+    _Shape(
+        "unrelated_in",
+        Counts(assertions=1),
+        (),
+        ("source = Path(__file__).read_text()", "log = run_cli()", 'self.assertIn("example.py", log)'),
     ),
     _Shape(
         "loop",
@@ -258,44 +311,53 @@ def _tally(cases: list[_TestCase], randomized_import: bool) -> Counts:
     assert counts.negative_assertions > 0 and counts.literal_eq_assertions > 0
     assert counts.surface_assertions > 0 and counts.mock_assertions > 0
     assert counts.source_text_assertions > 0 and counts.loops_with_assertions > 0
+    assert counts.source_text_assertions == sum(shape.hit >= 0 for case in cases for shape in case.shapes)
     assert counts.skipped_or_xfail > 0 and counts.tests_without_assertion > 0
     assert counts.negative_named_tests > 0
     assert 0 <= counts.surface_only_tests < counts.tests
     return counts
 
 
-def _render_pytest(cases: list[_TestCase], randomized_import: bool) -> str:
+def _emit_body(lines: list[str], case: _TestCase, indent: str, hits: list[dict[str, object]]) -> None:
+    assert case.name and case.shapes
+    before = len(lines)
+    for shape in case.shapes:
+        assert -1 <= shape.hit < len(shape.body)
+        if shape.hit >= 0:
+            hits.append({"line": len(lines) + 1 + shape.hit, "text": shape.body[shape.hit].strip()})
+        lines.extend(f"{indent}{line}" for line in shape.body)
+    assert len(lines) > before
+    lines.append("")
+
+
+def _render_pytest(cases: list[_TestCase], randomized_import: bool) -> tuple[str, list[dict[str, object]]]:
     lines = ["import pytest"]
     if randomized_import:
         lines.append("import random")
     lines.extend(["", *_HELPERS])
+    hits: list[dict[str, object]] = []
     for case in cases:
-        assert case.name and case.shapes
         for shape in case.shapes:
             lines.extend(shape.decorators)
         lines.append(f"def {case.name}():")
-        body = [line for shape in case.shapes for line in shape.body]
-        assert body
-        lines.extend(f"    {line}" for line in body)
-        lines.append("")
-    return "\n".join(lines)
+        _emit_body(lines, case, "    ", hits)
+    assert len(hits) <= _MAX_LIST
+    return "\n".join(lines), hits
 
 
-def _render_unittest(cases: list[_TestCase], randomized_import: bool) -> str:
+def _render_unittest(cases: list[_TestCase], randomized_import: bool) -> tuple[str, list[dict[str, object]]]:
     lines = ["import unittest"]
     if randomized_import:
         lines.append("import random")
     lines.extend(["", *_HELPERS, "class GeneratedTests(unittest.TestCase):"])
+    hits: list[dict[str, object]] = []
     for case in cases:
-        assert case.name and case.shapes
         for shape in case.shapes:
             lines.extend(f"    {decorator}" for decorator in shape.decorators)
         lines.append(f"    def {case.name}(self):")
-        body = [line for shape in case.shapes for line in shape.body]
-        assert body
-        lines.extend(f"        {line}" for line in body)
-        lines.append("")
-    return "\n".join(lines)
+        _emit_body(lines, case, "        ", hits)
+    assert len(hits) <= _MAX_LIST
+    return "\n".join(lines), hits
 
 
 def _source(path: str, text: str, origin: str = "file", complete: bool = True) -> TestSource:
@@ -314,8 +376,9 @@ def _ratios(counts: Counts) -> dict[str, float | None]:
     }
 
 
-def _expected_files(counts: Counts, path: str, mode: str) -> dict[str, object]:
-    return {"file": path, "mode": mode, "tests": counts.tests, "assertions": counts.assertions}
+def _expected_files(counts: Counts, path: str, mode: str, hits: list[dict[str, object]]) -> dict[str, object]:
+    assert len(hits) == min(counts.source_text_assertions, _MAX_LIST)
+    return {"file": path, "mode": mode, "tests": counts.tests, "assertions": counts.assertions, "source_text_hits": hits}
 
 
 def _chain_plan(rng: Random) -> list[_Chain]:
@@ -437,21 +500,23 @@ class RigorSimulation:
         unittest_cases = _plan(self.rng, _UNITTEST_SHAPES)
         pytest_random = self.rng.random() < 0.5
         unittest_random = not pytest_random
-        pytest_text = _render_pytest(pytest_cases, pytest_random)
-        unittest_text = _render_unittest(unittest_cases, unittest_random)
+        pytest_text, pytest_hits = _render_pytest(pytest_cases, pytest_random)
+        unittest_text, unittest_hits = _render_unittest(unittest_cases, unittest_random)
         pytest_expected = _tally(pytest_cases, pytest_random)
         unittest_expected = _tally(unittest_cases, unittest_random)
         pytest_source = _source(_PYTEST_PATH, pytest_text)
         unittest_source = _source(_UNITTEST_PATH, unittest_text)
 
-        sim.begin("rigor-pytest", tests=pytest_expected.tests)
-        pytest_counts = _py_counts(pytest_source)
-        assert pytest_counts is not None
-        self._require_counts(asdict(pytest_counts), pytest_expected, "rigor_pytest")
-        sim.begin("rigor-unittest", tests=unittest_expected.tests)
-        unittest_counts = _py_counts(unittest_source)
-        assert unittest_counts is not None
-        self._require_counts(asdict(unittest_counts), unittest_expected, "rigor_unittest")
+        sim.begin("rigor-pytest", tests=pytest_expected.tests, source_hits=[hit["line"] for hit in pytest_hits])
+        pytest_analysed = _py_counts(pytest_source)
+        assert pytest_analysed is not None
+        self._require_counts(asdict(pytest_analysed[0]), pytest_expected, "rigor_pytest")
+        sim.require(pytest_analysed[1] == pytest_hits, "rigor_pytest_source_text_hits")
+        sim.begin("rigor-unittest", tests=unittest_expected.tests, source_hits=[hit["line"] for hit in unittest_hits])
+        unittest_analysed = _py_counts(unittest_source)
+        assert unittest_analysed is not None
+        self._require_counts(asdict(unittest_analysed[0]), unittest_expected, "rigor_unittest")
+        sim.require(unittest_analysed[1] == unittest_hits, "rigor_unittest_source_text_hits")
 
         total = Counts()
         total.add(pytest_expected)
@@ -472,8 +537,8 @@ class RigorSimulation:
         sim.require(
             result["test_files"]
             == [
-                _expected_files(pytest_expected, _PYTEST_PATH, "ast"),
-                _expected_files(unittest_expected, _UNITTEST_PATH, "ast"),
+                _expected_files(pytest_expected, _PYTEST_PATH, "ast", pytest_hits),
+                _expected_files(unittest_expected, _UNITTEST_PATH, "ast", unittest_hits),
             ],
             "rigor_test_files",
         )
@@ -490,10 +555,11 @@ class RigorSimulation:
         sim.require(_py_counts(fragment) is not None, "rigor_fragment_parses_as_python")
         sim.require(_py_counts(blocks) is None, "rigor_blocks_not_parsed")
         sim.require(_py_counts(guards) is None, "rigor_guards_not_python")
-        broken_counts = _regex_counts(broken)
-        fragment_counts = _regex_counts(fragment)
-        blocks_counts = _regex_counts(blocks)
-        guards_counts = _regex_counts(guards)
+        broken_counts, broken_hits = _regex_counts(broken)
+        fragment_counts, fragment_hits = _regex_counts(fragment)
+        blocks_counts, blocks_hits = _regex_counts(blocks)
+        guards_counts, guards_hits = _regex_counts(guards)
+        sim.require(broken_hits == fragment_hits == blocks_hits == guards_hits == [], "rigor_regex_no_source_text_hits")
         broken_expected = Counts(
             files=1,
             tests=1,
@@ -557,10 +623,10 @@ class RigorSimulation:
         sim.require(
             result["test_files"]
             == [
-                _expected_files(broken_counts, _BROKEN_PATH, "regex"),
-                _expected_files(fragment_counts, _FRAGMENT_PATH, "regex"),
-                _expected_files(blocks_counts, _BLOCKS_PATH, "regex"),
-                _expected_files(guards_counts, _GUARDS_PATH, "regex"),
+                _expected_files(broken_counts, _BROKEN_PATH, "regex", []),
+                _expected_files(fragment_counts, _FRAGMENT_PATH, "regex", []),
+                _expected_files(blocks_counts, _BLOCKS_PATH, "regex", []),
+                _expected_files(guards_counts, _GUARDS_PATH, "regex", []),
             ],
             "rigor_regex_test_files",
         )
@@ -578,9 +644,10 @@ class RigorSimulation:
             chains=["/".join(chain.kinds) + ("/cycle" if chain.cycle else "") for chain in chains],
             without=expected.tests_without_assertion,
         )
-        counts = _py_counts(source)
-        sim.require(counts is not None, "rigor_chain_parses")
-        assert counts is not None
+        analysed = _py_counts(source)
+        sim.require(analysed is not None, "rigor_chain_parses")
+        assert analysed is not None
+        counts = analysed[0]
         sim.require(
             counts.tests_without_assertion == expected.tests_without_assertion,
             "rigor_chain_tests_without_assertion",
@@ -616,7 +683,7 @@ class RigorSimulation:
         sim.require(rigor.get("delegated_grader_modules") == [f"tests/{stem}.py"], "rigor_delegated_module_named")
         expected = Counts(files=1, tests=1, assertions=1, mode_ast_files=1)
         self._require_counts(rigor["counts"], expected, "rigor_delegated_counts")
-        sim.require(rigor["test_files"] == [_expected_files(expected, _WRAPPER_PATH, "ast")], "rigor_delegated_test_files")
+        sim.require(rigor["test_files"] == [_expected_files(expected, _WRAPPER_PATH, "ast", [])], "rigor_delegated_test_files")
         ids = [hypothesis["id"] for hypothesis in card["vulnerability_hypotheses"]]
         sim.require("WC-TINY-SUITE" not in ids, "rigor_delegated_not_tiny")
         sim.require("WC-TEST-WITHOUT-ASSERTION" not in ids, "rigor_delegated_grader_checks_not_tests")

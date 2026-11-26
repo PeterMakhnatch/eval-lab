@@ -1066,18 +1066,111 @@ _UNITTEST_EQUAL = {"assertEqual", "assertEquals", "assertListEqual", "assertDict
 _SURFACE_CALLS = {"exists", "isfile", "isdir", "is_file", "is_dir", "hasattr", "callable", "isinstance"}
 
 
-def _reads_source(func: ast.AST) -> bool:
-    calls = {_call_name(n) for n in ast.walk(func) if isinstance(n, ast.Call)}
-    if calls & {"getsource", "getsourcelines"}:
+_READ_CALLS = frozenset(("read", "read_text"))
+_PATH_CALLS = frozenset((
+    "Path", "PurePath", "PosixPath", "open", "join", "joinpath", "resolve", "absolute", "abspath", "realpath", "expanduser", "str",
+))
+_FOREIGN_FILE = re.compile(r"\.[A-Za-z]\w*$")
+
+
+@dataclass(frozen=True)
+class SourceNames:
+    paths: frozenset[str] = frozenset()
+    texts: frozenset[str] = frozenset()
+
+
+def _source_path(node: ast.AST, paths: frozenset[str] | set[str]) -> bool:
+    shaped = isinstance(node, (ast.JoinedStr, ast.BinOp, ast.Name)) or (
+        isinstance(node, ast.Constant) and isinstance(node.value, str)
+    ) or (isinstance(node, ast.Call) and _call_name(node) in _PATH_CALLS)
+    if not shaped:
+        return False
+    constants = [n.value for n in ast.walk(node) if isinstance(n, ast.Constant) and isinstance(n.value, str)]
+    if any(value.endswith(_SOURCE_SUFFIX) for value in constants):
         return True
-    names_source_file = any(
-        isinstance(n, ast.Constant) and isinstance(n.value, str) and n.value.endswith(_SOURCE_SUFFIX)
-        for n in ast.walk(func)
-    )
-    return names_source_file and bool(calls & {"read_text", "read"})
+    names = {n.id for n in ast.walk(node) if isinstance(n, ast.Name)}
+    anchored = "__file__" in names or bool(names & paths)
+    return anchored and not any(_FOREIGN_FILE.search(value) for value in constants)
 
 
-def _count_assert(node: ast.Assert, counts: Counts, *, reads_source: bool) -> None:
+def _source_read(value: ast.AST, paths: set[str], alias: str | None) -> bool:
+    for node in ast.walk(value):
+        if not isinstance(node, ast.Call):
+            continue
+        if _call_name(node.func) == "getsource":
+            return True
+        func = node.func
+        if isinstance(func, ast.Attribute) and func.attr in _READ_CALLS:
+            receiver = func.value
+            if (isinstance(receiver, ast.Name) and receiver.id == alias) or _source_path(receiver, paths):
+                return True
+    return False
+
+
+_MAX_CHAIN = 16
+
+
+def _text_operand(node: ast.AST, texts: frozenset[str] | set[str]) -> bool:
+    for _ in range(_MAX_CHAIN):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+            node = node.func.value
+        elif isinstance(node, ast.Subscript):
+            node = node.value
+        else:
+            break
+    return isinstance(node, ast.Name) and node.id in texts
+
+
+def _assignments(nodes: Iterable[ast.AST]) -> list[tuple[str, ast.AST]]:
+    found: list[tuple[str, ast.AST]] = []
+    for node in nodes:
+        if isinstance(node, ast.Assign):
+            found.extend((target.id, node.value) for target in node.targets if isinstance(target, ast.Name))
+        elif isinstance(node, ast.AnnAssign) and node.value is not None and isinstance(node.target, ast.Name):
+            found.append((node.target.id, node.value))
+    return found
+
+
+def _source_names(nodes: Sequence[ast.AST], outer: SourceNames) -> SourceNames:
+    assigns = _assignments(nodes)
+    opens: list[tuple[str, ast.AST, list[tuple[str, ast.AST]]]] = []
+    for node in nodes:
+        if isinstance(node, (ast.With, ast.AsyncWith)):
+            inner = _assignments(n for stmt in node.body for n in ast.walk(stmt))
+            opens.extend((item.optional_vars.id, item.context_expr, inner) for item in node.items
+                         if isinstance(item.optional_vars, ast.Name) and _call_name(item.context_expr) == "open")
+    paths, texts = set(outer.paths), set(outer.texts)
+    for _ in range(len(assigns) + len(opens) + 1):
+        size = len(paths) + len(texts)
+        for alias, expr, inner in opens:
+            if _source_path(expr, paths):
+                texts.update(name for name, value in inner if _source_read(value, paths, alias))
+        for name, value in assigns:
+            if _source_read(value, paths, None) or _text_operand(value, texts):
+                texts.add(name)
+            elif _source_path(value, paths):
+                paths.add(name)
+        if len(paths) + len(texts) == size:
+            break
+    assert outer.paths <= paths and outer.texts <= texts
+    return SourceNames(frozenset(paths), frozenset(texts))
+
+
+def _source_text_hit(node: ast.AST, texts: frozenset[str]) -> bool:
+    if isinstance(node, ast.Assert):
+        test = node.test
+        if not (isinstance(test, ast.Compare) and len(test.ops) == 1 and isinstance(test.ops[0], ast.In)):
+            return False
+        left, right = test.left, test.comparators[0]
+    elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "assertIn" \
+            and len(node.args) >= 2:
+        left, right = node.args[0], node.args[1]
+    else:
+        return False
+    return isinstance(left, ast.Constant) and _text_operand(right, texts)
+
+
+def _count_assert(node: ast.Assert, counts: Counts, *, source_text: bool) -> None:
     counts.assertions += 1
     test = node.test
     negative = isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not)
@@ -1093,7 +1186,8 @@ def _count_assert(node: ast.Assert, counts: Counts, *, reads_source: bool) -> No
             counts.literal_eq_assertions += 1
         if isinstance(op, ast.IsNot) and isinstance(right, ast.Constant) and right.value is None:
             surface = True
-        if isinstance(op, ast.In) and isinstance(left, ast.Constant) and reads_source:
+        if source_text:
+            assert isinstance(op, ast.In) and isinstance(left, ast.Constant)
             counts.source_text_assertions += 1
             surface = True
     elif isinstance(test, ast.Call):
@@ -1104,7 +1198,7 @@ def _count_assert(node: ast.Assert, counts: Counts, *, reads_source: bool) -> No
     counts.surface_assertions += surface
 
 
-def _count_unittest_call(node: ast.Call, attr: str, counts: Counts, *, reads_source: bool) -> bool:
+def _count_unittest_call(node: ast.Call, attr: str, counts: Counts, *, source_text: bool) -> bool:
     if attr.startswith("assert_called") or attr in {"assert_any_call", "assert_not_called", "assert_has_calls"}:
         counts.assertions += 1
         counts.mock_assertions += 1
@@ -1117,7 +1211,8 @@ def _count_unittest_call(node: ast.Call, attr: str, counts: Counts, *, reads_sou
         counts.literal_eq_assertions += 1
     if attr in {"assertTrue", "assertIsNotNone", "assertIsInstance"}:
         counts.surface_assertions += 1
-    if attr == "assertIn" and reads_source:
+    if source_text:
+        assert attr == "assertIn"
         counts.source_text_assertions += 1
         counts.surface_assertions += 1
     return True
@@ -1130,8 +1225,9 @@ def _raises_assertion(node: ast.AST) -> bool:
     return isinstance(exc, ast.Name) and exc.id == "AssertionError"
 
 
-def _ast_function_counts(func: ast.AST, counts: Counts, helpers: frozenset[str] | set[str] = frozenset()) -> None:
-    reads_source = _reads_source(func)
+def _ast_function_counts(func: ast.AST, counts: Counts, helpers: frozenset[str] | set[str], *,
+                         module: SourceNames, hits: list[int]) -> None:
+    texts = _source_names(list(ast.walk(func)), module).texts
     before = counts.assertions
     for node in ast.walk(func):
         if isinstance(node, ast.With):
@@ -1142,11 +1238,15 @@ def _ast_function_counts(func: ast.AST, counts: Counts, helpers: frozenset[str] 
         elif isinstance(node, (ast.For, ast.While)):
             counts.loops_with_assertions += any(isinstance(n, ast.Assert) for n in ast.walk(node))
         elif isinstance(node, ast.Assert):
-            _count_assert(node, counts, reads_source=reads_source)
+            hit = _source_text_hit(node, texts)
+            hits.extend([node.lineno] if hit else [])
+            _count_assert(node, counts, source_text=hit)
         elif _raises_assertion(node):
             counts.assertions += 1
         elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
-            _count_unittest_call(node, node.func.attr, counts, reads_source=reads_source)
+            hit = _source_text_hit(node, texts)
+            hits.extend([node.lineno] if hit else [])
+            _count_unittest_call(node, node.func.attr, counts, source_text=hit)
     asserted = counts.assertions - before
     if not isinstance(func, (ast.FunctionDef, ast.AsyncFunctionDef)):
         return
@@ -1192,7 +1292,13 @@ def _helper_names(tree: ast.AST) -> set[str]:
     return helpers
 
 
-def _py_counts(source: TestSource) -> Counts | None:
+def _hit_rows(source: TestSource, positions: Iterable[int]) -> list[dict[str, Any]]:
+    chosen = sorted(set(positions))[:_MAX_LIST]
+    assert all(1 <= position <= len(source.lines) for position in chosen)
+    return [{"line": source.lines[p - 1][0], "text": source.lines[p - 1][1].strip()[:200]} for p in chosen]
+
+
+def _py_counts(source: TestSource) -> tuple[Counts, list[dict[str, Any]]] | None:
     if not source.path.split(":")[-1].endswith(".py"):
         return None
     try:
@@ -1201,11 +1307,15 @@ def _py_counts(source: TestSource) -> Counts | None:
         return None
     counts = Counts(files=1, mode_ast_files=1)
     helpers = _helper_names(tree)
+    scope = [n for stmt in tree.body if not isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+             for n in ast.walk(stmt)]
+    module = _source_names(scope, SourceNames())
+    hits: list[int] = []
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith("test"):
             counts.tests += 1
             assertions_before, surface_before = counts.assertions, counts.surface_assertions
-            _ast_function_counts(node, counts, helpers)
+            _ast_function_counts(node, counts, helpers, module=module, hits=hits)
             asserted = counts.assertions - assertions_before
             counts.surface_only_tests += asserted > 0 and counts.surface_assertions - surface_before == asserted
     assert 0 <= counts.surface_only_tests <= counts.tests
@@ -1214,7 +1324,10 @@ def _py_counts(source: TestSource) -> Counts | None:
             names = [alias.name for alias in node.names] + ([node.module] if isinstance(node, ast.ImportFrom) and node.module else [])
             if any(re.match(r"hypothesis|random|faker|numpy\.random", name or "") for name in names):
                 counts.randomized_or_property += 1
-    return counts
+    rows = _hit_rows(source, hits)
+    assert len(rows) <= min(counts.source_text_assertions, _MAX_LIST)
+    assert bool(rows) == bool(counts.source_text_assertions)
+    return counts, rows
 
 
 _REGEX_COUNTERS: dict[str, str] = {
@@ -1230,10 +1343,13 @@ _REGEX_COUNTERS: dict[str, str] = {
 }
 
 
-def _regex_counts(source: TestSource) -> Counts:
+def _regex_counts(source: TestSource) -> tuple[Counts, list[dict[str, Any]]]:
     counts = Counts(files=1, mode_regex_files=1)
     block: list[int] | None = None
-    for _, text in source.lines:
+    hits: list[int] = []
+    for position, (_, text) in enumerate(source.lines, 1):
+        if re.search(_REGEX_COUNTERS["source_text_assertions"], text):
+            hits.append(position)
         if re.search(_REGEX_COUNTERS["tests"], text):
             counts.surface_only_tests += _surface_only_block(block)
             block = [0, 0]
@@ -1247,7 +1363,8 @@ def _regex_counts(source: TestSource) -> Counts:
             block[1] += bool(re.search(_REGEX_COUNTERS["surface_assertions"], text))
     counts.surface_only_tests += _surface_only_block(block)
     assert 0 <= counts.surface_only_tests <= counts.tests
-    return counts
+    assert len(hits) == counts.source_text_assertions
+    return counts, _hit_rows(source, hits)
 
 
 def _surface_only_block(block: list[int] | None) -> bool:
@@ -1504,12 +1621,13 @@ def test_suite_rigor(package: Package, sources: Sequence[TestSource], reference_
     for source in sources:
         if source.path in delegated:
             continue
-        file_counts = _py_counts(source) if source.path.split(":")[-1].endswith(".py") else None
-        if file_counts is None or (source.origin == "patch" and not source.complete):
-            file_counts = _regex_counts(source)
+        analysed = _py_counts(source) if source.path.split(":")[-1].endswith(".py") else None
+        if analysed is None or (source.origin == "patch" and not source.complete):
+            analysed = _regex_counts(source)
+        file_counts, hits = analysed
         counts.add(file_counts)
         per_file.append({"file": source.path, "mode": "ast" if file_counts.mode_ast_files else "regex",
-                         "tests": file_counts.tests, "assertions": file_counts.assertions})
+                         "tests": file_counts.tests, "assertions": file_counts.assertions, "source_text_hits": hits})
     tests_text = "\n".join(source.text for source in sources) + "\n" + package.text("tests/test_command.sh")
     tests_text += "\n".join(text for path, text in package.files.items() if path.startswith("tests/") and path.endswith(".sh"))
     instruction = package.text("instruction.md")
@@ -1725,7 +1843,7 @@ def build_hypotheses(package: Package, boundary: Mapping[str, Any], grader: Mapp
     if counts["source_text_assertions"]:
         _h(hyps, "WC-SOURCE-TEXT-ASSERT", "weak_check", 65, "static_probable",
            "Assertions search source text instead of executing behavior",
-           [_ev(f["file"], None, "source-text assertion present") for f in rigor["test_files"]],
+           [_ev(f["file"], hit["line"], hit["text"]) for f in rigor["test_files"] for hit in f["source_text_hits"]],
            "Insert the searched-for tokens in a comment and leave behavior wrong.")
     if counts["mock_assertions"] and counts["mock_assertions"] >= counts["assertions"] - counts["mock_assertions"]:
         _h(hyps, "WC-MOCK-ONLY", "weak_check", 55, "static_probable",

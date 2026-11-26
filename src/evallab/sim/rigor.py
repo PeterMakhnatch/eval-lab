@@ -10,6 +10,7 @@ from evallab.package_anatomy import (
     TestSource,
     _py_counts,
     _regex_counts,
+    analyze_package,
     test_suite_rigor,
 )
 from evallab.sim.engine import STEP_LIMIT, Simulation
@@ -30,7 +31,13 @@ _CHAIN_BODIES = {
     "plain": ("value = bool(value)",),
 }
 _MAX_CHAINS = 8
+_WRAPPER_PATH = "tests/test_outputs.py"
+_GRADER_STEMS = ("grader", "scoring", "model_for_tests", "evaluate")
+_IMPORT_FORMS = ("inner_from", "top_from", "alias_import", "relative_from")
+_PLAIN_FORMS = ("single_assert", "constant_import", "uncalled_import")
+_MAX_GRADER_CHECKS = 6
 _INSTRUCTION = "Run the generated checks and report every failure.\n"
+_TEST_SH = "#!/bin/bash\ncd /tests\npytest -q test_outputs.py\n"
 _COUNT_FIELDS = (
     "files",
     "tests",
@@ -359,6 +366,41 @@ def _chain_tally(chains: list[_Chain]) -> Counts:
     )
 
 
+def _grader_text(stem: str, checks: int) -> str:
+    assert 0 <= checks <= _MAX_GRADER_CHECKS
+    lines = ["THRESHOLD = 0.5", ""]
+    for index in range(checks):
+        lines.extend([f"def test_check_{index}(feedback):", f"    feedback.append('{stem} {index}')", "    return True", ""])
+    calls = ", ".join(f"test_check_{index}(feedback)" for index in range(checks))
+    lines.extend(["def grade():", "    feedback = []", f"    passed = [{calls}]"])
+    lines.extend(["    return sum(passed) / max(len(passed), 1)", ""])
+    return "\n".join(lines)
+
+
+def _wrapper_text(form: str, stem: str) -> str:
+    assert form in _IMPORT_FORMS + _PLAIN_FORMS
+    top = {
+        "top_from": [f"from {stem} import grade"],
+        "alias_import": [f"import {stem} as scorer"],
+        "relative_from": [f"from .{stem} import grade"],
+        "constant_import": [f"from {stem} import THRESHOLD"],
+        "uncalled_import": [f"import {stem}"],
+    }.get(form, [])
+    body = {
+        "inner_from": [f"    from {stem} import grade", "    score = grade()"],
+        "top_from": ["    score = grade()"],
+        "alias_import": ["    score = scorer.grade()"],
+        "relative_from": ["    score = grade()"],
+        "constant_import": ["    score = THRESHOLD"],
+        "uncalled_import": [f"    score = {stem}.THRESHOLD"],
+        "single_assert": ["    score = 1.0"],
+    }[form]
+    lines = ["import os", *top, "", "def test_grader_validation():", *body]
+    lines.extend(["    os.makedirs('/logs/verifier', exist_ok=True)", "    with open('/logs/verifier/reward.txt', 'w') as handle:"])
+    lines.extend(["        handle.write(str(score))", "    assert True", ""])
+    return "\n".join(lines)
+
+
 class RigorSimulation:
     def __init__(self, sim: Simulation, root: Path) -> None:
         assert sim.step + _STEP_BUDGET <= STEP_LIMIT
@@ -373,6 +415,7 @@ class RigorSimulation:
         self.check_ast()
         self.check_regex_fallback()
         self.check_chains()
+        self.check_delegation()
         self.sim.require(self.sim.step - self.start_step <= _STEP_BUDGET, "rigor_step_budget")
 
     def _require_counts(self, actual: object, expected: Counts, prefix: str) -> None:
@@ -539,3 +582,47 @@ class RigorSimulation:
             "rigor_chain_tests_without_assertion",
         )
         self._require_counts(asdict(counts), expected, "rigor_chain_counts")
+
+    def _delegation_card(self, name: str, form: str, stem: str, checks: int) -> dict[str, object]:
+        root = self.root / name
+        files = {
+            "instruction.md": _INSTRUCTION,
+            "tests/test.sh": _TEST_SH,
+            _WRAPPER_PATH: _wrapper_text(form, stem),
+            f"tests/{stem}.py": _grader_text(stem, checks),
+        }
+        for rel, text in files.items():
+            path = root / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+        card = analyze_package(root)
+        assert card["task"] == name
+        return card
+
+    def check_delegation(self) -> None:
+        sim = self.sim
+        rng = Random(f"rigor-delegation:{sim.seed}")
+        stem = rng.choice(_GRADER_STEMS)
+        form, plain_form = rng.choice(_IMPORT_FORMS), rng.choice(_PLAIN_FORMS)
+        checks = rng.randint(0, _MAX_GRADER_CHECKS)
+        sim.begin("rigor-delegating-wrapper", form=form, stem=stem, checks=checks)
+        card = self._delegation_card("delegating", form, stem, checks)
+        rigor = card["test_suite_rigor"]
+        assert isinstance(rigor, dict)
+        sim.require(rigor.get("delegated_grader_modules") == [f"tests/{stem}.py"], "rigor_delegated_module_named")
+        expected = Counts(files=1, tests=1, assertions=1, mode_ast_files=1)
+        self._require_counts(rigor["counts"], expected, "rigor_delegated_counts")
+        sim.require(rigor["test_files"] == [_expected_files(expected, _WRAPPER_PATH, "ast")], "rigor_delegated_test_files")
+        ids = [hypothesis["id"] for hypothesis in card["vulnerability_hypotheses"]]
+        sim.require("WC-TINY-SUITE" not in ids, "rigor_delegated_not_tiny")
+        sim.require("WC-TEST-WITHOUT-ASSERTION" not in ids, "rigor_delegated_grader_checks_not_tests")
+        sim.begin("rigor-plain-single-test", form=plain_form, stem=stem)
+        card = self._delegation_card("plain", plain_form, stem, 0)
+        rigor = card["test_suite_rigor"]
+        assert isinstance(rigor, dict)
+        sim.require(rigor.get("delegated_grader_modules") == [], "rigor_plain_no_delegated_module")
+        plain = Counts(files=2, tests=1, assertions=1, mode_ast_files=2)
+        self._require_counts(rigor["counts"], plain, "rigor_plain_counts")
+        tiny = [hypothesis for hypothesis in card["vulnerability_hypotheses"] if hypothesis["id"] == "WC-TINY-SUITE"]
+        sim.require(len(tiny) == 1, "rigor_plain_tiny_fires")
+        sim.require(tiny[0]["score"] == 40, "rigor_plain_tiny_score")

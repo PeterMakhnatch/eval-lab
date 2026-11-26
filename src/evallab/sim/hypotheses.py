@@ -173,6 +173,7 @@ class _Plan:
     instruction: str = ""
     operand: str = "relative"
     artifacts: tuple[_Artifact, ...] = ()
+    delegated: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -306,6 +307,13 @@ def _plan_rigor(rng: Random, plan: _Plan) -> None:
         plan.reference = (symbols, symbols + rng.choice((0, 1, 3)), branches, branches + rng.choice((0, 2, 3)))
     plan.test_files = rng.choice((0, 1, 2, 8))
     plan.fragment = rng.choice((0, 0, 1, 2))
+
+
+def _plan_delegated(rng: Random, token: str) -> tuple[str, ...]:
+    count = rng.choice((0, 0, 1, 2))
+    delegated = tuple(f"tests/{stem}_{token}.py" for stem in rng.sample(("grader", "scoring", "model_for_tests"), count))
+    assert len(delegated) == count <= 2
+    return delegated
 
 
 def _forbid_text(rng: Random, form: str) -> str:
@@ -494,6 +502,7 @@ def _rigor(card: dict[str, Any], plan: _Plan) -> dict[str, Any]:
         ("fragment_files", plan.fragment),
     ):
         _put(rigor, path, value)
+    rigor["delegated_grader_modules"] = list(plan.delegated)
     return rigor
 
 
@@ -586,7 +595,7 @@ def _expect_counts(plan: _Plan, out: list[_Want]) -> None:
         _want(out, "WC-MOCK-ONLY", evidence=rows)
     if plan.error_words and tests and not counts["negative_assertions"] and not counts["negative_named_tests"]:
         _want(out, "WC-NO-NEGATIVE-CASES")
-    if tests and tests <= 2 and asserts <= 3 and not counts["parametrized_cases"]:
+    if tests and tests <= 2 and asserts <= 3 and not counts["parametrized_cases"] and not plan.delegated:
         _want(out, "WC-TINY-SUITE", evidence=rows)
     scripted = "python_writes_reward" in plan.mechanisms
     if tests == 0 and not plan.fragment and (counts["files"] or plan.test_sh) and not scripted:
@@ -635,10 +644,12 @@ class HypothesisSimulation:
     def _case(self, index: int) -> None:
         sim = self.sim
         plan = _plan(self.rng)
+        plan.delegated = _plan_delegated(Random(f"hypotheses-delegation:{sim.seed}:{index}"), plan.token)
         root = self.root / f"case-{index}"
         files = _files(plan)
         _write(root, files)
-        sim.begin("hypotheses-package", case=index, files=len(files), layout=plan.layout, runner=plan.runner)
+        sim.begin("hypotheses-package", case=index, files=len(files), layout=plan.layout, runner=plan.runner,
+                  delegated=len(plan.delegated))
         package = load_package(root)
         sim.require(sorted(package.files) == sorted(files), "hypotheses_package_files")
         card = analyze_package(root)

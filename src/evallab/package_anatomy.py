@@ -1411,10 +1411,54 @@ def reference_patch_surface(patch_text: str, tests_text: str) -> dict[str, Any]:
     }
 
 
+_TEST_MODULE = re.compile(r"(?:^|/)(?:test_[^/]*|[^/]*_test|conftest)\.py$")
+
+
+def _sibling_bindings(tree: ast.AST, directory: str, modules: set[str]) -> dict[str, str]:
+    bound: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module and node.level <= 1:
+            sibling = f"{directory}/{node.module.replace('.', '/')}.py"
+            if sibling in modules:
+                bound.update({alias.asname or alias.name: sibling for alias in node.names if alias.name != "*"})
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                sibling = f"{directory}/{alias.name.replace('.', '/')}.py"
+                if sibling in modules:
+                    bound[alias.asname or alias.name.split(".")[0]] = sibling
+    assert all(path in modules for path in bound.values())
+    return bound
+
+
+def _delegated_grader_modules(sources: Sequence[TestSource]) -> list[str]:
+    files = {s.path: s for s in sources if s.origin == "file" and s.complete and s.path.endswith(".py")}
+    modules = {path for path in files if path.startswith("tests/") and not _TEST_MODULE.search(path)}
+    delegated: set[str] = set()
+    for path, source in files.items():
+        if not path.startswith("tests/") or not _TEST_MODULE.search(path) or path.endswith("conftest.py"):
+            continue
+        try:
+            tree = ast.parse(source.text)
+        except (SyntaxError, ValueError):
+            continue
+        bound = _sibling_bindings(tree, path.rsplit("/", 1)[0], modules)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func.value if isinstance(node.func, ast.Attribute) else node.func
+            if isinstance(func, ast.Name) and func.id in bound:
+                delegated.add(bound[func.id])
+    assert delegated <= modules
+    return sorted(delegated)
+
+
 def test_suite_rigor(package: Package, sources: Sequence[TestSource], reference_patch: str | None) -> dict[str, Any]:
     counts = Counts()
     per_file: list[dict[str, Any]] = []
+    delegated = _delegated_grader_modules(sources)
     for source in sources:
+        if source.path in delegated:
+            continue
         file_counts = _py_counts(source) if source.path.split(":")[-1].endswith(".py") else None
         if file_counts is None or (source.origin == "patch" and not source.complete):
             file_counts = _regex_counts(source)
@@ -1440,6 +1484,7 @@ def test_suite_rigor(package: Package, sources: Sequence[TestSource], reference_
         "instruction_named_symbols_total": len(instruction_cues(instruction)),
         "instruction_named_symbols_unreferenced_count": len(mismatch),
         "test_files": per_file[:_MAX_LIST],
+        "delegated_grader_modules": delegated[:_MAX_LIST],
         "fragment_files": sum(1 for s in sources if s.origin == "patch" and not s.complete),
         "reference_patch": None,
     }
@@ -1647,7 +1692,8 @@ def build_hypotheses(package: Package, boundary: Mapping[str, Any], grader: Mapp
            "instruction.md describes error/invalid-input behavior but no test asserts an error, rejection or non-zero exit",
            [_ev("instruction.md", n, t) for n, t in _find(instruction, r"\b(?:error|raise|invalid|reject|fail|exception)", flags=re.I, limit=3)],
            "Make the implementation silently accept invalid input; the suite stays green.")
-    if counts["tests"] and counts["tests"] <= 2 and counts["assertions"] <= 3 and not counts["parametrized_cases"]:
+    if counts["tests"] and counts["tests"] <= 2 and counts["assertions"] <= 3 and not counts["parametrized_cases"] \
+            and not rigor["delegated_grader_modules"]:
         _h(hyps, "WC-TINY-SUITE", "weak_check", 40, "static_certain",
            f"Only {counts['tests']} test(s) / {counts['assertions']} assertion(s)",
            [_ev(f["file"], None, f"{f['tests']} tests / {f['assertions']} assertions") for f in rigor["test_files"]],

@@ -70,6 +70,12 @@ _REWARD_SOURCE = "def test_reward():\n    target = 'reward.txt'\n"
 _EVALUATOR_SOURCE = "import sys\n\nopen(sys.argv[-1], 'w').write('1')\n"
 _REWARD_ARG = ("python3 /tests/evaluate.py \\", "--reward /logs/verifier/reward.txt")
 _REWARD_ARG_COMMAND = "python3 /tests/evaluate.py --reward /logs/verifier/reward.txt"
+_VARIABLE_GATE = (
+    "REWARD_FILE=/logs/verifier/reward.txt",
+    "if python3 /tests/ref_eval.py; then",
+    'echo "1" > "${REWARD_FILE}"',
+    "fi",
+)
 _NO_TESTS = "WC-NO-TESTS-FOUND"
 _PYTEST_HOOKS = ("conftest.py", "pytest.ini", "tox.ini", "setup.cfg", "pyproject.toml")
 _OPERANDS = {
@@ -142,6 +148,7 @@ class _Plan:
     operand: str
     writes_report: bool
     report_read: str
+    variable_gate: bool
 
     @property
     def report(self) -> str:
@@ -161,6 +168,7 @@ class _Lines:
     early_exit: _Hit | None = None
     zeros: list[_Hit] = field(default_factory=list)
     echoes: list[_Hit] = field(default_factory=list)
+    gated: _Hit | None = None
     cd: _Hit | None = None
     addopts: list[_Hit] = field(default_factory=list)
     pythonpath: list[_Hit] = field(default_factory=list)
@@ -222,6 +230,7 @@ def _plan(rng: Random) -> _Plan:
         operand=rng.choice(tuple(_OPERANDS)),
         writes_report=_flag(rng),
         report_read=rng.choice(_REPORT_READS),
+        variable_gate=_flag(rng),
     )
     assert plan.exit_trigger in _EXIT_TRIGGERS
     assert plan.report in _REPORTS and plan.report_read in _REPORT_READS
@@ -236,7 +245,7 @@ def _plan(rng: Random) -> _Plan:
 
 def _mechanisms(plan: _Plan) -> list[str]:
     found: list[str] = []
-    if plan.exit_trigger != "none" or plan.saved_status != "none" or plan.late_status != "none":
+    if plan.exit_trigger != "none" or plan.saved_status != "none" or plan.late_status != "none" or plan.variable_gate:
         found.append("exit_code")
     if plan.report == "read":
         found.append("structured_report")
@@ -258,9 +267,9 @@ def _present(hits: tuple[_Hit | None, ...]) -> list[_Hit]:
 
 
 def _reward_lines(lines: _Lines) -> list[dict[str, Any]]:
-    found = [*_present((lines.reward_clear, lines.reward_arg)), *lines.zeros, *lines.echoes]
+    found = [*_present((lines.reward_clear, lines.reward_arg)), *lines.zeros, *lines.echoes, *_present((lines.gated,))]
     assert found == sorted(found)
-    assert len(found) <= 2 + _REWARD_EVIDENCE_LIMIT + 2
+    assert len(found) <= 2 + _REWARD_EVIDENCE_LIMIT + 3
     return _evidence("tests/test.sh", found[:_REWARD_EVIDENCE_LIMIT])
 
 
@@ -285,7 +294,7 @@ def _isolation(plan: _Plan) -> dict[str, bool]:
 def _bare(plan: _Plan) -> list[str]:
     names = {"pytest"}
     python_read = plan.report == "read" and plan.report_read.startswith("python3 ")
-    if plan.python_isolated or plan.python_arg or python_read:
+    if plan.python_isolated or plan.python_arg or plan.variable_gate or python_read:
         names.add("python3")
     names.update(plan.extra_bare)
     if plan.wrapper != "none":
@@ -415,8 +424,14 @@ def _render_tail(script: _Script, recorded: _Lines, plan: _Plan) -> None:
         recorded.zeros.append(script.add(_REWARD_ZERO))
     for _ in range(plan.unconditional_count):
         recorded.echoes.append(script.add(_REWARD_ONE))
+    if plan.variable_gate:
+        script.add(_VARIABLE_GATE[0])
+        script.add(_VARIABLE_GATE[1])
+        recorded.gated = script.add(_VARIABLE_GATE[2])
+        script.add(_VARIABLE_GATE[3])
     assert len(recorded.zeros) == plan.zero_count
     assert len(recorded.echoes) == plan.unconditional_count
+    assert (recorded.gated is not None) is plan.variable_gate
     assert (recorded.cd is not None) is (plan.workdir_mode == "cd")
     assert (recorded.reward_arg is not None) is plan.python_arg
 
@@ -445,6 +460,7 @@ class MechanicsSimulation:
             arg=plan.python_arg,
             operand=plan.operand,
             report=plan.report,
+            gate=plan.variable_gate,
         )
         self._require_bash()
         package = load_package(self.root)

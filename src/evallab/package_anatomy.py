@@ -762,11 +762,59 @@ def _with_commands(hits: list[tuple[int, str]], commands: Sequence[tuple[int, in
     return merged[:6]
 
 
+_REWARD_VAR = re.compile(r"^\s*(?:export\s+)?([A-Za-z_]\w*)=\S*reward\.(?:txt|json)")
+_COMMAND_IF = re.compile(r"^(?:el)?if\s+(?:!\s+)?(?!\[|test\b|true\b|false\b|grep\b|jq\b)[\w./]")
+_BLOCK_DEPTH_MAX = 64
+
+
+def _reward_variables(lines: Sequence[str]) -> tuple[list[str], set[int]]:
+    names: list[str] = []
+    assigned: set[int] = set()
+    for number, line in enumerate(lines, 1):
+        match = _REWARD_VAR.match(line)
+        if match:
+            assigned.add(number)
+            names += [match.group(1)] if match.group(1) not in names else []
+    assert len(names) <= len(assigned) <= len(lines)
+    return names, assigned
+
+
+def _reward_path(literal: str, names: Sequence[str]) -> str:
+    assert literal and all(name.isidentifier() for name in names)
+    return "(?:" + "|".join([literal, *(r"\$(?:" + name + r"\b|\{" + name + r"\})" for name in names)]) + ")"
+
+
+def _reward_one_echoes(lines: Sequence[str], path: str) -> tuple[list[tuple[int, str]], bool]:
+    echo_one = re.compile(r"\becho\s+(['\"]?)1\1\s*>[^\n]*" + path)
+    unconditional: list[tuple[int, str]] = []
+    gated = False
+    blocks: list[bool] = []
+    for number, raw in enumerate(lines, 1):
+        stripped = raw.strip()
+        if re.match(r"^(?:if|case|while|for)\b", stripped):
+            blocks.append(bool(_COMMAND_IF.match(stripped)))
+        elif blocks and re.match(r"^elif\b", stripped):
+            blocks[-1] = bool(_COMMAND_IF.match(stripped))
+        if blocks and re.match(r"^(?:fi|esac|done)\b", stripped):
+            blocks.pop()
+        assert len(blocks) <= min(number, _BLOCK_DEPTH_MAX)
+        if not echo_one.search(stripped):
+            continue
+        gated = gated or (bool(blocks) and blocks[-1] and stripped.startswith("echo"))
+        if not blocks and "&&" not in stripped and "||" not in stripped and not re.search(r"\bif\b", stripped):
+            unconditional.append((number, stripped[:200]))
+    return unconditional, gated
+
+
 def _reward_gate(test_sh: str, sources: Sequence[TestSource]) -> dict[str, Any]:
     mechanisms: list[str] = []
+    lines = test_sh.splitlines()
+    names, assigned = _reward_variables(lines)
     commands = _reward_path_commands(test_sh)
-    reward_lines = _with_commands(_find(test_sh, r"reward\.(?:txt|json)", limit=6), commands)
-    if re.search(r"\$\?|\$\{?RC\}?|\bRC=|\bif\s+\S.*;\s*then\s+echo\s+1|&&\s*echo\s+1", test_sh):
+    writes = _find(test_sh, _reward_path(r"reward\.(?:txt|json)", names), limit=6 + len(assigned))
+    reward_lines = _with_commands([hit for hit in writes if hit[0] not in assigned][:6], commands)
+    echoes, gated = _reward_one_echoes(lines, _reward_path(r"reward\.", names))
+    if gated or re.search(r"\$\?|\$\{?RC\}?|\bRC=|\bif\s+\S.*;\s*then\s+echo\s+1|&&\s*echo\s+1", test_sh):
         mechanisms.append("exit_code")
     if re.search(r"\bjq\s|xml\.etree|junitparser|json\.loads?\(|expected_report|passed.*failed", test_sh, re.I):
         mechanisms.append("structured_report")
@@ -774,34 +822,22 @@ def _reward_gate(test_sh: str, sources: Sequence[TestSource]) -> dict[str, Any]:
         mechanisms.append("log_grep")
     if commands or any(re.search(r"reward\.(?:txt|json)", source.text) for source in sources):
         mechanisms.append("python_writes_reward")
-    unconditional = False
-    depth = 0
-    for number, raw in enumerate(test_sh.splitlines(), 1):
-        stripped = raw.strip()
-        if re.match(r"^(?:if|case|while|for)\b", stripped):
-            depth += 1
-        if re.match(r"^(?:fi|esac|done)\b", stripped):
-            depth = max(0, depth - 1)
-        if re.search(r"\becho\s+1\s*>.*reward\.", stripped) and depth == 0 and "&&" not in stripped and "||" not in stripped \
-                and not re.search(r"\bif\b", stripped):
-            unconditional = True
-            hit = (number, stripped[:200])
-            if hit not in reward_lines and len(reward_lines) < 6:
-                reward_lines.append(hit)
+    for hit in echoes:
+        if hit not in reward_lines and len(reward_lines) < 6:
+            reward_lines.append(hit)
     assert len(reward_lines) <= 6
     masks: list[tuple[int, str]] = []
     masks += _find(test_sh, r"(?:pytest|unittest|jest|mocha|cargo|go test|vitest)[^\n]*\|\|\s*true")
-    lines = test_sh.splitlines()
     masks += [hit for hit in _find(test_sh, r"^\s*set\s+\+e\b") if not _status_gated(lines, hit[0])]
     pipe = _find(test_sh, r"(?:pytest|unittest|jest|mocha|cargo test|go test|vitest)[^\n|]*\|\s*(?:tee|tail|head|grep|cat)\b")
     if pipe and "pipefail" not in test_sh:
         masks += pipe
-    if re.search(r"\becho\s+1\b[^\n]*reward", test_sh) and not mechanisms:
+    if re.search(r"\becho\s+(['\"]?)1\1(?!\w)[^\n]*" + _reward_path("reward", names), test_sh) and not mechanisms:
         mechanisms.append("exit_code")
     return {
         "mechanisms": mechanisms or ["none_detected"],
         "reward_write_lines": [_ev("tests/test.sh", n, t) for n, t in reward_lines[:6]],
-        "reward_one_unconditional": unconditional,
+        "reward_one_unconditional": bool(echoes),
         "failure_masks": [_ev("tests/test.sh", n, t) for n, t in masks[:6]],
         "structured_report_count_check": "structured_report" in mechanisms,
     }

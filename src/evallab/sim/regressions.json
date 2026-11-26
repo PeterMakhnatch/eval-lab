@@ -607,5 +607,12 @@
     "seed": 512,
     "step": 152,
     "subsystem": "test-suite-rigor"
+  },
+  {
+    "found_at_utc": "2026-11-26T12:12:48.533376+00:00",
+    "invariant": "mechanics_reward_write_lines",
+    "seed": 9971052928127101575,
+    "step": 159,
+    "subsystem": "grader-script-mechanics"
   }
 ]

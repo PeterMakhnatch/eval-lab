@@ -38,6 +38,7 @@ _IMPORT_FORMS = ("inner_from", "top_from", "alias_import", "relative_from")
 _PLAIN_FORMS = ("single_assert", "constant_import", "uncalled_import")
 _MAX_GRADER_CHECKS = 6
 _INSTRUCTION = "Run the generated checks and report every failure.\n"
+_HELPERS = ("def check(value):", "    assert value", "", "def require(value):", "    if not value:", "        raise AssertionError", "")
 _TEST_SH = "#!/bin/bash\ncd /tests\npytest -q test_outputs.py\n"
 _COUNT_FIELDS = (
     "files",
@@ -167,6 +168,8 @@ _PYTEST_SHAPES = (
         ("assert left == right",),
     ),
     _Shape("helper", Counts(assertions=1), (), ("check(value)",)),
+    _Shape("raise", Counts(assertions=1), (), ("if not value:", '    raise AssertionError("value is false")')),
+    _Shape("raise_helper", Counts(assertions=1), (), ("require(value)",)),
     _Shape("without", Counts(tests_without_assertion=1), (), ("value = compute()",)),
 )
 
@@ -206,6 +209,8 @@ _UNITTEST_SHAPES = (
         ("self.assertEqual(left, right)",),
     ),
     _Shape("helper", Counts(assertions=1), (), ("check(value)",)),
+    _Shape("raise", Counts(assertions=1), (), ("if not flag:", '    raise AssertionError("flag is false")')),
+    _Shape("raise_helper", Counts(assertions=1), (), ("require(flag)",)),
     _Shape("without", Counts(tests_without_assertion=1), (), ("value = compute()",)),
 )
 
@@ -263,7 +268,7 @@ def _render_pytest(cases: list[_TestCase], randomized_import: bool) -> str:
     lines = ["import pytest"]
     if randomized_import:
         lines.append("import random")
-    lines.extend(["", "def check(value):", "    assert value", ""])
+    lines.extend(["", *_HELPERS])
     for case in cases:
         assert case.name and case.shapes
         for shape in case.shapes:
@@ -280,9 +285,7 @@ def _render_unittest(cases: list[_TestCase], randomized_import: bool) -> str:
     lines = ["import unittest"]
     if randomized_import:
         lines.append("import random")
-    lines.extend(
-        ["", "def check(value):", "    assert value", "", "class GeneratedTests(unittest.TestCase):"]
-    )
+    lines.extend(["", *_HELPERS, "class GeneratedTests(unittest.TestCase):"])
     for case in cases:
         assert case.name and case.shapes
         for shape in case.shapes:

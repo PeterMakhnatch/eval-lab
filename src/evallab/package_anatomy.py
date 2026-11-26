@@ -1087,6 +1087,13 @@ def _count_unittest_call(node: ast.Call, attr: str, counts: Counts, *, reads_sou
     return True
 
 
+def _raises_assertion(node: ast.AST) -> bool:
+    if not isinstance(node, ast.Raise) or node.exc is None:
+        return False
+    exc = node.exc.func if isinstance(node.exc, ast.Call) else node.exc
+    return isinstance(exc, ast.Name) and exc.id == "AssertionError"
+
+
 def _ast_function_counts(func: ast.AST, counts: Counts, helpers: frozenset[str] | set[str] = frozenset()) -> None:
     reads_source = _reads_source(func)
     before = counts.assertions
@@ -1100,6 +1107,8 @@ def _ast_function_counts(func: ast.AST, counts: Counts, helpers: frozenset[str] 
             counts.loops_with_assertions += any(isinstance(n, ast.Assert) for n in ast.walk(node))
         elif isinstance(node, ast.Assert):
             _count_assert(node, counts, reads_source=reads_source)
+        elif _raises_assertion(node):
+            counts.assertions += 1
         elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
             _count_unittest_call(node, node.func.attr, counts, reads_source=reads_source)
     asserted = counts.assertions - before
@@ -1135,7 +1144,7 @@ def _helper_names(tree: ast.AST) -> set[str]:
     helpers = {
         node.name
         for node in functions
-        if "fail" in calls[id(node)] or any(isinstance(n, ast.Assert) for n in ast.walk(node))
+        if "fail" in calls[id(node)] or any(isinstance(n, ast.Assert) or _raises_assertion(n) for n in ast.walk(node))
     }
     for _ in range(len(functions) + 1):
         grown = helpers | {node.name for node in functions if calls[id(node)] & helpers}

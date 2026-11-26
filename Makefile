@@ -2,8 +2,8 @@
 
 help:
 	@echo "sync       Install locked Python dependencies"
-	@echo "gate       Run local checks and deterministic simulation"
-	@echo "land       Rebase, run the gate, and push to main under the landing lock"
+	@echo "gate       Run local checks and deterministic simulation; record a receipt for the clean tree"
+	@echo "land       Rebase and push to main under the landing lock; skip the gate on a receipt for the exact tree (LAND_FORCE_GATE=1 reruns it)"
 	@echo "smoke      Run the full local doctor/Harbor/Postgres/Parquet/digest smoke"
 	@echo "db-up      Start local PostgreSQL"
 	@echo "db-down    Stop local PostgreSQL (preserves volume)"

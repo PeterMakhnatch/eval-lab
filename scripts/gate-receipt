@@ -27,8 +27,9 @@ case "$1" in
     [[ $# -eq 2 ]] || usage
     rm -f "$receipt"
     if [[ -n "$2" ]] && tree=$(clean_tree) && [[ "$tree" == "$2" ]]; then
-      printf '%s\n' "$tree" >"$receipt.tmp"
-      mv "$receipt.tmp" "$receipt"
+      staged=$(mktemp "$receipt.XXXXXX")
+      printf '%s\n' "$tree" >"$staged"
+      mv -f "$staged" "$receipt"
       printf 'gate: receipt written for tree %s\n' "$tree"
     else
       printf 'gate: no receipt; the worktree was dirty or HEAD changed during the gate\n' >&2
@@ -37,7 +38,8 @@ case "$1" in
   check)
     [[ $# -eq 1 ]] || usage
     tree=$(clean_tree) || exit 1
-    [[ -f "$receipt" && "$(<"$receipt")" == "$tree" ]]
+    [[ -f "$receipt" && ! -L "$receipt" ]] || exit 1
+    printf '%s\n' "$tree" | cmp -s - "$receipt" || exit 1
     ;;
   *)
     usage

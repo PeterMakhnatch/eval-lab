@@ -6,15 +6,15 @@ executed health card. It uses no Docker, no network, no model calls, and no Moda
 It is the anatomy counterpart of the task-lint join in
 [`../task-lint-vs-executed-health/`](../task-lint-vs-executed-health/README.md) (HAR-454).
 
-Source commit: the CSV was rebuilt and checked at eval-lab commit `b5b2cd7ac`
+Source commit: the CSV was rebuilt and checked at eval-lab commit `46f423ea7`
 (`origin/main` at rebuild time, HAR-511). The anatomy source `src/evallab/package_anatomy.py`
-last changed at `60993c77a` (HAR-509). The first build was at `e61c1dca4`, with the
-anatomy source at `b62d5bae0` (HAR-501).
+last changed at `88184767c` (HAR-512), after the tiny-suite change at `60993c77a` (HAR-509).
+The first build was at `e61c1dca4`, with the anatomy source at `b62d5bae0` (HAR-501).
 
 ## The answer
 
 The health card has 95 tasks: 49 `clean` and 46 not clean (51.6% clean).
-Anatomy reports **316 hypotheses** with **16 distinct codes** on the same 95 task packages.
+Anatomy reports **314 hypotheses** with **16 distinct codes** on the same 95 task packages.
 One code separates the classes strongly:
 
 | Code | Tasks | `clean` | Not clean | Clean share | Fisher two-sided p |
@@ -32,10 +32,10 @@ The first build (anatomy at `b62d5bae0`) also reported `WC-TINY-SUITE` as a stro
 HAR-509 stops `WC-TINY-SUITE` when a test delegates to a grader module.
 The code then left 36 of its 37 tasks, and the separation is gone.
 
-Weaker one-sided codes, each on 4 tasks or fewer:
+Weaker one-sided codes, each on 3 tasks or fewer:
 
 - `WC-NO-TESTS-FOUND` flags 3 tasks, all not clean (p = 0.11).
-- `WC-TEST-WITHOUT-ASSERTION` flags 4 tasks, all `clean` (p = 0.12).
+- `WC-TEST-WITHOUT-ASSERTION` flags 2 tasks, both `clean` (p = 0.50).
 - `AR-GIT-HISTORY` and `GT-AUTOLOAD-WRITABLE` flag 1 not-clean task each.
 - `EG-FAILURE-MASKED` flags 1 clean task.
 
@@ -80,8 +80,10 @@ The 2 clean wrapper tasks that lost the code are `anomaly-detection-ranking` and
 The old exception, `grpc-plant-position-server` (`no_reference`), had 6 `test_*`
 functions in its `tests/grader.py`, so its suite counted 7 tests.
 The anatomy no longer counts that delegated module as tests.
-The task therefore also lost `WC-TEST-WITHOUT-ASSERTION`, which dropped from 5 tasks to 4.
-Every other code count is the same as in the first build.
+The task therefore also lost `WC-TEST-WITHOUT-ASSERTION`.
+HAR-512 counts a raised `AssertionError` as an assertion. Two more `clean` tasks,
+`service-deployment-wave-planner` and `task-xxe-exploit`, then lost `WC-TEST-WITHOUT-ASSERTION`.
+The code dropped from 5 tasks to 2. Every other code count is the same as in the first build.
 
 All 26 `no_reference` tasks use the wrapper.
 The old `WC-TINY-SUITE` split tracked how the import packaged these tasks, not how strong their checks are.
@@ -148,17 +150,17 @@ that are no more likely than the observed table.
 | `WC-SOURCE-TEXT-ASSERT` | 6 | 5 | 1 | 1 | 0 | 0 | 0 | 65 | 0.21 |
 | `EG-INSTRUCTION-RULE-UNENFORCED` | 5 | 3 | 2 | 0 | 1 | 1 | 0 | 60 | 1 |
 | `WC-NO-NEGATIVE-CASES` | 4 | 2 | 2 | 0 | 0 | 2 | 0 | 50 | 1 |
-| `WC-TEST-WITHOUT-ASSERTION` | 4 | 4 | 0 | 0 | 0 | 0 | 0 | 55 | 0.12 |
 | `GT-BAKED-TESTS-EXECUTED` | 3 | 1 | 2 | 0 | 1 | 0 | 1 | 95 | 0.61 |
 | `WC-NO-TESTS-FOUND` | 3 | 0 | 3 | 1 | 2 | 0 | 0 | 45 | 0.11 |
+| `WC-TEST-WITHOUT-ASSERTION` | 2 | 2 | 0 | 0 | 0 | 0 | 0 | 55 | 0.50 |
 | `AR-GIT-HISTORY` | 1 | 0 | 1 | 0 | 1 | 0 | 0 | 65 | 0.48 |
 | `EG-FAILURE-MASKED` | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 85 | 1 |
 | `GT-AUTOLOAD-WRITABLE` | 1 | 0 | 1 | 0 | 0 | 0 | 1 | 80 | 0.48 |
 | `WC-TINY-SUITE` | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 40 | 1 |
 
 Changes against the first build: `WC-TINY-SUITE` went from 37 tasks (3 `clean`, 34 not clean,
-p = 4.5e-12) to 1 task. `WC-TEST-WITHOUT-ASSERTION` went from 5 tasks (p = 0.36) to 4.
-No other row changed.
+p = 4.5e-12) to 1 task (HAR-509). `WC-TEST-WITHOUT-ASSERTION` went from 5 tasks (p = 0.36)
+to 4 (HAR-509) and then to 2 (HAR-512). No other row changed.
 
 Notes on single tasks:
 
@@ -171,15 +173,15 @@ Notes on single tasks:
 
 | Class | Tasks | Hypotheses | Mean per task | Min | Max |
 |---|---:|---:|---:|---:|---:|
-| `clean` | 49 | 190 | 3.88 | 2 | 6 |
+| `clean` | 49 | 188 | 3.84 | 2 | 6 |
 | `reference_below_one` | 9 | 23 | 2.56 | 2 | 5 |
 | `reference_unmeasured` | 10 | 31 | 3.10 | 2 | 6 |
 | `no_reference` | 26 | 66 | 2.54 | 2 | 4 |
 | `cannot_run` | 1 | 6 | 6.00 | 6 | 6 |
-| **Total** | **95** | **316** | **3.33** | **2** | **6** |
+| **Total** | **95** | **314** | **3.31** | **2** | **6** |
 
 The first build had 353 hypotheses. The rebuild removes 36 `WC-TINY-SUITE` hypotheses
-and 1 `WC-TEST-WITHOUT-ASSERTION` hypothesis.
+and 3 `WC-TEST-WITHOUT-ASSERTION` hypotheses (1 after HAR-509, 2 after HAR-512).
 Every task has at least 2 distinct codes. No task has zero hypotheses.
 
 ## Limits

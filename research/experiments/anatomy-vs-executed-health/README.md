@@ -6,30 +6,36 @@ executed health card. It uses no Docker, no network, no model calls, and no Moda
 It is the anatomy counterpart of the task-lint join in
 [`../task-lint-vs-executed-health/`](../task-lint-vs-executed-health/README.md) (HAR-454).
 
-Source commit: the CSV was built and checked at eval-lab commit `e61c1dca4`
-(`origin/main` at build time). The anatomy source `src/evallab/package_anatomy.py`
-last changed at `b62d5bae0` (HAR-501).
+Source commit: the CSV was rebuilt and checked at eval-lab commit `b5b2cd7ac`
+(`origin/main` at rebuild time, HAR-511). The anatomy source `src/evallab/package_anatomy.py`
+last changed at `60993c77a` (HAR-509). The first build was at `e61c1dca4`, with the
+anatomy source at `b62d5bae0` (HAR-501).
 
 ## The answer
 
 The health card has 95 tasks: 49 `clean` and 46 not clean (51.6% clean).
-Anatomy reports **353 hypotheses** with **16 distinct codes** on the same 95 task packages.
-Two codes separate the classes strongly. They are two views of one test-file shape:
+Anatomy reports **316 hypotheses** with **16 distinct codes** on the same 95 task packages.
+One code separates the classes strongly:
 
 | Code | Tasks | `clean` | Not clean | Clean share | Fisher two-sided p |
 |---|---:|---:|---:|---:|---:|
-| `WC-TINY-SUITE` | 37 | 3 | 34 | 8% | 4.5e-12 |
 | `EG-EXIT-CODE-ONLY-GATE` | 54 | 45 | 9 | 83% | 1.8e-13 |
 
-- `WC-TINY-SUITE` flags mostly not-clean tasks.
 - `EG-EXIT-CODE-ONLY-GATE` flags mostly clean tasks.
-- The two codes fire together on 1 task only, `sign-vector-game` (`clean`).
-- `EG-EXIT-CODE-ONLY-GATE` fires on 54 of the 58 tasks without the grader wrapper (below)
-  and on 0 of the 37 tasks with it.
+- It fires on 54 of the 58 tasks without the grader wrapper (below)
+  and on 0 of the 37 tasks with it. It therefore also tracks the wrapper shape.
+- `WC-TINY-SUITE` now fires on 1 task only, `sign-vector-game` (`clean`, p = 1).
 
-Weaker one-sided codes, each on 3 tasks or fewer:
+The first build (anatomy at `b62d5bae0`) also reported `WC-TINY-SUITE` as a strong separator:
+37 tasks, 3 `clean`, 34 not clean, p = 4.5e-12.
+**That separation was a counting shape.** It came from the grader wrapper, not from weak checks.
+HAR-509 stops `WC-TINY-SUITE` when a test delegates to a grader module.
+The code then left 36 of its 37 tasks, and the separation is gone.
+
+Weaker one-sided codes, each on 4 tasks or fewer:
 
 - `WC-NO-TESTS-FOUND` flags 3 tasks, all not clean (p = 0.11).
+- `WC-TEST-WITHOUT-ASSERTION` flags 4 tasks, all `clean` (p = 0.12).
 - `AR-GIT-HISTORY` and `GT-AUTOLOAD-WRITABLE` flag 1 not-clean task each.
 - `EG-FAILURE-MASKED` flags 1 clean task.
 
@@ -37,7 +43,7 @@ The two most frequent codes separate nothing:
 `GT-PATH-HIJACK` fires on 94 of 95 tasks and `GT-SITE-PACKAGES-HOOK` on 84 of 95,
 both at the base clean share of 52%.
 
-## The grader-wrapper shape behind `WC-TINY-SUITE`
+## The grader-wrapper shape behind the old `WC-TINY-SUITE` result
 
 37 tasks have a `tests/test_outputs.py` that is a thin wrapper around a separate grader.
 It has one test function, `test_grader_validation`, with this shape:
@@ -52,9 +58,10 @@ assert True, f"Grader completed with score: {result.score}"
 
 The reward comes from `result.score`, which Python writes to `reward.txt`.
 The pytest exit code does not set the reward, so `EG-EXIT-CODE-ONLY-GATE` stays quiet.
-The parsed suite has 1 test and 1 assertion (`assert True`), so `WC-TINY-SUITE` fires.
-The real checks live in `tests/grader.py`. The anatomy parses that file too,
-but it counts only `test_*` functions there, and most graders define none.
+The parsed suite has 1 test and 1 assertion (`assert True`).
+Before HAR-509, `WC-TINY-SUITE` fired on that count.
+Since HAR-509, the anatomy records `tests/grader.py` as a delegated grader module.
+It does not count the module as tests, and `WC-TINY-SUITE` stays silent.
 
 The wrapper split by executed class:
 
@@ -63,19 +70,21 @@ The wrapper split by executed class:
 | Grader wrapper | 37 | 2 | 6 | 3 | 26 | 0 |
 | Other | 58 | 47 | 3 | 7 | 0 | 1 |
 
-`WC-TINY-SUITE` fires on 36 of the 37 wrapper tasks, including 25 of the 26 `no_reference` tasks.
-The exception is `grpc-plant-position-server` (`no_reference`):
-its `tests/grader.py` defines 6 `test_*` functions, so the suite counts 7 tests.
-The one non-wrapper `WC-TINY-SUITE` task is `sign-vector-game` (`clean`),
-which has 1 real test with 1 assertion.
-The 3 clean `WC-TINY-SUITE` tasks are `anomaly-detection-ranking`, `sales-data-csv-analysis`,
-and `sign-vector-game`.
+Before HAR-509, `WC-TINY-SUITE` fired on 36 of the 37 wrapper tasks, including 25 of the
+26 `no_reference` tasks. Now it fires on 0 wrapper tasks.
+The one remaining task is `sign-vector-game` (`clean`), a non-wrapper task
+with 1 real test and 1 assertion.
+The 2 clean wrapper tasks that lost the code are `anomaly-detection-ranking` and
+`sales-data-csv-analysis`.
 
-**This separation is a counting shape, not evidence that tiny suites fail.**
-`WC-TINY-SUITE` counts tests and assertions in the wrapper file.
-It does not read the grader that sets the reward.
+The old exception, `grpc-plant-position-server` (`no_reference`), had 6 `test_*`
+functions in its `tests/grader.py`, so its suite counted 7 tests.
+The anatomy no longer counts that delegated module as tests.
+The task therefore also lost `WC-TEST-WITHOUT-ASSERTION`, which dropped from 5 tasks to 4.
+Every other code count is the same as in the first build.
+
 All 26 `no_reference` tasks use the wrapper.
-The code therefore tracks how the import packaged these tasks, not how strong their checks are.
+The old `WC-TINY-SUITE` split tracked how the import packaged these tasks, not how strong their checks are.
 `no_reference` means the package has no reference solution to execute, not that the grader is weak.
 
 ## Data and join
@@ -125,6 +134,8 @@ Cells count flagged tasks. A task counts once per code, even when the code repea
 "Not clean" is the sum of the four non-clean classes.
 The p value is an unadjusted two-sided Fisher exact test of clean versus not clean
 against the 49/46 split. It describes this table only; 16 codes were compared.
+The p value sums the hypergeometric probabilities of all tables with the same margins
+that are no more likely than the observed table.
 
 | Code | Tasks | `clean` | Not clean | `reference_below_one` | `reference_unmeasured` | `no_reference` | `cannot_run` | Scores | p |
 |---|---:|---:|---:|---:|---:|---:|---:|---|---:|
@@ -132,18 +143,22 @@ against the 49/46 split. It describes this table only; 16 codes were compared.
 | `GT-SITE-PACKAGES-HOOK` | 84 | 44 | 40 | 7 | 6 | 26 | 1 | 40 | 0.75 |
 | `EG-EXIT-CODE-ONLY-GATE` | 54 | 45 | 9 | 2 | 6 | 0 | 1 | 50 | 1.8e-13 |
 | `WC-INSTRUCTION-SYMBOL-UNTESTED` | 37 | 24 | 13 | 2 | 4 | 7 | 0 | 45–75 | 0.058 |
-| `WC-TINY-SUITE` | 37 | 3 | 34 | 6 | 3 | 25 | 0 | 40 | 4.5e-12 |
 | `AR-TESTS-IN-IMAGE` | 9 | 4 | 5 | 1 | 0 | 3 | 1 | 85–92 | 0.74 |
 | `EG-ARTIFACT-ONLY-CHECK` | 7 | 6 | 1 | 0 | 1 | 0 | 0 | 72 | 0.11 |
 | `WC-SOURCE-TEXT-ASSERT` | 6 | 5 | 1 | 1 | 0 | 0 | 0 | 65 | 0.21 |
 | `EG-INSTRUCTION-RULE-UNENFORCED` | 5 | 3 | 2 | 0 | 1 | 1 | 0 | 60 | 1 |
-| `WC-TEST-WITHOUT-ASSERTION` | 5 | 4 | 1 | 0 | 0 | 1 | 0 | 55 | 0.36 |
 | `WC-NO-NEGATIVE-CASES` | 4 | 2 | 2 | 0 | 0 | 2 | 0 | 50 | 1 |
+| `WC-TEST-WITHOUT-ASSERTION` | 4 | 4 | 0 | 0 | 0 | 0 | 0 | 55 | 0.12 |
 | `GT-BAKED-TESTS-EXECUTED` | 3 | 1 | 2 | 0 | 1 | 0 | 1 | 95 | 0.61 |
 | `WC-NO-TESTS-FOUND` | 3 | 0 | 3 | 1 | 2 | 0 | 0 | 45 | 0.11 |
 | `AR-GIT-HISTORY` | 1 | 0 | 1 | 0 | 1 | 0 | 0 | 65 | 0.48 |
 | `EG-FAILURE-MASKED` | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 85 | 1 |
 | `GT-AUTOLOAD-WRITABLE` | 1 | 0 | 1 | 0 | 0 | 0 | 1 | 80 | 0.48 |
+| `WC-TINY-SUITE` | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 40 | 1 |
+
+Changes against the first build: `WC-TINY-SUITE` went from 37 tasks (3 `clean`, 34 not clean,
+p = 4.5e-12) to 1 task. `WC-TEST-WITHOUT-ASSERTION` went from 5 tasks (p = 0.36) to 4.
+No other row changed.
 
 Notes on single tasks:
 
@@ -156,13 +171,15 @@ Notes on single tasks:
 
 | Class | Tasks | Hypotheses | Mean per task | Min | Max |
 |---|---:|---:|---:|---:|---:|
-| `clean` | 49 | 192 | 3.92 | 2 | 6 |
-| `reference_below_one` | 9 | 29 | 3.22 | 2 | 5 |
-| `reference_unmeasured` | 10 | 34 | 3.40 | 2 | 6 |
-| `no_reference` | 26 | 92 | 3.54 | 3 | 5 |
+| `clean` | 49 | 190 | 3.88 | 2 | 6 |
+| `reference_below_one` | 9 | 23 | 2.56 | 2 | 5 |
+| `reference_unmeasured` | 10 | 31 | 3.10 | 2 | 6 |
+| `no_reference` | 26 | 66 | 2.54 | 2 | 4 |
 | `cannot_run` | 1 | 6 | 6.00 | 6 | 6 |
-| **Total** | **95** | **353** | **3.72** | **2** | **6** |
+| **Total** | **95** | **316** | **3.33** | **2** | **6** |
 
+The first build had 353 hypotheses. The rebuild removes 36 `WC-TINY-SUITE` hypotheses
+and 1 `WC-TEST-WITHOUT-ASSERTION` hypothesis.
 Every task has at least 2 distinct codes. No task has zero hypotheses.
 
 ## Limits
@@ -172,8 +189,9 @@ Every task has at least 2 distinct codes. No task has zero hypotheses.
 - A class comes from one executed reference and one nop cell. It measures solvability and
   nop payoff, not whether a grader accepts a wrong answer. A hypothesis about an
   exploitable grader can be true on a `clean` task.
-- The two separating codes split on the grader-wrapper shape. The shape is confounded with
-  the `no_reference` class, so the split does not show that either code predicts health.
+- The separating code `EG-EXIT-CODE-ONLY-GATE` splits on the grader-wrapper shape. The shape
+  is confounded with the `no_reference` class, so the split does not show that the code predicts health.
+  The old `WC-TINY-SUITE` split had the same confound.
 - The join measures this card snapshot, this corpus commit, and the anatomy source at the
   recorded commit. A later card, corpus, or anatomy change can change rows.
 - The scan reads source bytes only. It does not build an image or run a shell file.

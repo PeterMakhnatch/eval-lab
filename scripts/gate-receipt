@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+receipt="$(git rev-parse --absolute-git-dir)/evallab-gate-receipt"
+
+clean_tree() {
+  local status
+  status=$(git status --porcelain --untracked-files=all) || exit 1
+  [[ -z "$status" ]] || return 1
+  git rev-parse 'HEAD^{tree}'
+}
+
+usage() {
+  printf 'usage: scripts/gate-receipt begin | write TREE | check\n' >&2
+  exit 2
+}
+
+[[ $# -ge 1 ]] || usage
+case "$1" in
+  begin)
+    [[ $# -eq 1 ]] || usage
+    rm -f "$receipt"
+    clean_tree || true
+    ;;
+  write)
+    [[ $# -eq 2 ]] || usage
+    rm -f "$receipt"
+    if [[ -n "$2" ]] && tree=$(clean_tree) && [[ "$tree" == "$2" ]]; then
+      printf '%s\n' "$tree" >"$receipt.tmp"
+      mv "$receipt.tmp" "$receipt"
+      printf 'gate: receipt written for tree %s\n' "$tree"
+    else
+      printf 'gate: no receipt; the worktree was dirty or HEAD changed during the gate\n' >&2
+    fi
+    ;;
+  check)
+    [[ $# -eq 1 ]] || usage
+    tree=$(clean_tree) || exit 1
+    [[ -f "$receipt" && "$(<"$receipt")" == "$tree" ]]
+    ;;
+  *)
+    usage
+    ;;
+esac

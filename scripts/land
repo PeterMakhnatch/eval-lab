@@ -50,7 +50,11 @@ for ((attempt = 1; attempt <= 5; attempt++)); do
     fi
   fi
   head=$(git rev-parse HEAD)
-  scripts/gate
+  if [[ "${LAND_FORCE_GATE:-0}" != 1 ]] && scripts/gate-receipt check; then
+    printf 'land: gate already passed on tree %s; skipping the gate\n' "$(git rev-parse 'HEAD^{tree}')"
+  else
+    scripts/gate
+  fi
   require_clean
   if [[ $(git rev-parse HEAD) != "$head" ]]; then
     printf 'land: HEAD changed during the gate\n' >&2

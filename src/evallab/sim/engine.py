@@ -148,6 +148,7 @@ class RunResult:
 
 def run(seed: int) -> RunResult:
     from evallab.sim.anatomy import AnatomySimulation
+    from evallab.sim.atif import AtifSimulation
     from evallab.sim.execution import ExecutionSimulation
     from evallab.sim.hack import HackSimulation
     from evallab.sim.hypotheses import HypothesisSimulation
@@ -197,6 +198,8 @@ def run(seed: int) -> RunResult:
             OverlapSimulation(sim, root / "overlap").run()
             sim.subsystem = "anatomy-hypotheses"
             HypothesisSimulation(sim, root / "hypotheses").run()
+            sim.subsystem = "atif-projection"
+            AtifSimulation(sim, root / "atif").run()
         except InvariantViolation as exc:
             failure = exc
         except (Exception, ProcessCrash) as exc:

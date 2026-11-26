@@ -1064,6 +1064,10 @@ _RAISES = {"raises", "assertRaises", "assertRaisesRegex", "assertWarns"}
 _UNITTEST_NEGATIVE = {"assertRaises", "assertRaisesRegex", "assertFalse", "assertIsNone", "assertNotEqual", "assertNotIn"}
 _UNITTEST_EQUAL = {"assertEqual", "assertEquals", "assertListEqual", "assertDictEqual", "assertTupleEqual"}
 _SURFACE_CALLS = {"exists", "isfile", "isdir", "is_file", "is_dir", "hasattr", "callable", "isinstance"}
+_NEGATIVE_CUE = re.compile(r"\b(?:raise[sd]?|raising|invalid|malformed|unsupported|non-?zero|\w+Error|exception)\b", re.I)
+_NEGATIVE_CUE_LINES = 3
+_NEGATIVE_CUE_LEAD = 60
+_EVIDENCE_TEXT = 200
 
 
 def _reads_source(func: ast.AST) -> bool:
@@ -1077,18 +1081,26 @@ def _reads_source(func: ast.AST) -> bool:
     return names_source_file and bool(calls & {"read_text", "read"})
 
 
+def _negative_test(test: ast.expr) -> bool:
+    if isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not):
+        return True
+    if not isinstance(test, ast.Compare) or len(test.ops) != 1:
+        return False
+    op, left, right = test.ops[0], test.left, test.comparators[0]
+    zero = isinstance(right, ast.Constant) and right.value == 0 and not isinstance(right.value, bool)
+    if isinstance(op, ast.NotEq) and zero:
+        return True
+    return isinstance(op, ast.Eq) and isinstance(left, ast.Call) and _call_name(left) == "len" and zero
+
+
 def _count_assert(node: ast.Assert, counts: Counts, *, reads_source: bool) -> None:
     counts.assertions += 1
     test = node.test
-    negative = isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not)
+    operands = test.values if isinstance(test, ast.BoolOp) else [test]
+    negative = any(_negative_test(operand) for operand in operands)
     surface = False
     if isinstance(test, ast.Compare) and len(test.ops) == 1:
         op, left, right = test.ops[0], test.left, test.comparators[0]
-        zero = isinstance(right, ast.Constant) and right.value == 0 and not isinstance(right.value, bool)
-        if isinstance(op, ast.NotEq) and zero:
-            negative = True
-        if isinstance(op, ast.Eq) and isinstance(left, ast.Call) and _call_name(left) == "len" and zero:
-            negative = True
         if isinstance(op, ast.Eq) and _is_literal(right) != _is_literal(left):
             counts.literal_eq_assertions += 1
         if isinstance(op, ast.IsNot) and isinstance(right, ast.Constant) and right.value is None:
@@ -1497,6 +1509,23 @@ def _delegated_grader_modules(sources: Sequence[TestSource]) -> list[str]:
     return sorted(delegated)
 
 
+def _negative_cue_lines(instruction: str) -> list[tuple[int, str]]:
+    found: list[tuple[int, str]] = []
+    for number, line in enumerate(instruction.splitlines(), 1):
+        text = line.strip()
+        match = _NEGATIVE_CUE.search(text)
+        if match is None:
+            continue
+        start = max(0, min(match.start() - _NEGATIVE_CUE_LEAD, len(text) - _EVIDENCE_TEXT))
+        window = text[start:start + _EVIDENCE_TEXT]
+        assert match.end() - match.start() > _EVIDENCE_TEXT - _NEGATIVE_CUE_LEAD or _NEGATIVE_CUE.search(window)
+        found.append((number, window))
+        if len(found) >= _NEGATIVE_CUE_LINES:
+            break
+    assert len(found) <= _NEGATIVE_CUE_LINES
+    return found
+
+
 def test_suite_rigor(package: Package, sources: Sequence[TestSource], reference_patch: str | None) -> dict[str, Any]:
     counts = Counts()
     per_file: list[dict[str, Any]] = []
@@ -1513,6 +1542,7 @@ def test_suite_rigor(package: Package, sources: Sequence[TestSource], reference_
     tests_text = "\n".join(source.text for source in sources) + "\n" + package.text("tests/test_command.sh")
     tests_text += "\n".join(text for path, text in package.files.items() if path.startswith("tests/") and path.endswith(".sh"))
     instruction = package.text("instruction.md")
+    cue_lines = _negative_cue_lines(instruction)
     mismatch = instruction_mismatch(instruction, tests_text) if tests_text.strip() else []
     asserts = max(counts.assertions, 0)
     result: dict[str, Any] = {
@@ -1524,7 +1554,8 @@ def test_suite_rigor(package: Package, sources: Sequence[TestSource], reference_
             "surface_only_share": round(counts.surface_only_tests / counts.tests, 3) if counts.tests else None,
             "assertions_per_test": round(asserts / counts.tests, 2) if counts.tests else None,
         },
-        "instruction_error_words": bool(re.search(r"\b(?:raise[sd]?|raising|invalid|malformed|unsupported|non-?zero|\w+Error|exception)\b", instruction, re.I)),
+        "instruction_error_words": bool(cue_lines),
+        "instruction_error_lines": [{"line": number, "text": text} for number, text in cue_lines],
         "instruction_named_symbols_without_test_reference": mismatch[:_MAX_LIST * 2],
         "instruction_named_symbols_total": len(instruction_cues(instruction)),
         "instruction_named_symbols_unreferenced_count": len(mismatch),
@@ -1735,7 +1766,7 @@ def build_hypotheses(package: Package, boundary: Mapping[str, Any], grader: Mapp
     if rigor["instruction_error_words"] and counts["tests"] and not counts["negative_assertions"] and not counts["negative_named_tests"]:
         _h(hyps, "WC-NO-NEGATIVE-CASES", "weak_check", 50, "static_probable",
            "instruction.md describes error/invalid-input behavior but no test asserts an error, rejection or non-zero exit",
-           [_ev("instruction.md", n, t) for n, t in _find(instruction, r"\b(?:error|raise|invalid|reject|fail|exception)", flags=re.I, limit=3)],
+           [_ev("instruction.md", row["line"], row["text"]) for row in rigor["instruction_error_lines"]],
            "Make the implementation silently accept invalid input; the suite stays green.")
     if counts["tests"] and counts["tests"] <= 2 and counts["assertions"] <= 3 and not counts["parametrized_cases"] \
             and not rigor["delegated_grader_modules"]:

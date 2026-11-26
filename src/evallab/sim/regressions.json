@@ -614,5 +614,12 @@
     "seed": 9971052928127101575,
     "step": 159,
     "subsystem": "grader-script-mechanics"
+  },
+  {
+    "found_at_utc": "2026-11-26T12:04:53.332700+00:00",
+    "invariant": "rigor_lone_or_negative",
+    "seed": 521,
+    "step": 152,
+    "subsystem": "test-suite-rigor"
   }
 ]

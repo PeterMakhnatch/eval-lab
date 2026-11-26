@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -117,9 +118,20 @@ _RUNS_CODE = (
     'con = sqlite3.connect("/app/db.sqlite"); con.execute("select 1")',
 )
 _CONSTANT_NAMES = "ABCDEF"
+_NEGATIVE_TRIGGER = re.compile(r"\b(?:raise[sd]?|raising|invalid|malformed|unsupported|non-?zero|\w+Error|exception)\b", re.I)
+_NEGATIVE_CITE_LIMIT = 3
+_NEGATIVE_CUES = (
+    "Reject invalid input with an error.",
+    "Exit with a non-zero status on malformed input.",
+    "Raise ValueError for unsupported formats.",
+    "Keep the output format stable. " * 9 + "Exit non-zero on malformed input.",
+)
+_NEGATIVE_DECOYS = ("Log every error to stderr.", "Fail fast when the cache is cold.", "Report each position error in meters.")
 assert len(_RULES) == 31
 assert all(rule[0] in MECHANISM_CLASSES for rule in _RULES.values())
 assert _MAX_EVIDENCE == 6 and max(_ROW_COUNTS) > _MAX_EVIDENCE
+assert all(_NEGATIVE_TRIGGER.search(cue) for cue in _NEGATIVE_CUES)
+assert not any(_NEGATIVE_TRIGGER.search(decoy) for decoy in _NEGATIVE_DECOYS)
 
 
 @dataclass(frozen=True, slots=True)
@@ -163,6 +175,7 @@ class _Plan:
     test_like: bool = False
     counts: dict[str, int] = field(default_factory=dict)
     error_words: bool = False
+    cue_lines: tuple[int, ...] = ()
     weights: tuple[int, ...] = ()
     reference: tuple[int, int, int, int] | None = None
     test_files: int = 0
@@ -185,6 +198,7 @@ class _Want:
     reference: bool
     evidence: int | None
     label: str | None
+    lines: tuple[int, ...] | None = None
 
 
 def _flag(rng: Random) -> bool:
@@ -333,8 +347,17 @@ def _plan_text(rng: Random, plan: _Plan) -> None:
     plan.enforce = rng.choice(("", "", *_ENFORCE, *_NEAR_ENFORCE))
     plan.forbid = rng.choice(_FORBIDS)
     lines = ["Implement the requested feature in /app.\n"]
+    body = [(rng.choice(_NEGATIVE_DECOYS), False) for _ in range(rng.choice((0, 1, 2)))]
     if plan.error_words:
-        lines.append("Reject invalid input with an error.\n")
+        body += [(rng.choice(_NEGATIVE_CUES), True) for _ in range(rng.choice((1, 1, 2, 4)))]
+    rng.shuffle(body)
+    cue_lines: list[int] = []
+    for text, cue in body:
+        lines.append(f"{text}\n")
+        if cue:
+            cue_lines.append(len(lines))
+    plan.cue_lines = tuple(cue_lines)
+    assert bool(plan.cue_lines) == plan.error_words and len(lines) <= 7
     lines.append(_forbid_text(rng, plan.forbid))
     plan.instruction = "".join(lines)
 
@@ -495,7 +518,6 @@ def _rigor(card: dict[str, Any], plan: _Plan) -> dict[str, Any]:
         _put(rigor, f"counts.{name}", value)
     for path, value in (
         ("ratios.literal_eq_share", share),
-        ("instruction_error_words", plan.error_words),
         ("instruction_named_symbols_without_test_reference", symbols),
         ("reference_patch", _reference(plan)),
         ("test_files", test_files),
@@ -506,10 +528,12 @@ def _rigor(card: dict[str, Any], plan: _Plan) -> dict[str, Any]:
     return rigor
 
 
-def _want(out: list[_Want], rule: str, *, score: int | None = None, evidence: int | None = None, label: str | None = None) -> None:
+def _want(out: list[_Want], rule: str, *, score: int | None = None, evidence: int | None = None, label: str | None = None,
+          lines: tuple[int, ...] | None = None) -> None:
     mechanism_class, base, confidence = _RULES[rule]
     capped = None if evidence is None else min(evidence, _MAX_EVIDENCE)
-    out.append(_Want(rule, mechanism_class, base if score is None else score, confidence, rule in _REFERENCE_RULES, capped, label))
+    out.append(_Want(rule, mechanism_class, base if score is None else score, confidence, rule in _REFERENCE_RULES, capped, label,
+                     lines))
 
 
 def _expect_grader(plan: _Plan, out: list[_Want]) -> None:
@@ -594,7 +618,8 @@ def _expect_counts(plan: _Plan, out: list[_Want]) -> None:
     if counts["mock_assertions"] and 2 * counts["mock_assertions"] >= asserts:
         _want(out, "WC-MOCK-ONLY", evidence=rows)
     if plan.error_words and tests and not counts["negative_assertions"] and not counts["negative_named_tests"]:
-        _want(out, "WC-NO-NEGATIVE-CASES")
+        cited = plan.cue_lines[:_NEGATIVE_CITE_LIMIT]
+        _want(out, "WC-NO-NEGATIVE-CASES", evidence=len(cited), lines=cited)
     if tests and tests <= 2 and asserts <= 3 and not counts["parametrized_cases"] and not plan.delegated:
         _want(out, "WC-TINY-SUITE", evidence=rows)
     scripted = "python_writes_reward" in plan.mechanisms
@@ -653,6 +678,11 @@ class HypothesisSimulation:
         package = load_package(root)
         sim.require(sorted(package.files) == sorted(files), "hypotheses_package_files")
         card = analyze_package(root)
+        card_rigor = card["test_suite_rigor"]
+        planned = list(plan.cue_lines[:_NEGATIVE_CITE_LIMIT])
+        sim.require(card_rigor["instruction_error_words"] == plan.error_words, "hypotheses_error_words_planned")
+        sim.require([row["line"] for row in card_rigor.get("instruction_error_lines", [])] == planned,
+                    "hypotheses_error_lines_planned")
         sources = [
             TestSource(artifact.path, artifact.origin, list(enumerate(package.files[artifact.path].splitlines(), 1)), True)
             for artifact in plan.artifacts
@@ -696,4 +726,8 @@ class HypothesisSimulation:
             sim.require(len(hypothesis.evidence) == want.evidence, f"hypothesis_evidence_{rule}")
         if want.label is not None:
             sim.require(want.label in hypothesis.title, f"hypothesis_label_{rule}")
+        if want.lines is not None:
+            cited = [(row["file"], row["line"]) for row in hypothesis.evidence]
+            sim.require(cited == [("instruction.md", line) for line in want.lines], f"hypothesis_lines_{rule}")
+            sim.require(all(_NEGATIVE_TRIGGER.search(row["text"]) for row in hypothesis.evidence), f"hypothesis_cue_text_{rule}")
         sim.require(bool(hypothesis.title) and bool(hypothesis.witness), "hypotheses_text_present")

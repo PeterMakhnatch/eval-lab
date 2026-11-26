@@ -153,6 +153,7 @@ def run(seed: int) -> RunResult:
     from evallab.sim.hack import HackSimulation
     from evallab.sim.hypotheses import HypothesisSimulation
     from evallab.sim.jobs import ProcessJobSimulation
+    from evallab.sim.journal import JournalSimulation
     from evallab.sim.leases import LeaseSimulation
     from evallab.sim.lint import LintSimulation
     from evallab.sim.mechanics import MechanicsSimulation
@@ -200,6 +201,8 @@ def run(seed: int) -> RunResult:
             HypothesisSimulation(sim, root / "hypotheses").run()
             sim.subsystem = "atif-projection"
             AtifSimulation(sim, root / "atif").run()
+            sim.subsystem = "state-journal"
+            JournalSimulation(sim, root / "journal").run()
         except InvariantViolation as exc:
             failure = exc
         except (Exception, ProcessCrash) as exc:

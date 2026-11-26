@@ -134,6 +134,12 @@ class _Chain:
 _PYTEST_SHAPES = (
     _Shape("plain", Counts(assertions=1), (), ("assert left == right",)),
     _Shape("negative", Counts(assertions=1, negative_assertions=1), (), ("assert code != 0",)),
+    _Shape(
+        "negative_or",
+        Counts(assertions=1, negative_assertions=1),
+        (),
+        ('assert result.returncode != 0 or "failed" in result.stdout.lower()',),
+    ),
     _Shape("literal", Counts(assertions=1, literal_eq_assertions=1), (), ("assert value == 7",)),
     _Shape("surface", Counts(assertions=1, surface_assertions=1), (), ("assert path.exists()",)),
     _Shape("mock", Counts(assertions=1, mock_assertions=1), (), ("mock.assert_called_once()",)),
@@ -445,6 +451,7 @@ class RigorSimulation:
         unittest_source = _source(_UNITTEST_PATH, unittest_text)
 
         sim.begin("rigor-pytest", tests=pytest_expected.tests)
+        self._check_lone_or_negative()
         pytest_counts = _py_counts(pytest_source)
         assert pytest_counts is not None
         self._require_counts(asdict(pytest_counts), pytest_expected, "rigor_pytest")
@@ -478,6 +485,15 @@ class RigorSimulation:
             "rigor_test_files",
         )
         sim.require(result["fragment_files"] == 0, "rigor_fragment_files_absent")
+
+    def _check_lone_or_negative(self) -> None:
+        shape = next(shape for shape in _PYTEST_SHAPES if shape.name == "negative_or")
+        text = _render_pytest([_TestCase("test_case_or", (shape,), False)], False)
+        counts = _py_counts(_source(_PYTEST_PATH, text))
+        assert counts is not None
+        self.sim.require(counts.tests == 1 and counts.negative_named_tests == 0, "rigor_lone_or_single_test")
+        self.sim.require(counts.assertions == 1, "rigor_lone_or_assertions")
+        self.sim.require(counts.negative_assertions == 1, "rigor_lone_or_negative")
 
     def check_regex_fallback(self) -> None:
         sim = self.sim

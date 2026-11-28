@@ -1,7 +1,41 @@
+import hashlib
+import hmac
 import json
 from statistics import median
 
 CHANNEL = ("msg", "msgs")
+GENESIS_HASH = "0" * 64
+UNHASHED = ("entry_hash", "hmac")
+
+
+def canonical(event: dict) -> str:
+    assert isinstance(event, dict)
+    body = {key: value for key, value in event.items() if key not in UNHASHED}
+    return json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
+
+
+def entry_hash(event: dict) -> str:
+    digest = hashlib.sha256(canonical(event).encode("utf-8")).hexdigest()
+    assert len(digest) == 64
+    return digest
+
+
+def entry_hmac(digest: str, key: str) -> str:
+    assert len(digest) == 64 and key
+    return hmac.new(key.encode("utf-8"), digest.encode("ascii"), "sha256").hexdigest()
+
+
+def chain(events: list[dict], key: str | None = None) -> list[dict]:
+    previous, sealed = GENESIS_HASH, []
+    for event in events:
+        row = {k: v for k, v in event.items() if k not in UNHASHED}
+        row["prev_hash"] = previous
+        row["entry_hash"] = previous = entry_hash(row)
+        if key:
+            row["hmac"] = entry_hmac(previous, key)
+        sealed.append(row)
+    assert len(sealed) == len(events)
+    return sealed
 
 
 def in_play(events: list[dict]) -> list[dict]:

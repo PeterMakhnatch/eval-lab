@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import os
 import sys
 import time
 import tomllib
@@ -14,8 +15,10 @@ from random import Random
 from tempfile import TemporaryDirectory
 from typing import Any, TypedDict
 
+from muster import events
 from muster.cli import main as muster_main
 from muster.regrade import replay as regrade_replay
+from muster.sim_chain import check_chain
 from muster.sim_fixture import (
     Evidence,
     Run,
@@ -32,6 +35,8 @@ from muster.sim_fixture import (
 )
 
 _REGRESSIONS = Path(__file__).with_name("sim_regressions.json")
+_HMAC_ENV = "MUSTER_SIM_WORLD_HMAC_KEY"
+_HMAC_KEY = "sim-regrade-hmac-key"
 _FIXED_SEEDS = range(144)
 _MAX_REGRESSIONS = 512
 _MAX_SEED = 2**64 - 1
@@ -205,6 +210,8 @@ def _log_faults(run: Run, trial: Trial, evidence: Evidence) -> None:
         trial.graded.write_bytes(payload)
         row = _regrade(run, trial, name, "no-log", 3)
         run.require(f"regrade/{name}", "corruption-is-diagnosed", row.get("graded_log_problem") == diagnostic)
+        if name == "invalid-encoding":
+            run.require(f"regrade/{name}", "non-utf8-flags-chain-broken", row.get("chain_ok") is False)
         for command in ("events", "attribute"):
             for mode in (True, False):
                 report = _command(run, f"{command}/{name}", [command, str(trial.path)], 0, as_json=mode)
@@ -219,6 +226,35 @@ def _log_faults(run: Run, trial: Trial, evidence: Evidence) -> None:
         _command(run, f"{command}/missing-directory", [command, missing], 3, as_json=False)
 
 
+def _chain_regrade(run: Run, trial: Trial, evidence: Evidence) -> None:
+    original = trial.graded.read_bytes()
+    sealed = events.chain(evidence.events, _HMAC_KEY)
+    lines = [json.dumps(row, sort_keys=True, separators=(",", ":"), ensure_ascii=False) for row in sealed]
+    trial.graded.write_text("".join(line + "\n" for line in lines), encoding="utf-8")
+    args = ["regrade", str(trial.path), "--hmac-key-env", _HMAC_ENV]
+    os.environ[_HMAC_ENV] = _HMAC_KEY
+    try:
+        report = _command(run, "regrade/chain-clean", args, 0, report_on_error=True)
+        rows = report.get("rows", [{}])
+        run.require("regrade/chain-clean", "v2-log-reports-chain-ok",
+                    rows[0].get("chain_ok") is True and report.get("chain_failures") == 0, str(rows[0]))
+        forged = [*sealed[:-1], {**sealed[-1], "forged": True}]
+        lines = [json.dumps(row, sort_keys=True, separators=(",", ":")) for row in forged]
+        trial.graded.write_text("".join(line + "\n" for line in lines), encoding="utf-8")
+        report = _command(run, "regrade/chain-tampered", args, 1, report_on_error=True)
+        _command(run, "regrade/chain-tampered", args, 1, as_json=False, report_on_error=True)
+        rows = report.get("rows", [{}])
+        run.require("regrade/chain-tampered", "tampered-v2-log-reports-chain-broken",
+                    rows[0].get("chain_ok") is False and report.get("chain_failures") == 1, str(rows[0]))
+    finally:
+        os.environ.pop(_HMAC_ENV, None)
+    _command(run, "regrade/chain-no-key", args, 3)
+    trial.graded.write_bytes(original)
+    report = _command(run, "regrade/chain-legacy", ["regrade", str(trial.path)], 0)
+    run.require("regrade/chain-legacy", "v1-log-has-no-chain-fields",
+                "chain_ok" not in report.get("rows", [{}])[0] and report.get("chain_checked") == 0)
+
+
 def _trial(run: Run, case: Scenario, root: Path, evidence: Evidence) -> None:
     trial = write_trial(root, case, evidence)
     row = _regrade(run, trial, "match", "match", 0)
@@ -230,6 +266,7 @@ def _trial(run: Run, case: Scenario, root: Path, evidence: Evidence) -> None:
     run.require("regrade/match", "full-reward-and-artifact-window-parity",
                 row.get("replayed") == evidence.rewards and row.get("log") == "graded"
                 and row.get("differences") == {} and row.get("late_actions") == late)
+    _chain_regrade(run, trial, evidence)
     _measures(run, case, trial, evidence)
     _attribution(run, trial)
     _reward_faults(run, trial, evidence)
@@ -308,7 +345,14 @@ def _check_kit_v2_replay(run: Run, root: Path) -> None:
                 scores = dict(vmod.score(evs, inst))
                 tdir = root / f"kv2_{fam}_{pol}"
                 (tdir / "verifier").mkdir(parents=True, exist_ok=True)
-                write_log(tdir / "verifier" / "events.jsonl", evs)
+                canon_lines = [
+                    json.dumps(e, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+                    for e in evs
+                ]
+                (tdir / "verifier" / "events.jsonl").write_text(
+                    "".join(line + "\n" for line in canon_lines),
+                    encoding="utf-8",
+                )
                 write_json(tdir / "verifier" / "reward.json", scores)
                 trial_cfg = {
                     "trial_name": tdir.name,
@@ -382,6 +426,8 @@ def _run_seed(seed: int) -> Run:
                 with run.section("kitv2"):
                     _check_kit_v2_replay(run, root)
                     _check_regrade_regressions(run)
+            with run.section("chain"):
+                check_chain(run, rng, root)
     if seed % _HORDE_PERIOD == 0:
         with run.section("horde"):
             check_horde(run, Random(f"horde/{seed}"))

@@ -4,13 +4,81 @@ import json
 import math
 import os
 import re
+import stat
 from collections.abc import Iterator
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from muster.model import Problem, SeatRun, SeatTrial
 
 SEAT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
+NO_MODEL_AGENTS = frozenset(("oracle", "nop", "script", "scripted"))
+
+
+def is_no_model_agent(name: Any) -> bool:
+    low = name.strip().lower() if isinstance(name, str) else ""
+    return bool(low) and (low in NO_MODEL_AGENTS or low.endswith(("scriptagent", "scriptedagent")))
+
+
+def parse_utc_any(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        dt = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return (dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)).astimezone(UTC)
+
+
+def has_unpriced(value: Any) -> bool:
+    if isinstance(value, str):
+        return value.strip().lower() not in ("", "0", "none", "false", "null")
+    stack: list[Any] = [value]
+    for _ in range(256):
+        if not stack:
+            return False
+        cur = stack.pop()
+        if cur is True or (isinstance(cur, list) and bool(cur)):
+            return True
+        if not isinstance(cur, bool) and isinstance(cur, int | float) and math.isfinite(cur) and cur > 0:
+            return True
+        if isinstance(cur, dict):
+            stack.extend(list(cur.values())[: max(0, 256 - len(stack))])
+    return False
+
+
+def inspect_exit_code(path: Path) -> str | None:
+    try:
+        st = os.lstat(path)
+    except FileNotFoundError:
+        return None
+    except OSError as error:
+        return f"unreadable ({error.strerror or error})"
+    if not stat.S_ISREG(st.st_mode) or st.st_size > 1024:
+        return f"unreadable ({path.name} is not a small regular file)"
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        fd = os.open(path, flags)
+    except OSError as error:
+        return f"unreadable ({error.strerror or error})"
+    try:
+        raw = os.read(fd, 1025)
+    except OSError as error:
+        return f"unreadable ({error.strerror or error})"
+    finally:
+        os.close(fd)
+    if len(raw) > 1024:
+        return f"unreadable ({path.name} exceeds 1024 bytes)"
+    try:
+        txt = raw.decode("utf-8").strip()
+    except UnicodeDecodeError:
+        return f"unreadable ({path.name} is not UTF-8 text)"
+    try:
+        code = int(txt)
+    except ValueError:
+        return txt or "empty"
+    return None if code == 0 else str(code)
 
 
 def read_json(path: Path) -> tuple[Any, str | None]:
@@ -74,6 +142,19 @@ def _read_directory(directory: Path) -> tuple[SeatTrial | Problem | None, bool]:
     return None, True
 
 
+def _unique_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in out:
+            raise ValueError(f"duplicate JSON key {key!r}")
+        out[key] = value
+    return out
+
+
+def _reject_constant(token: str) -> Any:
+    raise ValueError(f"non-finite JSON constant {token!r}")
+
+
 def _trial(path: Path, data: Any) -> SeatTrial | Problem:
     if not isinstance(data, dict):
         return Problem(path, "result.json is not a JSON object")
@@ -83,7 +164,8 @@ def _trial(path: Path, data: Any) -> SeatTrial | Problem:
     trial_name, task_name = _text(data.get("trial_name")), _text(data.get("task_name"))
     if trial_name is None or task_name is None:
         return Problem(path, "result.json has no trial_name or no task_name")
-    participants = _participants(data.get("config"))
+    cfg_file = read_json(path / "config.json")[0] if os.path.isfile(path / "config.json") else None
+    participants = {**_participants(cfg_file), **_participants(data.get("config"))}
     seats: list[SeatRun] = []
     for index, item in enumerate(seat_results):
         run = _seat_run(path, item, participants)
@@ -93,13 +175,16 @@ def _trial(path: Path, data: Any) -> SeatTrial | Problem:
     if len({run.seat for run in seats}) != len(seats):
         return Problem(path, "seat_results names a seat twice")
     assert len(seats) == len(seat_results)
+    rfile = path / "verifier" / "reward.json"
+    fb_rew = _rewards(read_json(rfile)[0]) if os.path.isfile(rfile) and not os.path.islink(rfile) else {}
+    rewards = _rewards(_dict(data.get("verifier_result")).get("rewards")) or fb_rew
     return SeatTrial(
         path=path,
         trial_name=trial_name,
         task=task_name.rsplit("/", 1)[-1].lower(),
         task_checksum=_text(data.get("task_checksum")),
-        rewards=_rewards(_dict(data.get("verifier_result")).get("rewards")),
-        reward_valid=data.get("reward_valid") is True,
+        rewards=rewards,
+        reward_valid=bool(rewards) and data.get("reward_valid") is True,
         exception=_exception(data.get("exception_info")),
         seats=tuple(seats),
         artifacts=path / "artifacts",
@@ -122,19 +207,26 @@ def event_logs(trial: Path) -> dict[str, Path | None]:
 
 def read_events(path: Path) -> tuple[list[dict] | None, str | None]:
     try:
-        text = Path(path).read_text(encoding="utf-8")
-        lines = [line for line in text.split("\n") if line]
+        raw = Path(path).read_text(encoding="utf-8")
     except OSError as error:
         return None, f"cannot read {Path(path).name}: {error.strerror or error}"
     except UnicodeDecodeError:
         return None, f"{Path(path).name} is not UTF-8 text"
+    lines = [line.removesuffix("\r") for line in raw.split("\n")]
     events: list[dict] = []
     for number, line in enumerate((line for line in lines if line.strip()), start=1):
         try:
-            event = json.loads(line)
+            event = json.loads(
+                line, object_pairs_hook=_unique_pairs, parse_constant=_reject_constant
+            )
         except (ValueError, RecursionError):
             return None, f"line {number} is not valid JSON"
-        if not isinstance(event, dict) or event.get("seq") != number or "kind" not in event:
+        if (
+            not isinstance(event, dict)
+            or type(event.get("seq")) is not int
+            or event["seq"] != number
+            or "kind" not in event
+        ):
             return None, f"line {number} is not event {number}"
         events.append(event)
     return events, None
@@ -198,7 +290,7 @@ def _rewards(value: Any) -> dict[str, float]:
     rewards: dict[str, float] = {}
     for key, item in _dict(value).items():
         number = _number(item)
-        if isinstance(key, str) and number is not None:
+        if isinstance(key, str) and number is not None and number != -1.0:
             rewards[key] = number
     return rewards
 

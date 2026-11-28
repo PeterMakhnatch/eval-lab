@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from random import Random
 
+from evallab.sim._multiagent_bridge import check_unified_bridge_invariants
 from evallab.sim.engine import Simulation
 from evallab.sim.multiagent_gen import (
     build_olam_crucible_trial,
@@ -73,4 +74,7 @@ class MultiAgentSimulation:
             md_path = build_bespoke_public_md(self.root / "exec_pub", self.rng, t0)
             check_executive_dashboard_invariants(
                 self.sim, tdir, team, solo, silent, team, md_path, _CANARY_SECRET
+            )
+            check_unified_bridge_invariants(
+                self.sim, tdir, solo, silent, team, scratch, _CANARY_SECRET
             )

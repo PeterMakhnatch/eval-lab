@@ -36,6 +36,18 @@ def _positive_int(raw: str) -> int:
     return val
 
 
+def _positive_float(raw: str) -> float:
+    import math
+
+    try:
+        val = float(raw)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"invalid float value: {raw!r}") from exc
+    if not math.isfinite(val) or val <= 0:
+        raise argparse.ArgumentTypeError(f"must be finite and > 0, got {raw!r}")
+    return val
+
+
 def _single_path(
     args: argparse.Namespace, root: Path, entrypoint: Callable[[list[str] | None], int]
 ) -> int:
@@ -253,6 +265,42 @@ def _seat_bespoke_public_command(
     return 0
 
 
+def _seat_bridge_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.evidence.seat_unified_bridge import (
+        analyze_unified_bridge,
+        format_bridge_json,
+        render_bridge_text,
+        write_bridge_html,
+    )
+
+    decomps: list[tuple[str, Path, Path, Path]] = []
+    for triple in args.decompose or ():
+        d_label, solo_p = _parse_labeled_path(triple[0], root)
+        silent_p = _resolve_input(root, Path(triple[1]))
+        team_p = _resolve_input(root, Path(triple[2]))
+        decomps.append((d_label or solo_p.resolve().parent.name, solo_p, silent_p, team_p))
+    task_root = _resolve_input(root, args.task_root) if args.task_root is not None else None
+    report = analyze_unified_bridge(
+        _resolve_input(root, args.path),
+        task_root=task_root,
+        stall_seconds=args.stall_seconds,
+        split_arms=args.split_arms,
+        include_regrade=not args.no_regrade,
+        decompositions=decomps,
+    )
+    if args.html is not None:
+        dest = write_bridge_html(report, args.html, title=args.title)
+        if not args.json:
+            print(dest.as_posix())
+    if args.json:
+        print(format_bridge_json(report))
+    elif args.html is None:
+        print(render_bridge_text(report))
+    return 0
+
+
 def _register_decompose_parser(seat_commands: argparse._SubParsersAction) -> None:
     decompose = seat_commands.add_parser(
         "decompose",
@@ -396,6 +444,39 @@ def _register_export_and_lint_parsers(seat_commands: argparse._SubParsersAction)
     bp_cmd.set_defaults(func=_seat_bespoke_public_command)
 
 
+def _register_bridge_parser(seat_commands: argparse._SubParsersAction) -> None:
+    bridge = seat_commands.add_parser(
+        "bridge",
+        help="Join seat forensics, CDA, worldwatch detectors/validity, tidegauge audit, and muster regrade",
+    )
+    bridge.add_argument("path", type=Path, metavar="PATH")
+    bridge.add_argument("--json", action="store_true", help="emit schema-validated JSON on stdout")
+    bridge.add_argument("--html", type=Path, default=None, help="write CSP-strict HTML report")
+    bridge.add_argument("--title", default=None, help="optional HTML report title")
+    bridge.add_argument("--task-root", type=Path, default=None, help="optional task root for muster regrade")
+    bridge.add_argument(
+        "--stall-seconds",
+        type=_positive_float,
+        default=300.0,
+        help="stall threshold in seconds for worldwatch and tidegauge (default: 300)",
+    )
+    bridge.add_argument(
+        "--split-arms",
+        action="store_true",
+        help="also run tidegauge audit --split across child arm directories",
+    )
+    bridge.add_argument("--no-regrade", action="store_true", help="skip optional muster regrade")
+    bridge.add_argument(
+        "--decompose",
+        nargs=3,
+        action="append",
+        default=[],
+        metavar=("[LABEL=]SOLO", "SILENT", "TEAM"),
+        help="optional 3-arm decomposition via seat decompose and tidegauge decompose",
+    )
+    bridge.set_defaults(func=_seat_bridge_command)
+
+
 def register_parser(commands: argparse._SubParsersAction) -> None:
     seat = commands.add_parser(
         "seat", help="Inspect multi-agent Harbor seat and team evidence (read-only)"
@@ -433,3 +514,4 @@ def register_parser(commands: argparse._SubParsersAction) -> None:
     _register_decompose_parser(seat_commands)
     _register_report_parser(seat_commands)
     _register_export_and_lint_parsers(seat_commands)
+    _register_bridge_parser(seat_commands)

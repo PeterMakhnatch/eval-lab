@@ -305,3 +305,30 @@ Rules for the screen:
 - Every trial with `focal` below 1.0 gets a trace review: model failure, task defect or harness problem.
 
 Options if quota allows, each reported apart and with no decision: the `open` arm of a candidate facet; a mixed team (p1 `claude-fable-5-2`, p2 `gpt-6.2-sol`, p3 `grok-4.7`); teams of `grok-4.7` or `claude-haiku-5-5`.
+
+## Amendment 7 (2026-11-28, 2:00 PM ET): the `steps` arm (1 request for each command) and the mixed `parley` team
+
+OBSERVED: the secondary models are also near the full score. On i01 to i05, `claude-haiku-5-5` has probe means of 0.90 to 1.0 (5 of 80 trials below 1.0, all in depot `probe`), and `gpt-6-luna` has 0.91 to 1.0 (10 of 80 trials below 1.0).
+No `guard - probe`, `reader - probe` or `flagged - probe` difference reaches 0.20. `gpt-6.2-sol` scores 1.0 in the first 20 `parley` team trials (`calm`, `shared`, `tight`, `late`).
+In every full trial that I read, the agent reads the rules, then writes 1 program that holds the protocol (versions, `expect`, log checks, a wait loop).
+
+### Arm `steps`
+
+Question: does a model keep the shared state right when it must decide each request itself, as an agent with a function-call tool does, and cannot put the protocol in a program?
+Change: the same tasks, the same wrapper. The system prompt has 4 more sentences:
+"In this session each command that you run must be exactly 1 `curl` request, and you can pipe its output to `jq`. Do not run a program, a script, a loop, or more than 1 request in one command. Decide each request yourself after you read the reply to the request before it."
+The files are `system-prompt-steps.txt` and `seat-omp-steps.sh` in the run directory; their sha256 is in each `RUN.txt`.
+
+Conditions: depot `limbo-probe` and `storm-probe`, instances i01 to i05, 1 attempt, time limit 1,800 s. Models: `gpt-6.2-sol` and `claude-haiku-5-5`. `claude-fable-5-2` runs `storm-probe` i01 to i03 if the quota allows.
+Control: the `probe` trials of the same instances and model in wave 1 or the secondary wave (the agent may write programs).
+
+Compliance: a trial is compliant when no command has more than 1 `curl` and no command runs `python`, a loop (`for`, `while`, `xargs`, `seq`) or a script file.
+A trial that is not compliant is not lost. It is reported apart, because it shows that the model did not follow the rule of the harness.
+
+Report `focal`, `clean`, the hazard measures, the number of world requests and model turns, and the cost. Report `probe - steps` on the paired instances.
+5 pairs decide nothing. A model is a candidate for a harness dependence when its `probe` mean is at least 0.90 and its `steps` mean is at least 0.20 lower; a candidate also runs i06 to i10, and the gap rule applies to the 10 pairs.
+
+### Mixed `parley` team
+
+The option of Amendment 6, made exact: p1 `claude-fable-5-2`, p2 `gpt-6.2-sol`, p3 `grok-4.7`; conditions `tight-team`, `late-team`, `storm-team`; instances i01 to i05; 1 attempt; at most 3 trials at once; time limit 900 s.
+A wrapper (`seat-omp-mixed.sh`) picks the model from the seat name and then starts the same agent wrapper. Reported apart, with no decision.

@@ -257,3 +257,14 @@ Changes:
 2. A trial that is lost before any model request (no session file in any seat) runs again once, in the same cohort. Its first directory moves to `_lost/` and stays as evidence.
    This replaces "Do not replace losses in the cohort" for this case only: such a loss carries no information about the result.
 3. The 5 lost trials run again, 2 trials at once.
+
+## Amendment 5 (2026-11-28, 1:30 PM ET): more attempts on `storm` for the `terse` observation
+
+OBSERVED in follow-up 1 (attempt 1): `claude-fable-5-2` scores 1.0 in all 40 `terse` trials. `gpt-6.2-sol` scores 1.0 in `limbo`, `takeover` and `skew` (30 trials),
+and 0.98 in `storm-terse`: 8 of 10 instances are full, 2 have focal 0.9 with 2 writes applied twice each. Its `storm-probe` was 10 of 10 in wave 1.
+In both losses the agent got status 409 `stale` (a teammate had written the same ticket, or its own write after a 504 had happened), computed a new quantity from the new book, and wrote again without a look in the log.
+By the rule of Amendment 3 this is no prompt dependence (difference 0.02).
+
+Change: `gpt-6.2-sol` runs attempts 2 and 3 of `storm-probe` and `storm-terse` (10 instances, 40 trials). `claude-fable-5-2` runs attempts 2 and 3 of `storm-terse` (20 trials).
+Report for each arm the number of trials with focal 1.0 of 30, the instance means, and the contrast of Amendment 3 on the instance means. Report Fisher's exact test on full trials as a description, not as a decision.
+Attempts of one instance are not independent samples.

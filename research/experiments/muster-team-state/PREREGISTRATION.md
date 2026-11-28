@@ -191,3 +191,29 @@ Transfer of a result to the Harbor harness is not claimed.
 
 Stop a provider's trials when its weekly quota reaches 80% used (`policy/standing-approvals.yaml`), or when a model is replaced by another one.
 Finish the planned cohort of a model once it starts, unless a validity stop applies. Do not add facets mid-wave.
+
+## Amendment 2 (2026-11-28, 12:20 PM ET): changes after calibration, before any scored trial
+
+OBSERVED in calibration 1 (28 trials, not scored; a throwaway driver on the same world loader):
+
+- `claude-fable-5-2`, `gpt-6.2-sol`, `grok-4.7` and `claude-haiku-5-5` score 1.0 on the 4 calibration conditions. `gpt-6-luna` scores 1.0 on 3 conditions and 0.90 on `storm-solo`.
+- `zai/glm-5.3` (no balance) and `meta/muse-spark-1.3` (the subscription admits only its own client) cannot run. Each agent stopped at its first model request, and the verifier still gave the score of an idle seat (0.05 to 0.63).
+- 3 models wrote scratch files under `/tmp`, which all trials share.
+
+Changes:
+
+1. Secondary models, in this order: `xai-oauth/grok-4.7`, `anthropic/claude-haiku-5-5`, `openai-codex/gpt-6-luna`. `glm-5.3` and `muse-spark-1.3` are removed.
+2. The system prompt has 1 more sentence: "Create files only in the current working directory." `TMPDIR` is a private directory in the agent's working directory.
+3. A trial is lost when its agent exits with a code other than 0, records a model or provider error, or has no assistant message.
+4. A trial is invalid when its transcript names a path under `/tmp`, `/private/tmp` or `/var/tmp` that another trial of the same wave also names in an overlapping time window.
+5. The time limit is enforced by `muster host` only (TERM, then KILL after 10 s).
+
+OBSERVED in calibration 2 (20 trials, not scored; the final wrapper through `muster host`, before its code was committed):
+the same 4 models score 1.0 on the 4 conditions; no trial names a shared scratch path; `gpt-6-luna` scores 1.0 on 3 conditions and 0.57 on `storm-solo`.
+Investigation of `gpt-6-luna` on `storm-solo`: in both runs the agent worked through the task (12 and 18 commands, 55 and 49 world requests) and lost units by its own work.
+Run 1: 26 writes without `expect`, 1 ticket applied twice, 1 pair below its floor. Run 2: 9 tickets of its queue left unsettled, with a final message that claims completion.
+The harness and the text are not the cause. Its scored trials start.
+
+OBSERVED in the Docker smoke: Harbor refuses every packaged task of the 3 families, because the task name has no `org/` part.
+`muster host` does not read the task name. `host.json` records the sha256 of the world files and of each instruction, so a result can be tied to a repackaged version with the same bytes.
+The Harbor pilot (steps 1 and 2) needs the repackaged tasks.

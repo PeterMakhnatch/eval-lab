@@ -144,3 +144,50 @@ Blind implementers (a model that writes a program from the seat text alone) test
 They do not predict how an agent that works step by step will score.
 No family measures general teamwork, model ranking, real-world utility or equal-dollar performance.
 Attempts of one instance are not independent samples. Inference is limited to the tested facets and route.
+
+## Amendment 1 (2026-11-28): subscription pilot on a local seat host
+
+Written before any model trial of these families. Peter approved on 2026-11-28 (about 11:30 AM ET): continue, with a budget of $20.
+OBSERVED: the paid route cannot start. The OpenRouter key is at its own limit of $100 (remaining $0); the account has $6.91.
+This amendment adds a pilot that uses subscription models and no API money. Steps 1 and 2 of "Order and stop rules" stay as written and stay pending.
+
+### Harness
+
+`muster host` serves the packaged world of a task over local HTTP in 1 process and grades with the packaged verifier. No Docker and no Harbor.
+The seat agent is `omp -p` (v19.2.1) with the `bash` tool only: no rules, skills, context files, memory, extensions or model fallback.
+The system prompt is 1 fixed paragraph. The user message is the packaged seat instruction, byte for byte. `WORLD`, `SEAT` and `SEAT_TOKEN` are in the agent's environment.
+The agent's working directory is a fresh empty directory outside the output directory. Every trial is a new session.
+The run directory records the muster revision, the wrapper, the overlay and the system prompt with their sha256 before the first scored trial.
+Differences from the Harbor pilot: the agent runs on the host as the user, not in a container, and it can reach the network. The agent harness is `omp`, not `terminus-2`.
+
+### Models and cohort
+
+Primary: `anthropic/claude-fable-5-2` and `openai-codex/gpt-6.2-sol`, both at thinking level `high`.
+Each primary model runs the 160 trials of step 2: 16 conditions, 10 instances, 1 attempt.
+Secondary, as quota and time allow, in this order: `xai-oauth/grok-4.7`, `zai/glm-5.3`, `meta/muse-spark-1.3`, `anthropic/claude-haiku-5-5`, each at `high`,
+on the same 16 conditions and instances i01 to i05 (80 trials). A secondary model is a screen; it gets no decision by the gap rule.
+Wall-time limit: 1,800 s per trial. The packaged value is 900 s; the depot oracle needs up to 88 requests in `storm-probe`, and a time-out must not hide the protocol result.
+
+### Calibration (not scored)
+
+Before its scored trials, each model runs instance i01 of `calm-probe`, `storm-solo` (depot), `share-probe` (dossier) and `plain-probe` (inquiry).
+These 4 conditions are not in the pilot cohort. They test the harness, the text and the time limit.
+A model that scores below 0.90 on a calibration probe is investigated before its scored trials start; a change to the harness after that restarts calibration.
+
+### Validity
+
+Each transcript is scanned for commands that read outside the agent's working directory, list processes or open files, or name the repository, the task files or the output directory.
+A flagged trial is reviewed by hand. A trial whose agent saw task, instance, verifier or other-trial data is invalid: it is reported and excluded.
+A trial that ends by the time limit, by a harness error or with a model other than the planned one is lost. It is reported apart, with its graded reward where one exists, and is not a 0.
+
+### Decisions
+
+The measures, contrasts, statistics and gap rule of "Measures and decisions" apply to each primary model separately, with no change.
+The solo arm is not in the first wave. If a primary model shows a candidate gap on a facet (step 3), that model runs the solo arm of that facet on the same 10 instances. No other widening.
+A candidate gap is not a mechanism conclusion until solo is measured.
+Transfer of a result to the Harbor harness is not claimed.
+
+### Stop rules
+
+Stop a provider's trials when its weekly quota reaches 80% used (`policy/standing-approvals.yaml`), or when a model is replaced by another one.
+Finish the planned cohort of a model once it starts, unless a validity stop applies. Do not add facets mid-wave.

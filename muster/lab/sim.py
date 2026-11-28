@@ -20,6 +20,7 @@ from muster import render
 from muster.commands import card as card_command
 from muster.lab import api, card, cardfile, contrast, episode, finding, search, sim_tools, toy
 from muster.lab.schedule import Bursty, RoundRobin, Scripted, Seeded, parse
+from muster.lab.sim_holdout import check as holdout_check
 from muster.sim_fixture import Run, Violation, write_json
 
 _REGRESSIONS = Path(__file__).with_name("sim_regressions.json")
@@ -419,6 +420,7 @@ def _run_seed(seed: int) -> Simulation:
     if seed == sim_tools.PARITY_SEED:
         with simulation.measure("parity"):
             sim_tools.parity_checks(simulation)
+    holdout_check(simulation)
     return simulation
 
 

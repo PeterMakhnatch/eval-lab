@@ -217,3 +217,30 @@ The harness and the text are not the cause. Its scored trials start.
 OBSERVED in the Docker smoke: Harbor refuses every packaged task of the 3 families, because the task name has no `org/` part.
 `muster host` does not read the task name. `host.json` records the sha256 of the world files and of each instruction, so a result can be tied to a repackaged version with the same bytes.
 The Harbor pilot (steps 1 and 2) needs the repackaged tasks.
+
+## Amendment 3 (2026-11-28, 12:55 PM ET): follow-up arms after wave 1, before any follow-up trial
+
+OBSERVED in wave 1 (muster revision `c903bd964`): `claude-fable-5-2` and `gpt-6.2-sol` each score 1.0 in all 160 trials (16 conditions, 10 instances).
+No trial is lost or invalid. In the 40 depot `probe` trials of each model, `clean` is 1.0 and no write is sent without `expect`.
+By the rule above, all 3 families are too easy for both models in the arms with 1 real seat. No candidate gap exists, so no `solo` arm runs.
+The secondary wave (3 models, instances i01 to i05) runs as planned.
+
+The follow-up asks 2 questions that the saturated arms cannot answer. Both are exploratory: they were not in the draft.
+
+### Follow-up 1: `terse` (depot)
+
+Question: do the agents use the safe protocol when the text does not list what can go wrong?
+The `terse` arm is the `probe` task with 1 change to the seat text: the section "What can happen" is removed, and the pointer to it in the write budget line.
+The world, the instance, the staged teammates and the verifier are the bytes of `probe`. The run directory holds the derivation script and a manifest with the sha256 of each derived text.
+The text keeps the API reference: `expect`, the versions, `GET /log`, and the write budget line that names status 504. The reply to a 504 states that the write may have happened.
+Conditions: `limbo`, `takeover`, `skew`, `storm`; 10 instances; both primary models; 1 attempt. The secondary models run instances i01 to i05 after their wave.
+Contrast: `probe - terse`, paired by instance, with the wave 1 `probe` trials. Measure: `focal`; diagnostics: `clean`, `blind_writes`, `log_reads_after_504`, `double_applied`, `stale_writes`.
+A prompt dependence needs: `probe` at least 0.90, `terse` at least 0.20 lower on paired instances, a paired interval that excludes 0, and a sign test with p at most 0.05.
+
+### Follow-up 2: `team` with real agents (depot, dossier)
+
+Question: do 2 or 3 real agents of the same model keep the shared state right when they work at the same time?
+Conditions: depot `limbo-team`, `takeover-team`, `skew-team`, `storm-team` and dossier `cascade-team`, `dispute-team`, `mix-team`; instances i01 to i05; both primary models; 1 attempt.
+Every real seat of a trial gets the same model and wrapper. All seats start together. The time limit is 1,800 s for the trial.
+A trial is lost when 1 of its seats is lost by the rules of Amendment 2. Report `reward`, and `team - probe` on the same 5 instances, with no decision by the gap rule.
+Team races depend on real timing. A full score does not show that a race was tested; report `conflicts` and `stale_writes` next to it.

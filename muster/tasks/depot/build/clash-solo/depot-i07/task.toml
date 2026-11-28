@@ -2,7 +2,7 @@ schema_version = "1.4"
 artifacts = ["/logs/world/events.jsonl"]
 
 [task]
-name = "depot-i07"
+name = "muster/depot-i07"
 description = "Clerks settle tickets against one shared stock book.\nWhole-value writes can lose changes by another clerk.\nDraw tickets require a rule over the sum of 2 items.\nUnknown write outcomes and takeover require checking prior effects.\nThe probe arm stages correct teammate work just in time.\nThe guard arm enforces checks; the solo arm removes live teammates.\nThe team arm tests real concurrent clerks with a message channel.\nThe committed card.json (muster card depot --write) is the reference."
 keywords = ["seats", "multi-agent", "muster"]
 

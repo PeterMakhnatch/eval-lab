@@ -1,6 +1,6 @@
 # `inquiry`: does an agent notice that a teammate's reply does not answer the question it asked, and ask for the right correction?
 
-Status: design v2.5 (2026-11-25, Fable, muster lane). Nothing here was run with a model.
+Status: v2.6 (2026-11-28, packaging fix of design v2.5 of 2026-11-25). Nothing here was run with a model.
 
 History: v1 was replaced after an independent review (13 defects). v2 was reviewed again (13 defects).
 v2.1 removed the part question, introduced the chain trap and set the budget to 13.

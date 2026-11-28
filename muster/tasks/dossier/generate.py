@@ -78,7 +78,7 @@ def task(instance, config, build, common_world, scripts):
     metadata.update(family="dossier", instance=instance["id"], oracle_reward=1.0,
                     card="muster/tasks/dossier/card.json")
     return build.task_files(
-        name=f"dossier-{instance['id']}",
+        name=f"muster/dossier-{instance['id']}",
         description=config["description"].strip(),
         seats=dict.fromkeys(seats, True),
         tokens=tokens,

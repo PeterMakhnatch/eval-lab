@@ -224,3 +224,18 @@ All 7 round-5 writer policies without the watch list pass 0 of 10 built in `scar
 ## Round 6 on `dossier` v3.4
 
 A fresh worker (`rv6-s-skills`) reviewed v3.4 on the 10 built instances and on 3 new seeds (`dossier-v3.4-h11` to `-h13`, all pass the generator). 12 writer variants that never read the watch list and 24 reader variants that ignore 1 special kind (8,640 episodes; 240 oracle episodes score 1.0) gave 0 of 72 applicable cells above the rule (more than 2 of 10 built and more than 6 of 30 held-out). 0 findings.
+
+## Packaging fix (2026-11-28)
+
+The Docker smoke test found that Harbor rejects the task names. They lack the required `org/` prefix.
+New package versions: `depot` v4.2, `dossier` v3.5 and `inquiry` v2.6. The generator seeds stay unchanged.
+Each task now has the name `muster/<family>-<instance id>`.
+
+The byte comparison against `origin/main` (`9625b02604ebd928d555855cb5391a52c51156cc`) passed for all 720 tasks.
+Only the name line in each `task.toml` changed. All 11,260 other files are byte-identical.
+This includes the worlds, instances, instructions and verifiers. No files were added or removed.
+The proof script is in the run record at `scratch/repack/prove_packaging.py`.
+
+The smoke test also found false late-action reports from `muster regrade`.
+The world plays scripted teammate actions at close. Regrade now excludes events with `response.played == true`.
+It still reports late actions by real seats.

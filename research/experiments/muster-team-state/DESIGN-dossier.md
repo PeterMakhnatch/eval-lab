@@ -1,6 +1,6 @@
 # `dossier`: does a team keep a small shared register sufficient for questions it does not know yet?
 
-Status: design v3.4 (2026-11-25, Fable, muster lane). v2 replaced v1 after an independent review
+Status: v3.5 (2026-11-28, packaging fix of design v3.4 of 2026-11-25). v2 replaced v1 after an independent review
 (12 defects, `REVIEWS.md`). v3 applied the first review of the built family.
 v3.1 made every ideal scarce register line necessary for another clerk's question.
 v3.2 added unknown controls and restored historical closure reports.

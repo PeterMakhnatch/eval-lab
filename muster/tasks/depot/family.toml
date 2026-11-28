@@ -1,4 +1,5 @@
 name = "depot"
+version = "4.2"
 description = """
 Clerks settle tickets against one shared stock book.
 Whole-value writes can lose changes by another clerk.

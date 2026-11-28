@@ -1,4 +1,5 @@
 name = "inquiry"
+version = "2.6"
 description = """
 A desk clerk files exact stock figures using replies from scripted colleagues.
 Every reply is true for its stated scope, but the scope can differ from the question.

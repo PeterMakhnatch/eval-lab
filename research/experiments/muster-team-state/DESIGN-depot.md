@@ -1,6 +1,6 @@
 # `depot`: do agents synchronize on shared records when the world does not force them?
 
-Status: design v4.1 (2026-11-25, Fable, muster lane). v3 applied an independent review of v2
+Status: v4.2 (2026-11-28, packaging fix of design v4.1 of 2026-11-25). v3 applied an independent review of v2
 (`s1-skeptic-depot/review.md`, 12 defects). v4 applied the first review round of the built family
 (section 0). v4.1 adds independent draw classes and more unknown outcomes after round 2 (`REVIEWS.md`).
 Nothing here was run with a model. Section 0 records the v4 history; the later sections describe v4.1.

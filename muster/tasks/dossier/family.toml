@@ -1,4 +1,5 @@
 name = "dossier"
+version = "3.5"
 description = """
 Clerks survey sites and keep a small shared register of reports.
 The register freezes before the questions become visible.

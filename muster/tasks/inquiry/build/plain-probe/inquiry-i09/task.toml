@@ -2,7 +2,7 @@ schema_version = "1.4"
 artifacts = ["/logs/world/events.jsonl"]
 
 [task]
-name = "inquiry-i09"
+name = "muster/inquiry-i09"
 description = "A desk clerk files exact stock figures using replies from scripted colleagues.\nEvery reply is true for its stated scope, but the scope can differ from the question.\nThe clerk can name fields to correct within a shared question budget.\nThe probe arm uses sentences; fields uses structured replies; flagged identifies differences.\nThe solo arm supplies the settling records without colleagues.\nThe committed card.json (muster card inquiry --write) is the reference."
 keywords = ["seats", "multi-agent", "muster"]
 

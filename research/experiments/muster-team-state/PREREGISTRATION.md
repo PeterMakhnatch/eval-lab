@@ -1,7 +1,7 @@
 # Draft pre-registration: team state
 
 2026-11-25. Before any model trial of these families. Peter must approve the draft before any paid run.
-Family versions: `depot` v4.1, `dossier` v3.4, `inquiry` v2.5 (generator seeds `depot-v4.1`, `dossier-v3.4`, `inquiry-v2.5`; designs in `DESIGN-*.md` in this directory).
+Family versions: `depot` v4.2, `dossier` v3.5, `inquiry` v2.6 (generator seeds `depot-v4.1`, `dossier-v3.4`, `inquiry-v2.5`; designs in `DESIGN-*.md` in this directory).
 Every family has a committed `card.json` that `muster card FAMILY --verify` checks in the gate. `REVIEWS.md` lists every review.
 
 ## Question

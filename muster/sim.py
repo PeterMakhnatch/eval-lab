@@ -15,6 +15,7 @@ from tempfile import TemporaryDirectory
 from typing import Any, TypedDict
 
 from muster.cli import main as muster_main
+from muster.regrade import late_actions
 from muster.regrade import replay as regrade_replay
 from muster.sim_fixture import (
     Evidence,
@@ -362,6 +363,23 @@ def _check_regrade_regressions(run: Run) -> None:
     run.require("regrade/isolation-bool", "deepcopy-instance-and-drop-bool", ok, f"rep1={rep1} err1={err1} inst={inst}")
 
 
+def _check_late_actions(run: Run, rng: Random) -> None:
+    collected = [{"seq": 1, "seat": "p1", "kind": "read", "ok": True}]
+    played = [
+        {"seq": seq, "seat": rng.choice(("p2", "p3")), "kind": "write",
+         "ok": True, "response": {"played": True}}
+        for seq in range(2, 2 + rng.randint(1, 8))
+    ]
+    real = {"seq": len(collected) + len(played) + 1, "seat": "p1",
+            "kind": "write", "ok": True, "response": {}}
+    close = {"seq": real["seq"] + 1, "seat": None, "kind": "admin.close", "ok": True}
+    observed = late_actions([*collected, *played, dict(close, seq=real["seq"])], collected)
+    run.require("regrade/played-at-close", "scripted-writes-are-not-late", observed == [], str(observed))
+    observed = late_actions([*collected, *played, real, close], collected)
+    expected = [{key: real[key] for key in ("seq", "seat", "kind")}]
+    run.require("regrade/real-at-close", "real-writes-are-late", observed == expected, str(observed))
+
+
 def _run_seed(seed: int) -> Run:
     assert 0 <= seed <= _MAX_SEED
     run, rng = Run(seed), Random(seed)
@@ -382,6 +400,7 @@ def _run_seed(seed: int) -> Run:
                 with run.section("kitv2"):
                     _check_kit_v2_replay(run, root)
                     _check_regrade_regressions(run)
+                    _check_late_actions(run, Random(seed))
     if seed % _HORDE_PERIOD == 0:
         with run.section("horde"):
             check_horde(run, Random(f"horde/{seed}"))

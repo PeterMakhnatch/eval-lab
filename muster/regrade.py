@@ -140,6 +140,9 @@ def late_actions(graded: list[dict], collected: list[dict]) -> list[dict]:
     for event in graded[len(collected) :]:
         if event.get("kind") == "admin.close" and event.get("ok"):
             break
+        response = event.get("response")
+        if isinstance(response, dict) and response.get("played") is True:
+            continue
         if event.get("ok") and event.get("seat") is not None:
             late.append({"seq": event["seq"], "seat": event["seat"], "kind": event["kind"]})
     assert len(late) <= max(0, len(graded) - len(collected))

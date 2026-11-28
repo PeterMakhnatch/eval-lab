@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from collections import defaultdict, deque
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
@@ -12,7 +13,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from evallab.eventlog import read_event_log_lines
-from evallab.results import JobRecord, TrialRecord, sha256_file
+from evallab.results import JobRecord, TrialRecord, sha256_file, trial_agent_dirs
 from evallab.step_layers import effective_tool_calls
 
 JsonObject = dict[str, Any]
@@ -48,7 +49,13 @@ def _optional_int(value: Any) -> int | None:
 
 
 def _optional_float(value: Any) -> float | None:
-    return float(value) if isinstance(value, int | float) and not isinstance(value, bool) else None
+    if isinstance(value, int | float) and not isinstance(value, bool):
+        try:
+            val = float(value)
+        except OverflowError:
+            return None
+        return val if math.isfinite(val) else None
+    return None
 
 
 def _stable_id(*parts: str) -> str:
@@ -92,6 +99,7 @@ class TrajectoryFact:
     tools_offered: tuple[str, ...] | None = None
     tools_offered_sha256: str | None = None
     harness_fault_signature: str | None = None
+    seat: str | None = None
 
 
 @dataclass(frozen=True)
@@ -118,6 +126,7 @@ class StepFact:
     llm_source_sha256: str | None = None
     llm_metadata_available: bool = False
     usage_status: str | None = None
+    seat: str | None = None
 
 
 @dataclass(frozen=True)
@@ -134,6 +143,7 @@ class ToolCallFact:
 
     call_index: int | None = None
     result_error_flag: bool | None = None
+    seat: str | None = None
 
 
 @dataclass(frozen=True)
@@ -152,6 +162,7 @@ class ObservationFact:
     subagent_refs_sha256: str | None
     command_exit_code: int | None
     error_classification: str | None = None
+    seat: str | None = None
 
 
 @dataclass(frozen=True)
@@ -288,7 +299,7 @@ def _load_json(path: Path) -> tuple[Any | None, str | None]:
 
 def _validate_atif_v1(payload: JsonObject) -> str | None:
     schema_version = payload.get("schema_version")
-    if schema_version not in SUPPORTED_SCHEMA_VERSIONS:
+    if not isinstance(schema_version, str) or schema_version not in SUPPORTED_SCHEMA_VERSIONS:
         return f"unsupported schema_version {schema_version!r}"
     agent = _as_object(payload.get("agent"))
     if agent is None or not isinstance(agent.get("name"), str):
@@ -302,9 +313,11 @@ def _validate_atif_v1(payload: JsonObject) -> str | None:
     for index, step in enumerate(steps, start=1):
         if not isinstance(step, dict):
             return f"steps[{index - 1}] must be an object"
-        if step.get("step_id") != index:
+        raw_step_id = step.get("step_id")
+        if type(raw_step_id) is not int or raw_step_id != index:
             return f"steps[{index - 1}].step_id must equal {index}"
-        if step.get("source") not in {"system", "user", "agent"}:
+        source = step.get("source")
+        if not isinstance(source, str) or source not in {"system", "user", "agent"}:
             return f"steps[{index - 1}].source is invalid"
         message = step.get("message")
         if not isinstance(message, str | list):
@@ -338,7 +351,9 @@ def _validate_atif_v1(payload: JsonObject) -> str | None:
                 if not isinstance(result, dict):
                     return f"steps[{index - 1}] has a non-object observation result"
                 source_call_id = result.get("source_call_id")
-                if source_call_id is not None and source_call_id not in call_ids:
+                if source_call_id is not None and (
+                    not isinstance(source_call_id, str) or source_call_id not in call_ids
+                ):
                     return f"step {index} observation references unknown tool call"
     embedded_value = payload.get("subagent_trajectories")
     if not embedded_value:
@@ -386,9 +401,9 @@ def _referenced_paths(payload: JsonObject) -> list[str]:
 
 def _embedded_reference_error(payload: JsonObject) -> str | None:
     available = {
-        child.get("trajectory_id")
+        tid
         for child in _as_list(payload.get("subagent_trajectories"))
-        if isinstance(child, dict)
+        if isinstance(child, dict) and isinstance((tid := child.get("trajectory_id")), str)
     }
     for step in _as_list(payload.get("steps")):
         if not isinstance(step, dict):
@@ -409,39 +424,91 @@ def _embedded_reference_error(payload: JsonObject) -> str | None:
                 if (
                     trajectory_id is not None
                     and trajectory_path is None
-                    and trajectory_id not in available
+                    and (not isinstance(trajectory_id, str) or trajectory_id not in available)
                 ):
                     return f"embedded subagent reference {trajectory_id!r} is unresolved"
     return None
 
 
-def _resolve_reference(source_file: Path, trial_dir: Path, reference: str) -> Path | None:
+def _validated_seat_jail_root(trial_dir: Path, seat: str | None) -> Path | None:
+    try:
+        trial_root = trial_dir.resolve()
+        if seat is None:
+            return trial_root
+        if seat in ("", ".", "..") or any(ch in seat for ch in ("/", "\\", "\x00")):
+            return None
+        seats_dir = trial_dir / "seats"
+        seat_dir = seats_dir / seat
+        if seats_dir.is_symlink() or seat_dir.is_symlink():
+            return None
+        jail_root = seat_dir.resolve()
+    except (OSError, RuntimeError, ValueError):
+        return None
+    if jail_root != trial_root / "seats" / seat:
+        return None
+    return jail_root
+
+
+def _resolve_reference(
+    source_file: Path,
+    trial_dir: Path,
+    reference: str,
+    *,
+    seat: str | None = None,
+) -> Path | None:
+    jail_root = _validated_seat_jail_root(trial_dir, seat)
+    if jail_root is None:
+        return None
     candidate = Path(reference)
     if candidate.is_absolute():
-        candidate = trial_dir / candidate.as_posix().lstrip("/")
+        rel = candidate.as_posix().lstrip("/")
+        if seat is not None and rel.startswith(f"seats/{seat}/"):
+            rel = rel[len(f"seats/{seat}/") :]
+        candidate = jail_root / rel
     else:
         candidate = source_file.parent / candidate
-    resolved = candidate.resolve()
-    trial_root = trial_dir.resolve()
-    if resolved != trial_root and trial_root not in resolved.parents:
+    try:
+        resolved = candidate.resolve()
+    except (OSError, RuntimeError, ValueError):
+        return None
+    if resolved != jail_root and jail_root not in resolved.parents:
         return None
     return resolved
 
 
-def _initial_candidates(trial: TrialRecord) -> list[Path]:
-    agent_dir = trial.path / "agent"
-    if not agent_dir.is_dir():
+def _initial_candidates(agent_dir: Path, trial_dir: Path, seat: str | None) -> list[Path]:
+    jail_root = _validated_seat_jail_root(trial_dir, seat)
+    if jail_root is None:
+        return []
+    try:
+        if agent_dir.is_symlink() or not agent_dir.is_dir():
+            return []
+        agent_root = agent_dir.resolve()
+    except (OSError, RuntimeError, ValueError):
+        return []
+    if agent_root != jail_root / "agent":
         return []
     candidates: list[Path] = []
-    for path in sorted(agent_dir.rglob("*.json")):
-        payload, error = _load_json(path)
+    for path in sorted(agent_root.rglob("*.json")):
+        try:
+            resolved = path.resolve()
+        except (OSError, RuntimeError, ValueError):
+            continue
+        if resolved != jail_root and jail_root not in resolved.parents:
+            continue
+        if not resolved.is_file():
+            continue
+        payload, error = _load_json(resolved)
         if path.name.startswith("trajectory") or (
             error is None
             and isinstance(payload, dict)
             and str(payload.get("schema_version", "")).startswith("ATIF-")
         ):
-            candidates.append(path)
-    canonical = agent_dir / "trajectory.json"
+            candidates.append(resolved)
+    try:
+        canonical: Path | None = (agent_root / "trajectory.json").resolve()
+    except (OSError, RuntimeError, ValueError):
+        canonical = None
     return sorted(candidates, key=lambda path: (path != canonical, path.as_posix()))
 
 
@@ -464,9 +531,11 @@ def _document_validation(
     payload: JsonObject,
     source_file: Path,
     trial_dir: Path,
+    *,
+    seat: str | None = None,
 ) -> tuple[ValidationStatus, str, str | None]:
     schema_version = payload.get("schema_version")
-    if schema_version not in SUPPORTED_SCHEMA_VERSIONS:
+    if not isinstance(schema_version, str) or schema_version not in SUPPORTED_SCHEMA_VERSIONS:
         return "unsupported", "internal-atif-v1", f"unsupported schema_version {schema_version!r}"
     validator = "internal-atif-v1"
     error = _validate_atif_v1(payload)
@@ -474,7 +543,7 @@ def _document_validation(
         error = _embedded_reference_error(payload)
     if error is None:
         for reference in _referenced_paths(payload):
-            resolved = _resolve_reference(source_file, trial_dir, reference)
+            resolved = _resolve_reference(source_file, trial_dir, reference, seat=seat)
             if resolved is None:
                 error = f"trajectory reference escapes trial directory: {reference!r}"
                 break
@@ -499,7 +568,10 @@ def _step_llm_call_count(raw_step: JsonObject, metrics: JsonObject) -> int:
     declared = _optional_int(raw_step.get("llm_call_count"))
     if declared is not None:
         return declared
-    has_usage = any(_optional_int(metrics.get(key)) is not None for key in ("prompt_tokens", "completion_tokens"))
+    has_usage = any(
+        _optional_int(metrics.get(key)) is not None
+        for key in ("prompt_tokens", "completion_tokens")
+    )
     return 1 if has_usage else 0
 
 
@@ -511,15 +583,19 @@ def _project_payload(
     payload: JsonObject,
     embedded_path: str | None,
     parse_error: str | None = None,
+    *,
+    seat: str | None = None,
 ) -> TrialTrajectoryProjection:
-    source_path = source_file.relative_to(trial.path).as_posix()
+    source_path = source_file.resolve().relative_to(trial.path.resolve()).as_posix()
     document_id = _stable_id(trial.id, source_path, embedded_path or "root")
     if parse_error is not None:
         status: ValidationStatus = "invalid"
         validator = "json"
         validation_error = parse_error
     else:
-        status, validator, validation_error = _document_validation(payload, source_file, trial.path)
+        status, validator, validation_error = _document_validation(
+            payload, source_file, trial.path, seat=seat
+        )
 
     raw_steps = _as_list(payload.get("steps"))
     step_facts: list[StepFact] = []
@@ -558,6 +634,7 @@ def _project_payload(
                 cost_usd=_optional_float(metrics.get("cost_usd")),
                 tool_call_count=len(calls),
                 observation_count=len(results),
+                seat=seat,
             )
         )
         for call in calls:
@@ -579,6 +656,7 @@ def _project_payload(
                     tool_call_id=call_id,
                     function_name=function_name,
                     arguments_sha256=_digest_json(arguments),
+                    seat=seat,
                 )
             )
         for observation_index, result in enumerate(results):
@@ -602,6 +680,7 @@ def _project_payload(
                     subagent_ref_count=len(references),
                     subagent_refs_sha256=_digest_json(references) if references else None,
                     command_exit_code=command_exit_code(result),
+                    seat=seat,
                 )
             )
 
@@ -634,6 +713,7 @@ def _project_payload(
         completion_tokens=_optional_int(final_metrics.get("total_completion_tokens")),
         cached_tokens=_optional_int(final_metrics.get("total_cached_tokens")),
         cost_usd=_optional_float(final_metrics.get("total_cost_usd")),
+        seat=seat,
     )
     return TrialTrajectoryProjection(
         trajectories=(trajectory,),
@@ -693,12 +773,25 @@ def _atif_mechanical_capture_is_complete(
     )
 
 
-def project_trial(job: JobRecord, trial: TrialRecord) -> TrialTrajectoryProjection:
-    queue = deque(_initial_candidates(trial))
+def _project_agent_dir(
+    job: JobRecord,
+    trial: TrialRecord,
+    agent_dir: Path,
+    seat: str | None,
+) -> list[TrialTrajectoryProjection]:
+    jail_root = _validated_seat_jail_root(trial.path, seat)
+    if jail_root is None:
+        return []
     visited: set[Path] = set()
+    queue = deque(_initial_candidates(agent_dir, trial.path, seat))
     projections: list[TrialTrajectoryProjection] = []
     while queue:
-        source_file = queue.popleft().resolve()
+        try:
+            source_file = queue.popleft().resolve()
+        except (OSError, RuntimeError, ValueError):
+            continue
+        if source_file != jail_root and jail_root not in source_file.parents:
+            continue
         if source_file in visited:
             continue
         visited.add(source_file)
@@ -714,6 +807,7 @@ def project_trial(job: JobRecord, trial: TrialRecord) -> TrialTrajectoryProjecti
                     {},
                     None,
                     parse_error or "trajectory root must be an object",
+                    seat=seat,
                 )
             )
             continue
@@ -726,19 +820,28 @@ def project_trial(job: JobRecord, trial: TrialRecord) -> TrialTrajectoryProjecti
                     source_sha256,
                     document_payload,
                     embedded_path,
+                    seat=seat,
                 )
             )
             for reference in _referenced_paths(document_payload):
-                resolved = _resolve_reference(source_file, trial.path, reference)
+                resolved = _resolve_reference(source_file, trial.path, reference, seat=seat)
                 if resolved is not None and resolved.is_file():
                     queue.append(resolved)
-    from evallab.evidence.llm_request import project_llm_requests
+    return projections
 
-    llm_request_projection = project_llm_requests(job, trial)
-    if llm_request_projection is not None and not _atif_mechanical_capture_is_complete(
-        projections, llm_request_projection
-    ):
-        projections.append(llm_request_projection)
+
+def project_trial(job: JobRecord, trial: TrialRecord) -> TrialTrajectoryProjection:
+    from evallab.evidence.llm_request import project_llm_request_ring
+
+    projections: list[TrialTrajectoryProjection] = []
+    for seat, agent_dir in trial_agent_dirs(trial):
+        documents = _project_agent_dir(job, trial, agent_dir, seat)
+        llm_request_projection = project_llm_request_ring(job, trial, agent_dir, seat=seat)
+        if llm_request_projection is not None and not _atif_mechanical_capture_is_complete(
+            documents, llm_request_projection
+        ):
+            documents.append(llm_request_projection)
+        projections.extend(documents)
 
     return TrialTrajectoryProjection(
         trajectories=tuple(fact for projection in projections for fact in projection.trajectories),
@@ -793,6 +896,7 @@ PARQUET_SCHEMAS = {
             pa.field("tools_offered", pa.list_(pa.string())),
             pa.field("tools_offered_sha256", pa.string()),
             pa.field("harness_fault_signature", pa.string()),
+            pa.field("seat", pa.string()),
         ]
     ),
     "steps": pa.schema(
@@ -818,6 +922,7 @@ PARQUET_SCHEMAS = {
             pa.field("llm_source_sha256", pa.string()),
             pa.field("llm_metadata_available", pa.bool_(), nullable=False),
             pa.field("usage_status", pa.string()),
+            pa.field("seat", pa.string()),
         ]
     ),
     "tool_calls": pa.schema(
@@ -833,6 +938,7 @@ PARQUET_SCHEMAS = {
             pa.field("arguments_sha256", pa.string(), nullable=False),
             pa.field("call_index", pa.int64()),
             pa.field("result_error_flag", pa.bool_()),
+            pa.field("seat", pa.string()),
         ]
     ),
     "observations": pa.schema(
@@ -851,6 +957,7 @@ PARQUET_SCHEMAS = {
             pa.field("subagent_refs_sha256", pa.string()),
             pa.field("command_exit_code", pa.int64()),
             pa.field("error_classification", pa.string()),
+            pa.field("seat", pa.string()),
         ]
     ),
 }
@@ -977,9 +1084,7 @@ def project_jobs(
                 else None
             )
             if job_projections:
-                rebuilt = rebuild_from_raw(
-                    [job], derived_root, projections_by_job=job_projections
-                )
+                rebuilt = rebuild_from_raw([job], derived_root, projections_by_job=job_projections)
             else:
                 rebuilt = rebuild_from_raw([job], derived_root)
         except Exception as exc:

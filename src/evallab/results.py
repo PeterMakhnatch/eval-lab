@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -83,6 +84,14 @@ class ArtifactRecord:
 
 
 @dataclass(frozen=True)
+class SeatRecord:
+    name: str
+    under_test: bool | None
+    result: JsonObject
+    participant: JsonObject
+
+
+@dataclass(frozen=True)
 class TrialRecord:
     path: Path
     result: JsonObject
@@ -90,6 +99,7 @@ class TrialRecord:
     lock: JsonObject
     rewards: dict[str, float]
     artifacts: tuple[ArtifactRecord, ...]
+    seats: tuple[SeatRecord, ...] = ()
 
     @property
     def id(self) -> str:
@@ -194,6 +204,73 @@ def _load_artifacts(trial_dir: Path) -> tuple[ArtifactRecord, ...]:
     return tuple(records)
 
 
+_SEAT_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+
+
+def _seat_name(value: Any, where: str) -> str:
+    if not isinstance(value, str) or not _SEAT_NAME.fullmatch(value):
+        raise ValueError(f"{where} has no usable seat name: {value!r}")
+    return value
+
+
+def parse_seats(result: JsonObject, config: JsonObject, lock: JsonObject) -> tuple[SeatRecord, ...]:
+    result_config = result.get("config")
+    sources = (
+        result_config.get("participants") if isinstance(result_config, dict) else None,
+        config.get("participants"),
+        lock.get("participants"),
+    )
+    raw_participants = next((value for value in sources if isinstance(value, list) and value), [])
+    participants: dict[str, JsonObject] = {}
+    for index, participant in enumerate(raw_participants):
+        if not isinstance(participant, dict):
+            raise ValueError(f"participants[{index}] must be an object")
+        seat_name = _seat_name(participant.get("seat"), f"participants[{index}]")
+        if seat_name in participants:
+            raise ValueError(f"participants records seat {seat_name!r} twice")
+        participants[seat_name] = participant
+    raw_results = result.get("seat_results")
+    entries = raw_results if isinstance(raw_results, list) else []
+    seats: list[SeatRecord] = []
+    for index, entry in enumerate(entries):
+        if not isinstance(entry, dict):
+            raise ValueError(f"seat_results[{index}] must be an object")
+        name = _seat_name(entry.get("seat"), f"seat_results[{index}]")
+        if any(seat.name == name for seat in seats):
+            raise ValueError(f"seat_results records seat {name!r} twice")
+        under_test = entry.get("under_test")
+        part_entry = participants.get(name, {})
+        if not isinstance(under_test, bool):
+            under_test = part_entry.get("under_test")
+        seats.append(
+            SeatRecord(
+                name=name,
+                under_test=under_test if isinstance(under_test, bool) else None,
+                result=entry,
+                participant=part_entry,
+            )
+        )
+    recorded = {seat.name for seat in seats}
+    for name, participant in participants.items():
+        if name not in recorded:
+            raw_ut = participant.get("under_test")
+            seats.append(
+                SeatRecord(
+                    name=name,
+                    under_test=raw_ut if isinstance(raw_ut, bool) else None,
+                    result={},
+                    participant=participant,
+                )
+            )
+    return tuple(sorted(seats, key=lambda seat: seat.name))
+
+
+def trial_agent_dirs(trial: TrialRecord) -> tuple[tuple[str | None, Path], ...]:
+    if not trial.seats:
+        return ((None, trial.path / "agent"),)
+    return tuple((seat.name, trial.path / "seats" / seat.name / "agent") for seat in trial.seats)
+
+
 def load_trial(trial_dir: Path) -> TrialRecord:
     result = _load_object(trial_dir / "result.json")
     verifier_result = result.get("verifier_result") or {}
@@ -201,17 +278,18 @@ def load_trial(trial_dir: Path) -> TrialRecord:
     rewards = {
         str(name): float(value)
         for name, value in raw_rewards.items()
-        if isinstance(value, (int, float))
-        and not isinstance(value, bool)
-        and math.isfinite(value)
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
     }
+    config = _load_object(trial_dir / "config.json")
+    lock = _load_object(trial_dir / "lock.json")
     return TrialRecord(
         path=trial_dir,
         result=result,
-        config=_load_object(trial_dir / "config.json"),
-        lock=_load_object(trial_dir / "lock.json"),
+        config=config,
+        lock=lock,
         rewards=rewards,
         artifacts=_load_artifacts(trial_dir),
+        seats=parse_seats(result, config, lock),
     )
 
 

@@ -156,6 +156,7 @@ def run(seed: int) -> RunResult:
     from evallab.sim.leases import LeaseSimulation
     from evallab.sim.lint import LintSimulation
     from evallab.sim.mechanics import MechanicsSimulation
+    from evallab.sim.multiagent import MultiAgentSimulation
     from evallab.sim.mutation import MutationSimulation
     from evallab.sim.overlap import OverlapSimulation
     from evallab.sim.protected import ProtectedPathSimulation
@@ -200,6 +201,8 @@ def run(seed: int) -> RunResult:
             HypothesisSimulation(sim, root / "hypotheses").run()
             sim.subsystem = "atif-projection"
             AtifSimulation(sim, root / "atif").run()
+            sim.subsystem = "multiagent-forensics"
+            MultiAgentSimulation(sim, root / "multiagent").run()
         except InvariantViolation as exc:
             failure = exc
         except (Exception, ProcessCrash) as exc:

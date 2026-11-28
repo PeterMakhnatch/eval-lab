@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from collections import Counter
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -24,7 +25,7 @@ from evallab.evidence.atif import (
     export_trajectories,
     project_trial,
 )
-from evallab.results import JobRecord, TrialRecord, duration_seconds, sha256_file
+from evallab.results import JobRecord, SeatRecord, TrialRecord, duration_seconds, sha256_file
 from evallab.schemas import (
     ANALYSIS_SIDECAR_FILENAME,
     AnalysisProvenance,
@@ -80,7 +81,13 @@ def _integer(value: Any) -> int | None:
 
 
 def _number(value: Any) -> float | None:
-    return float(value) if isinstance(value, int | float) and not isinstance(value, bool) else None
+    if isinstance(value, int | float) and not isinstance(value, bool):
+        try:
+            val = float(value)
+        except OverflowError:
+            return None
+        return val if math.isfinite(val) else None
+    return None
 
 
 def _phase_duration(result: JsonObject, phase: str) -> float | None:
@@ -305,6 +312,31 @@ class TrialFact:
 
 
 @dataclass(frozen=True)
+class SeatFact:
+    experiment_id: str | None
+    job_id: str
+    trial_id: str
+    seat: str
+    under_test: bool | None
+    agent_config_digest: str
+    agent_name: str | None
+    agent_version: str | None
+    model_name: str | None
+    exception_class: str | None
+    agent_setup_seconds: float | None
+    agent_execution_seconds: float | None
+    input_tokens: int | None
+    cache_tokens: int | None
+    output_tokens: int | None
+    cost_usd: float | None
+    trajectory_count: int
+    invalid_trajectory_count: int
+    step_count: int
+    llm_call_count: int
+    tool_call_count: int
+
+
+@dataclass(frozen=True)
 class RewardFact:
     experiment_id: str | None
     job_id: str
@@ -367,6 +399,7 @@ class JobFacts:
     tool_usage: tuple[ToolUseFact, ...]
     state_changes: tuple[StateChangeFact, ...]
     state_events: tuple[StateEventFact, ...]
+    seats: tuple[SeatFact, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -454,6 +487,7 @@ def _state_change_fact(
         journal_status=journal_status,
     )
 
+
 def _terminal_root_trajectory(
     trajectories: Sequence[TrajectoryFact],
 ) -> tuple[TrajectoryFact | None, bool]:
@@ -473,9 +507,14 @@ def _terminal_root_trajectory(
         if not ref:
             return current, True
         parent, _, _ = current.source_path.rpartition("/")
-        candidate = ref.lstrip("/") if ref.startswith("/") else (
-            f"{parent}/{ref}" if parent else ref
-        )
+        if ref.startswith("/") and current.seat:
+            seat_prefix = f"seats/{current.seat}/"
+            stripped = PurePosixPath(ref).as_posix().lstrip("/")
+            candidate = stripped if stripped.startswith(seat_prefix) else f"{seat_prefix}{stripped}"
+        else:
+            candidate = (
+                ref.lstrip("/") if ref.startswith("/") else (f"{parent}/{ref}" if parent else ref)
+            )
         parts: list[str] = []
         escaped = False
         for part in candidate.split("/"):
@@ -490,7 +529,10 @@ def _terminal_root_trajectory(
                 parts.append(part)
         if escaped:
             return None, False
-        nxt = by_source.get("/".join(parts))
+        joined = "/".join(parts)
+        if current.seat and not joined.startswith(f"seats/{current.seat}/"):
+            return None, False
+        nxt = by_source.get(joined)
         if nxt is None or nxt.source_path in seen:
             return None, False
         seen.add(nxt.source_path)
@@ -499,10 +541,127 @@ def _terminal_root_trajectory(
 
 def _live_step_keys(projection: TrialTrajectoryProjection) -> set[tuple[str, int]]:
     return {
-        (step.document_id, step.step_id)
-        for step in projection.steps
-        if not step.is_copied_context
+        (step.document_id, step.step_id) for step in projection.steps if not step.is_copied_context
     }
+
+
+Usage = tuple[int | None, int | None, int | None, float | None]
+
+
+def _native_usage(agent_result: JsonObject, trajectories: Sequence[TrajectoryFact]) -> Usage:
+    root_metrics, chain_complete = _terminal_root_trajectory(trajectories)
+    if not chain_complete:
+        root_metrics = None
+    input_tokens = _integer(agent_result.get("n_input_tokens"))
+    cache_tokens = _integer(agent_result.get("n_cache_tokens"))
+    output_tokens = _integer(agent_result.get("n_output_tokens"))
+    cost_usd = _number(agent_result.get("cost_usd"))
+    if root_metrics is not None:
+        input_tokens = input_tokens if input_tokens is not None else root_metrics.prompt_tokens
+        cache_tokens = cache_tokens if cache_tokens is not None else root_metrics.cached_tokens
+        output_tokens = (
+            output_tokens if output_tokens is not None else root_metrics.completion_tokens
+        )
+        cost_usd = cost_usd if cost_usd is not None else root_metrics.cost_usd
+    return input_tokens, cache_tokens, output_tokens, cost_usd
+
+
+def _seat_projection(projection: TrialTrajectoryProjection, seat: str) -> TrialTrajectoryProjection:
+    return TrialTrajectoryProjection(
+        trajectories=tuple(item for item in projection.trajectories if item.seat == seat),
+        steps=tuple(item for item in projection.steps if item.seat == seat),
+        tool_calls=tuple(item for item in projection.tool_calls if item.seat == seat),
+        observations=tuple(item for item in projection.observations if item.seat == seat),
+    )
+
+
+def _seat_usage(seat: SeatRecord, projection: TrialTrajectoryProjection) -> Usage:
+    return _native_usage(
+        _agent_result(seat.result), _seat_projection(projection, seat.name).trajectories
+    )
+
+
+_NO_MODEL_AGENTS = frozenset({"oracle", "nop", "script", "scripted"})
+
+
+def _seat_is_model(seat: SeatRecord) -> bool:
+    raw_info = seat.result.get("agent_info")
+    info = raw_info if isinstance(raw_info, dict) else {}
+    raw_model = info.get("model_info")
+    model = raw_model if isinstance(raw_model, dict) else {}
+    if model.get("name") or model.get("provider") or seat.participant.get("model_name"):
+        return True
+    name = info.get("name") or seat.participant.get("name") or seat.participant.get("import_path")
+    if isinstance(name, str):
+        low = name.lower()
+        if low in _NO_MODEL_AGENTS or low.endswith(("scriptagent", "scriptedagent")):
+            return False
+    return True
+
+
+def _sum_usage(usages: Iterable[Usage]) -> Usage:
+    rows = list(usages)
+    if not rows:
+        return None, None, None, None
+    in_vals = [row[0] for row in rows]
+    ca_vals = [row[1] for row in rows]
+    ou_vals = [row[2] for row in rows]
+    co_vals = [row[3] for row in rows]
+    input_tokens = (
+        sum(v for v in in_vals if v is not None) if all(v is not None for v in in_vals) else None
+    )
+    cache_tokens = (
+        sum(v for v in ca_vals if v is not None) if all(v is not None for v in ca_vals) else None
+    )
+    output_tokens = (
+        sum(v for v in ou_vals if v is not None) if all(v is not None for v in ou_vals) else None
+    )
+    cost_usd: float | None = None
+    if all(v is not None and math.isfinite(v) for v in co_vals):
+        try:
+            total = math.fsum(v for v in co_vals if v is not None)
+        except OverflowError:
+            total = math.nan
+        if math.isfinite(total):
+            cost_usd = total
+    return input_tokens, cache_tokens, output_tokens, cost_usd
+
+
+def _trial_usage(trial: TrialRecord, projection: TrialTrajectoryProjection) -> Usage:
+    if not trial.seats:
+        return _native_usage(_agent_result(trial.result), projection.trajectories)
+    model_seats = [seat for seat in trial.seats if _seat_is_model(seat)]
+    rolled = _sum_usage(_seat_usage(seat, projection) for seat in model_seats)
+    if isinstance(trial.result.get("agent_result"), dict):
+        top = _native_usage(_agent_result(trial.result), ())
+        return (
+            top[0] if top[0] is not None else rolled[0],
+            top[1] if top[1] is not None else rolled[1],
+            top[2] if top[2] is not None else rolled[2],
+            top[3] if top[3] is not None else rolled[3],
+        )
+    return rolled
+
+
+def _agent_config_digest(trial: TrialRecord) -> str:
+    if not trial.seats:
+        return digest_json(trial.lock.get("agent") or {})
+    seats = sorted(trial.seats, key=lambda seat: seat.name)
+    entries = []
+    for seat in seats:
+        raw_info = seat.result.get("agent_info")
+        cfg = seat.participant or (raw_info if isinstance(raw_info, dict) else {})
+        entries.append({"seat": seat.name, "config": cfg})
+    return digest_json({"participants": entries})
+
+
+def _seat_agent_config_digest(seat: SeatRecord) -> str:
+    body = {key: value for key, value in seat.participant.items() if key != "seat"}
+    if not body:
+        raw_info = seat.result.get("agent_info")
+        if isinstance(raw_info, dict):
+            body = raw_info
+    return digest_json(body)
 
 
 def extract_trial_fact(
@@ -519,28 +678,12 @@ def extract_trial_fact(
     agent_info = raw_agent_info if isinstance(raw_agent_info, dict) else {}
     raw_model_info = agent_info.get("model_info")
     model_info = raw_model_info if isinstance(raw_model_info, dict) else {}
-    raw_agent_result = _agent_result(result)
-    root_metrics, _chain_complete = _terminal_root_trajectory(projection.trajectories)
-    if not _chain_complete:
-        root_metrics = None
-    input_tokens = _integer(raw_agent_result.get("n_input_tokens"))
-    cache_tokens = _integer(raw_agent_result.get("n_cache_tokens"))
-    output_tokens = _integer(raw_agent_result.get("n_output_tokens"))
-    cost_usd = _number(raw_agent_result.get("cost_usd"))
-    if root_metrics is not None:
-        input_tokens = input_tokens if input_tokens is not None else root_metrics.prompt_tokens
-        cache_tokens = cache_tokens if cache_tokens is not None else root_metrics.cached_tokens
-        output_tokens = (
-            output_tokens if output_tokens is not None else root_metrics.completion_tokens
-        )
-        cost_usd = cost_usd if cost_usd is not None else root_metrics.cost_usd
+    input_tokens, cache_tokens, output_tokens, cost_usd = _trial_usage(trial, projection)
 
     live_step_keys = _live_step_keys(projection)
     live_steps = [step for step in projection.steps if not step.is_copied_context]
     live_tool_calls = [
-        call
-        for call in projection.tool_calls
-        if (call.document_id, call.step_id) in live_step_keys
+        call for call in projection.tool_calls if (call.document_id, call.step_id) in live_step_keys
     ]
     failed_call_ids = {
         (item.document_id, item.step_id, item.source_call_id)
@@ -549,12 +692,12 @@ def extract_trial_fact(
         and item.command_exit_code not in (None, 0)
         and item.source_call_id is not None
     }
-    failed_argument_digests = [
-        item.arguments_sha256
+    failed_calls = [
+        item
         for item in live_tool_calls
         if (item.document_id, item.step_id, item.tool_call_id) in failed_call_ids
     ]
-    failed_digest_counts = Counter(failed_argument_digests)
+    failed_digest_counts = Counter((item.seat, item.arguments_sha256) for item in failed_calls)
     exception_class = _exception_class(result)
     artifact_inventory = [
         {
@@ -606,7 +749,7 @@ def extract_trial_fact(
             result.get("config") if isinstance(result.get("config"), dict) else None,
             trial.lock,
         ),
-        agent_config_digest=digest_json(trial.lock.get("agent") or {}),
+        agent_config_digest=_agent_config_digest(trial),
         grid_id=_string(provenance.get("grid_id")),
         point_id=_string(provenance.get("point_id")),
         arm_id=_string(provenance.get("arm_id")),
@@ -656,7 +799,7 @@ def extract_trial_fact(
         step_count=len(live_steps),
         llm_call_count=sum(item.llm_call_count for item in live_steps),
         tool_call_count=len(live_tool_calls),
-        command_failure_count=len(failed_argument_digests),
+        command_failure_count=len(failed_calls),
         repeated_failed_command_count=sum(
             count - 1 for count in failed_digest_counts.values() if count > 1
         ),
@@ -669,6 +812,77 @@ def extract_trial_fact(
     )
 
 
+def extract_seat_facts(
+    job: JobRecord,
+    trial: TrialRecord,
+    projection: TrialTrajectoryProjection | None = None,
+) -> tuple[SeatFact, ...]:
+    if not trial.seats:
+        return ()
+    if projection is None:
+        projection = project_trial(job, trial)
+    association = experiment_id(job)
+    facts: list[SeatFact] = []
+    for seat in trial.seats:
+        seat_projection = _seat_projection(projection, seat.name)
+        raw_agent_info = seat.result.get("agent_info")
+        agent_info = raw_agent_info if isinstance(raw_agent_info, dict) else {}
+        raw_model_info = agent_info.get("model_info")
+        model_info = raw_model_info if isinstance(raw_model_info, dict) else {}
+        live_step_keys = _live_step_keys(seat_projection)
+        live_steps = [step for step in seat_projection.steps if not step.is_copied_context]
+        input_tokens, cache_tokens, output_tokens, cost_usd = _native_usage(
+            _agent_result(seat.result), seat_projection.trajectories
+        )
+        raw_part_agent = seat.participant.get("agent")
+        part_agent_name = (
+            raw_part_agent.get("name") if isinstance(raw_part_agent, dict) else raw_part_agent
+        )
+        facts.append(
+            SeatFact(
+                experiment_id=association,
+                job_id=job.id,
+                trial_id=trial.id,
+                seat=seat.name,
+                under_test=seat.under_test,
+                agent_config_digest=_seat_agent_config_digest(seat),
+                agent_name=_string(
+                    agent_info.get("name")
+                    or seat.participant.get("agent_name")
+                    or part_agent_name
+                    or seat.participant.get("name")
+                ),
+                agent_version=_string(
+                    agent_info.get("version") or seat.participant.get("agent_version")
+                ),
+                model_name=_string(
+                    model_info.get("name")
+                    or model_info.get("model_name")
+                    or seat.participant.get("model_name")
+                    or seat.participant.get("model")
+                ),
+                exception_class=_exception_class(seat.result),
+                agent_setup_seconds=_phase_duration(seat.result, "agent_setup"),
+                agent_execution_seconds=_phase_duration(seat.result, "agent_execution"),
+                input_tokens=input_tokens,
+                cache_tokens=cache_tokens,
+                output_tokens=output_tokens,
+                cost_usd=cost_usd,
+                trajectory_count=len(seat_projection.trajectories),
+                invalid_trajectory_count=sum(
+                    item.validation_status != "valid" for item in seat_projection.trajectories
+                ),
+                step_count=len(live_steps),
+                llm_call_count=sum(item.llm_call_count for item in live_steps),
+                tool_call_count=sum(
+                    (call.document_id, call.step_id) in live_step_keys
+                    for call in seat_projection.tool_calls
+                ),
+            )
+        )
+    return tuple(facts)
+
+
 def extract_job_facts(
     job: JobRecord,
     projections: dict[str, TrialTrajectoryProjection] | None = None,
@@ -679,6 +893,7 @@ def extract_job_facts(
     tool_usage: list[ToolUseFact] = []
     state_change_facts: list[StateChangeFact] = []
     state_event_facts: list[StateEventFact] = []
+    seat_facts: list[SeatFact] = []
     association = experiment_id(job)
     for trial in sorted(job.trials, key=lambda item: item.id):
         projection = (
@@ -690,6 +905,7 @@ def extract_job_facts(
             projections[trial.id] = projection
         state_journal = load_state_journal(trial)
         trial_facts.append(extract_trial_fact(job, trial, state_journal, projection=projection))
+        seat_facts.extend(extract_seat_facts(job, trial, projection=projection))
         try:
             state_event_facts.extend(
                 load_state_event_facts(
@@ -767,6 +983,7 @@ def extract_job_facts(
         tool_usage=tuple(tool_usage),
         state_changes=tuple(state_change_facts),
         state_events=tuple(state_event_facts),
+        seats=tuple(seat_facts),
     )
 
 
@@ -832,8 +1049,36 @@ TRIAL_FACT_SCHEMA = pa.schema(
 )
 
 
+SEAT_FACT_SCHEMA = pa.schema(
+    [
+        pa.field("experiment_id", pa.string()),
+        pa.field("job_id", pa.string(), nullable=False),
+        pa.field("trial_id", pa.string(), nullable=False),
+        pa.field("seat", pa.string(), nullable=False),
+        pa.field("under_test", pa.bool_()),
+        pa.field("agent_config_digest", pa.string(), nullable=False),
+        pa.field("agent_name", pa.string()),
+        pa.field("agent_version", pa.string()),
+        pa.field("model_name", pa.string()),
+        pa.field("exception_class", pa.string()),
+        pa.field("agent_setup_seconds", pa.float64()),
+        pa.field("agent_execution_seconds", pa.float64()),
+        pa.field("input_tokens", pa.int64()),
+        pa.field("cache_tokens", pa.int64()),
+        pa.field("output_tokens", pa.int64()),
+        pa.field("cost_usd", pa.float64()),
+        pa.field("trajectory_count", pa.int64(), nullable=False),
+        pa.field("invalid_trajectory_count", pa.int64(), nullable=False),
+        pa.field("step_count", pa.int64(), nullable=False),
+        pa.field("llm_call_count", pa.int64(), nullable=False),
+        pa.field("tool_call_count", pa.int64(), nullable=False),
+    ]
+)
+
+
 FACT_SCHEMAS = {
     "trial_facts": TRIAL_FACT_SCHEMA,
+    "seat_facts": SEAT_FACT_SCHEMA,
     "reward_facts": pa.schema(
         [
             pa.field("experiment_id", pa.string()),
@@ -969,6 +1214,9 @@ def export_job_fact_tables(
                 asdict(item) for item in facts.state_events if item.trial_id == trial_id
             ],
         }
+        seat_rows = [asdict(item) for item in facts.seats if item.trial_id == trial_id]
+        if seat_rows:
+            rows_by_table["seat_facts"] = seat_rows
         for table_name, rows in rows_by_table.items():
             exported.append(
                 _write_fact_table(partition / f"{table_name}.parquet", table_name, rows)

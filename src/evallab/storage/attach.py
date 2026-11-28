@@ -17,7 +17,6 @@ from evallab.storage.paths import (
 
 @dataclass(frozen=True)
 class ZoneStatus:
-
     name: str
     attached: bool
     reason: str | None = None
@@ -26,7 +25,6 @@ class ZoneStatus:
 
 @dataclass(frozen=True)
 class AttachResult:
-
     connection: duckdb.DuckDBPyConnection
     zones: tuple[ZoneStatus, ...]
     sql_preamble: str = field(repr=False)
@@ -34,6 +32,7 @@ class AttachResult:
 
 TABLES = (
     "trial_facts",
+    "seat_facts",
     "reward_facts",
     "artifact_facts",
     "trajectories",
@@ -280,15 +279,19 @@ def _attach_semantic_comparison(
         conn.execute(f"CREATE OR REPLACE VIEW v_semantic_vs_mechanical AS {empty}")
         conn.execute(f"CREATE OR REPLACE VIEW z3.v_semantic_vs_mechanical AS {empty}")
 
+
 def _attach_traj_views(conn: duckdb.DuckDBPyConnection) -> None:
     try:
         from evallab.traj import get_versioned_traj_features_sql
+
         v1_sql = get_versioned_traj_features_sql("traj_features")
         z3_v1_sql = get_versioned_traj_features_sql("z3.traj_features")
         conn.execute(f"CREATE OR REPLACE VIEW v_traj_features_v1 AS {v1_sql}")
         conn.execute(f"CREATE OR REPLACE VIEW z3.v_traj_features_v1 AS {z3_v1_sql}")
         conn.execute("CREATE OR REPLACE VIEW v_traj_features AS SELECT * FROM v_traj_features_v1")
-        conn.execute("CREATE OR REPLACE VIEW z3.v_traj_features AS SELECT * FROM z3.v_traj_features_v1")
+        conn.execute(
+            "CREATE OR REPLACE VIEW z3.v_traj_features AS SELECT * FROM z3.v_traj_features_v1"
+        )
     except Exception:
         pass
 
@@ -360,6 +363,7 @@ def _catalog_optional_tables() -> tuple[str, ...]:
     assert Path(CAPTURE_TABLE_FILENAME).stem == CAPTURE_TABLE
     return (STABILITY_TABLE, EXPLOITS_TABLE, QUALIFICATION_TABLE, TREATMENT_TABLE, CAPTURE_TABLE)
 
+
 CATALOG_TABLES = (
     "task_sources",
     "task_versions",
@@ -395,8 +399,7 @@ def _attach_task_catalog(conn: duckdb.DuckDBPyConnection, derived: Path) -> dict
     present = {
         name
         for name in CATALOG_TABLES
-        if name not in (TREATMENT_TABLE, CAPTURE_TABLE)
-        and (catalog / f"{name}.parquet").is_file()
+        if name not in (TREATMENT_TABLE, CAPTURE_TABLE) and (catalog / f"{name}.parquet").is_file()
     }
     pair = table_paths(catalog)
     if pair:
@@ -506,8 +509,7 @@ def build_sql_preamble(
     present = {
         name
         for name in CATALOG_TABLES
-        if name not in (TREATMENT_TABLE, CAPTURE_TABLE)
-        and (catalog / f"{name}.parquet").is_file()
+        if name not in (TREATMENT_TABLE, CAPTURE_TABLE) and (catalog / f"{name}.parquet").is_file()
     }
     pair = table_paths(catalog) if catalog_pair is None else catalog_pair
     if pair:
@@ -557,14 +559,15 @@ def build_sql_preamble(
         pass
     try:
         from evallab.traj import get_versioned_traj_features_sql
+
         v1_sql = get_versioned_traj_features_sql("traj_features")
         z3_v1_sql = get_versioned_traj_features_sql("z3.traj_features")
         lines.append(f"CREATE OR REPLACE VIEW v_traj_features_v1 AS {v1_sql};")
         lines.append(f"CREATE OR REPLACE VIEW z3.v_traj_features_v1 AS {z3_v1_sql};")
         lines.append("CREATE OR REPLACE VIEW v_traj_features AS SELECT * FROM v_traj_features_v1;")
-        lines.append("CREATE OR REPLACE VIEW z3.v_traj_features AS SELECT * FROM z3.v_traj_features_v1;")
+        lines.append(
+            "CREATE OR REPLACE VIEW z3.v_traj_features AS SELECT * FROM z3.v_traj_features_v1;"
+        )
     except Exception:
         pass
     return "\n".join(lines)
-
-

@@ -6,8 +6,9 @@ export UV_PYTHON=3.12
 
 uv sync --frozen
 uv run --no-sync ruff check .
-uvx ty@0.0.71 check src/ tidegauge/ muster/ campaign/ worldwatch/ --exclude 'muster/tasks/**' --output-format=concise
+uvx ty@0.0.71 check src/ tidegauge/ muster/ campaign/ worldwatch/ tools/check_tigerstyle_multiagent.py --exclude 'muster/tasks/**' --output-format=concise
 uv run --no-sync python tools/check_tigerstyle_worldwatch.py
+uv run --no-sync python tools/check_tigerstyle_multiagent.py
 uv run --no-sync python scripts/gates/sealed-search.py
 uv run --no-sync python -m compileall -q -x '(^|/)muster/tasks/[^/]+/build(/|$)' src scripts tools tidegauge muster campaign worldwatch
 uv run --no-sync evallab registry audit --json

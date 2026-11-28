@@ -621,5 +621,19 @@
     "seed": 13428469127376995612,
     "step": 153,
     "subsystem": "test-suite-rigor"
+  },
+  {
+    "found_at_utc": "2026-11-21T06:34:57.098310+00:00",
+    "invariant": "unexpected_OverflowError",
+    "seed": 13798829787726891239,
+    "step": 70,
+    "subsystem": "multiagent-forensics"
+  },
+  {
+    "found_at_utc": "2026-11-21T06:35:19.269001+00:00",
+    "invariant": "unexpected_UnicodeEncodeError",
+    "seed": 16767438871866701360,
+    "step": 70,
+    "subsystem": "multiagent-forensics"
   }
 ]

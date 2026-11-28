@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import stat
 from collections.abc import Mapping
 from contextlib import suppress
 from dataclasses import dataclass
@@ -10,7 +11,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from evallab.results import JobRecord, TrialRecord, sha256_file
+from evallab.results import JobRecord, TrialRecord, sha256_file, trial_agent_dirs
 
 _NAME = re.compile(r"^llm_request\.(\d+)\.jsonl$")
 _SAFE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$")
@@ -18,6 +19,7 @@ _MISSING = re.compile(r"Missing credentials|Please pass an [`'\"]?api_key|OPENAI
 _INTERNAL = re.compile(r"litellm\.InternalServerError", re.I)
 _RUNTIME = re.compile(r"runtime.{0,40}(?:error|failed)", re.I | re.S)
 _USAGE = ("prompt_tokens", "completion_tokens", "cached_tokens")
+_MAX_LLM_REQUEST_BYTES = 64 * 1024 * 1024
 _DEFAULT_SECRET_PATTERNS = (
     re.compile(r"sk-(?:proj-)?[A-Za-z0-9_\-]{20,}"),
     re.compile(r"sk-ant-[A-Za-z0-9_\-]{20,}"),
@@ -99,7 +101,12 @@ def _usage(
 def _record(path: Path, trial: TrialRecord, index: int) -> _Record:
     events: list[Mapping[str, Any]] = []
     try:
-        lines = path.read_text(encoding="utf-8").splitlines()
+        st = path.lstat()
+        if not stat.S_ISREG(st.st_mode):
+            raise LlmRequestProjectionError(f"{path.name} is not a regular file")
+        if st.st_size > _MAX_LLM_REQUEST_BYTES:
+            raise LlmRequestProjectionError(f"{path.name} exceeds byte cap")
+        lines = [ln.rstrip("\r") for ln in path.read_text(encoding="utf-8").split("\n")]
     except (OSError, UnicodeError) as exc:
         raise LlmRequestProjectionError(f"cannot read {path.name}") from exc
     for line_number, line in enumerate(lines, 1):
@@ -107,7 +114,7 @@ def _record(path: Path, trial: TrialRecord, index: int) -> _Record:
             continue
         try:
             row = json.loads(line)
-        except json.JSONDecodeError as exc:
+        except (json.JSONDecodeError, ValueError, RecursionError) as exc:
             raise LlmRequestProjectionError(f"malformed {path.name} line {line_number}") from exc
         if not isinstance(row, Mapping):
             raise LlmRequestProjectionError(f"unsupported {path.name} line {line_number}")
@@ -145,7 +152,7 @@ def _record(path: Path, trial: TrialRecord, index: int) -> _Record:
     status, tokens = _usage(events)
     return _Record(
         index,
-        path.relative_to(trial.path).as_posix(),
+        path.resolve().relative_to(trial.path.resolve()).as_posix(),
         f"sha256:{sha256_file(path)}",
         tuple(messages),
         tuple(tools),
@@ -156,18 +163,56 @@ def _record(path: Path, trial: TrialRecord, index: int) -> _Record:
     )
 
 
-def _records(trial: TrialRecord) -> tuple[_Record, ...]:
-    root = trial.path / "agent"
-    if not root.is_dir():
+def _records(trial: TrialRecord, root: Path, *, seat: str | None = None) -> tuple[_Record, ...]:
+    if not root.exists() and not root.is_symlink():
         return ()
+    try:
+        trial_root = trial.path.resolve()
+        if seat is not None:
+            if seat in ("", ".", "..") or any(ch in seat for ch in ("/", "\\", "\x00")):
+                raise LlmRequestProjectionError("llm_request seat name is invalid")
+            seats_dir = trial.path / "seats"
+            seat_dir = seats_dir / seat
+            if seats_dir.is_symlink() or seat_dir.is_symlink():
+                raise LlmRequestProjectionError(
+                    "llm_request seat directory symlink is not permitted"
+                )
+            expected_root = trial_root / "seats" / seat / "agent"
+        else:
+            expected_root = trial_root / "agent"
+        if root.is_symlink():
+            raise LlmRequestProjectionError("llm_request root symlink is not permitted")
+        if not root.is_dir():
+            return ()
+        jail_root = root.resolve()
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise LlmRequestProjectionError("cannot resolve llm_request root") from exc
+    if jail_root != expected_root:
+        raise LlmRequestProjectionError("llm_request root escapes expected agent directory")
     indexed: list[tuple[int, Path]] = []
     parents: set[Path] = set()
-    for path in root.rglob("llm_request.*.jsonl"):
+    for path in jail_root.rglob("llm_request.*.jsonl"):
         match = _NAME.fullmatch(path.name)
         if match is None:
             raise LlmRequestProjectionError("unsupported llm_request filename")
-        indexed.append((int(match.group(1)), path))
-        parents.add(path.parent.resolve())
+        try:
+            st = path.lstat()
+        except OSError as exc:
+            raise LlmRequestProjectionError(f"cannot stat {path.name}") from exc
+        if stat.S_ISLNK(st.st_mode):
+            raise LlmRequestProjectionError("llm_request symlink is not permitted")
+        if not stat.S_ISREG(st.st_mode):
+            raise LlmRequestProjectionError("llm_request non-regular file is not permitted")
+        if st.st_size > _MAX_LLM_REQUEST_BYTES:
+            raise LlmRequestProjectionError("llm_request file exceeds byte cap")
+        try:
+            resolved = path.resolve()
+        except (OSError, RuntimeError, ValueError) as exc:
+            raise LlmRequestProjectionError(f"cannot resolve {path.name}") from exc
+        if resolved != jail_root and jail_root not in resolved.parents:
+            raise LlmRequestProjectionError("llm_request path escapes agent directory")
+        indexed.append((int(match.group(1)), resolved))
+        parents.add(resolved.parent)
     if not indexed:
         return ()
     indices = [index for index, _path in indexed]
@@ -225,6 +270,34 @@ def _error(value: Any) -> str | None:
 
 
 def project_llm_requests(job: JobRecord, trial: TrialRecord):
+    from evallab.evidence.atif import TrialTrajectoryProjection
+
+    ordered_dirs = sorted(
+        trial_agent_dirs(trial),
+        key=lambda item: (item[0] is None, item[0] or "", item[1].as_posix()),
+    )
+    projections = [
+        projection
+        for seat, agent_dir in ordered_dirs
+        if (projection := project_llm_request_ring(job, trial, agent_dir, seat=seat)) is not None
+    ]
+    if len(projections) <= 1:
+        return projections[0] if projections else None
+    return TrialTrajectoryProjection(
+        trajectories=tuple(fact for item in projections for fact in item.trajectories),
+        steps=tuple(fact for item in projections for fact in item.steps),
+        tool_calls=tuple(fact for item in projections for fact in item.tool_calls),
+        observations=tuple(fact for item in projections for fact in item.observations),
+    )
+
+
+def project_llm_request_ring(
+    job: JobRecord,
+    trial: TrialRecord,
+    agent_dir: Path,
+    *,
+    seat: str | None = None,
+):
     from evallab.evidence.atif import (
         ObservationFact,
         StepFact,
@@ -233,7 +306,7 @@ def project_llm_requests(job: JobRecord, trial: TrialRecord):
         TrialTrajectoryProjection,
     )
 
-    records = _records(trial)
+    records = _records(trial, agent_dir, seat=seat)
     if not records:
         return None
     latest = records[0]
@@ -299,6 +372,7 @@ def project_llm_requests(job: JobRecord, trial: TrialRecord):
                     arguments_sha256=_digest(arguments),
                     call_index=sequence,
                     result_error_flag=(classification is not None if call_id in results else None),
+                    seat=seat,
                 )
             )
             sequence += 1
@@ -321,6 +395,7 @@ def project_llm_requests(job: JobRecord, trial: TrialRecord):
                         subagent_refs_sha256=None,
                         command_exit_code=None,
                         error_classification=classification,
+                        seat=seat,
                     )
                 )
                 observed += 1
@@ -349,6 +424,7 @@ def project_llm_requests(job: JobRecord, trial: TrialRecord):
                 llm_source_sha256=record.digest if record else None,
                 llm_metadata_available=record is not None,
                 usage_status=(record.usage_status if record else "unavailable_unknown_prefix"),
+                seat=seat,
             )
         )
 
@@ -395,6 +471,7 @@ def project_llm_requests(job: JobRecord, trial: TrialRecord):
         tools_offered=offered,
         tools_offered_sha256=_digest(offered),
         harness_fault_signature=first_fault,
+        seat=seat,
     )
     return TrialTrajectoryProjection(
         trajectories=(trajectory,),

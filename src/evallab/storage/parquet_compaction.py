@@ -7,6 +7,7 @@ PRIMARY_KEYS: dict[str, tuple[str, ...]] = {
     "tool_calls": ("job_id", "trial_id", "document_id", "step_id", "tool_call_id"),
     "observations": ("job_id", "trial_id", "document_id", "step_id", "observation_index"),
     "trial_facts": ("job_id", "trial_id"),
+    "seat_facts": ("job_id", "trial_id", "seat"),
     "reward_facts": ("job_id", "trial_id", "reward_name"),
     "artifact_facts": ("job_id", "trial_id", "source"),
     "tool_usage": ("job_id", "trial_id", "function_name"),
@@ -25,4 +26,3 @@ PRIMARY_KEYS: dict[str, tuple[str, ...]] = {
     "session_dependency_facts": ("trial_id", "episode_id", "dependency_edge"),
     "evidence_coverage": ("trial_id", "benchmark", "construct"),
 }
-

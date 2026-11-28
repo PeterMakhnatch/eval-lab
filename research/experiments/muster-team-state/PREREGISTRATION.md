@@ -332,3 +332,23 @@ Report `focal`, `clean`, the hazard measures, the number of world requests and m
 
 The option of Amendment 6, made exact: p1 `claude-fable-5-2`, p2 `gpt-6.2-sol`, p3 `grok-4.7`; conditions `tight-team`, `late-team`, `storm-team`; instances i01 to i05; 1 attempt; at most 3 trials at once; time limit 900 s.
 A wrapper (`seat-omp-mixed.sh`) picks the model from the seat name and then starts the same agent wrapper. Reported apart, with no decision.
+
+## Amendment 8 (2026-11-28, 2:05 PM ET): first results of `steps` and `parley`, and a screen of 18 other families
+
+OBSERVED, `steps`: `gpt-6.2-sol` is full in 10 of 10 trials (`limbo` 5, `storm` 5). Every trial is compliant and uses 22 to 46 world requests.
+`claude-haiku-5-5` has means 0.83 (`limbo`) and 0.86 (`storm`), against 0.90 and 0.91 when it may write programs; 4 of its 10 trials are not compliant. No model is a candidate for a harness dependence.
+
+OBSERVED, `parley`: teams of `gpt-6.2-sol` are full in 25 of 25 team trials. Teams of `claude-fable-5-2` are full in 19 of the first 20.
+In `late-team` i01 the last clerk in the commit order stored a batch with wrong quantities for all 10 touched items. Its program read the wrong one of 2 JSON objects in a teammate's message, and the clerk said `ready` before it checked the batch.
+
+### Screen of the other families
+
+`muster host` runs every packaged family from revision `a6feb0ada`. A worker made a manifest of screen cells from the family sources (`workers/sweepplan/manifest.json`, sha256 `647508bff8a13b64...`).
+I removed `field` (its best possible reward is 0.45), `ledger indep-3` (a negative control with reward 0) and the calibration cells with more than 1 seat.
+The screen has 46 cells of 18 families, 3 instances for each cell, 294 agent starts (`sweep/manifest-screen.json`, sha256 `a8983518c377fa8f...`).
+Model: `gpt-6.2-sol`, 1 attempt, the packaged time limit of 600 s, at most 12 agents at once, the same wrapper and system prompt as wave 1.
+
+Rules: the screen is exploratory. For each family report the primary measure of the manifest in the hypothesis cell and in its control.
+A family is a candidate when the hypothesis mean is at least 0.20 below the control mean, or below the reference value of the packaged oracle where the family has no control with the same number of seats.
+Every candidate gets a trace review (model failure, task defect or harness problem) before any claim. A candidate that passes the review runs more instances and the second primary model.
+These families come from other work. They have no review round in this study, and their texts and verifiers are used as packaged.

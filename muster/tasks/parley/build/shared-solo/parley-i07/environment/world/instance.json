@@ -1,0 +1,139 @@
+{
+ "arm": "solo",
+ "batch_limits": {
+  "p1": 12
+ },
+ "book": {
+  "stock01": 49,
+  "stock02": 60,
+  "stock03": 42,
+  "stock04": 79,
+  "stock05": 54,
+  "stock06": 81,
+  "stock07": 67,
+  "stock08": 63,
+  "stock09": 65,
+  "stock10": 95,
+  "stock11": 70,
+  "stock12": 64
+ },
+ "condition": "shared-solo",
+ "facet": "shared",
+ "id": "i07",
+ "late": null,
+ "queues": {
+  "p1": [
+   {
+    "delta": 1,
+    "id": "p3-2",
+    "item": "stock04",
+    "kind": "adjust"
+   },
+   {
+    "delta": -1,
+    "id": "p1-3",
+    "item": "stock02",
+    "kind": "adjust"
+   },
+   {
+    "id": "p3-4",
+    "item": "stock06",
+    "kind": "move",
+    "n": 6,
+    "to": "stock05"
+   },
+   {
+    "delta": -2,
+    "id": "p3-1",
+    "item": "stock06",
+    "kind": "adjust"
+   },
+   {
+    "id": "p1-2",
+    "item": "stock02",
+    "kind": "move",
+    "n": 1,
+    "to": "stock04"
+   },
+   {
+    "delta": 8,
+    "id": "p1-6",
+    "item": "stock05",
+    "kind": "adjust"
+   },
+   {
+    "delta": 2,
+    "id": "p1-5",
+    "item": "stock09",
+    "kind": "adjust"
+   },
+   {
+    "delta": 1,
+    "id": "p2-1",
+    "item": "stock09",
+    "kind": "adjust"
+   },
+   {
+    "id": "p2-2",
+    "item": "stock11",
+    "kind": "move",
+    "n": 5,
+    "to": "stock09"
+   },
+   {
+    "delta": -7,
+    "id": "p2-4",
+    "item": "stock02",
+    "kind": "adjust"
+   },
+   {
+    "delta": 4,
+    "id": "p3-6",
+    "item": "stock03",
+    "kind": "adjust"
+   },
+   {
+    "delta": -3,
+    "id": "p1-7",
+    "item": "stock10",
+    "kind": "adjust"
+   },
+   {
+    "delta": 7,
+    "id": "p1-1",
+    "item": "stock01",
+    "kind": "adjust"
+   },
+   {
+    "delta": 9,
+    "id": "p1-4",
+    "item": "stock07",
+    "kind": "adjust"
+   },
+   {
+    "delta": -5,
+    "id": "p2-3",
+    "item": "stock10",
+    "kind": "adjust"
+   },
+   {
+    "delta": 8,
+    "id": "p3-5",
+    "item": "stock01",
+    "kind": "adjust"
+   },
+   {
+    "delta": -9,
+    "id": "p3-3",
+    "item": "stock02",
+    "kind": "adjust"
+   }
+  ]
+ },
+ "real": [
+  "p1"
+ ],
+ "tokens": {
+  "p1": "bae93a138c67fd41cb82cb12c82ea3e1"
+ }
+}

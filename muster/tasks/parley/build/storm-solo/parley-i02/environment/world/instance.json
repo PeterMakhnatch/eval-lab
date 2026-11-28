@@ -1,0 +1,153 @@
+{
+ "arm": "solo",
+ "batch_limits": {
+  "p1": 12
+ },
+ "book": {
+  "stock01": 66,
+  "stock02": 83,
+  "stock03": 91,
+  "stock04": 51,
+  "stock05": 79,
+  "stock06": 90,
+  "stock07": 52,
+  "stock08": 71,
+  "stock09": 69,
+  "stock10": 62,
+  "stock11": 67,
+  "stock12": 57
+ },
+ "condition": "storm-solo",
+ "facet": "storm",
+ "id": "i02",
+ "late": {
+  "seat": "p1",
+  "ticket": {
+   "delta": 1,
+   "id": "p3-late",
+   "item": "stock04",
+   "kind": "adjust"
+  }
+ },
+ "queues": {
+  "p1": [
+   {
+    "id": "p3-6",
+    "item": "stock02",
+    "kind": "move",
+    "n": 2,
+    "to": "stock06"
+   },
+   {
+    "delta": 7,
+    "id": "p3-3",
+    "item": "stock01",
+    "kind": "adjust"
+   },
+   {
+    "id": "p1-8",
+    "item": "stock02",
+    "kind": "move",
+    "n": 2,
+    "to": "stock01"
+   },
+   {
+    "delta": 3,
+    "id": "p1-5",
+    "item": "stock05",
+    "kind": "adjust"
+   },
+   {
+    "delta": 1,
+    "id": "p1-6",
+    "item": "stock11",
+    "kind": "adjust"
+   },
+   {
+    "delta": 5,
+    "id": "p1-3",
+    "item": "stock01",
+    "kind": "adjust"
+   },
+   {
+    "delta": -2,
+    "id": "p2-3",
+    "item": "stock03",
+    "kind": "adjust"
+   },
+   {
+    "delta": 9,
+    "id": "p2-2",
+    "item": "stock04",
+    "kind": "adjust"
+   },
+   {
+    "delta": 7,
+    "id": "p3-5",
+    "item": "stock04",
+    "kind": "adjust"
+   },
+   {
+    "delta": 6,
+    "id": "p1-2",
+    "item": "stock04",
+    "kind": "adjust"
+   },
+   {
+    "delta": 8,
+    "id": "p1-4",
+    "item": "stock09",
+    "kind": "adjust"
+   },
+   {
+    "delta": 1,
+    "id": "p3-1",
+    "item": "stock05",
+    "kind": "adjust"
+   },
+   {
+    "delta": 6,
+    "id": "p3-4",
+    "item": "stock11",
+    "kind": "adjust"
+   },
+   {
+    "id": "p2-4",
+    "item": "stock03",
+    "kind": "move",
+    "n": 4,
+    "to": "stock10"
+   },
+   {
+    "delta": 4,
+    "id": "p2-1",
+    "item": "stock09",
+    "kind": "adjust"
+   },
+   {
+    "delta": -3,
+    "id": "p1-7",
+    "item": "stock07",
+    "kind": "adjust"
+   },
+   {
+    "delta": -3,
+    "id": "p3-2",
+    "item": "stock02",
+    "kind": "adjust"
+   },
+   {
+    "delta": -8,
+    "id": "p1-1",
+    "item": "stock03",
+    "kind": "adjust"
+   }
+  ]
+ },
+ "real": [
+  "p1"
+ ],
+ "tokens": {
+  "p1": "4ea788a209e3f2d2b1cebd4687030577"
+ }
+}

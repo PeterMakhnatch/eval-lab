@@ -1,0 +1,133 @@
+{
+ "arm": "solo",
+ "batch_limits": {
+  "p1": 12
+ },
+ "book": {
+  "stock01": 89,
+  "stock02": 87,
+  "stock03": 87,
+  "stock04": 83,
+  "stock05": 49,
+  "stock06": 89,
+  "stock07": 46,
+  "stock08": 57,
+  "stock09": 57,
+  "stock10": 55,
+  "stock11": 49,
+  "stock12": 88
+ },
+ "condition": "tight-solo",
+ "facet": "tight",
+ "id": "i07",
+ "late": null,
+ "queues": {
+  "p1": [
+   {
+    "id": "p3-3",
+    "item": "stock06",
+    "kind": "move",
+    "n": 7,
+    "to": "stock08"
+   },
+   {
+    "delta": -5,
+    "id": "p2-3",
+    "item": "stock06",
+    "kind": "adjust"
+   },
+   {
+    "delta": 4,
+    "id": "p1-3",
+    "item": "stock05",
+    "kind": "adjust"
+   },
+   {
+    "delta": -9,
+    "id": "p2-7",
+    "item": "stock02",
+    "kind": "adjust"
+   },
+   {
+    "delta": 1,
+    "id": "p2-5",
+    "item": "stock01",
+    "kind": "adjust"
+   },
+   {
+    "delta": -4,
+    "id": "p1-2",
+    "item": "stock04",
+    "kind": "adjust"
+   },
+   {
+    "delta": 9,
+    "id": "p2-4",
+    "item": "stock09",
+    "kind": "adjust"
+   },
+   {
+    "delta": -9,
+    "id": "p1-1",
+    "item": "stock07",
+    "kind": "adjust"
+   },
+   {
+    "delta": -1,
+    "id": "p3-1",
+    "item": "stock06",
+    "kind": "adjust"
+   },
+   {
+    "delta": -3,
+    "id": "p3-4",
+    "item": "stock02",
+    "kind": "adjust"
+   },
+   {
+    "id": "p2-1",
+    "item": "stock04",
+    "kind": "move",
+    "n": 1,
+    "to": "stock01"
+   },
+   {
+    "delta": -4,
+    "id": "p3-2",
+    "item": "stock07",
+    "kind": "adjust"
+   },
+   {
+    "delta": -7,
+    "id": "p2-2",
+    "item": "stock10",
+    "kind": "adjust"
+   },
+   {
+    "delta": -2,
+    "id": "p1-4",
+    "item": "stock10",
+    "kind": "adjust"
+   },
+   {
+    "delta": -9,
+    "id": "p2-6",
+    "item": "stock07",
+    "kind": "adjust"
+   },
+   {
+    "id": "p1-5",
+    "item": "stock04",
+    "kind": "move",
+    "n": 4,
+    "to": "stock03"
+   }
+  ]
+ },
+ "real": [
+  "p1"
+ ],
+ "tokens": {
+  "p1": "5163997993903fc7a1b94d3a9328afab"
+ }
+}

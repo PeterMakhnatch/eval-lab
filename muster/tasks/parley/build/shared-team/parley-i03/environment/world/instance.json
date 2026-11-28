@@ -1,0 +1,155 @@
+{
+ "arm": "team",
+ "batch_limits": {
+  "p1": 12,
+  "p2": 12,
+  "p3": 12
+ },
+ "book": {
+  "stock01": 94,
+  "stock02": 62,
+  "stock03": 65,
+  "stock04": 83,
+  "stock05": 59,
+  "stock06": 57,
+  "stock07": 58,
+  "stock08": 50,
+  "stock09": 89,
+  "stock10": 74,
+  "stock11": 63,
+  "stock12": 71
+ },
+ "condition": "shared-team",
+ "facet": "shared",
+ "id": "i03",
+ "late": null,
+ "queues": {
+  "p1": [
+   {
+    "id": "p1-1",
+    "item": "stock09",
+    "kind": "move",
+    "n": 2,
+    "to": "stock02"
+   },
+   {
+    "delta": -4,
+    "id": "p1-2",
+    "item": "stock09",
+    "kind": "adjust"
+   },
+   {
+    "delta": 8,
+    "id": "p1-3",
+    "item": "stock11",
+    "kind": "adjust"
+   },
+   {
+    "delta": 6,
+    "id": "p1-4",
+    "item": "stock06",
+    "kind": "adjust"
+   }
+  ],
+  "p2": [
+   {
+    "id": "p2-1",
+    "item": "stock05",
+    "kind": "move",
+    "n": 6,
+    "to": "stock08"
+   },
+   {
+    "delta": 8,
+    "id": "p2-2",
+    "item": "stock12",
+    "kind": "adjust"
+   },
+   {
+    "delta": 6,
+    "id": "p2-3",
+    "item": "stock06",
+    "kind": "adjust"
+   },
+   {
+    "delta": -9,
+    "id": "p2-4",
+    "item": "stock07",
+    "kind": "adjust"
+   },
+   {
+    "delta": -3,
+    "id": "p2-5",
+    "item": "stock05",
+    "kind": "adjust"
+   },
+   {
+    "delta": 7,
+    "id": "p2-6",
+    "item": "stock03",
+    "kind": "adjust"
+   },
+   {
+    "delta": 3,
+    "id": "p2-7",
+    "item": "stock02",
+    "kind": "adjust"
+   },
+   {
+    "delta": 5,
+    "id": "p2-8",
+    "item": "stock11",
+    "kind": "adjust"
+   }
+  ],
+  "p3": [
+   {
+    "delta": 9,
+    "id": "p3-1",
+    "item": "stock06",
+    "kind": "adjust"
+   },
+   {
+    "delta": 8,
+    "id": "p3-2",
+    "item": "stock03",
+    "kind": "adjust"
+   },
+   {
+    "delta": 2,
+    "id": "p3-3",
+    "item": "stock12",
+    "kind": "adjust"
+   },
+   {
+    "id": "p3-4",
+    "item": "stock05",
+    "kind": "move",
+    "n": 1,
+    "to": "stock08"
+   },
+   {
+    "delta": 2,
+    "id": "p3-5",
+    "item": "stock08",
+    "kind": "adjust"
+   },
+   {
+    "delta": 9,
+    "id": "p3-6",
+    "item": "stock04",
+    "kind": "adjust"
+   }
+  ]
+ },
+ "real": [
+  "p1",
+  "p2",
+  "p3"
+ ],
+ "tokens": {
+  "p1": "1a501eff1082bcdc22d7480e60ce32b7",
+  "p2": "af32c58fe937a22c8178bc5f5cb255de",
+  "p3": "dbc0f6a884889c89b41bc91552ccd6b2"
+ }
+}

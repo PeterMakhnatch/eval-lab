@@ -1,0 +1,137 @@
+{
+ "arm": "team",
+ "batch_limits": {
+  "p1": 12,
+  "p2": 12,
+  "p3": 12
+ },
+ "book": {
+  "stock01": 67,
+  "stock02": 70,
+  "stock03": 45,
+  "stock04": 87,
+  "stock05": 76,
+  "stock06": 71,
+  "stock07": 63,
+  "stock08": 72,
+  "stock09": 47,
+  "stock10": 59,
+  "stock11": 83,
+  "stock12": 60
+ },
+ "condition": "shared-team",
+ "facet": "shared",
+ "id": "i06",
+ "late": null,
+ "queues": {
+  "p1": [
+   {
+    "delta": -8,
+    "id": "p1-1",
+    "item": "stock01",
+    "kind": "adjust"
+   },
+   {
+    "delta": -7,
+    "id": "p1-2",
+    "item": "stock04",
+    "kind": "adjust"
+   },
+   {
+    "id": "p1-3",
+    "item": "stock11",
+    "kind": "move",
+    "n": 3,
+    "to": "stock07"
+   },
+   {
+    "delta": -2,
+    "id": "p1-4",
+    "item": "stock10",
+    "kind": "adjust"
+   },
+   {
+    "delta": 6,
+    "id": "p1-5",
+    "item": "stock02",
+    "kind": "adjust"
+   },
+   {
+    "delta": 5,
+    "id": "p1-6",
+    "item": "stock05",
+    "kind": "adjust"
+   },
+   {
+    "delta": 8,
+    "id": "p1-7",
+    "item": "stock03",
+    "kind": "adjust"
+   }
+  ],
+  "p2": [
+   {
+    "delta": -7,
+    "id": "p2-1",
+    "item": "stock09",
+    "kind": "adjust"
+   },
+   {
+    "delta": 6,
+    "id": "p2-2",
+    "item": "stock07",
+    "kind": "adjust"
+   },
+   {
+    "id": "p2-3",
+    "item": "stock01",
+    "kind": "move",
+    "n": 7,
+    "to": "stock02"
+   }
+  ],
+  "p3": [
+   {
+    "id": "p3-1",
+    "item": "stock08",
+    "kind": "move",
+    "n": 1,
+    "to": "stock03"
+   },
+   {
+    "delta": -2,
+    "id": "p3-2",
+    "item": "stock04",
+    "kind": "adjust"
+   },
+   {
+    "delta": 3,
+    "id": "p3-3",
+    "item": "stock05",
+    "kind": "adjust"
+   },
+   {
+    "delta": 4,
+    "id": "p3-4",
+    "item": "stock07",
+    "kind": "adjust"
+   },
+   {
+    "delta": 4,
+    "id": "p3-5",
+    "item": "stock03",
+    "kind": "adjust"
+   }
+  ]
+ },
+ "real": [
+  "p1",
+  "p2",
+  "p3"
+ ],
+ "tokens": {
+  "p1": "fa603dbb7d0087e7f14d95b1e17cd841",
+  "p2": "f11d8b938b96f8430e3841881dcdf248",
+  "p3": "7b383c0bb4e4d23c5e848bb5676de624"
+ }
+}

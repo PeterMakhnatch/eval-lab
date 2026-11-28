@@ -1,0 +1,145 @@
+{
+ "arm": "solo",
+ "batch_limits": {
+  "p1": 12
+ },
+ "book": {
+  "stock01": 81,
+  "stock02": 48,
+  "stock03": 77,
+  "stock04": 67,
+  "stock05": 89,
+  "stock06": 44,
+  "stock07": 81,
+  "stock08": 43,
+  "stock09": 69,
+  "stock10": 84,
+  "stock11": 67,
+  "stock12": 52
+ },
+ "condition": "shared-solo",
+ "facet": "shared",
+ "id": "i08",
+ "late": null,
+ "queues": {
+  "p1": [
+   {
+    "id": "p3-3",
+    "item": "stock02",
+    "kind": "move",
+    "n": 2,
+    "to": "stock05"
+   },
+   {
+    "delta": -3,
+    "id": "p1-3",
+    "item": "stock02",
+    "kind": "adjust"
+   },
+   {
+    "delta": -3,
+    "id": "p1-6",
+    "item": "stock12",
+    "kind": "adjust"
+   },
+   {
+    "delta": -6,
+    "id": "p1-7",
+    "item": "stock07",
+    "kind": "adjust"
+   },
+   {
+    "delta": 3,
+    "id": "p3-4",
+    "item": "stock03",
+    "kind": "adjust"
+   },
+   {
+    "delta": 8,
+    "id": "p1-2",
+    "item": "stock01",
+    "kind": "adjust"
+   },
+   {
+    "delta": 3,
+    "id": "p1-5",
+    "item": "stock03",
+    "kind": "adjust"
+   },
+   {
+    "delta": 4,
+    "id": "p1-1",
+    "item": "stock04",
+    "kind": "adjust"
+   },
+   {
+    "delta": 9,
+    "id": "p2-1",
+    "item": "stock10",
+    "kind": "adjust"
+   },
+   {
+    "delta": 3,
+    "id": "p2-5",
+    "item": "stock05",
+    "kind": "adjust"
+   },
+   {
+    "delta": 4,
+    "id": "p3-2",
+    "item": "stock04",
+    "kind": "adjust"
+   },
+   {
+    "id": "p1-4",
+    "item": "stock08",
+    "kind": "move",
+    "n": 5,
+    "to": "stock03"
+   },
+   {
+    "delta": -2,
+    "id": "p2-6",
+    "item": "stock07",
+    "kind": "adjust"
+   },
+   {
+    "delta": -6,
+    "id": "p3-5",
+    "item": "stock02",
+    "kind": "adjust"
+   },
+   {
+    "delta": 5,
+    "id": "p2-4",
+    "item": "stock03",
+    "kind": "adjust"
+   },
+   {
+    "delta": 1,
+    "id": "p2-3",
+    "item": "stock01",
+    "kind": "adjust"
+   },
+   {
+    "delta": 6,
+    "id": "p3-1",
+    "item": "stock09",
+    "kind": "adjust"
+   },
+   {
+    "id": "p2-2",
+    "item": "stock08",
+    "kind": "move",
+    "n": 5,
+    "to": "stock01"
+   }
+  ]
+ },
+ "real": [
+  "p1"
+ ],
+ "tokens": {
+  "p1": "eaa47dc8ca54256b410a9de31a32047b"
+ }
+}

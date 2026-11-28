@@ -1,0 +1,13 @@
+name = "parley"
+description = "Clerks coordinate private tickets and absolute batches through a shared ready barrier."
+seed = "parley-v0.1"
+instances = 10
+facets = ["calm", "shared", "tight", "late", "storm"]
+arms = ["team", "open", "solo"]
+policies = ["oracle", "own", "idle", "sharer", "blindready", "hog", "quitter"]
+known_limits = [
+    "The card establishes scripted behavior, not model difficulty or team advantage.",
+    "The oracle needs a fair schedule and sufficient request budget; arbitrary starvation is outside the claim.",
+    "The open arm exposes queues but still requires a common write assignment and barrier.",
+    "The score includes untouched items; use focal and right.shared for attribution.",
+]

@@ -1,0 +1,96 @@
+{
+ "arm": "solo",
+ "batch_limits": {
+  "p1": 12
+ },
+ "book": {
+  "stock01": 83,
+  "stock02": 47,
+  "stock03": 54,
+  "stock04": 89,
+  "stock05": 44,
+  "stock06": 61,
+  "stock07": 64,
+  "stock08": 47,
+  "stock09": 93,
+  "stock10": 76,
+  "stock11": 95,
+  "stock12": 86
+ },
+ "condition": "calm-solo",
+ "facet": "calm",
+ "id": "i03",
+ "late": null,
+ "queues": {
+  "p1": [
+   {
+    "delta": -3,
+    "id": "p1-1",
+    "item": "stock05",
+    "kind": "adjust"
+   },
+   {
+    "delta": -2,
+    "id": "p1-2",
+    "item": "stock11",
+    "kind": "adjust"
+   },
+   {
+    "delta": -6,
+    "id": "p2-1",
+    "item": "stock12",
+    "kind": "adjust"
+   },
+   {
+    "delta": 5,
+    "id": "p3-2",
+    "item": "stock07",
+    "kind": "adjust"
+   },
+   {
+    "delta": -1,
+    "id": "p3-4",
+    "item": "stock04",
+    "kind": "adjust"
+   },
+   {
+    "delta": 1,
+    "id": "p1-4",
+    "item": "stock08",
+    "kind": "adjust"
+   },
+   {
+    "id": "p3-3",
+    "item": "stock02",
+    "kind": "move",
+    "n": 4,
+    "to": "stock07"
+   },
+   {
+    "id": "p1-5",
+    "item": "stock06",
+    "kind": "move",
+    "n": 7,
+    "to": "stock08"
+   },
+   {
+    "delta": -8,
+    "id": "p3-1",
+    "item": "stock01",
+    "kind": "adjust"
+   },
+   {
+    "delta": -9,
+    "id": "p1-3",
+    "item": "stock03",
+    "kind": "adjust"
+   }
+  ]
+ },
+ "real": [
+  "p1"
+ ],
+ "tokens": {
+  "p1": "038c8b1c27c8cc7d0b396565daecf88e"
+ }
+}

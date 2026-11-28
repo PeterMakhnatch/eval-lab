@@ -1,0 +1,145 @@
+{
+ "arm": "open",
+ "batch_limits": {
+  "p1": 4,
+  "p2": 4,
+  "p3": 2
+ },
+ "book": {
+  "stock01": 65,
+  "stock02": 63,
+  "stock03": 66,
+  "stock04": 86,
+  "stock05": 82,
+  "stock06": 63,
+  "stock07": 57,
+  "stock08": 86,
+  "stock09": 94,
+  "stock10": 95,
+  "stock11": 91,
+  "stock12": 53
+ },
+ "condition": "storm-open",
+ "facet": "storm",
+ "id": "i09",
+ "late": {
+  "seat": "p1",
+  "ticket": {
+   "delta": 1,
+   "id": "p1-late",
+   "item": "stock05",
+   "kind": "adjust"
+  }
+ },
+ "queues": {
+  "p1": [
+   {
+    "delta": -5,
+    "id": "p1-1",
+    "item": "stock04",
+    "kind": "adjust"
+   },
+   {
+    "id": "p1-2",
+    "item": "stock01",
+    "kind": "move",
+    "n": 1,
+    "to": "stock09"
+   },
+   {
+    "delta": 6,
+    "id": "p1-3",
+    "item": "stock11",
+    "kind": "adjust"
+   },
+   {
+    "delta": 8,
+    "id": "p1-4",
+    "item": "stock05",
+    "kind": "adjust"
+   }
+  ],
+  "p2": [
+   {
+    "delta": 9,
+    "id": "p2-1",
+    "item": "stock09",
+    "kind": "adjust"
+   },
+   {
+    "delta": 4,
+    "id": "p2-2",
+    "item": "stock10",
+    "kind": "adjust"
+   },
+   {
+    "id": "p2-3",
+    "item": "stock02",
+    "kind": "move",
+    "n": 1,
+    "to": "stock10"
+   },
+   {
+    "delta": 6,
+    "id": "p2-4",
+    "item": "stock06",
+    "kind": "adjust"
+   }
+  ],
+  "p3": [
+   {
+    "id": "p3-1",
+    "item": "stock12",
+    "kind": "move",
+    "n": 3,
+    "to": "stock09"
+   },
+   {
+    "delta": 5,
+    "id": "p3-2",
+    "item": "stock09",
+    "kind": "adjust"
+   },
+   {
+    "delta": -7,
+    "id": "p3-3",
+    "item": "stock01",
+    "kind": "adjust"
+   },
+   {
+    "delta": 5,
+    "id": "p3-4",
+    "item": "stock03",
+    "kind": "adjust"
+   },
+   {
+    "delta": 5,
+    "id": "p3-5",
+    "item": "stock06",
+    "kind": "adjust"
+   },
+   {
+    "delta": 5,
+    "id": "p3-6",
+    "item": "stock05",
+    "kind": "adjust"
+   },
+   {
+    "delta": 9,
+    "id": "p3-7",
+    "item": "stock10",
+    "kind": "adjust"
+   }
+  ]
+ },
+ "real": [
+  "p1",
+  "p2",
+  "p3"
+ ],
+ "tokens": {
+  "p1": "92a2159ce376ececef190579b3392430",
+  "p2": "6b74e86e81a4bbd59e1f65cc1ff55a78",
+  "p3": "de314021cf1eb42d7b82ec3a99333f21"
+ }
+}

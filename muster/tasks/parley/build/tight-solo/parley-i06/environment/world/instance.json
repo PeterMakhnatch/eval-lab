@@ -1,0 +1,133 @@
+{
+ "arm": "solo",
+ "batch_limits": {
+  "p1": 12
+ },
+ "book": {
+  "stock01": 45,
+  "stock02": 50,
+  "stock03": 45,
+  "stock04": 61,
+  "stock05": 81,
+  "stock06": 49,
+  "stock07": 76,
+  "stock08": 60,
+  "stock09": 47,
+  "stock10": 63,
+  "stock11": 91,
+  "stock12": 61
+ },
+ "condition": "tight-solo",
+ "facet": "tight",
+ "id": "i06",
+ "late": null,
+ "queues": {
+  "p1": [
+   {
+    "id": "p2-3",
+    "item": "stock10",
+    "kind": "move",
+    "n": 4,
+    "to": "stock01"
+   },
+   {
+    "delta": -2,
+    "id": "p3-6",
+    "item": "stock04",
+    "kind": "adjust"
+   },
+   {
+    "delta": 6,
+    "id": "p2-2",
+    "item": "stock03",
+    "kind": "adjust"
+   },
+   {
+    "delta": -2,
+    "id": "p3-3",
+    "item": "stock08",
+    "kind": "adjust"
+   },
+   {
+    "id": "p3-2",
+    "item": "stock07",
+    "kind": "move",
+    "n": 1,
+    "to": "stock12"
+   },
+   {
+    "delta": -9,
+    "id": "p2-6",
+    "item": "stock11",
+    "kind": "adjust"
+   },
+   {
+    "delta": 6,
+    "id": "p1-4",
+    "item": "stock09",
+    "kind": "adjust"
+   },
+   {
+    "delta": 2,
+    "id": "p2-5",
+    "item": "stock01",
+    "kind": "adjust"
+   },
+   {
+    "delta": -8,
+    "id": "p2-4",
+    "item": "stock04",
+    "kind": "adjust"
+   },
+   {
+    "delta": 1,
+    "id": "p1-1",
+    "item": "stock03",
+    "kind": "adjust"
+   },
+   {
+    "id": "p1-3",
+    "item": "stock07",
+    "kind": "move",
+    "n": 3,
+    "to": "stock12"
+   },
+   {
+    "delta": -5,
+    "id": "p3-1",
+    "item": "stock10",
+    "kind": "adjust"
+   },
+   {
+    "delta": -4,
+    "id": "p3-5",
+    "item": "stock07",
+    "kind": "adjust"
+   },
+   {
+    "delta": 5,
+    "id": "p1-2",
+    "item": "stock12",
+    "kind": "adjust"
+   },
+   {
+    "delta": 5,
+    "id": "p2-1",
+    "item": "stock12",
+    "kind": "adjust"
+   },
+   {
+    "delta": 7,
+    "id": "p3-4",
+    "item": "stock02",
+    "kind": "adjust"
+   }
+  ]
+ },
+ "real": [
+  "p1"
+ ],
+ "tokens": {
+  "p1": "a995d417b4b54a675a8d9ffc40cf42d2"
+ }
+}

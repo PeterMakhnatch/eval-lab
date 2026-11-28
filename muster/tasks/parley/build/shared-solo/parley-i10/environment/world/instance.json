@@ -1,0 +1,133 @@
+{
+ "arm": "solo",
+ "batch_limits": {
+  "p1": 12
+ },
+ "book": {
+  "stock01": 82,
+  "stock02": 71,
+  "stock03": 62,
+  "stock04": 83,
+  "stock05": 52,
+  "stock06": 68,
+  "stock07": 81,
+  "stock08": 69,
+  "stock09": 87,
+  "stock10": 52,
+  "stock11": 53,
+  "stock12": 83
+ },
+ "condition": "shared-solo",
+ "facet": "shared",
+ "id": "i10",
+ "late": null,
+ "queues": {
+  "p1": [
+   {
+    "delta": 6,
+    "id": "p1-4",
+    "item": "stock09",
+    "kind": "adjust"
+   },
+   {
+    "id": "p3-5",
+    "item": "stock11",
+    "kind": "move",
+    "n": 4,
+    "to": "stock04"
+   },
+   {
+    "delta": 8,
+    "id": "p1-6",
+    "item": "stock12",
+    "kind": "adjust"
+   },
+   {
+    "delta": 4,
+    "id": "p1-2",
+    "item": "stock07",
+    "kind": "adjust"
+   },
+   {
+    "delta": 2,
+    "id": "p3-4",
+    "item": "stock04",
+    "kind": "adjust"
+   },
+   {
+    "delta": 4,
+    "id": "p3-1",
+    "item": "stock09",
+    "kind": "adjust"
+   },
+   {
+    "delta": 1,
+    "id": "p2-2",
+    "item": "stock04",
+    "kind": "adjust"
+   },
+   {
+    "delta": -7,
+    "id": "p3-2",
+    "item": "stock10",
+    "kind": "adjust"
+   },
+   {
+    "delta": 5,
+    "id": "p1-3",
+    "item": "stock03",
+    "kind": "adjust"
+   },
+   {
+    "id": "p2-5",
+    "item": "stock02",
+    "kind": "move",
+    "n": 5,
+    "to": "stock04"
+   },
+   {
+    "delta": 2,
+    "id": "p2-3",
+    "item": "stock07",
+    "kind": "adjust"
+   },
+   {
+    "delta": 4,
+    "id": "p2-4",
+    "item": "stock03",
+    "kind": "adjust"
+   },
+   {
+    "id": "p1-5",
+    "item": "stock02",
+    "kind": "move",
+    "n": 4,
+    "to": "stock07"
+   },
+   {
+    "delta": 3,
+    "id": "p3-3",
+    "item": "stock07",
+    "kind": "adjust"
+   },
+   {
+    "delta": 1,
+    "id": "p2-1",
+    "item": "stock06",
+    "kind": "adjust"
+   },
+   {
+    "delta": 2,
+    "id": "p1-1",
+    "item": "stock08",
+    "kind": "adjust"
+   }
+  ]
+ },
+ "real": [
+  "p1"
+ ],
+ "tokens": {
+  "p1": "b43cf50b47ea767aee2e2ea194245eb3"
+ }
+}

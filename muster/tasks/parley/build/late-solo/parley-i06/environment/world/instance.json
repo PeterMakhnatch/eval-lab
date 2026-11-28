@@ -1,0 +1,135 @@
+{
+ "arm": "solo",
+ "batch_limits": {
+  "p1": 12
+ },
+ "book": {
+  "stock01": 47,
+  "stock02": 79,
+  "stock03": 57,
+  "stock04": 95,
+  "stock05": 68,
+  "stock06": 50,
+  "stock07": 79,
+  "stock08": 83,
+  "stock09": 45,
+  "stock10": 57,
+  "stock11": 87,
+  "stock12": 49
+ },
+ "condition": "late-solo",
+ "facet": "late",
+ "id": "i06",
+ "late": {
+  "seat": "p1",
+  "ticket": {
+   "delta": 7,
+   "id": "p1-late",
+   "item": "stock04",
+   "kind": "adjust"
+  }
+ },
+ "queues": {
+  "p1": [
+   {
+    "delta": -3,
+    "id": "p3-1",
+    "item": "stock03",
+    "kind": "adjust"
+   },
+   {
+    "delta": -4,
+    "id": "p3-5",
+    "item": "stock08",
+    "kind": "adjust"
+   },
+   {
+    "delta": 1,
+    "id": "p1-5",
+    "item": "stock12",
+    "kind": "adjust"
+   },
+   {
+    "delta": -4,
+    "id": "p2-3",
+    "item": "stock01",
+    "kind": "adjust"
+   },
+   {
+    "delta": -3,
+    "id": "p1-1",
+    "item": "stock05",
+    "kind": "adjust"
+   },
+   {
+    "id": "p1-3",
+    "item": "stock03",
+    "kind": "move",
+    "n": 4,
+    "to": "stock04"
+   },
+   {
+    "delta": -2,
+    "id": "p1-4",
+    "item": "stock03",
+    "kind": "adjust"
+   },
+   {
+    "delta": 1,
+    "id": "p3-2",
+    "item": "stock06",
+    "kind": "adjust"
+   },
+   {
+    "delta": -5,
+    "id": "p1-6",
+    "item": "stock11",
+    "kind": "adjust"
+   },
+   {
+    "delta": -6,
+    "id": "p1-2",
+    "item": "stock01",
+    "kind": "adjust"
+   },
+   {
+    "delta": 3,
+    "id": "p2-1",
+    "item": "stock04",
+    "kind": "adjust"
+   },
+   {
+    "delta": -9,
+    "id": "p3-3",
+    "item": "stock01",
+    "kind": "adjust"
+   },
+   {
+    "id": "p2-4",
+    "item": "stock08",
+    "kind": "move",
+    "n": 5,
+    "to": "stock04"
+   },
+   {
+    "delta": 1,
+    "id": "p2-2",
+    "item": "stock10",
+    "kind": "adjust"
+   },
+   {
+    "id": "p3-4",
+    "item": "stock11",
+    "kind": "move",
+    "n": 7,
+    "to": "stock07"
+   }
+  ]
+ },
+ "real": [
+  "p1"
+ ],
+ "tokens": {
+  "p1": "cef2f32d78a0af6574460ba62b41ca27"
+ }
+}

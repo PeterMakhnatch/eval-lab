@@ -1,0 +1,107 @@
+{
+ "arm": "open",
+ "batch_limits": {
+  "p1": 12,
+  "p2": 12,
+  "p3": 12
+ },
+ "book": {
+  "stock01": 62,
+  "stock02": 70,
+  "stock03": 63,
+  "stock04": 44,
+  "stock05": 82,
+  "stock06": 43,
+  "stock07": 85,
+  "stock08": 77,
+  "stock09": 72,
+  "stock10": 94,
+  "stock11": 88,
+  "stock12": 75
+ },
+ "condition": "calm-open",
+ "facet": "calm",
+ "id": "i02",
+ "late": null,
+ "queues": {
+  "p1": [
+   {
+    "id": "p1-1",
+    "item": "stock06",
+    "kind": "move",
+    "n": 6,
+    "to": "stock09"
+   },
+   {
+    "delta": -2,
+    "id": "p1-2",
+    "item": "stock06",
+    "kind": "adjust"
+   },
+   {
+    "delta": -2,
+    "id": "p1-3",
+    "item": "stock01",
+    "kind": "adjust"
+   }
+  ],
+  "p2": [
+   {
+    "delta": 5,
+    "id": "p2-1",
+    "item": "stock07",
+    "kind": "adjust"
+   },
+   {
+    "delta": -4,
+    "id": "p2-2",
+    "item": "stock11",
+    "kind": "adjust"
+   },
+   {
+    "id": "p2-3",
+    "item": "stock11",
+    "kind": "move",
+    "n": 2,
+    "to": "stock04"
+   }
+  ],
+  "p3": [
+   {
+    "delta": 5,
+    "id": "p3-1",
+    "item": "stock08",
+    "kind": "adjust"
+   },
+   {
+    "delta": -4,
+    "id": "p3-2",
+    "item": "stock12",
+    "kind": "adjust"
+   },
+   {
+    "id": "p3-3",
+    "item": "stock12",
+    "kind": "move",
+    "n": 3,
+    "to": "stock02"
+   },
+   {
+    "delta": -2,
+    "id": "p3-4",
+    "item": "stock03",
+    "kind": "adjust"
+   }
+  ]
+ },
+ "real": [
+  "p1",
+  "p2",
+  "p3"
+ ],
+ "tokens": {
+  "p1": "8a96c677e62b3654d156c94e359ab396",
+  "p2": "8582b46fc20d9de22e06aeb947c2e29a",
+  "p3": "5de95453c5b5fed093d97c65fe7b750b"
+ }
+}

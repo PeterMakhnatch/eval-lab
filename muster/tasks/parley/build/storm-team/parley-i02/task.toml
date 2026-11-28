@@ -1,0 +1,31 @@
+schema_version = "1.4"
+artifacts = ["/logs/world/events.jsonl"]
+
+[task]
+name = "muster/parley-i02"
+description = "Clerks coordinate private tickets and absolute batches through a shared ready barrier."
+keywords = ["seats", "multi-agent", "muster"]
+
+[metadata]
+condition = "storm-team"
+facet = "storm"
+arm = "team"
+family = "parley"
+instance = "i02"
+oracle_reward = 1.0
+card = "muster/tasks/parley/card.json"
+
+[verifier]
+timeout_sec = 120.0
+
+[agent]
+timeout_sec = 900.0
+
+[environment]
+build_timeout_sec = 600.0
+
+[agents.p1]
+
+[agents.p2]
+
+[agents.p3]

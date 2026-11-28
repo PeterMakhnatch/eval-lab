@@ -16,6 +16,7 @@ from statistics import fmean
 from tempfile import TemporaryDirectory
 from typing import Any, TypedDict
 
+from tidegauge import _bespoke_sim as bfx
 from tidegauge import stats
 from tidegauge.cli import main as tidegauge_main
 from tidegauge.sim_fixture import (
@@ -522,6 +523,20 @@ def _live(run: Run, root: Path, rng: Random) -> None:
                 f"{sorted(flagged)} versus {sorted(case.stalled)}")
 
 
+def _bespoke(run: Run, case: Scenario, root: Path) -> None:
+    run.scenarios += 1
+
+    def rep(step: str, cmd: str, paths: list[Path], **kw: Any) -> Report | None:
+        return _report(run, step, cmd, paths, **kw)
+
+    def eff(step: str, report: Report) -> None:
+        _effect(run, step, report)
+
+    bfx.check_bespoke_suite(
+        case, root, report_fn=rep, require_fn=run.require, effect_fn=eff, close_fn=_close
+    )
+
+
 def _run_seed(seed: int) -> Run:
     run = Run(seed)
     case = scenario(seed)
@@ -536,6 +551,7 @@ def _run_seed(seed: int) -> Run:
         run.exercise("rank-plan", lambda: _rank_and_plan(run, case, paths))
         run.exercise("gate-decompose", lambda: _gate_and_decompose(run, paths))
         run.exercise("context", lambda: _context(run, paths, case.seats))
+        run.exercise("bespoke", lambda: _bespoke(run, case, root))
         run.exercise(f"fault/{case.fault}", lambda: _fault(run, root, case.fault, case.seats[-1]))
         run.exercise("health", lambda: _health(run, root, Random(f"{seed}:health")))
         run.exercise("timeline", lambda: _timeline(run, root, Random(f"{seed}:timeline")))

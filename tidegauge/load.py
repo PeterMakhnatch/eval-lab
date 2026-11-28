@@ -11,6 +11,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from tidegauge._bespoke import (
+    BespokeIO,
+    BespokeTelemetry,
+    is_bespoke_trial_dir,
+    read_bespoke_telemetry,
+)
 from tidegauge.atif import read_trajectory
 from tidegauge.model import PHASES, Arm, Job, Problem, Progress, Running, Seat, Trial
 
@@ -20,76 +26,16 @@ PULL_LIMIT = re.compile(r"429 Too Many Requests|toomanyrequests|pull rate limit"
 BUILD_FAILED = re.compile(r"build failed|failed to build|failed to solve", re.IGNORECASE)
 
 INVALID_REWARD_EXCEPTIONS = frozenset(
-    (
-        "EnvironmentStartTimeoutError",
-        "SandboxBuildFailedError",
-        "AgentSetupTimeoutError",
-        "HealthcheckError",
-        "SandboxLikelyOutOfMemoryError",
-        "MemoryLimitExceededError",
-        "SSHAccessError",
-        "GKEExecStreamClosedError",
-        "GKEPodNotFoundError",
-        "RuntimeRequestError",
-        "AddTestsDirError",
-        "DownloadVerifierDirError",
-        "ApiError",
-        "ApiRateLimitError",
-        "ApiInternalServerError",
-        "ApiOverloadedError",
-        "ApiConnectionClosedError",
-        "ApiResponseStalledError",
-        "UnknownApiError",
-        "NetworkConnectionError",
-        "ApiConnectionError",
-        "ApiUsageLimitError",
-        "RateLimitError",
-        "InternalServerError",
-        "ServiceUnavailableError",
-        "APIConnectionError",
-        "APIError",
-        "Timeout",
-        "UnsupportedModelParametersError",
-        "BadRequestError",
-        "UnprocessableEntityError",
-        "UnsupportedParamsError",
-        "APIResponseValidationError",
-        "BudgetExceededError",
-        "VerifierTimeoutError",
-        "RewardFileNotFoundError",
-        "RewardFileEmptyError",
-        "VerifierOutputParseError",
-        "AgentAuthenticationError",
-        "ModelNotFoundError",
-        "ApiProviderResourceNotFoundError",
-        "AuthenticationError",
-        "PermissionDeniedError",
-        "NotFoundError",
-        "ServiceOperationsUnsupportedError",
-        "VercelScopeError",
-        "DspyImportError",
-        "MissingExtraError",
-        "RegradeError",
-        "CancelledError",
-    )
+    ["EnvironmentStartTimeoutError", "SandboxBuildFailedError", "AgentSetupTimeoutError", "HealthcheckError", "SandboxLikelyOutOfMemoryError", "MemoryLimitExceededError", "SSHAccessError", "GKEExecStreamClosedError", "GKEPodNotFoundError", "RuntimeRequestError", "AddTestsDirError", "DownloadVerifierDirError", "ApiError", "ApiRateLimitError", "ApiInternalServerError", "ApiOverloadedError", "ApiConnectionClosedError", "ApiResponseStalledError", "UnknownApiError", "NetworkConnectionError", "ApiConnectionError", "ApiUsageLimitError", "RateLimitError", "InternalServerError", "ServiceUnavailableError", "APIConnectionError", "APIError", "Timeout", "UnsupportedModelParametersError", "BadRequestError", "UnprocessableEntityError", "UnsupportedParamsError", "APIResponseValidationError", "BudgetExceededError", "VerifierTimeoutError", "RewardFileNotFoundError", "RewardFileEmptyError", "VerifierOutputParseError", "AgentAuthenticationError", "ModelNotFoundError", "ApiProviderResourceNotFoundError", "AuthenticationError", "PermissionDeniedError", "NotFoundError", "ServiceOperationsUnsupportedError", "VercelScopeError", "DspyImportError", "MissingExtraError", "RegradeError", "CancelledError"]
 )
 
 _DEFAULTS: dict[str, Any] = {
-    "timeout_multiplier": 1.0,
-    "agent_timeout_multiplier": None,
-    "verifier_timeout_multiplier": None,
-    "agent_setup_timeout_multiplier": None,
-    "environment_build_timeout_multiplier": None,
-    "agent.override_timeout_sec": None,
-    "agent.override_setup_timeout_sec": None,
-    "agent.max_timeout_sec": None,
-    "environment.override_cpus": None,
-    "environment.override_memory_mb": None,
-    "environment.override_storage_mb": None,
-    "environment.override_gpus": None,
-    "verifier.override_timeout_sec": None,
-    "verifier.max_timeout_sec": None,
-    "verifier.disable": False,
+    "timeout_multiplier": 1.0, "agent_timeout_multiplier": None, "verifier_timeout_multiplier": None,
+    "agent_setup_timeout_multiplier": None, "environment_build_timeout_multiplier": None,
+    "agent.override_timeout_sec": None, "agent.override_setup_timeout_sec": None, "agent.max_timeout_sec": None,
+    "environment.override_cpus": None, "environment.override_memory_mb": None,
+    "environment.override_storage_mb": None, "environment.override_gpus": None,
+    "verifier.override_timeout_sec": None, "verifier.max_timeout_sec": None, "verifier.disable": False,
 }
 
 
@@ -122,10 +68,10 @@ def _count(value: Any) -> int | None:
 
 
 def _time(value: Any) -> datetime | None:
-    if not isinstance(value, str):
+    if not isinstance(value, str) or not (text := value.strip()):
         return None
     try:
-        parsed = datetime.fromisoformat(value)
+        parsed = datetime.fromisoformat(text)
     except ValueError:
         return None
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
@@ -342,10 +288,129 @@ def _not_started(result: Mapping[str, Any]) -> str | None:
     return f"setup-error {kind}"
 
 
+def _read_json(path: Path) -> Any:
+    with open(path, encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def _read_jsonl(path: Path) -> list[Mapping[str, Any]]:
+    rows: list[Mapping[str, Any]] = []
+    try:
+        with open(path, encoding="utf-8", errors="replace") as handle:
+            for index, raw in enumerate(handle):
+                if index >= 50_000:
+                    break
+                line = raw.strip()
+                if not line:
+                    continue
+                try:
+                    item = json.loads(line)
+                except ValueError:
+                    rows.append({"__torn__": True})
+                    continue
+                rows.append(item if isinstance(item, Mapping) else {"__torn__": True})
+    except OSError:
+        return []
+    return rows
+
+
+def _read_small_text(path: Path) -> str | None:
+    try:
+        if path.lstat().st_size > 65_536:
+            return None
+        with open(path, encoding="utf-8", errors="replace") as handle:
+            return handle.read(65_536)
+    except OSError:
+        return None
+
+
+def _rfile(root: Path, *parts: str) -> Path | None:
+    p = root.joinpath(*parts)
+    with contextlib.suppress(OSError):
+        return p if not p.is_symlink() and p.is_file() else None
+    return None
+
+
+def _has_dir(path: Path) -> bool:
+    with contextlib.suppress(OSError):
+        return not path.is_symlink() and path.is_dir()
+    return False
+
+
+def _subdirs(path: Path) -> list[Path]:
+    with contextlib.suppress(OSError):
+        if not _has_dir(path):
+            return []
+        kids = sorted(path.iterdir())[:256]
+        return [c for c in kids if not c.name.startswith(".") and _has_dir(c)]
+    return []
+
+
+_BESPOKE_IO = BespokeIO(_rfile, _subdirs, _has_dir, _read_json, _read_jsonl, _read_small_text)
+
+
+def _file_rewards(path: Path) -> dict[str, float]:
+    if (rjson := _rfile(path, "verifier", "reward.json")) is not None:
+        with contextlib.suppress(OSError, ValueError, RecursionError):
+            doc = _read_json(rjson)
+            if isinstance(doc, Mapping):
+                return {str(k): n for k, v in doc.items() if (n := _number(v)) is not None}
+            if (num := _number(doc)) is not None:
+                return {"reward": num}
+    if (rtxt := _rfile(path, "verifier", "reward.txt")) and (txt := _read_small_text(rtxt)):
+        with contextlib.suppress(ValueError):
+            if (num := _number(float(txt.strip()))) is not None:
+                return {"reward": num}
+    return {}
+
+
+def _merge_config(path: Path, result: Mapping[str, Any]) -> Mapping[str, Any]:
+    res_cfg = _mapping(result.get("config"))
+    file_cfg: Mapping[str, Any] = {}
+    if (cfp := _rfile(path, "config.json")) is not None:
+        with contextlib.suppress(OSError, ValueError, RecursionError):
+            file_cfg = _mapping(_read_json(cfp))
+    if not file_cfg:
+        return res_cfg
+    merged: dict[str, Any] = {**file_cfg, **res_cfg}
+    by_seat: dict[str, Mapping[str, Any]] = {}
+    for src in (file_cfg, res_cfg):
+        for p in _participants(src):
+            if isinstance(s := p.get("seat"), str) and s:
+                by_seat[s] = {**by_seat.get(s, {}), **p}
+    if by_seat:
+        merged["participants"] = list(by_seat.values())
+    return merged
+
+
+def bespoke_telemetry(path: Path, result: Mapping[str, Any] | None = None) -> BespokeTelemetry | None:
+    res = result
+    if res is None and (rjp := _rfile(path, "result.json")) is not None:
+        with contextlib.suppress(OSError, ValueError, RecursionError):
+            if isinstance(loaded := _read_json(rjp), Mapping):
+                res = loaded
+    res_map = res or {}
+    cfg = _merge_config(path, res_map)
+    return read_bespoke_telemetry(path, res_map, cfg, _BESPOKE_IO) if is_bespoke_trial_dir(path, _BESPOKE_IO, res_map, cfg) else None
+
+
+def _resolve_trial_rewards(
+    path: Path, result: Mapping[str, Any], reward_key: str | None, extra: Mapping[str, float]
+) -> tuple[float | None, bool, dict[str, float]]:
+    base = _rewards(result) or _file_rewards(path)
+    primary = _primary(base, reward_key)
+    used_extra = False
+    if primary is None and reward_key is not None and extra:
+        primary = extra.get(reward_key, extra.get(f"mark.{reward_key}"))
+        used_extra = primary is not None
+    eff = {"reward": primary} if (used_extra and primary is not None) else base
+    return primary, _valid(result, eff), {**extra, **base}
+
+
 def parse_trial(
     path: Path, result: Mapping[str, Any], reward_key: str | None = None, harbor_version: str | None = None
 ) -> Trial:
-    config = _mapping(result.get("config"))
+    config = _merge_config(path, result)
     agent, version, model = _identity(_mapping(result.get("agent_info")), _mapping(config.get("agent")))
     fields: dict[str, Any] = {
         "agent": agent,
@@ -353,49 +418,44 @@ def parse_trial(
         "model": model,
         **_usage_fields(_usage(result)),
     }
-    fields.update(_team(path, result, config))
-    task_name = str(
-        result.get("task_name") or _get(config, "task.name") or _get(config, "task.path") or path.name
-    )
-    rewards = _rewards(result)
-    phases: dict[str, float] = {}
-    for phase in PHASES:
-        start, end = _time(_get(result, f"{phase}.started_at")), _time(_get(result, f"{phase}.finished_at"))
-        if start and end:
-            phases[phase] = (end - start).total_seconds()
+    extra_rewards: dict[str, float] = {}
+    if team_fields := _team(path, result, config):
+        fields.update(team_fields)
+    elif is_bespoke_trial_dir(path, _BESPOKE_IO, result, config):
+        bespoke = read_bespoke_telemetry(path, result, config, _BESPOKE_IO)
+        fields.update(bespoke.fields)
+        extra_rewards = bespoke.extra_rewards
+    fb_task = path.name.split("__", 1)[0] if "__" in path.name else path.name
+    task_name = str(result.get("task_name") or _get(config, "task.name") or _get(config, "task.path") or fb_task)
+    primary, valid, rewards = _resolve_trial_rewards(path, result, reward_key, extra_rewards)
+    phases = {
+        p: (end - start).total_seconds()
+        for p in PHASES
+        if (start := _time(_get(result, f"{p}.started_at"))) and (end := _time(_get(result, f"{p}.finished_at")))
+    }
     exceptions = _exceptions(result)
+    exc_type = str(et) if exceptions and isinstance(et := exceptions[0].get("exception_type"), str) and et else None
     checksum = result.get("task_checksum")
     return Trial(
-        path=path,
-        trial_name=str(result.get("trial_name") or path.name),
-        task=task_key(task_name),
-        task_name=task_name,
-        task_checksum=checksum if isinstance(checksum, str) else None,
+        path=path, trial_name=str(result.get("trial_name") or path.name), task=task_key(task_name),
+        task_name=task_name, task_checksum=checksum if isinstance(checksum, str) else None,
         source=result.get("source") if isinstance(result.get("source"), str) else None,
         environment=_get(config, "environment.type") or _get(config, "environment.import_path"),
-        reward=_primary(rewards, reward_key),
-        valid=_valid(result, rewards),
-        rewards=rewards,
-        exception=str(exceptions[0].get("exception_type")) if exceptions else None,
-        started_at=_time(result.get("started_at")),
-        finished_at=_time(result.get("finished_at")),
-        phase_seconds=phases,
-        harbor_version=harbor_version,
-        conditions=_conditions(config),
+        reward=primary, valid=valid, rewards=rewards, exception=exc_type,
+        started_at=_time(result.get("started_at")), finished_at=_time(result.get("finished_at")),
+        phase_seconds=phases, harbor_version=harbor_version, conditions=_conditions(config),
         agent_started_at=_time(_get(result, "agent_execution.started_at")),
         agent_finished_at=_time(_get(result, "agent_execution.finished_at")),
-        not_started=_not_started(result),
-        **fields,
+        not_started=_not_started(result), **fields,
     )
 
 
-def _read_json(path: Path) -> Any:
-    with open(path, encoding="utf-8") as handle:
-        return json.load(handle)
-
-
-def _is_trial_result(data: Any) -> bool:
-    return isinstance(data, Mapping) and "trial_name" in data and ("task_name" in data or "task_id" in data)
+def _is_trial_result(data: Any, here: Path | None = None) -> bool:
+    if not isinstance(data, Mapping) or "n_total_trials" in data:
+        return False
+    if "trial_name" in data and ("task_name" in data or "task_id" in data):
+        return True
+    return here is not None and is_bespoke_trial_dir(here, _BESPOKE_IO, data)
 
 
 def _is_trial_config(data: Any) -> bool:
@@ -408,12 +468,17 @@ def _job(here: Path, result: Any) -> Job | None:
     version = None
     with contextlib.suppress(OSError, ValueError):
         version = _get(_read_json(here / "lock.json"), "harbor.version")
-    return Job(
-        path=here,
-        harbor_version=version if isinstance(version, str) else None,
-        n_total_trials=_count(result.get("n_total_trials")),
-        n_retries=_count(_get(result, "stats.n_retries")),
-    )
+    v_str = version if isinstance(version, str) else None
+    return Job(here, v_str, _count(result.get("n_total_trials")), _count(_get(result, "stats.n_retries")))
+
+
+def _safe_parse_trial(
+    here: Path, data: Mapping[str, Any], reward_key: str | None, version: str | None, err_path: Path
+) -> Trial | Problem:
+    try:
+        return parse_trial(here, data, reward_key, version)
+    except (OSError, TypeError, ValueError, AttributeError) as error:
+        return Problem(err_path, f"unexpected shape: {error}")
 
 
 def walk(root: Path, reward_key: str | None = None) -> Iterator[Trial | Problem | Job]:
@@ -425,24 +490,32 @@ def walk(root: Path, reward_key: str | None = None) -> Iterator[Trial | Problem 
             try:
                 data = _read_json(here / "result.json")
             except (OSError, ValueError, RecursionError) as error:
+                if {"agent", "seats", "verifier", "marks"} & set(subdirs) or is_bespoke_trial_dir(here, _BESPOKE_IO):
+                    subdirs[:] = []
                 yield Problem(here / "result.json", f"unreadable: {type(error).__name__}")
                 continue
-            if _is_trial_result(data):
+            if _is_trial_result(data, here):
                 subdirs[:] = []
-                try:
-                    yield parse_trial(here, data, reward_key, versions.get(here.parent))
-                except (TypeError, ValueError, AttributeError) as error:
-                    yield Problem(here / "result.json", f"unexpected shape: {error}")
+                yield _safe_parse_trial(here, data, reward_key, versions.get(here.parent), here / "result.json")
             elif (job := _job(here, data)) is not None:
                 versions[here] = job.harbor_version
                 yield job
         elif "config.json" in files:
-            try:
+            data = None
+            with contextlib.suppress(OSError, ValueError, RecursionError):
                 data = _read_json(here / "config.json")
-            except (OSError, ValueError, RecursionError):
-                continue
-            if _is_trial_config(data):
+            cfg = _mapping(data)
+            if is_bespoke_trial_dir(here, _BESPOKE_IO, config=cfg) and _file_rewards(here):
                 subdirs[:] = []
+                yield _safe_parse_trial(here, {"config": cfg} if cfg else {}, reward_key, versions.get(here.parent), here)
+            elif _is_trial_config(data):
+                subdirs[:] = []
+                yield Problem(here, "trial has no result.json: it did not finish")
+        elif is_bespoke_trial_dir(here, _BESPOKE_IO):
+            subdirs[:] = []
+            if _file_rewards(here):
+                yield _safe_parse_trial(here, {}, reward_key, versions.get(here.parent), here)
+            else:
                 yield Problem(here, "trial has no result.json: it did not finish")
 
 
@@ -464,23 +537,14 @@ def load_arm(path: str | os.PathLike[str], name: str | None = None, reward_key: 
 
 
 def parse_arm_spec(spec: str) -> tuple[str | None, str]:
-    if "=" in spec and not os.path.exists(spec):
-        name, _, path = spec.partition("=")
-        return name, path
-    return None, spec
+    return (spec.partition("=")[0], spec.partition("=")[2]) if ("=" in spec and not os.path.exists(spec)) else (None, spec)
 
 
 def load_arms(specs: list[str], reward_key: str | None = None) -> list[Arm]:
-    arms = []
-    for spec in specs:
-        name, path = parse_arm_spec(spec)
-        arms.append(load_arm(path, name, reward_key))
+    arms = [load_arm(p, n, reward_key) for spec in specs for n, p in (parse_arm_spec(spec),)]
     names = [arm.name for arm in arms]
     if len(set(names)) != len(names):
-        arms = [
-            Arm(parse_arm_spec(spec)[1], arm.trials, arm.problems, arm.jobs)
-            for spec, arm in zip(specs, arms, strict=True)
-        ]
+        arms = [Arm(parse_arm_spec(s)[1], a.trials, a.problems, a.jobs) for s, a in zip(specs, arms, strict=True)]
     return arms
 
 
@@ -488,12 +552,8 @@ def split_arms(path: str | os.PathLike[str], reward_key: str | None = None) -> l
     root = Path(path)
     if not root.is_dir():
         raise FileNotFoundError(f"not a directory: {root}")
-    arms = []
-    for child in sorted(p for p in root.iterdir() if p.is_dir() and not p.name.startswith(".")):
-        arm = load_arm(child, reward_key=reward_key)
-        if arm.trials:
-            arms.append(arm)
-    return arms
+    kids = sorted(p for p in root.iterdir() if p.is_dir() and not p.name.startswith("."))
+    return [arm for child in kids if (arm := load_arm(child, reward_key=reward_key)).trials]
 
 
 MAX_SEATS = 1024

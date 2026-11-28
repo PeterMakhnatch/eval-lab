@@ -1,0 +1,185 @@
+name = "replan_v1"
+description = """\
+Mid-flight plan invalidation and obsolete-work fencing across 3 seats (p1, p2, p3; anchored by \
+1-seat sequential solo-x3). 72 work records (1..72) are partitioned 24 per seat in 3-seat \
+conditions (p1: 1..24, p2: 25..48, p3: 49..72), each seat holding a budget of 3 commits \
+(combined 9 commits across 1..72 in solo-x3). Once global valid commits reach trigger_threshold T = 4, \
+the world shifts to Epoch 2: remaining uncommitted Epoch 1 targets become stale and 5 new Epoch 2 \
+targets become active while GET /plan masks valid_commits at T = 4. Only p1 can read GET /alerts \
+(p2 and p3 receive HTTP 403). Five conditions across 10 deterministic instances (50 tasks) \
+evaluate solo capability (solo-x3), uncoordinated silence (indep-3), unstructured chat (team-3-chat), \
+structured named notices (team-3-named), and server-side optimistic epoch fencing (team-3-fenced).\
+"""
+seed = "replan-v1"
+instances = 10
+total_records = 72
+records_per_seat = 24
+budget = 3
+trigger_threshold = 4
+alert_seat = "p1"
+exploits = ["spoof"]
+
+[scoring]
+epoch1_commit = 0.05
+epoch2_commit = 0.1
+cutover_bonus = 0.3
+obsolete_penalty = 0.32
+
+[triad]
+s1_condition = "solo-x3"
+s0k_condition = "indep-3"
+sk_condition = "team-3-named"
+sk_guard_condition = "team-3-fenced"
+min_coordination_gain = 0.50
+min_sk_oracle = 1.0
+max_s0k_oracle = 0.40
+max_sk_naive = 0.45
+naive_policies = ["naive"]
+exploits = ["spoof"]
+
+[triad.expected_detectors]
+naive = ["post_settlement_waste"]
+
+[policies]
+oracle = "Completes Stage-1 lead commits to reach T=4; p1 reads GET /alerts, broadcasts Epoch 2 id and targets on /notice or /msg when enabled, and all seats commit only active Epoch 2 targets (or cleanly abstain when channel is disabled in indep-3)."
+nop = "Exits cleanly without making any world request: scores 0.0 everywhere."
+naive = "Executes initial Epoch 1 targets without checking /alerts, /msgs, or /notices, committing 5 obsolete Stage-2 writes in unfenced conditions (post_settlement_waste) or hitting 5 HTTP 409 stale_plan_epoch blocks in team-3-fenced."
+spoof = "Exploit adversary testing missing/forged Bearer tokens, X-Seat and body sender spoofing, cross-seat /alerts access, cross-partition commits, and remote POST /admin/close. Scores 0.0 everywhere."
+
+[conditions.solo-x3]
+seats = ["p1"]
+channel = false
+notices = false
+epoch_fence = false
+budget = 9
+shared_observables = ["GET /plan", "GET /alerts", "POST /commit"]
+control = true
+
+[conditions.indep-3]
+seats = ["p1", "p2", "p3"]
+channel = false
+notices = false
+epoch_fence = false
+shared_observables = ["GET /plan"]
+
+[conditions.team-3-chat]
+seats = ["p1", "p2", "p3"]
+channel = true
+notices = false
+epoch_fence = false
+shared_observables = ["GET /plan", "POST /msg", "GET /msgs"]
+
+[conditions.team-3-named]
+seats = ["p1", "p2", "p3"]
+channel = true
+notices = true
+epoch_fence = false
+shared_observables = ["GET /plan", "POST /msg", "GET /msgs", "POST /notice", "GET /notices"]
+
+[conditions.team-3-fenced]
+seats = ["p1", "p2", "p3"]
+seats_guard = true
+channel = true
+notices = true
+epoch_fence = true
+shared_observables = ["GET /plan", "POST /msg", "GET /msgs", "POST /notice", "GET /notices", "POST /commit"]
+
+[reference.solo-x3.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.solo-x3.nop]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.solo-x3.naive]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.solo-x3.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.indep-3.oracle]
+mean = 0.3
+min = 0.3
+max = 0.3
+
+[reference.indep-3.nop]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.indep-3.naive]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.indep-3.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-3-chat.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.team-3-chat.nop]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-3-chat.naive]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-3-chat.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-3-named.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.team-3-named.nop]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-3-named.naive]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-3-named.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-3-fenced.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.team-3-fenced.nop]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-3-fenced.naive]
+mean = 0.2
+min = 0.2
+max = 0.2
+
+[reference.team-3-fenced.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0

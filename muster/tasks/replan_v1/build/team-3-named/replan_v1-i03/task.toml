@@ -1,0 +1,36 @@
+schema_version = "1.4"
+artifacts = ["/logs/world/events.jsonl"]
+
+[task]
+name = "muster/replan_v1-i03"
+description = "replan_v1-i03, condition team-3-named: 3 seats with named /notices and /msg, 3 commits per seat, adapt to mid-flight Epoch 2 replan without committing stale Epoch 1 records."
+keywords = ["seats", "multi-agent", "muster"]
+
+[metadata]
+family = "replan_v1"
+condition = "team-3-named"
+instance = 3
+seats_count = 3
+channel = true
+notices = true
+epoch_fence = false
+oracle_reward = 1.0
+exploits = ["spoof"]
+
+[verifier]
+timeout_sec = 120.0
+
+[agent]
+timeout_sec = 600.0
+
+[environment]
+build_timeout_sec = 600.0
+
+[environment.env]
+COMPOSE_BAKE = "false"
+
+[agents.p1]
+
+[agents.p2]
+
+[agents.p3]

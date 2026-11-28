@@ -1,0 +1,1 @@
+There are 3 seats (`p1`, `p2`, `p3`) working without a communication channel. Seats cannot exchange updates with one another; once `replan_triggered` becomes `true`, workers without `GET $WORLD/alerts` access should abstain rather than guess or commit stale records.

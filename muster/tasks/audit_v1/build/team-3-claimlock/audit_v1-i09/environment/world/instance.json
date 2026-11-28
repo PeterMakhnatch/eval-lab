@@ -1,0 +1,48 @@
+{
+  "channel": true,
+  "claim_locks": true,
+  "condition": "team-3-claimlock",
+  "family": "audit_v1",
+  "global_submit_budget": 8,
+  "instance": 9,
+  "seats": [
+    "p1",
+    "p2",
+    "p3"
+  ],
+  "services": {
+    "service_a": {
+      "grace_step": 46,
+      "header_bias": 669,
+      "quota_limit": 1206,
+      "realm_prefix": "gw-29f129",
+      "scale_factor": 23
+    },
+    "service_b": {
+      "batch_tag": 7041,
+      "fee_basis": 181,
+      "min_settle": 64,
+      "reconcile_mod": 331,
+      "tenant_code": "lg-492604"
+    },
+    "service_c": {
+      "channel_id": "wh-79b11e",
+      "shard_mod": 661,
+      "skew_tolerance": 45,
+      "slot_salt": 3427,
+      "ttl_seconds": 1646
+    }
+  },
+  "submit_budget": 4,
+  "workspace_services": {
+    "p1": [
+      "service_a"
+    ],
+    "p2": [
+      "service_b"
+    ],
+    "p3": [
+      "service_c"
+    ]
+  }
+}

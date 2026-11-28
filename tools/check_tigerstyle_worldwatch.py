@@ -18,7 +18,7 @@ ALLOWED_COMMENTS = re.compile(
 )
 FAMILIES = (
     "standing_v1", "trustcal_v1", "crowdscale_v1", "stalehand_v1", "orderladder_v1", "claimlease_v1",
-    "compactshift_v1", "skewledger_v1", "protofit_v1", "transact_mem_v1", "replan_v1",
+    "compactshift_v1", "skewledger_v1", "protofit_v1", "transact_mem_v1", "replan_v1", "audit_v1",
 )
 PURE_STDLIB = sys.stdlib_module_names | {"__future__"}
 WORLDWATCH_ALLOWED = PURE_STDLIB | {"worldwatch"}

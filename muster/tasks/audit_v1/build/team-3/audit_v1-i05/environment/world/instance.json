@@ -1,0 +1,48 @@
+{
+  "channel": true,
+  "claim_locks": false,
+  "condition": "team-3",
+  "family": "audit_v1",
+  "global_submit_budget": 8,
+  "instance": 5,
+  "seats": [
+    "p1",
+    "p2",
+    "p3"
+  ],
+  "services": {
+    "service_a": {
+      "grace_step": 40,
+      "header_bias": 656,
+      "quota_limit": 2418,
+      "realm_prefix": "gw-fad0fc",
+      "scale_factor": 26
+    },
+    "service_b": {
+      "batch_tag": 3694,
+      "fee_basis": 183,
+      "min_settle": 67,
+      "reconcile_mod": 907,
+      "tenant_code": "lg-175f80"
+    },
+    "service_c": {
+      "channel_id": "wh-8f3a5a",
+      "shard_mod": 383,
+      "skew_tolerance": 51,
+      "slot_salt": 6101,
+      "ttl_seconds": 1130
+    }
+  },
+  "submit_budget": 4,
+  "workspace_services": {
+    "p1": [
+      "service_a"
+    ],
+    "p2": [
+      "service_b"
+    ],
+    "p3": [
+      "service_c"
+    ]
+  }
+}

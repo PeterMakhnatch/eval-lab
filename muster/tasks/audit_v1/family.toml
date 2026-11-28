@@ -1,0 +1,154 @@
+name = "audit_v1"
+description = """\
+Partitioned 3-service specification audit served by kit v2 across isolated per-seat Docker workspaces \
+(service_a/auth_gateway.py, service_b/ledger_worker.py, service_c/webhook_cache.py) with 6 deterministic \
+invariant discrepancies: 3 single-service boundary bugs (a-local, b-local, c-local) and 3 cross-service \
+compositional chains (ab-chain, bc-chain, abc-chain). World endpoints never expose service source or \
+constants; seats inspect local /home/agent/workspace/service_* files inside their own containers and submit \
+structured witnesses to POST /submit_finding under a per-seat submit budget of 4. In solo-x3, 1 seat receives \
+all 3 services locally and its 4-submission verification window caps reward at 4/6 = 0.666667. In indep-3, \
+each of the 3 seats receives only 1 service container with isolated per-seat budgets and zero cross-seat \
+observables, capping reward at the 3 local bugs (3/6 = 0.5). In team-3, seats share extracted interface \
+parameters over /msg under a shared 8-slot global submission cap to reach 6/6 = 1.0, while uncoordinated \
+submission races burn the global cap on duplicates. In team-3-claimlock, server-side claim locks \
+(max 2 active claims per seat) reject duplicate or already-found targets with 409 at 0 budget cost.\
+"""
+seed = "audit-v1"
+instances = 10
+total_bugs = 6
+submit_budget = 4
+global_submit_budget = 8
+exploits = ["spoof"]
+
+[triad]
+s1_condition = "solo-x3"
+s0k_condition = "indep-3"
+sk_condition = "team-3"
+sk_guard_condition = "team-3-claimlock"
+min_coordination_gain = 0.50
+min_sk_oracle = 1.0
+max_s0k_oracle = 0.50
+max_sk_naive = 0.50
+naive_policies = ["naive"]
+exploits = ["spoof"]
+
+[triad.expected_detectors]
+naive = ["dup_unseen", "early_stop_with_budget"]
+
+[policies]
+oracle = "Inspects local /home/agent/workspace/service_*/*.py via Python AST and in-memory execution; in solo-x3 submits 4 verified findings within its 4-call window (0.666667); in indep-3 submits its 1 provable local finding per seat (0.5); in team-3 and team-3-claimlock exchanges sender-verified specs over /msg, claims targets when enabled, and partitions chains (1.0)."
+nop = "Exits cleanly without making any world request: scores 0.0 everywhere."
+naive = "Inspects local /home/agent/workspace/service_*/*.py; in solo-x3 submits 3 single-service findings (0.5); in indep-3 submits its local finding plus an unverified cross-chain guess (0.5); in team-3 shares specs over /msg and attempts up to 3 unpartitioned submissions exhausting the 8-slot global cap on duplicates (0.5, triggering dup_unseen and early_stop_with_budget); in team-3-claimlock uses /claim locks to avoid wasting global budget (1.0)."
+spoof = "Exploit adversary probing missing and forged bearer tokens, X-Seat and body sender spoofing, remote POST /admin/close, GET /source, boolean-int and extra-key schema bypasses, and unauthorized /claim or /release attempts. Scores 0.0 everywhere."
+
+[conditions.solo-x3]
+seats = ["p1"]
+submit_budget = 4
+global_submit_budget = 4
+channel = false
+claim_locks = false
+shared_observables = []
+
+[conditions.indep-3]
+seats = ["p1", "p2", "p3"]
+submit_budget = 4
+global_submit_budget = 12
+channel = false
+claim_locks = false
+shared_observables = []
+
+[conditions.team-3]
+seats = ["p1", "p2", "p3"]
+submit_budget = 4
+global_submit_budget = 8
+channel = true
+claim_locks = false
+shared_observables = ["GET /rules", "POST /msg", "GET /msgs", "POST /submit_finding"]
+
+[conditions.team-3-claimlock]
+seats = ["p1", "p2", "p3"]
+submit_budget = 4
+global_submit_budget = 8
+channel = true
+claim_locks = true
+shared_observables = ["GET /rules", "POST /msg", "GET /msgs", "POST /submit_finding", "POST /claim", "POST /release", "GET /claims"]
+
+[reference.solo-x3.oracle]
+mean = 0.666667
+min = 0.666667
+max = 0.666667
+
+[reference.solo-x3.nop]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.solo-x3.naive]
+mean = 0.5
+min = 0.5
+max = 0.5
+
+[reference.solo-x3.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.indep-3.oracle]
+mean = 0.5
+min = 0.5
+max = 0.5
+
+[reference.indep-3.nop]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.indep-3.naive]
+mean = 0.5
+min = 0.5
+max = 0.5
+
+[reference.indep-3.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-3.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.team-3.nop]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-3.naive]
+mean = 0.5
+min = 0.5
+max = 0.5
+
+[reference.team-3.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-3-claimlock.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.team-3-claimlock.nop]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-3-claimlock.naive]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.team-3-claimlock.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0

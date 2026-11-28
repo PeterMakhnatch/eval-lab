@@ -1,0 +1,35 @@
+schema_version = "1.4"
+artifacts = ["/logs/world/events.jsonl"]
+
+[task]
+name = "muster/audit_v1-i02"
+description = "audit_v1-i02, condition team-3-claimlock: 3 partitioned seats with message channel and claim locks, audit 6 microservice discrepancies via witness verification (kit v2)."
+keywords = ["seats", "multi-agent", "muster"]
+
+[metadata]
+family = "audit_v1"
+condition = "team-3-claimlock"
+instance = 2
+kit = "v2"
+channel = true
+claim_locks = true
+oracle_reward = 1.0
+exploits = ["spoof"]
+
+[verifier]
+timeout_sec = 120.0
+
+[agent]
+timeout_sec = 600.0
+
+[environment]
+build_timeout_sec = 600.0
+
+[environment.env]
+COMPOSE_BAKE = "false"
+
+[agents.p1]
+
+[agents.p2]
+
+[agents.p3]

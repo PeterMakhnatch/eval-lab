@@ -1,0 +1,35 @@
+schema_version = "1.4"
+artifacts = ["/logs/world/events.jsonl"]
+
+[task]
+name = "muster/audit_v1-i06"
+description = "audit_v1-i06, condition indep-3: 3 partitioned seats without a message channel, audit 6 microservice discrepancies via witness verification (kit v2)."
+keywords = ["seats", "multi-agent", "muster"]
+
+[metadata]
+family = "audit_v1"
+condition = "indep-3"
+instance = 6
+kit = "v2"
+channel = false
+claim_locks = false
+oracle_reward = 0.5
+exploits = ["spoof"]
+
+[verifier]
+timeout_sec = 120.0
+
+[agent]
+timeout_sec = 600.0
+
+[environment]
+build_timeout_sec = 600.0
+
+[environment.env]
+COMPOSE_BAKE = "false"
+
+[agents.p1]
+
+[agents.p2]
+
+[agents.p3]

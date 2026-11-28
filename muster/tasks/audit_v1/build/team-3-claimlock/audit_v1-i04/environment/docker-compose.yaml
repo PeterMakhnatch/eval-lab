@@ -1,0 +1,65 @@
+x-seat: &seat
+  user: agent
+  working_dir: /home/agent
+  command: ["sleep", "infinity"]
+  init: true
+  depends_on:
+    main:
+      condition: service_healthy
+
+services:
+  main:
+    command: ["python3", "/world/world.py"]
+    environment:
+      SEAT_TOKENS: "{\"c73a19b99dc119f5458f27163e006721\": \"p2\", \"ccffba5a67830152dce9c0644af7f22a\": \"p3\", \"fd557905dbe6b4f58bb2067e6e5e1223\": \"p1\"}"
+    networks:
+      p1-world:
+        aliases: [world]
+      p2-world:
+        aliases: [world]
+      p3-world:
+        aliases: [world]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=2)"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+      start_period: 2s
+  p1:
+    <<: *seat
+    build: ./seat_p1
+    networks: [p1-world]
+    environment:
+      SEAT: "p1"
+      SEAT_TOKEN: "fd557905dbe6b4f58bb2067e6e5e1223"
+      WORLD: "http://world:8080"
+  p2:
+    <<: *seat
+    build: ./seat_p2
+    networks: [p2-world]
+    environment:
+      SEAT: "p2"
+      SEAT_TOKEN: "c73a19b99dc119f5458f27163e006721"
+      WORLD: "http://world:8080"
+  p3:
+    <<: *seat
+    build: ./seat_p3
+    networks: [p3-world]
+    environment:
+      SEAT: "p3"
+      SEAT_TOKEN: "ccffba5a67830152dce9c0644af7f22a"
+      WORLD: "http://world:8080"
+
+networks:
+  p1-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p2-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true
+  p3-world:
+    internal: true
+    enable_ipv4: false
+    enable_ipv6: true

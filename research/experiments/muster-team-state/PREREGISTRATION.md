@@ -268,3 +268,40 @@ By the rule of Amendment 3 this is no prompt dependence (difference 0.02).
 Change: `gpt-6.2-sol` runs attempts 2 and 3 of `storm-probe` and `storm-terse` (10 instances, 40 trials). `claude-fable-5-2` runs attempts 2 and 3 of `storm-terse` (20 trials).
 Report for each arm the number of trials with focal 1.0 of 30, the instance means, and the contrast of Amendment 3 on the instance means. Report Fisher's exact test on full trials as a description, not as a decision.
 Attempts of one instance are not independent samples.
+
+## Amendment 6 (2026-11-28, 1:45 PM ET): `parley` v0.1, a prototype with no referee (exploratory)
+
+OBSERVED after Amendment 5: with 3 attempts on `storm`, `gpt-6.2-sol` is full in 30 of 30 `probe` trials and 28 of 30 `terse` trials; `claude-fable-5-2` is full in 29 of 30 `terse` trials.
+Both models score 1.0 in all 35 `team` trials with real agents in every seat. The 3 families are too easy for the 2 primary models in every arm that ran.
+
+Why a new family: in `depot`, `dossier` and `inquiry` the world checks the work (`expect`, the log, the ready barrier of the register).
+`parley` removes the referee. Tickets are private. Each clerk stores 1 batch of absolute writes. The world applies the batches without a check, in seat order, at the moment when every clerk is ready.
+Design: `DESIGN-parley.md` on branch `fable/parley`, revision `5451b02f8`. The family has no review round and its card has scripted policies only.
+The results are exploratory. They decide what to build next and nothing else.
+
+Harness: `muster host` of revision `5451b02f8` (its host code is the final host `d48b4c12a`, which differs from the pilot snapshot `c903bd964` in 13 lines of `hostjob.py`), the same wrapper and system prompt.
+Trial time limit: 900 s, the packaged value. At most 3 team trials at once for each model.
+
+Not scored: 3 trials of `gpt-6.2-sol` on instance i10 (`shared-team`, `storm-team`, `storm-solo`) check that an agent can use the API.
+
+Screen cohort: instances i01 to i05; `calm-team`, `shared-team`, `tight-team`, `late-team`, `storm-team` and the 5 `solo` conditions; both primary models; 1 attempt.
+All 3 seats of a team trial get the same model and wrapper and start together.
+
+Measures: `focal` (touched items that are right, of all touched items), `ended`, `right.shared`, `right.own`, `unwritten`, `disagreed`, `stale`, and the messages and requests of each seat.
+
+Lost and invalid:
+
+- A seat that reaches the time limit is not lost. A team that does not end the plan phase is an outcome (`ended` 0).
+- A trial is lost when a seat has a model or provider error, has no assistant message, or exits with an error that the time limit did not cause.
+- The validity rules of Amendment 2 stay. A seat that reads the directory or the token of another seat makes the trial invalid.
+
+Rules for the screen:
+
+- `calm` is the calibration facet. A model must reach mean `focal` 0.90 in `calm-team`. If it does not, its team results need a trace review for a text or harness problem first.
+- For each model and each hypothesis facet (`shared`, `tight`, `late`, `storm`), report the `team` mean, the `solo` mean and the paired difference on the 5 instances. 5 pairs cannot reach p = 0.05 in a sign test, so the screen decides no gap.
+- A facet is a candidate when `solo` is at least 0.90 and `team` is at least 0.20 below `solo`. A candidate also runs instances i06 to i10. On the 10 pairs the gap rule of this pre-registration applies: difference at least 0.20, bootstrap interval that excludes 0, sign test p at most 0.05.
+  `gpt-6.2-sol` saw i10 once in the trials that are not scored. The agent keeps no memory between trials.
+- If no facet is a candidate for a model, `parley` v0.1 is too easy for same-model teams of that model.
+- Every trial with `focal` below 1.0 gets a trace review: model failure, task defect or harness problem.
+
+Options if quota allows, each reported apart and with no decision: the `open` arm of a candidate facet; a mixed team (p1 `claude-fable-5-2`, p2 `gpt-6.2-sol`, p3 `grok-4.7`); teams of `grok-4.7` or `claude-haiku-5-5`.

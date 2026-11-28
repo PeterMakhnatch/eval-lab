@@ -192,7 +192,7 @@ Transfer of a result to the Harbor harness is not claimed.
 Stop a provider's trials when its weekly quota reaches 80% used (`policy/standing-approvals.yaml`), or when a model is replaced by another one.
 Finish the planned cohort of a model once it starts, unless a validity stop applies. Do not add facets mid-wave.
 
-## Amendment 2 (2026-11-28, 12:20 PM ET): changes after calibration, before any scored trial
+## Amendment 2 (2026-11-28, 12:13 PM ET): changes after calibration, before any scored trial
 
 OBSERVED in calibration 1 (28 trials, not scored; a throwaway driver on the same world loader):
 

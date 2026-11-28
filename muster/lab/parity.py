@@ -54,7 +54,7 @@ class ParityError(Exception):
     pass
 
 
-def _tokens(task: Path) -> dict[str, str]:
+def seat_tokens(task: Path) -> dict[str, str]:
     prefix = "      SEAT_TOKENS: "
     matches = [line[len(prefix):] for line in (task / "environment/docker-compose.yaml")
                .read_text().splitlines() if line.startswith(prefix)]
@@ -83,7 +83,7 @@ def _case(adapter: Any, task: Path, instance: dict, policy: str) -> Case:
     packaged = json.loads((task / "environment/world/instance.json").read_text())
     if packaged != json.loads(json.dumps(instance)):
         raise load.LabError(f"packaged instance differs from lab: {task}")
-    tokens = _tokens(task)
+    tokens = seat_tokens(task)
     if set(tokens) != set(seats):
         raise load.LabError(f"packaged token seats differ from lab: {task}")
     script = task / "policies" / f"{policy}.sh"
@@ -114,8 +114,9 @@ def _cases(adapter: Any, root: Path, condition: str | None, count: int, policy: 
     return cases
 
 
-def _world(case: Case, events: Path) -> tuple[Any, ModuleType, ModuleType]:
-    folder = case.task / "environment/world"
+def packaged_world(task: Path, tokens: dict[str, str],
+                   events: Path) -> tuple[Any, ModuleType, ModuleType]:
+    folder = task / "environment/world"
     try:
         mod = load.module(folder / "world.py", "parity_world")
         kit = mod.worldkit
@@ -124,13 +125,13 @@ def _world(case: Case, events: Path) -> tuple[Any, ModuleType, ModuleType]:
         if len(classes) != 1:
             raise load.LabError(f"expected one world class in {folder / 'world.py'}")
         instance = json.loads((folder / "instance.json").read_text())
-        world = classes[0](instance, {token: seat for seat, token in case.tokens.items()}, events)
-        verify = load.module(case.task / "tests/verify.py", "parity_verify", siblings=(folder,))
+        world = classes[0](instance, {token: seat for seat, token in tokens.items()}, events)
+        verify = load.module(task / "tests/verify.py", "parity_verify", siblings=(folder,))
         if not callable(verify.score):
-            raise load.LabError(f"no verifier score in {case.task}")
+            raise load.LabError(f"no verifier score in {task}")
         return world, kit, verify
     except Exception as error:
-        message = f"cannot load packaged world or verifier in {case.task}: {error}"
+        message = f"cannot load packaged world or verifier in {task}: {error}"
         raise load.LabError(message) from error
 
 
@@ -138,7 +139,7 @@ def _opener() -> urllib.request.OpenerDirector:
     return urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 
-def _health(url: str, deadline: float) -> None:
+def health(url: str, deadline: float) -> None:
     opener = _opener()
     for _ in range(HEALTH_POLLS):
         remaining = deadline - time.monotonic()
@@ -154,7 +155,7 @@ def _health(url: str, deadline: float) -> None:
 
 
 @contextmanager
-def _server(world: Any, kit: ModuleType) -> Iterator[str]:
+def serve_world(world: Any, kit: ModuleType) -> Iterator[str]:
     messages: Queue = Queue(maxsize=2)
     original = kit.ThreadingHTTPServer
 
@@ -184,7 +185,7 @@ def _server(world: Any, kit: ModuleType) -> Iterator[str]:
             raise ParityError(f"world server failed: {server}") from server
         host, port = server.server_address[:2]
         url = f"http://[{host}]:{port}" if ":" in host else f"http://{host}:{port}"
-        _health(url, deadline)
+        health(url, deadline)
         yield url
     finally:
         kit.__dict__["ThreadingHTTPServer"] = original
@@ -242,28 +243,39 @@ def _concurrent_scripts(case: Case, url: str, directory: Path) -> None:
             process.wait(timeout=STOP_TIMEOUT_SEC)
 
 
+def close_world(url: str) -> None:
+    request = urllib.request.Request(url + "/admin/close", data=b"{}", method="POST")
+    with _opener().open(request, timeout=START_TIMEOUT_SEC) as response:
+        if response.status != 200:
+            raise ParityError(f"world close returned {response.status}")
+        response.read()
+
+
+def closed_log(records: list[dict], world: Any) -> bool:
+    return bool(records) and records[-1]["kind"] == "admin.close" and bool(records[-1]["ok"]) \
+        and bool(world.closed)
+
+
+def packaged_instance(task: Path) -> dict:
+    return json.loads((task / "environment/world/instance.json").read_text())
+
+
 def _http_episode(case: Case, *, concurrent: bool = False) -> tuple[list[dict], dict[str, float]]:
     with TemporaryDirectory(prefix="muster-parity-") as tmp:
         directory = Path(tmp)
         events = directory / "events.jsonl"
-        world, kit, verify = _world(case, events)
-        with _server(world, kit) as url:
+        world, kit, verify = packaged_world(case.task, case.tokens, events)
+        with serve_world(world, kit) as url:
             if concurrent:
                 _concurrent_scripts(case, url, directory)
             else:
                 for seat in case.seats:
                     _script(case, seat, url, directory)
-            request = urllib.request.Request(url + "/admin/close", data=b"{}", method="POST")
-            with _opener().open(request, timeout=START_TIMEOUT_SEC) as response:
-                if response.status != 200:
-                    raise ParityError(f"world close returned {response.status}")
-                response.read()
+            close_world(url)
         records = kit.load_events(events)
-        if concurrent and (not records or records[-1]["kind"] != "admin.close"
-                           or not records[-1]["ok"] or not world.closed):
+        if concurrent and not closed_log(records, world):
             raise ParityError("event log does not end with a successful world close")
-        packaged = json.loads((case.task / "environment/world/instance.json").read_text())
-        return records, verify.score(records, packaged)
+        return records, verify.score(records, packaged_instance(case.task))
 
 
 def _normalized(event: dict | None) -> dict | None:

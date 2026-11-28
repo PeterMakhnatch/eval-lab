@@ -120,12 +120,14 @@ def packaged_world(task: Path, tokens: dict[str, str],
     try:
         mod = load.module(folder / "world.py", "parity_world")
         kit = mod.worldkit
-        classes = [value for value in vars(mod).values() if isinstance(value, type)
-                   and value.__module__ == mod.__name__ and issubclass(value, kit.World)]
+        classes = {value for value in vars(mod).values() if isinstance(value, type)
+                   and value.__module__ == mod.__name__ and issubclass(value, kit.World)}
         if len(classes) != 1:
             raise load.LabError(f"expected one world class in {folder / 'world.py'}")
         instance = json.loads((folder / "instance.json").read_text())
-        world = classes[0](instance, {token: seat for seat, token in tokens.items()}, events)
+        world_class, = classes
+        world = world_class(instance, {token: seat for seat, token in tokens.items()}, events)
+        kit.serve = getattr(mod, "serve", kit.serve)
         verify = load.module(task / "tests/verify.py", "parity_verify", siblings=(folder,))
         if not callable(verify.score):
             raise load.LabError(f"no verifier score in {task}")
@@ -157,7 +159,9 @@ def health(url: str, deadline: float) -> None:
 @contextmanager
 def serve_world(world: Any, kit: ModuleType) -> Iterator[str]:
     messages: Queue = Queue(maxsize=2)
-    original = kit.ThreadingHTTPServer
+    serve_fn = kit.serve
+    namespace = serve_fn.__globals__
+    original = namespace["ThreadingHTTPServer"]
 
     class LocalServer(original):
         def __init__(self, address, handler):
@@ -167,11 +171,11 @@ def serve_world(world: Any, kit: ModuleType) -> Iterator[str]:
 
     def serve() -> None:
         try:
-            kit.serve(world, port=0)
+            serve_fn(world, port=0)
         except Exception as error:
             messages.put_nowait(error)
 
-    kit.__dict__["ThreadingHTTPServer"] = LocalServer
+    namespace["ThreadingHTTPServer"] = LocalServer
     thread = Thread(target=serve, daemon=True)
     deadline = time.monotonic() + START_TIMEOUT_SEC
     server = None
@@ -188,7 +192,7 @@ def serve_world(world: Any, kit: ModuleType) -> Iterator[str]:
         health(url, deadline)
         yield url
     finally:
-        kit.__dict__["ThreadingHTTPServer"] = original
+        namespace["ThreadingHTTPServer"] = original
         if server is not None and not isinstance(server, Exception):
             stop = Thread(target=server.shutdown, daemon=True)
             stop.start()

@@ -6,6 +6,7 @@ import os
 import shutil
 import threading
 import time
+import tomllib
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from random import Random
@@ -190,6 +191,33 @@ def _failures(sim: Any, root: Path, agents: Path, case: tuple[str, str, str]) ->
     _no_tokens(sim, "failure", out, [trial])
 
 
+def _packaged_kits(sim: Any, root: Path, agents: Path, seed: int) -> None:
+    rng = Random(seed)
+    cases = [("boxes", "solo", "i01"), ("claimlease_v1", "ctrl_clean_claim", "i01"),
+             ("protofit_v1", "solo-x4", "i01")]
+    rng.shuffle(cases)
+    trials = _trials(cases, 60.0)
+    agent = _agent(agents, "kit-oracle", ["bash", "{task}/policies/oracle.sh"])
+    out = root / "kit-oracle"
+    out.mkdir()
+    for trial in trials:
+        record = host.run_trial(trial, agent, out, root / "homes", threading.Event(), REVISION)
+        metadata = tomllib.loads((trial.task / "task.toml").read_text())["metadata"]
+        sim.require("host", f"{trial.task_name}/reference", record["reward"] == metadata["oracle_reward"]
+                    and record["error"] is None, str(record["error"]))
+        sim.require("host", f"{trial.task_name}/clean-exit", set(record["exit_codes"].values()) == {0})
+        if metadata["family"] == "protofit_v1":
+            seat, = trial.seats
+            relative = "workspace/constraints.json"
+            sim.require("host", "v2/seat-files", record.get("seat_files") == {seat: [relative]})
+            placed = out / trial.name / seat / "home" / relative
+            source = trial.task / "environment" / f"seat_{seat}" / relative
+            sim.require("host", "v2/seat-bytes", placed.is_file() and placed.read_bytes() == source.read_bytes())
+            sim.require("host", "v2/chain", (record["rewards"] or {}).get("chain_ok") == 1.0)
+    regraded = regrade_command.report(out)
+    sim.require("host", "kits/regrade", regraded["counts"] == {"match": len(trials)}, str(regraded["counts"]))
+
+
 def run(sim: Any, seed: int) -> None:
     if seed != HOST_SEED:
         return
@@ -204,5 +232,6 @@ def run(sim: Any, seed: int) -> None:
             _rerun(sim, root, agents, cases)
             _timeout(sim, root, agents, cases[0])
             _failures(sim, root, agents, cases[0])
+            _packaged_kits(sim, root, agents, seed)
         sim.require("host", "homes-empty", not any(homes.iterdir()))
         shutil.rmtree(root / "agents")

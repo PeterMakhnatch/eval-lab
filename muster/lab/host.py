@@ -63,7 +63,7 @@ class Trial:
     seats: tuple[str, ...]
     under_test: tuple[bool, ...]
     timeout_sec: float
-    metadata: dict[str, str | None]
+    metadata: dict[str, str | int | float | None]
 
 
 def _names(value: Any) -> bool:
@@ -94,11 +94,11 @@ def read_agent(path: Path) -> Agent:
     return Agent(Path(os.path.abspath(path)), name, about, tuple(argv), dict(env), tuple(pass_env))
 
 
-def _metadata(task: Path) -> dict[str, str | None]:
+def _metadata(task: Path) -> dict[str, str | int | float | None]:
     data = tomllib.loads((task / "task.toml").read_text(encoding="utf-8"))
     table = data.get("metadata") if isinstance(data.get("metadata"), dict) else {}
     assert isinstance(table, dict)
-    return {key: value if isinstance(value := table.get(key), str) else None for key in METADATA}
+    return {key: value if type(value := table.get(key)) in (str, int, float) else None for key in METADATA}
 
 
 def _task_trials(directory: Path, attempts: int, timeout_sec: float | None) -> list[Trial]:
@@ -202,8 +202,11 @@ def _start(agent: Agent, trial: Trial, seat: str, seat_dir: Path, home: Path, ur
     record["agent"]["argv"][seat] = shown(agent, values, list(tokens.values()))
     with (seat_dir / "agent.stdout").open("wb") as out, (seat_dir / "agent.stderr").open("wb") as err:
         try:
-            return subprocess.Popen(render(agent, values), cwd=home,
-                                    env=_environment(agent, url, seat, tokens[seat]),
+            env = _environment(agent, url, seat, tokens[seat])
+            files = record.get("seat_files", {}).get(seat, [])
+            if len(files) == 1:
+                env.setdefault("WORKSPACE_FILE", str(home / files[0]))
+            return subprocess.Popen(render(agent, values), cwd=home, env=env,
                                     stdin=subprocess.DEVNULL, stdout=out, stderr=err, start_new_session=True)
         except OSError as error:
             raise HostError(f"{seat}: the agent cannot start: {error}") from error
@@ -236,8 +239,9 @@ def _play(agent: Agent, trial: Trial, directory: Path, url: str, tokens: dict[st
 def _remote(world: Any) -> Callable[..., tuple[int, dict]]:
     handle = world.handle
 
-    def remote(method: str, path: str, token: str | None, body: object, client: str) -> tuple[int, dict]:
-        return handle(method, path, token, body, api.REMOTE)
+    def remote(method: str, path: str, token: str | None, body: object, client: str,
+               **kwargs: Any) -> tuple[int, dict]:
+        return handle(method, path, token, body, api.REMOTE, **kwargs)
 
     world.handle = remote
     return handle

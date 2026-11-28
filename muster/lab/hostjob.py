@@ -136,6 +136,42 @@ def result(trial: Trial, agent: Agent, record: dict[str, Any]) -> dict[str, Any]
     }
 
 
+def _seat_files(task: Path, seat: str, home: Path) -> list[str]:
+    folder = task / "environment" / f"seat_{seat}"
+    dockerfile = folder / "Dockerfile"
+    if not dockerfile.is_file():
+        return []
+    copies = [line.strip() for line in dockerfile.read_text().splitlines()
+              if line.strip().startswith(("COPY ", "ADD "))]
+    if not copies:
+        return []
+    if copies != ["COPY --chown=agent:agent workspace/ /home/agent/workspace/"]:
+        raise ValueError(f"{seat}: unsupported packaged seat files")
+    workspace = folder / "workspace"
+    if not workspace.is_dir() or workspace.is_symlink() or folder.is_symlink():
+        raise ValueError(f"{seat}: missing or invalid packaged workspace")
+    files: list[str] = []
+    size = 0
+    for index, path in enumerate(workspace.rglob("*"), 1):
+        if index > MAX_HOME_ENTRIES or path.is_symlink():
+            raise ValueError(f"{seat}: invalid packaged workspace entry")
+        relative = path.relative_to(folder)
+        target = home / relative
+        if path.is_dir():
+            target.mkdir(parents=True, exist_ok=True)
+            continue
+        if not path.is_file():
+            raise ValueError(f"{seat}: non-regular packaged workspace file")
+        size += path.stat().st_size
+        if len(files) >= MAX_HOME_FILES or size > MAX_HOME_BYTES:
+            raise ValueError(f"{seat}: packaged workspace exceeds file or byte limit")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, target)
+        files.append(relative.as_posix())
+    assert len(files) <= MAX_HOME_FILES and size <= MAX_HOME_BYTES
+    return sorted(files)
+
+
 def prepare_seats(trial: Trial, directory: Path, home_root: Path, homes: dict[str, Path],
                   record: dict[str, Any]) -> None:
     assert not homes
@@ -145,6 +181,9 @@ def prepare_seats(trial: Trial, directory: Path, home_root: Path, homes: dict[st
         shutil.copyfile(trial.task / "instructions" / f"{seat}.md", seat_dir / "instruction.md")
         homes[seat] = Path(tempfile.mkdtemp(prefix="seat-", dir=home_root))
         record["home_during_run"][seat] = str(homes[seat])
+        files = _seat_files(trial.task, seat, homes[seat])
+        if files:
+            record.setdefault("seat_files", {})[seat] = files
     assert set(homes) == set(trial.seats)
 
 

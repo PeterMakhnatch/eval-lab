@@ -17,6 +17,8 @@ AGENT.json is {"about": "...", "argv": [...], "env": {...}, "pass_env": [...]}. 
 {instruction} {home} {seat} {seatdir} {trial} {task} {world} {token}. The agent gets WORLD, SEAT and SEAT_TOKEN,
 PATH HOME USER LANG TMPDIR and the pass_env names from this environment, and the env of the file.
 Each seat works in a fresh private directory under --home-root; muster copies its files to <trial>/<seat>/home.
+Packaged seat workspace files are placed in that directory. When there is one such file, WORKSPACE_FILE points to it.
+The seat directories are not an OS security boundary; use only trusted agent commands.
 Each trial is <out>/<task>__a<attempt>/ with host.json and the files that muster contrast, regrade and events read.
 Exit status: 0 every trial has a reward, 1 a trial has none (its host.json gives the error), 3 unusable input."""
 

@@ -244,3 +244,16 @@ Conditions: depot `limbo-team`, `takeover-team`, `skew-team`, `storm-team` and d
 Every real seat of a trial gets the same model and wrapper. All seats start together. The time limit is 1,800 s for the trial.
 A trial is lost when 1 of its seats is lost by the rules of Amendment 2. Report `reward`, and `team - probe` on the same 5 instances, with no decision by the gap rule.
 Team races depend on real timing. A full score does not show that a race was tested; report `conflicts` and `stale_writes` next to it.
+
+## Amendment 4 (2026-11-28, 1:25 PM ET): agent start failure, and when a lost trial runs again
+
+OBSERVED in follow-up 2: all 5 `mix-team` trials of `claude-fable-5-2` are lost. Each of the 15 agents stopped at start with `SQLITE_BUSY` on the agent program's own state database.
+No session file exists and no model request was made. The 15 agents started at the same moment while 3 other waves and 3 workers ran on the machine.
+
+Changes:
+
+1. The wrapper starts the agent again (at most 6 starts, 2 to 7 s apart) when the agent exits with a code other than 0, no session file exists, and its error output names the database lock.
+   A seat directory of a trial with the new wrapper has a file `start.1.stderr`. The wrapper file changed in place at 1:25 PM ET: trials of the secondary wave that start later use it.
+2. A trial that is lost before any model request (no session file in any seat) runs again once, in the same cohort. Its first directory moves to `_lost/` and stays as evidence.
+   This replaces "Do not replace losses in the cohort" for this case only: such a loss carries no information about the result.
+3. The 5 lost trials run again, 2 trials at once.

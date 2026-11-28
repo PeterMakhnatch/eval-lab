@@ -1,0 +1,35 @@
+schema_version = "1.4"
+artifacts = ["/logs/world/events.jsonl"]
+
+[task]
+name = "muster/gridlock_v1-i10"
+description = "gridlock_v1-i10, condition team-3-claimlock: 3 seats with a channel and claim interlocks, 6 actions per seat, restore a 3-zone cascading grid (kit v2)."
+keywords = ["seats", "multi-agent", "muster"]
+
+[metadata]
+family = "gridlock_v1"
+condition = "team-3-claimlock"
+instance = 10
+seats_count = 3
+channel = true
+claim_locks = true
+oracle_reward = 1.0
+exploits = ["spoof"]
+
+[verifier]
+timeout_sec = 120.0
+
+[agent]
+timeout_sec = 600.0
+
+[environment]
+build_timeout_sec = 600.0
+
+[environment.env]
+COMPOSE_BAKE = "false"
+
+[agents.p1]
+
+[agents.p2]
+
+[agents.p3]

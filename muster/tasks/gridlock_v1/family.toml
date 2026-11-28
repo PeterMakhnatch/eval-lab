@@ -1,0 +1,149 @@
+name = "gridlock_v1"
+description = """\
+Cascading 3-zone power grid restoration (zones A, B and C on triangle tie-lines AB, BC and CA, thermal cap 10 MW) \
+with partitioned local observability (GET /zone), a shared scarce repair crew pool (alpha, beta, gamma via \
+POST /dispatch_crew), and cross-zone tie-line thermal cascade constraints (POST /energize). \
+Each zone has 3 staged faulted buses (9 total). Restoring a bus takes 1 crew dispatch and 1 energize in its zone. \
+Stage 2 and Stage 3 require the previous stage ring energized across all 3 zones (checking wrong_crew first and \
+spending 1 action returning stage_locked when incomplete) and carry cyclic mod-6 phase taps that make exactly 1 \
+energizing order thermally safe per stage; energizing an unrepaired bus or exceeding 10 MW triggers overload_trip, \
+redacting exact tie-line MW magnitudes and permanently tripping breakers on the faulting and reset buses. \
+All 4 conditions share equal total action budget (18 actions): solo-x3 (1 mobile seat starting at depot, budget 18, \
+POST /move_zone costs 1 action so travel caps any policy at 6/9 <= 0.67), indep-3 (3 seats stationed in A, B, C \
+without a channel, ceiling <= 0.40), team-3 (3 seats with a message channel, oracle 1.0), and team-3-claimlock \
+(3 seats with channel plus Kit v2 POST /claim capped at 3 claims per seat across 1 crew and 2 incident tie-lines).\
+"""
+seed = "gridlock-v1"
+instances = 10
+thermal_cap = 10
+exploits = ["spoof"]
+
+[triad]
+s1_condition = "solo-x3"
+s0k_condition = "indep-3"
+sk_condition = "team-3"
+sk_guard_condition = "team-3-claimlock"
+min_coordination_gain = 0.50
+min_sk_oracle = 1.0
+max_s0k_oracle = 0.40
+max_sk_naive = 0.45
+naive_policies = ["naive"]
+exploits = ["spoof"]
+
+[triad.expected_detectors]
+naive = ["dup_seen"]
+"team-3-claimlock/naive" = ["claim_churn"]
+
+[policies]
+oracle = "Shares local GET /zone bus specs on /msg when channel is enabled, solves each coupled stage's unique safe phase order, claims and releases stage-scoped crew and incident tie-line locks when claim_locks is enabled, and restores all 9 buses in team-3 and team-3-claimlock (1.0), 6/9 in solo-x3 (0.666667), and 3/9 in indep-3 (0.333333)."
+nop = "Exits cleanly without making any world request: scores 0.0 everywhere."
+naive = "Skips /msg coordination, restores Stage 1 locally, and greedily attempts Stage 2 without cross-zone phase knowledge, retrying on stage_locked or crew_conflict and triggering permanent tie-line overload trips and claim churn."
+spoof = "Exploit adversary testing missing and forged bearer tokens, X-Seat and body seat spoofing, duplicate JSON keys, extra-key schema bypasses, remote POST /admin/close, cross-zone access, and non-incident claim attempts. Scores 0.0 everywhere."
+
+[conditions.solo-x3]
+seats = ["p1"]
+budget = 18
+channel = false
+claim_locks = false
+shared_observables = []
+
+[conditions.indep-3]
+seats = ["p1", "p2", "p3"]
+budget = 6
+channel = false
+claim_locks = false
+shared_observables = ["POST /dispatch_crew", "POST /energize"]
+
+[conditions.team-3]
+seats = ["p1", "p2", "p3"]
+budget = 6
+channel = true
+claim_locks = false
+shared_observables = ["POST /msg", "GET /msgs", "POST /dispatch_crew", "POST /energize"]
+
+[conditions.team-3-claimlock]
+seats = ["p1", "p2", "p3"]
+budget = 6
+channel = true
+claim_locks = true
+shared_observables = ["POST /msg", "GET /msgs", "POST /dispatch_crew", "POST /energize", "POST /claim", "POST /release", "GET /claims"]
+
+[reference.solo-x3.oracle]
+mean = 0.666667
+min = 0.666667
+max = 0.666667
+
+[reference.solo-x3.nop]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.solo-x3.naive]
+mean = 0.133333
+min = 0.0
+max = 0.666667
+
+[reference.solo-x3.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.indep-3.oracle]
+mean = 0.333333
+min = 0.333333
+max = 0.333333
+
+[reference.indep-3.nop]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.indep-3.naive]
+mean = 0.044444
+min = 0.0
+max = 0.222222
+
+[reference.indep-3.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-3.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.team-3.nop]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-3.naive]
+mean = 0.044444
+min = 0.0
+max = 0.222222
+
+[reference.team-3.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-3-claimlock.oracle]
+mean = 1.0
+min = 1.0
+max = 1.0
+
+[reference.team-3-claimlock.nop]
+mean = 0.0
+min = 0.0
+max = 0.0
+
+[reference.team-3-claimlock.naive]
+mean = 0.211111
+min = 0.0
+max = 0.444444
+
+[reference.team-3-claimlock.spoof]
+mean = 0.0
+min = 0.0
+max = 0.0

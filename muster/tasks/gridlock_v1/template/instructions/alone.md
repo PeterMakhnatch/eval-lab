@@ -1,0 +1,1 @@
+You work alone as a mobile operator across zones `A`, `B`, and `C`. Plan your zone travel (`POST $WORLD/move_zone`), local inspections (`GET $WORLD/zone`), crew dispatches, and safe phase-ordered energizations within your `{budget}` total actions.

@@ -1,0 +1,35 @@
+schema_version = "1.4"
+artifacts = ["/logs/world/events.jsonl"]
+
+[task]
+name = "muster/gridlock_v1-i08"
+description = "gridlock_v1-i08, condition indep-3: 3 seats without a message channel, 6 actions per seat, restore a 3-zone cascading grid (kit v2)."
+keywords = ["seats", "multi-agent", "muster"]
+
+[metadata]
+family = "gridlock_v1"
+condition = "indep-3"
+instance = 8
+seats_count = 3
+channel = false
+claim_locks = false
+oracle_reward = 0.333333
+exploits = ["spoof"]
+
+[verifier]
+timeout_sec = 120.0
+
+[agent]
+timeout_sec = 600.0
+
+[environment]
+build_timeout_sec = 600.0
+
+[environment.env]
+COMPOSE_BAKE = "false"
+
+[agents.p1]
+
+[agents.p2]
+
+[agents.p3]

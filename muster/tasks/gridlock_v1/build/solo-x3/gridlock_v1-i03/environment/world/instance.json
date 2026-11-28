@@ -1,0 +1,96 @@
+{
+  "budget": 18,
+  "buses": {
+    "A1": {
+      "bus": "A1",
+      "coupled": false,
+      "phase_tap": null,
+      "required_crew": "gamma",
+      "stage": 1,
+      "zone": "A"
+    },
+    "A2": {
+      "bus": "A2",
+      "coupled": true,
+      "phase_tap": 2,
+      "required_crew": "alpha",
+      "stage": 2,
+      "zone": "A"
+    },
+    "A3": {
+      "bus": "A3",
+      "coupled": true,
+      "phase_tap": 0,
+      "required_crew": "beta",
+      "stage": 3,
+      "zone": "A"
+    },
+    "B1": {
+      "bus": "B1",
+      "coupled": false,
+      "phase_tap": null,
+      "required_crew": "beta",
+      "stage": 1,
+      "zone": "B"
+    },
+    "B2": {
+      "bus": "B2",
+      "coupled": true,
+      "phase_tap": 3,
+      "required_crew": "gamma",
+      "stage": 2,
+      "zone": "B"
+    },
+    "B3": {
+      "bus": "B3",
+      "coupled": true,
+      "phase_tap": 1,
+      "required_crew": "alpha",
+      "stage": 3,
+      "zone": "B"
+    },
+    "C1": {
+      "bus": "C1",
+      "coupled": false,
+      "phase_tap": null,
+      "required_crew": "alpha",
+      "stage": 1,
+      "zone": "C"
+    },
+    "C2": {
+      "bus": "C2",
+      "coupled": true,
+      "phase_tap": 1,
+      "required_crew": "alpha",
+      "stage": 2,
+      "zone": "C"
+    },
+    "C3": {
+      "bus": "C3",
+      "coupled": true,
+      "phase_tap": 5,
+      "required_crew": "beta",
+      "stage": 3,
+      "zone": "C"
+    }
+  },
+  "channel": false,
+  "claim_locks": false,
+  "condition": "solo-x3",
+  "family": "gridlock_v1",
+  "initial_zone": {
+    "p1": "depot"
+  },
+  "instance": 3,
+  "seats": [
+    "p1"
+  ],
+  "stations": {
+    "p1": [
+      "A",
+      "B",
+      "C"
+    ]
+  },
+  "thermal_cap": 10
+}

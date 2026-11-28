@@ -1,0 +1,1 @@
+There are {agents} agents (`p1` in `A`, `p2` in `B`, `p3` in `C`), and there is no communication channel between seats. You only observe your own zone via `GET $WORLD/zone`; avoid blind cross-zone thermal cascade trips that reset energized feeders.
